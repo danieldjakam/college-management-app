@@ -1,10 +1,12 @@
 import React from 'react'
 import { useState } from "react";
 import { sectionTraductions } from '../../local/section';
-import { host } from '../../utils/fetch';
+import { useApi } from '../../hooks/useApi';
+import { apiEndpoints } from '../../utils/api';
 import { getLang } from '../../utils/lang';
 
 const AddSection = ({error, setError, setIsAddSection}) => {
+    const { execute, loading } = useApi();
 
     const [data, setData] = useState({
         name: '',
@@ -32,22 +34,15 @@ const AddSection = ({error, setError, setIsAddSection}) => {
             indication: 'CM2'
         },
     ];
-    const [loading, setLoading] = useState(false);
 
-    const handleAdd = (e) => {
+    const handleAdd = async (e) => {
         e.preventDefault();
-        setLoading(true);
-        fetch(host+'/sections/store', {method: 'POST', body: JSON.stringify(data), headers: {'Content-Type': 'application/json', 'Authorization': sessionStorage.user}})
-        .then((res) => res.json())
-        .then(res => {
-            if (res.success) {
-                window.location.reload();
-            }else{
-                setError(res.message)
-            }
-        })
-        .catch(err => setError(`Erreur: ${err}`))
-        setLoading(false)
+        try {
+            await execute(() => apiEndpoints.addSection(data));
+            window.location.reload();
+        } catch (err) {
+            setError(`Erreur lors de l'ajout de la section: ${err.message}`);
+        }
     }
     
     const handleCancel = () => {

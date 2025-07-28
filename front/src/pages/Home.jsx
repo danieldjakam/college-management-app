@@ -25,17 +25,18 @@ import EditSection from './Sections.jsx/EditSection';
 
 // Utils
 import { sectionTraductions } from '../local/section';
-import { host } from '../utils/fetch';
+import { useApi } from '../hooks/useApi';
+import { apiEndpoints } from '../utils/api';
 import { getLang } from '../utils/lang';
 
 function Home() {
+    const { execute, loading } = useApi();
     const [sections, setSections] = useState([]);
     const [stats, setStats] = useState({});
     const [error, setError] = useState('');
     const [idAddSection, setIsAddSection] = useState(false);
     const [id, setId] = useState('');
     const [idEditSection, setIsEditSection] = useState(false);
-    const [loading, setLoading] = useState(false);
     const [loadingDel, setLoadingDel] = useState(false);
 
     const navigate = useNavigate();
@@ -47,42 +48,35 @@ function Home() {
         }
     }, [navigate]);
 
+
     useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                // Fetch statistics for dashboard
+                // This would be a real API call in production
+                setStats({
+                    totalStudents: 1250,
+                    totalTeachers: 45,
+                    totalClasses: 28,
+                    totalSections: sections.length
+                });
+            } catch (error) {
+                console.error('Error fetching stats:', error);
+            }
+        };
         fetchSections();
         fetchStats();
-    }, []);
+    }, [sections.length, execute]);
 
     const fetchSections = async () => {
-        setLoading(true);
         try {
-            const resp = await fetch(host + '/sections/all', {
-                headers: {
-                    'Authorization': sessionStorage.user
-                }
-            });
-            const data = await resp.json();
+            const data = await apiEndpoints.getAllSections();
             setSections(data || []);
         } catch (error) {
             setError('Erreur lors du chargement des sections');
-            console.error('Error fetching sections:', error);
         }
-        setLoading(false);
     };
 
-    const fetchStats = async () => {
-        try {
-            // Fetch statistics for dashboard
-            // This would be a real API call in production
-            setStats({
-                totalStudents: 1250,
-                totalTeachers: 45,
-                totalClasses: 28,
-                totalSections: sections.length
-            });
-        } catch (error) {
-            console.error('Error fetching stats:', error);
-        }
-    };
 
     const deleteSection = (sectionId) => {
         Swal.fire({
@@ -98,20 +92,9 @@ function Home() {
             if (result.isConfirmed) {
                 setLoadingDel(true);
                 try {
-                    const resp = await fetch(host + '/sections/' + sectionId, {
-                        method: 'DELETE',
-                        headers: {
-                            'Authorization': sessionStorage.user
-                        }
-                    });
-                    const data = await resp.json();
-                    
-                    if (data.success) {
-                        Swal.fire('Supprimé !', 'La section a été supprimée.', 'success');
-                        fetchSections(); // Refresh sections
-                    } else {
-                        setError(data.message);
-                    }
+                    await execute(() => apiEndpoints.deleteSection(sectionId));
+                    Swal.fire('Supprimé !', 'La section a été supprimée.', 'success');
+                    fetchSections(); // Refresh sections
                 } catch (error) {
                     setError('Erreur lors de la suppression');
                 }

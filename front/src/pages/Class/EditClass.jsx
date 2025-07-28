@@ -21,7 +21,7 @@ const EditClass = ({error, setError, setIsEditClass, classToEditId}) => {
                 setLoading(false);
             }
         )()
-    }, [])
+    }, [classToEditId])
 
     useEffect(() => {
       (

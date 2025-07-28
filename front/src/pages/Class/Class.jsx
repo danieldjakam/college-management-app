@@ -10,19 +10,20 @@ import {
     Modal
 } from "reactstrap"
 import { useNavigate } from "react-router-dom";
-import { host } from '../../utils/fetch';
+import { useApi } from '../../hooks/useApi';
+import { apiEndpoints } from '../../utils/api';
 import { handleChangeCsvFile } from '../../utils/functions';
 import { getLang } from '../../utils/lang';
 import { classTraductions } from '../../local/class';
 
 const Class = () => {
     const navigate = useNavigate()
+    const { execute, loading } = useApi();
     
     if (sessionStorage.stat !== 'ad') {
         navigate('/students/'+sessionStorage.classId)
     }
     const [Classes, setClass] = useState({});
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [classToEditId, setClassToEditId] = useState('')
     const [loadingDel, setLoadingDel] = useState(false);
@@ -30,41 +31,38 @@ const Class = () => {
     const [isEditClass, setIsEditClass] = useState(false);
 
     useEffect(() => {
-        (
-            async () => {
-                setLoading(true)
-                const resp = await fetch(host+'/class/getAll', {headers: {
-                    'Authorization': sessionStorage.user
-                  }})
-                const data = await resp.json();
+        const loadClasses = async () => {
+            try {
+                const data = await apiEndpoints.getAllClasses();
                 setClass(data);
-                setLoading(false);
+            } catch (err) {
+                setError(`Erreur lors du chargement des classes: ${err.message}`);
             }
-        )()
+        };
+        loadClasses();
     }, [])
 
-    const deleteClass = (id) => {
-        Swal.fire({
+    const deleteClass = async (id) => {
+        const result = await Swal.fire({
             title: 'Confirmez la suppression !',
             icon: 'question',
-            text: 'Cette action est irreversible !!'
-        }).then(res => {
-            if (res.value) {
+            text: 'Cette action est irreversible !!',
+            showCancelButton: true,
+            confirmButtonText: 'Oui, supprimer',
+            cancelButtonText: 'Annuler'
+        });
+        
+        if (result.isConfirmed) {
+            try {
                 setLoadingDel(true);
-                fetch(host+'/class/'+id, {method: 'DELETE', headers: {'Authorization': sessionStorage.user}})
-                    .then((res) => res.json())
-                    .then((res) => { 
-                        console.log(res);
-                        if (res.success) {
-                            window.location.reload();
-                        }else{
-                            console.log(res.message);
-                            setError(res.message)
-                        }
-                    })
-                setLoadingDel(false)
+                await execute(() => apiEndpoints.deleteClass(id));
+                window.location.reload();
+            } catch (err) {
+                setError(`Erreur lors de la suppression: ${err.message}`);
+            } finally {
+                setLoadingDel(false);
             }
-        })
+        }
     }
     return <div style={{padding: '10px 10px'}} className='container'>
         

@@ -123,24 +123,24 @@ export const withRateLimit = async (requestFunction) => {
 /**
  * Hook React pour surveiller l'état du rate limiter
  */
-export const useRateLimiterStats = () => {
-    // Import dynamique pour éviter les dépendances circulaires
-    if (typeof window !== 'undefined' && window.React) {
-        const { useState, useEffect } = window.React;
-        const [stats, setStats] = useState(globalRateLimiter.getStats());
+// export const useRateLimiterStats = () => {
+//     // Import dynamique pour éviter les dépendances circulaires
+//     if (typeof window !== 'undefined' && window.React) {
+//         // const { useState, useEffect } = window.React;
+//         const [stats, setStats] = useState(globalRateLimiter.getStats());
 
-        useEffect(() => {
-            const interval = setInterval(() => {
-                setStats(globalRateLimiter.getStats());
-            }, 100);
+//         useEffect(() => {
+//             const interval = setInterval(() => {
+//                 setStats(globalRateLimiter.getStats());
+//             }, 100);
 
-            return () => clearInterval(interval);
-        }, []);
+//             return () => clearInterval(interval);
+//         }, []);
 
-        return stats;
-    }
+//         return stats;
+//     }
     
-    return globalRateLimiter.getStats();
-};
+//     return globalRateLimiter.getStats();
+// };
 
 export default globalRateLimiter;

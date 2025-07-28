@@ -5,7 +5,7 @@ import {
     LockFill, 
     EyeFill, 
     EyeSlashFill,
-    ShieldLockFill
+    // ShieldLockFill
 } from 'react-bootstrap-icons';
 import logo from '../images/logo.png'
 
@@ -14,7 +14,7 @@ import { Card, Button, Input, Alert, LoadingSpinner } from '../components/UI';
 
 // Utils
 import { authTraductions } from '../local/login';
-import { host } from '../utils/fetch';
+// import { host } from '../utils/fetch';
 import { getLang } from '../utils/lang';
 import { apiEndpoints } from '../utils/api';
 
@@ -22,6 +22,7 @@ const Login = ({ setUser }) => {
     const [data, setData] = useState({
         username: '',
         password: '',
+        
         remember: false
     });
     const [error, setError] = useState('');

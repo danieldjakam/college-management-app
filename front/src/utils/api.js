@@ -8,7 +8,7 @@ const DEFAULT_CONFIG = {
     timeout: 30000, // 30 secondes
     retries: 3,
     retryDelay: 1000, // 1 seconde
-    maxRetryDelay: 10000, // 10 secondes maximum
+    maxRetryDelay: 10000, // 10 secondes maximuma
 };
 
 /**
@@ -100,7 +100,7 @@ export const handleApiError = (error, showUserMessage = true) => {
                 confirmButtonText: 'OK'
             });
         } else {
-            alert(userMessage);
+            console.log(userMessage);
         }
     }
     
@@ -116,7 +116,7 @@ export const safeFetch = async (url, options = {}, config = {}) => {
         retries = DEFAULT_CONFIG.retries,
         retryDelay = DEFAULT_CONFIG.retryDelay,
         maxRetryDelay = DEFAULT_CONFIG.maxRetryDelay,
-        showUserMessage = true
+        // showUserMessage = true
     } = config;
     
     // Configuration par défaut des headers
@@ -203,7 +203,7 @@ export const safeFetch = async (url, options = {}, config = {}) => {
     }
     
     // Gérer l'erreur finale
-    const errorResult = handleApiError(lastError, showUserMessage);
+    // const errorResult = handleApiError(lastError, showUserMessage);
     throw lastError;
 };
 
@@ -239,6 +239,10 @@ export const apiEndpoints = {
     login: (credentials) => api.post('/users/login', credentials),
     logout: () => api.post('/users/logout'),
     
+    //users
+    getAdminOrTeacher: () => api.get(`/getTeacherOrAdmin`),
+    getUserInfos: () => api.get('/users/getInfos'),
+
     // Teachers
     getAllTeachers: () => api.get('/teachers/getAll'),
     getTeacher: (id) => api.get(`/teachers/${id}`),
@@ -269,34 +273,6 @@ export const apiEndpoints = {
     addSection: (data) => api.post('/sections/store', data),
     updateSection: (id, data) => api.put(`/sections/${id}`, data),
     deleteSection: (id) => api.delete(`/sections/${id}`),
-    
-    // Sequences
-    getAllSequences: () => api.get('/seq/getAll'),
-    getSequence: (id) => api.get(`/seq/${id}`),
-    addSequence: (data) => api.post('/seq/add', data),
-    updateSequence: (id, data) => api.put(`/seq/${id}`, data),
-    deleteSequence: (id) => api.delete(`/seq/${id}`),
-    
-    // Trimesters
-    getAllTrimesters: () => api.get('/trim/getAll'),
-    getTrimester: (id) => api.get(`/trim/${id}`),
-    addTrimester: (data) => api.post('/trim/add', data),
-    updateTrimester: (id, data) => api.put(`/trim/${id}`, data),
-    deleteTrimester: (id) => api.delete(`/trim/${id}`),
-    
-    // Subjects
-    getAllSubjects: () => api.get('/subjects/all'),
-    getSubject: (id) => api.get(`/subjects/${id}`),
-    addSubject: (data) => api.post('/subjects/add', data),
-    updateSubject: (id, data) => api.put(`/subjects/${id}`, data),
-    deleteSubject: (id) => api.delete(`/subjects/${id}`),
-    
-    // Domains
-    getAllDomains: () => api.get('/domains/all'),
-    getDomain: (id) => api.get(`/domains/${id}`),
-    addDomain: (data) => api.post('/domains/add', data),
-    updateDomain: (id, data) => api.put(`/domains/${id}`, data),
-    deleteDomain: (id) => api.delete(`/domains/${id}`),
     
     // Settings
     getSettings: () => api.get('/settings/getSettings'),

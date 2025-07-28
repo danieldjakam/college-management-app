@@ -12,6 +12,13 @@ export const useApi = (apiFunction, dependencies = [], options = {}) => {
         onError
     } = options;
 
+    // 🔥 Ajoutez cette vérification
+    useEffect(() => {
+        if (immediate && (!apiFunction || typeof apiFunction !== 'function')) {
+            console.error('❌ apiFunction doit être une fonction, reçu :', apiFunction);
+        }
+    }, [apiFunction, immediate]);
+
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -48,7 +55,7 @@ export const useApi = (apiFunction, dependencies = [], options = {}) => {
         if (immediate && apiFunction) {
             execute();
         }
-    }, dependencies);
+    }, [dependencies, execute, immediate, apiFunction]);
 
     const refetch = useCallback(() => execute(), [execute]);
 

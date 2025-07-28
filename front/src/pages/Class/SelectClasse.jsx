@@ -10,7 +10,7 @@ function SelectClasse({error, setSelectClass, type, setError}) {
     const [Classes, setClass] = useState([]);
     const [results, setResults] = useState([]);
     const [selected, setSelected] = useState([]);
-    const [Champs, SetChamps] = useState([
+    const [Champs,] = useState([
         {
             id: 'name',
             name: 'Nom'

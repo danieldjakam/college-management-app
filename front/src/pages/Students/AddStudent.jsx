@@ -2,12 +2,14 @@ import React from 'react'
 import { useEffect, useState } from "react";
 import {useNavigate, useParams } from "react-router-dom";
 import { studentTraductions } from '../../local/student';
-import { host } from '../../utils/fetch';
+import { useApi } from '../../hooks/useApi';
+import { apiEndpoints } from '../../utils/api';
 import { getLang } from '../../utils/lang';
 
 const AddStudent = ({setIsAddStudent, error, setError}) => {
   const params = useParams();
   const {id} = params;
+  const { execute, loading } = useApi();
   const [data, setData] = useState({
     name: '',
     subname: '',
@@ -22,45 +24,35 @@ const AddStudent = ({setIsAddStudent, error, setError}) => {
     isNew: 'no'
   })
   const [classs, setClass] = useState({});
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   useEffect(() => {
-      (
-          async () => {
-              setLoading(true)
-              const resp = await fetch(host+'/class/'+id, {headers: {
-                  'Authorization': sessionStorage.user
-                }})
-              const data = await resp.json();
-              const resp2 = await fetch(host+'/students/gs', {headers: {
-                  'Authorization': sessionStorage.user
-                }})
-              const data2 = await resp2.json();
-              setClass(data);
-              console.log();
-              setData(val => {return{...val, isNew: data2.is_after_compo === 'ye' ? 'yes' : 'no'}})
-              setLoading(false);
+      const loadClassAndSettings = async () => {
+          try {
+              const classData = await execute(() => apiEndpoints.getOneClass(id));
+              const settingsData = await execute(() => apiEndpoints.getStudentSettings());
+              setClass(classData || {});
+              setData(val => ({...val, isNew: settingsData?.is_after_compo === 'ye' ? 'yes' : 'no'}));
+          } catch (err) {
+              setError('Erreur lors du chargement des données');
           }
-      )()
+      };
+      loadClassAndSettings();
   }, [id])
 
-  const handleAdd = (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    fetch(host+'/students/add/'+id, {method: 'POST', body: JSON.stringify(data), headers: {'Content-Type': 'application/json', 'Authorization': sessionStorage.user}})
-		.then((res) => res.json())
-		.then(res => {
-			if (res.success) {
-				if (sessionStorage.stat === 'ad') {
-					window.location.reload();
-				} else {
-					navigate(`/reduct-fees/${res.id}`)
-				}
-			}else{
-				setError(res.message)
-			}
-		})
-		setLoading(false)
+    try {
+      const res = await execute(() => apiEndpoints.addStudent(id, data));
+      if (res?.success || res?.id) {
+        if (sessionStorage.stat === 'ad') {
+          window.location.reload();
+        } else {
+          navigate(`/reduct-fees/${res.id}`);
+        }
+      }
+    } catch (err) {
+      setError('Erreur lors de l\'ajout de l\'étudiant');
+    }
   }
   
   const handleCancel = () => {

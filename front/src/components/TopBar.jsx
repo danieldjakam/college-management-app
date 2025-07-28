@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
     Search, 
@@ -10,38 +10,11 @@ import {
     PersonCircle,
     ChatDots
 } from 'react-bootstrap-icons';
-import { host } from '../utils/fetch';
-
 const TopBar = ({ user, onSidebarToggle, showSidebarToggle = false }) => {
     const location = useLocation();
-    const [loading, setLoading] = useState(false);
-    const [userInfos, setUserInfos] = useState({});
     const [searchQuery, setSearchQuery] = useState('');
-    const [notifications, setNotifications] = useState([]);
+    // const [notifications, setNotifications] = useState([]);
     const [showNotifications, setShowNotifications] = useState(false);
-
-    useEffect(() => {
-        if (user && sessionStorage.user) {
-            fetchUserInfo();
-        }
-    }, [user]);
-
-    const fetchUserInfo = async () => {
-        setLoading(true);
-        try {
-            const resp = await fetch(host + '/users/getInfos', {
-                headers: {
-                    'Authorization': sessionStorage.user
-                }
-            });
-            const data = await resp.json();
-            setUserInfos(data);
-        } catch (error) {
-            console.error('Error fetching user info:', error);
-        }
-        setLoading(false);
-    };
-
     const getBreadcrumb = () => {
         const path = location.pathname;
         const segments = path.split('/').filter(segment => segment);
@@ -85,16 +58,6 @@ const TopBar = ({ user, onSidebarToggle, showSidebarToggle = false }) => {
             window.location.href = `/search?q=${encodeURIComponent(searchQuery)}`;
         }
     };
-
-    const getUserRole = () => {
-        const stat = sessionStorage.stat;
-        switch (stat) {
-            case 'ad': return 'Administrateur';
-            case 'comp': return 'Comptable';
-            default: return 'Enseignant';
-        }
-    };
-
     const breadcrumbs = getBreadcrumb();
 
     return (

@@ -2,45 +2,40 @@ import React from 'react'
 import { useEffect } from "react";
 import { useState } from "react";
 import { sectionTraductions } from '../../local/section';
-import { host } from '../../utils/fetch';
+import { useApi } from '../../hooks/useApi';
+import { apiEndpoints } from '../../utils/api';
 import { getLang } from '../../utils/lang';
 
 const EditSection = ({error, id, setError, setIsEditSection}) => {
+    const { execute, loading } = useApi();
     const [section, setSection] = useState({});
-    const [loading, setLoading] = useState(false);
     const types = [1, 2, 3, 4, 5];
+    
     useEffect(() => {
-        (
-            async () => {
-                setLoading(true)
-                const resp = await fetch(host+'/sections/'+id, {headers: {
-                    'Authorization': sessionStorage.user
-                }})
-                const data = await resp.json();
+        const loadSection = async () => {
+            try {
+                const data = await execute(() => apiEndpoints.getOneSection(id));
                 setSection(data);
-                setLoading(false);
+            } catch (err) {
+                setError(`Erreur lors du chargement de la section: ${err.message}`);
             }
-        )()
-    }, [])
+        };
+        loadSection();
+    }, [id]);
+    
     const handleCancel = () => {
       setIsEditSection(false)
       setError('')
     }
 
-    const handleUpdate = (e) => {
+    const handleUpdate = async (e) => {
         e.preventDefault();
-        setLoading(true);
-        fetch(host+'/sections/'+id, {method: 'PUT', body: JSON.stringify(section), headers: {'Content-Type': 'application/json', 'Authorization': sessionStorage.user}})
-        .then((res) => res.json())
-        .then(res => {
-          console.log(res);
-            if (res.success) {
-                window.location.reload()
-            }else{
-              setError(res.message)
-            }
-        })
-        setLoading(false)
+        try {
+            await execute(() => apiEndpoints.updateSection(id, section));
+            window.location.reload();
+        } catch (err) {
+            setError(`Erreur lors de la mise à jour: ${err.message}`);
+        }
     }
     return <div className="card login-card">
     <div className="card-head">

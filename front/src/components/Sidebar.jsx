@@ -8,15 +8,16 @@ import {
     PersonCircle, BoxArrowRight
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
-import { host } from '../utils/fetch'
-
+import { apiEndpoints } from '../utils/api';
+import { useApi } from '../hooks/useApi';
 function Sidebar({ isCollapsed, onToggle }) {
     const [page, setPage] = useState(window.location.href.split('/')[3])
     const navigate = useNavigate();
     const [userInfos, setUserInfos] = useState({});
-    const [loading, setLoading] = useState(false)
+    // const [loading, setLoading] = useState(false)
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
     const [isOpen, setIsOpen] = useState(false)
+    const { execute, loading } = useApi();
     
     useEffect(() => {
         const handleResize = () => {
@@ -30,22 +31,17 @@ function Sidebar({ isCollapsed, onToggle }) {
     useEffect(() => {
         (async () => {
             if (sessionStorage.user !== undefined) {
-                setLoading(true);
+                // setLoading(true);
                 try {
-                    const resp = await fetch(host+'/users/getTeacherOrAdmin/', {
-                        headers: {
-                            'Authorization': sessionStorage.user
-                        }
-                    })
-                    const data = await resp.json();
-                    setUserInfos(data);
-                } catch (e) {
-                    console.log(e)
+                    const data = await execute(() => apiEndpoints.getAdminOrTeacher());
+                    setUserInfos(data || []);
+                } catch (error) {
+                    console.log('Erreur lors du chargement des informations utilisateur:', error);
                 }
-                setLoading(false);
+                // setLoading(false);
             }
         })()
-    }, [])
+    }, [execute])
 
     // Navigation sections based on user role
     const getNavigationSections = () => {
@@ -59,7 +55,6 @@ function Sidebar({ isCollapsed, onToggle }) {
                         { name: 'Sections', href: '/', icon: <HospitalFill/> },
                         { name: 'Classes', href: '/class', icon: <HouseHeartFill/> },
                         { name: 'Enseignants', href: '/teachers', icon: <PeopleFill/> },
-                        { name: 'Matières', href: '/matieres', icon: <BookFill/> }
                     ]
                 },
                 {
@@ -197,7 +192,7 @@ function Sidebar({ isCollapsed, onToggle }) {
                         {(!isCollapsed || isMobile) && (
                             <div>
                                 <div className="sidebar-title">CPBD</div>
-                                <div className="sidebar-subtitle">Collège Polyvalent Bilingue de Douala</div>
+                                <div className="sidebar-subtitle"> College Polyvalent Bilingue de Douala</div>
                             </div>
                         )}
                     </div>

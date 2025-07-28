@@ -2,51 +2,43 @@ import React from 'react'
 import { useEffect } from "react";
 import { useState } from "react";
 import { teacherTraductions } from '../../local/teacher';
-import { host } from '../../utils/fetch';
+import { useApi } from '../../hooks/useApi';
+import { apiEndpoints } from '../../utils/api';
 import { getLang } from '../../utils/lang';
 
 const AddTeacher = ({ error, setError, setIsAddTeacher}) => {
-
+  const { execute, loading } = useApi();
   const [data, setData] = useState({
     name: '',
     subname: '',
     classId: '',
-
     phone_number: '',
     sex: 'm',
     birthday: ''
   })
   const [classs, setClasss] = useState({});
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-      (
-          async () => {
-              setLoading(true)
-              const resp = await fetch(host+'/class/getAll', {headers: {
-                  'Authorization': sessionStorage.user
-              }})
-              const data = await resp.json();
-              setClasss(data);
-              setLoading(false);
+      const loadClasses = async () => {
+          try {
+              const data = await execute(() => apiEndpoints.getAllClasses());
+              setClasss(data || []);
+          } catch (err) {
+              setError('Erreur lors du chargement des classes');
           }
-      )()
+      };
+      loadClasses();
   }, [])
 
-  const handleAdd = (e) => {
+  const handleAdd = async (e) => {
       e.preventDefault();
-      setLoading(true);
-      fetch(host+'/teachers/add', {method: 'POST', body: JSON.stringify(data), headers: {'Content-Type': 'application/json', 'Authorization': sessionStorage.user}})
-      .then((res) => res.json())
-      .then(res => {
-          if (res.success) {
-            setIsAddTeacher(v => !v)
-            window.location.reload()
-          }else{
-            setError(res.message)
-          }
-      })
-      setLoading(false)
+      try {
+          await execute(() => apiEndpoints.addTeacher(data));
+          setIsAddTeacher(false);
+          window.location.reload();
+      } catch (err) {
+          setError('Erreur lors de l\'ajout du professeur');
+      }
   }
 
   const handleCancel = () => {
