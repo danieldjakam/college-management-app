@@ -1,17 +1,36 @@
 import React, { useEffect, useState } from 'react'
-import ReactLoading from 'react-loading'
+import { useNavigate } from 'react-router-dom';
+import { 
+    Plus, 
+    People, 
+    Book, 
+    Award,
+    PencilSquare,
+    Trash,
+    ArrowRight
+} from 'react-bootstrap-icons';
+import Swal from 'sweetalert2';
+
+// Components
+import { 
+    Card, 
+    Button, 
+    Alert, 
+    LoadingSpinner, 
+    Modal, 
+    StatsCard 
+} from '../components/UI';
+import AddSection from './Sections.jsx/AddSection';
+import EditSection from './Sections.jsx/EditSection';
+
+// Utils
 import { sectionTraductions } from '../local/section';
 import { host } from '../utils/fetch';
 import { getLang } from '../utils/lang';
-import AddSection from './Sections.jsx/AddSection';
-import { Modal } from 'reactstrap';
-import EditSection from './Sections.jsx/EditSection';
-import Swal from 'sweetalert2';
-import { useNavigate } from 'react-router-dom';
 
 function Home() {
-    
-    const [sections, setSections] = useState({})
+    const [sections, setSections] = useState([]);
+    const [stats, setStats] = useState({});
     const [error, setError] = useState('');
     const [idAddSection, setIsAddSection] = useState(false);
     const [id, setId] = useState('');
@@ -20,125 +39,277 @@ function Home() {
     const [loadingDel, setLoadingDel] = useState(false);
 
     const navigate = useNavigate();
-    if (sessionStorage.stat !== 'ad' && sessionStorage.stat !== 'comp') {
-        navigate('/students/'+sessionStorage.classId)
-    }
+    
+    // Redirect non-admin users
     useEffect(() => {
-        (
-            async () => {
-                setLoading(true)
-                const resp = await fetch(host+'/sections/all', {headers: {
-                    'Authorization': sessionStorage.user
-                }})
-                let data = await resp.json();
-                setSections(data);
-                setLoading(false);
-            }
-        )()
+        if (sessionStorage.stat !== 'ad' && sessionStorage.stat !== 'comp') {
+            navigate('/students/' + sessionStorage.classId);
+        }
+    }, [navigate]);
+
+    useEffect(() => {
+        fetchSections();
+        fetchStats();
     }, []);
-    const deleteSection = (id) => {
+
+    const fetchSections = async () => {
+        setLoading(true);
+        try {
+            const resp = await fetch(host + '/sections/all', {
+                headers: {
+                    'Authorization': sessionStorage.user
+                }
+            });
+            const data = await resp.json();
+            setSections(data || []);
+        } catch (error) {
+            setError('Erreur lors du chargement des sections');
+            console.error('Error fetching sections:', error);
+        }
+        setLoading(false);
+    };
+
+    const fetchStats = async () => {
+        try {
+            // Fetch statistics for dashboard
+            // This would be a real API call in production
+            setStats({
+                totalStudents: 1250,
+                totalTeachers: 45,
+                totalClasses: 28,
+                totalSections: sections.length
+            });
+        } catch (error) {
+            console.error('Error fetching stats:', error);
+        }
+    };
+
+    const deleteSection = (sectionId) => {
         Swal.fire({
             title: 'Confirmez la suppression !',
-            icon: 'question',
-            text: 'Cette action est irreversible !!'
-        }).then(res => {
-            if (res.value) {
+            text: 'Cette action est irréversible !',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#EF4444',
+            cancelButtonColor: '#6B7280',
+            confirmButtonText: 'Oui, supprimer',
+            cancelButtonText: 'Annuler'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
                 setLoadingDel(true);
-                fetch(host+'/sections/'+id, {method: 'DELETE', headers: {'Authorization': sessionStorage.user}})
-                    .then((res) => res.json())
-                    .then((res) => {
-                        console.log(res);
-                        if (res.success) {
-                            window.location.reload();
-                        }else{
-                            setError(res.message)
+                try {
+                    const resp = await fetch(host + '/sections/' + sectionId, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': sessionStorage.user
                         }
-                    })
-                setLoadingDel(false)
+                    });
+                    const data = await resp.json();
+                    
+                    if (data.success) {
+                        Swal.fire('Supprimé !', 'La section a été supprimée.', 'success');
+                        fetchSections(); // Refresh sections
+                    } else {
+                        setError(data.message);
+                    }
+                } catch (error) {
+                    setError('Erreur lors de la suppression');
+                }
+                setLoadingDel(false);
             }
-        })
-    }
-    const chooseSection = (section_id, section_name) => {
-        sessionStorage.setItem('section_id', section_id)
-        navigate('/classBySection/'+section_name)
-    }
-    console.log(sections);
+        });
+    };
+
+    const chooseSection = (sectionId, sectionName) => {
+        sessionStorage.setItem('section_id', sectionId);
+        navigate('/classBySection/' + sectionName);
+    };
+
     return (
-        <div className='container' style={{paddingTop: '20px'}}>
-            <h1 className='text-black'>
-                Choisissez une section pour continuer.
-            </h1>
-            {
-                error !== '' ? <div className="alert alert-danger">{error}</div> : <></>
-            }
-            <div style={{marginBottom: '10px'}}>
-                <button onClick={() => {setIsAddSection(v => !v)}} className="btn btn-blue">{sectionTraductions[getLang()].addSection}</button>
+        <div className="animate-fade-in">
+            {/* Header */}
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold text-gray-800 mb-2">
+                    Tableau de Bord
+                </h1>
+                <p className="text-gray-600">
+                    Bienvenue dans le système de gestion scolaire GSBPL
+                </p>
             </div>
 
-            <div className="allClas">
-                {
-                    loading ? <div className="error" style={{ position: 'absolute', top: '39%', left: '53%' }}>
-                        <ReactLoading color="#fff" type="spin"/></div> : sections.length > 0? sections.map((section, id) => {
-                        return <div className="clas" key={id}>
-                            <div className="top">
-                                <div className="classAbs">
-                                    {section.name.slice(0, 6)}
-                                </div>
-                                <div className="qq">
-                                    <span className="q">
-                                    {sectionTraductions[getLang()].name}
-                                    </span>
-                                    <span className="r">
-                                        {section.name}
-                                    </span>
-                                </div>
-                                <div className="qq">
-                                    <span className="q">
-                                    {sectionTraductions[getLang()].t}
-                                    </span>
-                                    <span className="r">
-                                        {section.type}    
-                                    </span>
-                                </div>
-                                <div className="qq">
-                                    <span className="q">
-                                     {section.total_class}
-                                    </span>
-                                    <span className="r">
-                                        classe{ section.total_class > 1 ? 's' : ''}  
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="bottom">
-                                <button onClick={() => {chooseSection(section.id, section.name)}} className="btn btn-info">{sectionTraductions[getLang()].seeClass}</button>
-                                    <button onClick={() => {setId(section.id); setIsEditSection(v => !v)}} className='btn btn-warning'>
-                                        {sectionTraductions['en'].edit}
-                                    </button>
-                                    <button onClick={() => {deleteSection(section.id)}} className="btn btn-danger">
-                                        {
-                                            loadingDel ? sectionTraductions['en'].deleting : sectionTraductions['en'].delete 
-                                        }
-                                    </button>
-                            </div>  
-                        </div>
-                    }) : <div className="i">
-                            <div className="empty monINfos">
-                                {sectionTraductions[getLang()].noSection} <br />
-                            </div>
-                        </div>
-            }
+            {/* Stats Cards */}
+            <div className="stats-grid mb-8">
+                <StatsCard
+                    title="Total Élèves"
+                    value={stats.totalStudents || 0}
+                    icon={<People />}
+                    change={8.2}
+                    changeType="increase"
+                    changeLabel="ce mois"
+                    color="primary"
+                />
+                <StatsCard
+                    title="Enseignants"
+                    value={stats.totalTeachers || 0}
+                    icon={<Award />}
+                    change={3.1}
+                    changeType="increase"
+                    changeLabel="ce mois"
+                    color="success"
+                />
+                <StatsCard
+                    title="Classes"
+                    value={stats.totalClasses || 0}
+                    icon={<Book />}
+                    color="info"
+                />
+                <StatsCard
+                    title="Sections"
+                    value={sections.length}
+                    icon={<Book />}
+                    color="warning"
+                />
+            </div>
 
-            </div>  
-            
+            {/* Error Alert */}
+            {error && (
+                <Alert variant="error" dismissible onDismiss={() => setError('')}>
+                    {error}
+                </Alert>
+            )}
 
-            <Modal isOpen={idAddSection}>
-                <AddSection error={error} setError={setError} setIsAddSection={setIsAddSection}/>
+            {/* Sections Management */}
+            <Card className="mb-6">
+                <Card.Header>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <Card.Title>Sections Académiques</Card.Title>
+                            <Card.Subtitle>
+                                Gérez les sections de votre établissement
+                            </Card.Subtitle>
+                        </div>
+                        <Button
+                            variant="primary"
+                            onClick={() => setIsAddSection(true)}
+                            icon={<Plus size={16} />}
+                        >
+                            {sectionTraductions[getLang()].addSection}
+                        </Button>
+                    </div>
+                </Card.Header>
+
+                <Card.Content>
+                    {loading ? (
+                        <div className="flex justify-center py-12">
+                            <LoadingSpinner text="Chargement des sections..." />
+                        </div>
+                    ) : sections.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {sections.map((section) => (
+                                <Card key={section.id} className="group">
+                                    <Card.Content>
+                                        <div className="flex items-start justify-between mb-4">
+                                            <div className="flex-1">
+                                                <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                                                    {section.name}
+                                                </h3>
+                                                <p className="text-sm text-gray-500 mb-2">
+                                                    Type: {section.type}
+                                                </p>
+                                                <div className="flex items-center text-sm text-gray-600">
+                                                    <People size={14} className="mr-1" />
+                                                    {section.total_class} classe{section.total_class > 1 ? 's' : ''}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="primary"
+                                                size="sm"
+                                                onClick={() => chooseSection(section.id, section.name)}
+                                                icon={<ArrowRight size={14} />}
+                                                className="flex-1"
+                                            >
+                                                Voir Classes
+                                            </Button>
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                onClick={() => {
+                                                    setId(section.id);
+                                                    setIsEditSection(true);
+                                                }}
+                                                icon={<PencilSquare size={14} />}
+                                            >
+                                                Éditer
+                                            </Button>
+                                            <Button
+                                                variant="error"
+                                                size="sm"
+                                                onClick={() => deleteSection(section.id)}
+                                                disabled={loadingDel}
+                                                icon={<Trash size={14} />}
+                                            >
+                                                Supprimer
+                                            </Button>
+                                        </div>
+                                    </Card.Content>
+                                </Card>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-12">
+                            <Book size={48} className="mx-auto text-gray-400 mb-4" />
+                            <h3 className="text-lg font-medium text-gray-900 mb-2">
+                                Aucune section trouvée
+                            </h3>
+                            <p className="text-gray-500 mb-4">
+                                Commencez par créer votre première section académique.
+                            </p>
+                            <Button
+                                variant="primary"
+                                onClick={() => setIsAddSection(true)}
+                                icon={<Plus size={16} />}
+                            >
+                                Créer une section
+                            </Button>
+                        </div>
+                    )}
+                </Card.Content>
+            </Card>
+
+            {/* Modals */}
+            <Modal
+                isOpen={idAddSection}
+                onClose={() => setIsAddSection(false)}
+                title="Ajouter une Section"
+                size="lg"
+            >
+                <AddSection
+                    error={error}
+                    setError={setError}
+                    setIsAddSection={setIsAddSection}
+                    onSuccess={fetchSections}
+                />
             </Modal>
-            <Modal isOpen={idEditSection}>
-                <EditSection error={error} setError={setError} id={id} setIsEditSection={setIsEditSection}/>
+
+            <Modal
+                isOpen={idEditSection}
+                onClose={() => setIsEditSection(false)}
+                title="Modifier la Section"
+                size="lg"
+            >
+                <EditSection
+                    error={error}
+                    setError={setError}
+                    id={id}
+                    setIsEditSection={setIsEditSection}
+                    onSuccess={fetchSections}
+                />
             </Modal>
         </div>
-    )
+    );
 }
 
-export default Home
+export default Home;

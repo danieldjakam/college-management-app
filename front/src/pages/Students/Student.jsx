@@ -17,6 +17,9 @@ import AddAnnualExam from '../AnnualExam/AddAnnualExam';
 import EditAnnualExam from '../AnnualExam/EditAnnualExam';
 import EditSequence from '../Sequences/EditSequence';
 import EditTrimestre from '../Trimestres/EditTrimestre';
+import { useStudents, useSequences, useTrimesters } from '../../hooks/useApi';
+import { apiEndpoints } from '../../utils/api';
+import ErrorBoundary from '../../components/ErrorBoundary';
   
 
 const Student = () => {

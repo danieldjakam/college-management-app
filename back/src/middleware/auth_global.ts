@@ -4,6 +4,7 @@ const {env} = process;
 const { sign } = require('jsonwebtoken');
 const mysql = require('mysql2');
 const fs_glob = require('fs');
+
 const connection = mysql.createConnection({
     host: env.DB_HOST,
     user: env.DB_USERNAME,

@@ -1,5 +1,5 @@
 import React from 'react';
-import sem from '../images/sem.png'
+import sem from '../images/logo.png'
 import { downloadTraductions } from '../local/bulletin';
 import { getLang } from '../utils/lang';
 const BulletinEntete = ({student, currentClass, actualExam}) => {

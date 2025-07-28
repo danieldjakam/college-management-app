@@ -2,134 +2,125 @@ import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { 
     HospitalFill, HouseHeartFill, 
-    PeopleFill, GearFill, People, Search, 
-    BookFill, FileTextFill, ArrowLeftCircleFill
+    PeopleFill, GearFill, Search, 
+    BookFill, FileTextFill,
+    BarChartFill, List,
+    PersonCircle, BoxArrowRight
 } from 'react-bootstrap-icons'
-import logo from '../images/sem.png'
-import avatar from '../images/1.png'
+import logo from '../images/logo.png'
 import { host } from '../utils/fetch'
 
-function Sidebar() {
+function Sidebar({ isCollapsed, onToggle }) {
     const [page, setPage] = useState(window.location.href.split('/')[3])
     const navigate = useNavigate();
     const [userInfos, setUserInfos] = useState({});
     const [loading, setLoading] = useState(false)
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+    const [isOpen, setIsOpen] = useState(false)
     
     useEffect(() => {
-        (
-        async () => {
+        const handleResize = () => {
+            setIsMobile(window.innerWidth <= 768)
+        }
+        
+        window.addEventListener('resize', handleResize)
+        return () => window.removeEventListener('resize', handleResize)
+    }, [])
+    
+    useEffect(() => {
+        (async () => {
             if (sessionStorage.user !== undefined) {
                 setLoading(true);
-            const resp = await fetch(host+'/users/getTeacherOrAdmin/', {headers: {
-              'Authorization': sessionStorage.user
-            }}).catch(e => console.log(e))
-            const data = await resp.json();
-            setUserInfos(data);
-            setLoading(false);
+                try {
+                    const resp = await fetch(host+'/users/getTeacherOrAdmin/', {
+                        headers: {
+                            'Authorization': sessionStorage.user
+                        }
+                    })
+                    const data = await resp.json();
+                    setUserInfos(data);
+                } catch (e) {
+                    console.log(e)
+                }
+                setLoading(false);
             }
-        }
-        )()
+        })()
     }, [])
 
-    const links = sessionStorage.stat === 'ad' ? 
-    [
-        {
-            name: 'Sections',
-            href: '/',
-            icon: <HospitalFill/>
-        },
-        {
-            name: 'Classes',
-            href: '/class',
-            icon: <HouseHeartFill/>
-        },
-        {
-            name: 'Enseignants',
-            href: '/teachers',
-            icon: <PeopleFill/>
-        },
-        {
-            name: 'Matieres',
-            href: '/matieres',
-            icon: <FileTextFill/>
-        },
-        {
-            name: 'Rechercher',
-            href: '/search',
-            icon: <Search/>
-        },
-        {
-            name: 'Profil',
-            href: '/params',
-            icon: <People/>
-        },
-        {
-            name: 'Parametres',
-            href: '/settings',
-            icon: <GearFill/>
-        },
-        {
-            name: 'Doc',
-            href: '/docs',
-            icon: <FileTextFill/>
+    // Navigation sections based on user role
+    const getNavigationSections = () => {
+        const userStat = sessionStorage.stat;
+        
+        if (userStat === 'ad') {
+            return [
+                {
+                    title: 'Gestion Académique',
+                    items: [
+                        { name: 'Sections', href: '/', icon: <HospitalFill/> },
+                        { name: 'Classes', href: '/class', icon: <HouseHeartFill/> },
+                        { name: 'Enseignants', href: '/teachers', icon: <PeopleFill/> },
+                        { name: 'Matières', href: '/matieres', icon: <BookFill/> }
+                    ]
+                },
+                {
+                    title: 'Outils',
+                    items: [
+                        { name: 'Rechercher', href: '/search', icon: <Search/> },
+                        { name: 'Documents', href: '/docs', icon: <FileTextFill/> },
+                        { name: 'Statistiques', href: '/stats', icon: <BarChartFill/> }
+                    ]
+                },
+                {
+                    title: 'Administration',
+                    items: [
+                        { name: 'Profil', href: '/params', icon: <PersonCircle/> },
+                        { name: 'Paramètres', href: '/settings', icon: <GearFill/> }
+                    ]
+                }
+            ]
+        } else if (userStat === 'comp') {
+            return [
+                {
+                    title: 'Comptabilité',
+                    items: [
+                        { name: 'Classes', href: '/class-comp', icon: <HouseHeartFill/> },
+                        { name: 'Statistiques', href: '/stats', icon: <BarChartFill/> },
+                        { name: 'Rechercher', href: '/search', icon: <Search/> }
+                    ]
+                },
+                {
+                    title: 'Rapports',
+                    items: [
+                        { name: 'Documents', href: '/docs', icon: <FileTextFill/> }
+                    ]
+                },
+                {
+                    title: 'Compte',
+                    items: [
+                        { name: 'Profil', href: '/params-comp', icon: <PersonCircle/> }
+                    ]
+                }
+            ]
+        } else {
+            return [
+                {
+                    title: 'Enseignement',
+                    items: [
+                        { name: 'Élèves', href: '/students/'+sessionStorage.classId, icon: <PeopleFill/> },
+                        { name: 'Séquences', href: '/seqs', icon: <List/> },
+                        { name: 'Trimestres', href: '/trims', icon: <BookFill/> }
+                    ]
+                },
+                {
+                    title: 'Outils',
+                    items: [
+                        { name: 'Rechercher', href: '/search', icon: <Search/> },
+                        { name: 'Profil', href: '/params', icon: <PersonCircle/> }
+                    ]
+                }
+            ]
         }
-    ] : 
-    sessionStorage.stat === 'comp' ? 
-    [
-        {
-            name: 'Classes',
-            href: '/class-comp',
-            icon: <HouseHeartFill/>
-        },
-        {
-            name: 'Rechercher',
-            href: '/search',
-            icon: <Search/>
-        },
-        {
-            name: 'Profil',
-            href: '/params-comp',
-            icon: <People/>
-        },
-        {
-            name: 'Statitics',
-            href: '/stats',
-            icon: <People/>
-        },
-        {
-            name: 'Doc',
-            href: '/docs',
-            icon: <FileTextFill/>
-        }
-    ] 
-        : 
-    [
-        {
-            name: 'Eleves',
-            href: '/students/'+sessionStorage.classId,
-            icon: <PeopleFill/>
-        },
-        {
-            name: 'Sequences',
-            href: '/seqs',
-            icon: <FileTextFill/>
-        },
-        {
-            name: 'Trimestres',
-            href: '/trims',
-            icon: <BookFill/>
-        },
-        {
-            name: 'Rechercher',
-            href: '/search',
-            icon: <Search/>
-        },
-        {
-            name: 'Profil',
-            href: '/params',
-            icon: <People/>
-        }
-    ]
+    }
 
     const logout = () => {
         sessionStorage.removeItem('stat')
@@ -137,50 +128,139 @@ function Sidebar() {
         navigate('/login')
         window.location.reload()
     }
-    if(sessionStorage.user !== undefined){
-        return <div className="sidebar">
-            <div className="toggler"></div>
-            <Link to='/' className="sidebar-brand">
-                <img src={logo} alt="application logo" style={{width: '100px', height: '100px'}} className="sidebar-brand-logo" />
-            </Link>
-            <div className="sidebar-links">
-                {
-                    links.map((link, k) => {
-                        return <Link key={k} to={link.href} className={`sidebar-link ${page === link.href ? 'active' : ''}`} onClick={() => {setPage(link.href)}}>
-                            {link.icon}
-                            <span>{link.name}</span>
-                        </Link>
-                    })
-                }
-                {/* <a href={host+'/download/recette/1'} className={`sidebar-link`}>
-                    <Calendar2DayFill/>
-                    <span>
-                        Recette Journ.    
-                    </span>
-                </a>
-                <a href={host+'/download/recette/2/0'} className={`sidebar-link`}>
-                    <WalletFill/>
-                    <span>
-                        Recette Globale    
-                    </span>
-                </a> */}
-            </div>
-            <div className="sidebar-user">
-                <div className="user-avatar" onClick={() => {logout()}}>
-                    <img src={avatar} alt={" avatar"} />
-                    <div className="logoutBtn">
-                        <ArrowLeftCircleFill/>
+
+    const getUserDisplayName = () => {
+        if (loading || !userInfos) return '';
+        
+        const stat = sessionStorage.stat;
+        if (stat === 'ad' || stat === 'comp') {
+            return userInfos.username || '';
+        } else {
+            return `${userInfos.name || ''} ${userInfos.subname || ''}`.trim();
+        }
+    }
+
+    const getUserRole = () => {
+        if (loading) return '';
+        
+        const stat = sessionStorage.stat;
+        switch (stat) {
+            case 'ad': return 'Administrateur';
+            case 'comp': return 'Comptable';
+            default: return 'Enseignant';
+        }
+    }
+
+    const getUserInitials = () => {
+        const name = getUserDisplayName();
+        if (!name) return 'U';
+        
+        const words = name.split(' ').filter(word => word.length > 0);
+        if (words.length >= 2) {
+            return (words[0][0] + words[1][0]).toUpperCase();
+        }
+        return name[0].toUpperCase();
+    }
+
+    const handleLinkClick = (href) => {
+        setPage(href);
+        if (isMobile) {
+            setIsOpen(false);
+        }
+    }
+
+    if (sessionStorage.user === undefined) {
+        return null;
+    }
+
+    const navigationSections = getNavigationSections();
+
+    return (
+        <>
+            {/* Mobile Overlay */}
+            {isMobile && isOpen && (
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                    onClick={() => setIsOpen(false)}
+                />
+            )}
+            
+            <div className={`sidebar ${isCollapsed && !isMobile ? 'collapsed' : ''} ${isMobile && isOpen ? 'open' : ''}`}>
+                {/* Header */}
+                <div className="sidebar-header">
+                    <div className="sidebar-brand">
+                        <img 
+                            src={logo} 
+                            alt="CPBD Logo" 
+                            className="sidebar-logo"
+                        />
+                        {(!isCollapsed || isMobile) && (
+                            <div>
+                                <div className="sidebar-title">CPBD</div>
+                                <div className="sidebar-subtitle">Collège Polyvalent Bilingue de Douala</div>
+                            </div>
+                        )}
                     </div>
                 </div>
-                <div className="user-infos">
-                    <h5>{`@${ userInfos !== {} ? sessionStorage.stat === 'ad' || sessionStorage.stat === 'comp' ? userInfos.username : userInfos.name + " " + userInfos.subname: ''}`}</h5>
-                    <h5>{ !loading ? sessionStorage.stat === 'ad' ? 'Admin' : sessionStorage.stat === 'comp' ? 'Comptable' : 'Enseignant' : ''}</h5>
+
+                {/* Navigation */}
+                <div className="sidebar-nav">
+                    {navigationSections.map((section, sectionIndex) => (
+                        <div key={sectionIndex} className="nav-section">
+                            {(!isCollapsed || isMobile) && (
+                                <div className="nav-section-title">{section.title}</div>
+                            )}
+                            {section.items.map((item, itemIndex) => (
+                                <div key={itemIndex} className="nav-item">
+                                    <Link 
+                                        to={item.href} 
+                                        className={`nav-link ${page === item.href.replace('/', '') ? 'active' : ''}`}
+                                        onClick={() => handleLinkClick(item.href.replace('/', ''))}
+                                    >
+                                        <div className="nav-icon">{item.icon}</div>
+                                        {(!isCollapsed || isMobile) && (
+                                            <span className="nav-text">{item.name}</span>
+                                        )}
+                                    </Link>
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+                </div>
+
+                {/* User Profile */}
+                <div className="sidebar-footer">
+                    <div className="user-profile">
+                        <div className="user-avatar">
+                            {getUserInitials()}
+                        </div>
+                        {(!isCollapsed || isMobile) && (
+                            <div className="user-info">
+                                <div className="user-name">{getUserDisplayName()}</div>
+                                <div className="user-role">{getUserRole()}</div>
+                            </div>
+                        )}
+                        <button 
+                            className="btn-secondary btn-sm"
+                            onClick={logout}
+                            title="Se déconnecter"
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'var(--gray-500)',
+                                padding: '0.5rem',
+                                borderRadius: 'var(--radius-full)',
+                                transition: 'var(--transition-fast)',
+                                marginLeft: 'auto'
+                            }}
+                        >
+                            <BoxArrowRight size={16} />
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
-    }else{
-        return <></>
-    }
+        </>
+    )
 }
 
 export default Sidebar
