@@ -10,11 +10,16 @@ import {
     PersonCircle,
     ChatDots
 } from 'react-bootstrap-icons';
-const TopBar = ({ user, onSidebarToggle, showSidebarToggle = false }) => {
+import { useAuth, usePermissions } from '../hooks/useAuth';
+import UserMenu from './UserMenu';
+const TopBar = ({ onSidebarToggle, showSidebarToggle = false }) => {
     const location = useLocation();
     const [searchQuery, setSearchQuery] = useState('');
-    // const [notifications, setNotifications] = useState([]);
     const [showNotifications, setShowNotifications] = useState(false);
+    
+    // Hooks d'authentification
+    const { user, isAuthenticated } = useAuth();
+    const { canManageUsers, canAccess } = usePermissions();
     const getBreadcrumb = () => {
         const path = location.pathname;
         const segments = path.split('/').filter(segment => segment);
@@ -92,7 +97,7 @@ const TopBar = ({ user, onSidebarToggle, showSidebarToggle = false }) => {
             </div>
 
             <div className="topbar-right">
-                {user && (
+                {isAuthenticated && user && (
                     <>
                         {/* Search Box */}
                         <div className="search-box">
@@ -140,26 +145,28 @@ const TopBar = ({ user, onSidebarToggle, showSidebarToggle = false }) => {
                                 <ChatDots size={18} />
                             </button>
 
-                            {/* Settings */}
-                            <Link to="/settings" className="action-btn" title="Paramètres">
-                                <Gear size={18} />
-                            </Link>
+                            {/* Settings - seulement pour les admins */}
+                            {canManageUsers() && (
+                                <Link to="/settings" className="action-btn" title="Paramètres">
+                                    <Gear size={18} />
+                                </Link>
+                            )}
 
                             {/* User Profile */}
                             <Link to="/params" className="action-btn" title="Profil">
                                 <PersonCircle size={18} />
                             </Link>
+
+                            {/* Menu utilisateur avec déconnexion */}
+                            <UserMenu className="ml-2" />
                         </div>
                     </>
                 )}
 
-                {!user && (
+                {!isAuthenticated && (
                     <div className="flex gap-2">
                         <Link to="/login" className="btn btn-secondary">
                             Connexion
-                        </Link>
-                        <Link to="/register" className="btn btn-primary">
-                            Inscription
                         </Link>
                     </div>
                 )}

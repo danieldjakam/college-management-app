@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
     PersonFill, 
     LockFill, 
@@ -14,53 +14,72 @@ import { Card, Button, Input, Alert, LoadingSpinner } from '../components/UI';
 
 // Utils
 import { authTraductions } from '../local/login';
-// import { host } from '../utils/fetch';
 import { getLang } from '../utils/lang';
-import { apiEndpoints } from '../utils/api';
 
-const Login = ({ setUser }) => {
+// Auth hooks
+import { useLogin, useAuth, useAuthPersistence } from '../hooks/useAuth';
+
+const Login = () => {
     const [data, setData] = useState({
         username: '',
         password: '',
-        
         remember: false
     });
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    
     const navigate = useNavigate();
+    const location = useLocation();
+    
+    // Hooks d'authentification
+    const { isAuthenticated, user } = useAuth();
+    const { handleLogin, isSubmitting, error, success, resetLoginState } = useLogin();
+    const { persistenceEnabled, updatePersistencePreference } = useAuthPersistence();
 
-    const handleLogin = async (e) => {
+    // Redirection si déjà authentifié
+    useEffect(() => {
+        if (isAuthenticated && user) {
+            const from = location.state?.from?.pathname || '/';
+            navigate(from, { replace: true });
+        }
+    }, [isAuthenticated, user, navigate, location]);
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
-        setError('');
-
-        try {
-            const result = await apiEndpoints.login(data);
-
-            if (result.success) {
-                setUser(true);
-                sessionStorage.user = result.token;
-                sessionStorage.stat = result.status;
-
-                // Redirect based on user role
-                if (result.status === 'ad') {
-                    navigate('/');
-                } else if (result.status === 'comp') {
-                    navigate('/class-comp');
-                } else {
-                    sessionStorage.classId = result.classId;
-                    navigate(`/students/${result.classId}`);
-                }
-            } else {
-                setError(result.message || 'Erreur de connexion');
-            }
-        } catch (error) {
-            setError(error.message || 'Une erreur est survenue lors de la connexion à la base de données.');
-            console.error('Login error:', error);
+        
+        if (!data.username.trim() || !data.password) {
+            return;
         }
 
-        setLoading(false);
+        try {
+            // Utiliser le hook de login
+            const result = await handleLogin(data, {
+                onSuccess: (response) => {
+                    // Mettre à jour la préférence de persistance
+                    updatePersistencePreference(data.remember);
+                    
+                    // Redirection basée sur le rôle
+                    const from = location.state?.from?.pathname || getDefaultRoute(response.user.role);
+                    navigate(from, { replace: true });
+                }
+            });
+        } catch (error) {
+            // L'erreur est déjà gérée par le hook useLogin
+            console.error('Erreur de connexion:', error);
+        }
+    };
+
+    // Fonction pour déterminer la route par défaut selon le rôle
+    const getDefaultRoute = (role) => {
+        switch (role) {
+            case 'admin':
+                return '/';
+            case 'accountant':
+                return '/class-comp';
+            case 'teacher':
+                return '/students';
+            default:
+                return '/';
+        }
     };
 
     const handleInputChange = (field, value) => {
@@ -69,7 +88,9 @@ const Login = ({ setUser }) => {
             [field]: value
         }));
         // Clear error when user starts typing
-        if (error) setError('');
+        if (error) {
+            resetLoginState();
+        }
     };
 
     return (
@@ -117,13 +138,22 @@ const Login = ({ setUser }) => {
                                 variant="error" 
                                 className="mb-6"
                                 dismissible
-                                onDismiss={() => setError('')}
+                                onDismiss={() => resetLoginState()}
                             >
                                 {error}
                             </Alert>
                         )}
 
-                        <form onSubmit={handleLogin} className="space-y-6">
+                        {success && (
+                            <Alert 
+                                variant="success" 
+                                className="mb-6"
+                            >
+                                Connexion réussie ! Redirection en cours...
+                            </Alert>
+                        )}
+
+                        <form onSubmit={handleSubmit} className="space-y-6">
                             <Input
                                 label={authTraductions[getLang()].emailOrPseudo}
                                 type="text"
@@ -133,7 +163,7 @@ const Login = ({ setUser }) => {
                                 icon={<PersonFill size={18} />}
                                 iconPosition="left"
                                 required
-                                disabled={loading}
+                                disabled={isSubmitting}
                             />
 
                             <Input
@@ -145,14 +175,14 @@ const Login = ({ setUser }) => {
                                 icon={<LockFill size={18} />}
                                 iconPosition="left"
                                 required
-                                disabled={loading}
+                                disabled={isSubmitting}
                                 containerClassName="relative"
                             >
                                 <button
                                     type="button"
                                     className="absolute right-3 top-0 transform -translate-y-1/2 "
                                     onClick={() => setShowPassword(!showPassword)}
-                                    disabled={loading}
+                                    disabled={isSubmitting}
                                 >
                                     {showPassword ? (
                                         <EyeSlashFill size={18} />
@@ -169,7 +199,7 @@ const Login = ({ setUser }) => {
                                         checked={data.remember}
                                         onChange={(e) => handleInputChange('remember', e.target.checked)}
                                         className="w-4 h-4 text-primary-violet border-gray-300 rounded focus:ring-primary-violet focus:ring-2"
-                                        disabled={loading}
+                                        disabled={isSubmitting}
                                     />
                                     <span className="ml-2 text-sm text-gray-600">
                                         Se souvenir de moi
@@ -179,7 +209,7 @@ const Login = ({ setUser }) => {
                                 <button
                                     type="button"
                                     className="text-sm text-primary-violet hover:text-primary-violet-dark transition-colors"
-                                    disabled={loading}
+                                    disabled={isSubmitting}
                                 >
                                     Mot de passe oublié?
                                 </button>
@@ -190,10 +220,10 @@ const Login = ({ setUser }) => {
                                 variant="primary"
                                 fullWidth
                                 size="lg"
-                                disabled={loading || !data.username || !data.password}
-                                loading={loading}
+                                disabled={isSubmitting || !data.username.trim() || !data.password}
+                                loading={isSubmitting}
                             >
-                                {loading 
+                                {isSubmitting 
                                     ? authTraductions[getLang()].logining 
                                     : authTraductions[getLang()].login
                                 }
@@ -205,7 +235,7 @@ const Login = ({ setUser }) => {
                                 Problème de connexion?{' '}
                                 <button 
                                     className="text-primary-violet hover:text-primary-violet-dark font-medium transition-colors"
-                                    disabled={loading}
+                                    disabled={isSubmitting}
                                 >
                                     Contacter l'administrateur
                                 </button>
@@ -223,7 +253,7 @@ const Login = ({ setUser }) => {
             </div>
 
             {/* Loading Overlay */}
-            {loading && (
+            {isSubmitting && (
                 <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
                     <div className="bg-white rounded-xl p-6 shadow-xl">
                         <LoadingSpinner text="Connexion en cours..." />
