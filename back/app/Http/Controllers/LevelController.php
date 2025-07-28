@@ -22,7 +22,7 @@ class LevelController extends Controller
                 $query->where('section_id', $request->section_id);
             }
             
-            $levels = $query->active()->ordered()->get();
+            $levels = $query->ordered()->get();
             
             return response()->json([
                 'success' => true,
@@ -33,6 +33,41 @@ class LevelController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération des niveaux',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get dashboard statistics
+     */
+    public function dashboard()
+    {
+        try {
+            $stats = [
+                'total_levels' => Level::count(),
+                'active_levels' => Level::where('is_active', true)->count(),
+                'inactive_levels' => Level::where('is_active', false)->count(),
+                'levels_with_classes' => Level::has('schoolClasses')->count(),
+            ];
+
+            $recentLevels = Level::with('section')
+                ->latest()
+                ->take(5)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'stats' => $stats,
+                    'recent_levels' => $recentLevels
+                ],
+                'message' => 'Statistiques récupérées avec succès'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des statistiques',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -167,6 +202,29 @@ class LevelController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la suppression du niveau',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Toggle status of a level
+     */
+    public function toggleStatus(Level $level)
+    {
+        try {
+            $level->is_active = !$level->is_active;
+            $level->save();
+
+            return response()->json([
+                'success' => true,
+                'data' => $level,
+                'message' => $level->is_active ? 'Niveau activé avec succès' : 'Niveau désactivé avec succès'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du changement de statut',
                 'error' => $e->getMessage()
             ], 500);
         }

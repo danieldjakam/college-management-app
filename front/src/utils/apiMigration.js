@@ -176,6 +176,18 @@ export const secureApiEndpoints = {
         toggleStatus: (id) => secureApi.post(`/sections/${id}/toggle-status`)
     },
 
+    // === LEVELS ===
+    levels: {
+        getAll: () => secureApi.get('/levels'),
+        getById: (id) => secureApi.get(`/levels/${id}`),
+        create: (data) => secureApi.post('/levels', data),
+        update: (id, data) => secureApi.put(`/levels/${id}`, data),
+        delete: (id) => secureApi.delete(`/levels/${id}`),
+        getDashboard: () => secureApi.get('/levels/dashboard'),
+        toggleStatus: (id) => secureApi.post(`/levels/${id}/toggle-status`),
+        getBySection: (sectionId) => secureApi.get(`/levels?section_id=${sectionId}`)
+    },
+
     // === SUBJECTS ===
     subjects: {
         getAll: () => secureApi.get('/subjects'),

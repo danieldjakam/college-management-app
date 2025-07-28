@@ -25,6 +25,7 @@ import PaymentTranches from "./pages/PaymentTranches";
 import Params from "./pages/Profile/Params";
 import SearchView from "./pages/Search";
 import Sections from "./pages/Sections/Sections";
+import Levels from "./pages/Levels/Levels";
 import Settings from "./pages/Settings";
 import Statistics from "./pages/Statistics.jsx";
 import Student from "./pages/Students/Student";
@@ -188,6 +189,15 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <Sections />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/levels"
+                element={
+                  <AdminRoute>
+                    <Levels />
                   </AdminRoute>
                 }
               />

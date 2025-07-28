@@ -54,11 +54,13 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les niveaux
     Route::prefix('levels')->group(function () {
+        Route::get('/dashboard', [LevelController::class, 'dashboard']);
         Route::get('/', [LevelController::class, 'index']);
         Route::post('/', [LevelController::class, 'store']);
         Route::get('/{level}', [LevelController::class, 'show']);
         Route::put('/{level}', [LevelController::class, 'update']);
         Route::delete('/{level}', [LevelController::class, 'destroy']);
+        Route::post('/{level}/toggle-status', [LevelController::class, 'toggleStatus']);
     });
 
     // Routes pour les classes
