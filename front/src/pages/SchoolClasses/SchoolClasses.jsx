@@ -1,710 +1,488 @@
 import React, { useState, useEffect } from 'react';
 import { 
     Plus, 
-    Search, 
-    Eye, 
-    Pencil, 
-    Trash,
-    ToggleOff,
-    ToggleOn,
-    Grid,
-    List,
-    Filter,
+    PencilSquare, 
+    Trash, 
+    // Users, 
+    CreditCard,
+    ChevronDown,
+    ChevronRight,
     Building,
-    Book,
-    People,
-    Layers
+    // BookOpen
 } from 'react-bootstrap-icons';
-
-// Components
-import { Card, Button, Input, Alert, LoadingSpinner, Modal } from '../../components/UI';
-import { secureApiEndpoints } from '../../utils/apiMigration';
-
-// Hooks
 import { useAuth } from '../../hooks/useAuth';
+import { secureApiEndpoints } from '../../utils/apiMigration';
+import CreateSchoolClass from './CreateSchoolClass';
+import EditSchoolClass from './EditSchoolClass';
+import Swal from 'sweetalert2';
 
 const SchoolClasses = () => {
-    const { user } = useAuth();
     const [classes, setClasses] = useState([]);
     const [sections, setSections] = useState([]);
     const [levels, setLevels] = useState([]);
-    const [dashboardStats, setDashboardStats] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-    
-    // Filters and search
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filterActive, setFilterActive] = useState('all');
-    const [filterSection, setFilterSection] = useState('all');
-    const [filterLevel, setFilterLevel] = useState('all');
-    const [viewMode, setViewMode] = useState('grid');
-    
-    // Modal states
-    const [showAddModal, setShowAddModal] = useState(false);
+    const [expandedClasses, setExpandedClasses] = useState({});
+    const [showCreateModal, setShowCreateModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
-    const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [selectedClass, setSelectedClass] = useState(null);
-    
-    // Form data
-    const [formData, setFormData] = useState({
-        name: '',
-        level_id: '',
-        description: '',
-        is_active: true
+    const [filters, setFilters] = useState({
+        section_id: '',
+        level_id: ''
     });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    
+    const { isAuthenticated, isLoading: authLoading } = useAuth();
 
-    // Load data on component mount
     useEffect(() => {
-        loadClasses();
-        loadSections();
-        loadLevels();
-        loadDashboard();
-    }, []);
+        if (isAuthenticated && !authLoading) {
+            loadInitialData();
+        }
+    }, [isAuthenticated, authLoading]);
+
+    useEffect(() => {
+        if (isAuthenticated && !authLoading) {
+            loadClasses();
+        }
+    }, [filters, isAuthenticated, authLoading]);
+
+    const loadInitialData = async () => {
+        try {
+            console.log('Loading initial data - sections and levels...');
+            const [sectionsResponse, levelsResponse] = await Promise.all([
+                secureApiEndpoints.sections.getAll(),
+                secureApiEndpoints.levels.getAll()
+            ]);
+            
+            console.log('Sections response:', sectionsResponse);
+            console.log('Levels response:', levelsResponse);
+            
+            if (sectionsResponse.success) {
+                setSections(sectionsResponse.data || []);
+            }
+            if (levelsResponse.success) {
+                setLevels(levelsResponse.data || []);
+            }
+        } catch (error) {
+            console.error('Erreur lors du chargement des données:', error);
+            setError('Erreur lors du chargement des sections et niveaux');
+        }
+    };
 
     const loadClasses = async () => {
         try {
             setLoading(true);
-            const response = await secureApiEndpoints.schoolClasses.getAll();
+            console.log('Loading classes with filters:', filters);
+            let response;
+            
+            if (filters.section_id) {
+                response = await secureApiEndpoints.schoolClasses.getBySection(filters.section_id);
+            } else if (filters.level_id) {
+                response = await secureApiEndpoints.schoolClasses.getByLevel(filters.level_id);
+            } else {
+                response = await secureApiEndpoints.schoolClasses.getAll();
+            }
+            
+            console.log('Classes response:', response);
             if (response.success) {
-                setClasses(response.data);
+                setClasses(response.data || []);
             } else {
                 setError(response.message || 'Erreur lors du chargement des classes');
             }
         } catch (error) {
+            console.error('Erreur lors du chargement des classes:', error);
             setError('Erreur lors du chargement des classes');
-            console.error('Error loading classes:', error);
         } finally {
             setLoading(false);
         }
     };
 
-    const loadSections = async () => {
-        try {
-            const response = await secureApiEndpoints.sections.getAll();
-            if (response.success) {
-                setSections(response.data);
-            }
-        } catch (error) {
-            console.error('Error loading sections:', error);
-        }
+    const handleCreateClass = () => {
+        setShowCreateModal(true);
     };
 
-    const loadLevels = async () => {
-        try {
-            const response = await secureApiEndpoints.levels.getAll();
-            if (response.success) {
-                setLevels(response.data);
-            }
-        } catch (error) {
-            console.error('Error loading levels:', error);
-        }
-    };
-
-    const loadDashboard = async () => {
-        try {
-            const response = await secureApiEndpoints.schoolClasses.getDashboard();
-            if (response.success) {
-                setDashboardStats(response.data);
-            }
-        } catch (error) {
-            console.error('Error loading dashboard:', error);
-        }
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            setError('');
-            setSuccess('');
-
-            const response = selectedClass 
-                ? await secureApiEndpoints.schoolClasses.update(selectedClass.id, formData)
-                : await secureApiEndpoints.schoolClasses.create(formData);
-
-            if (response.success) {
-                setSuccess(response.message);
-                resetForm();
-                setShowAddModal(false);
-                setShowEditModal(false);
-                loadClasses();
-                loadDashboard();
-            } else {
-                setError(response.message || 'Erreur lors de la sauvegarde');
-            }
-        } catch (error) {
-            setError('Erreur lors de la sauvegarde');
-            console.error('Error saving class:', error);
-        }
-    };
-
-    const handleDelete = async () => {
-        if (!selectedClass) return;
-
-        try {
-            setError('');
-            const response = await secureApiEndpoints.schoolClasses.delete(selectedClass.id);
-            
-            if (response.success) {
-                setSuccess(response.message);
-                setShowDeleteModal(false);
-                setSelectedClass(null);
-                loadClasses();
-                loadDashboard();
-            } else {
-                setError(response.message || 'Erreur lors de la suppression');
-            }
-        } catch (error) {
-            setError('Erreur lors de la suppression');
-            console.error('Error deleting class:', error);
-        }
-    };
-
-    const handleToggleStatus = async (schoolClass) => {
-        try {
-            const response = await secureApiEndpoints.schoolClasses.toggleStatus(schoolClass.id);
-            if (response.success) {
-                setSuccess(response.message);
-                loadClasses();
-                loadDashboard();
-            } else {
-                setError(response.message || 'Erreur lors de la mise à jour');
-            }
-        } catch (error) {
-            setError('Erreur lors de la mise à jour du statut');
-            console.error('Error toggling status:', error);
-        }
-    };
-
-    const resetForm = () => {
-        setFormData({
-            name: '',
-            level_id: '',
-            description: '',
-            is_active: true
-        });
-        setSelectedClass(null);
-    };
-
-    const openEditModal = (schoolClass) => {
-        setSelectedClass(schoolClass);
-        setFormData({
-            name: schoolClass.name,
-            level_id: schoolClass.level_id.toString(),
-            description: schoolClass.description || '',
-            is_active: schoolClass.is_active
-        });
+    const handleEditClass = (classItem) => {
+        setSelectedClass(classItem);
         setShowEditModal(true);
     };
 
-    const openDeleteModal = (schoolClass) => {
-        setSelectedClass(schoolClass);
-        setShowDeleteModal(true);
+    const handleDeleteClass = async (classItem) => {
+        const result = await Swal.fire({
+            title: 'Confirmer la suppression',
+            text: `Êtes-vous sûr de vouloir supprimer la classe "${classItem.name}" ?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Supprimer',
+            cancelButtonText: 'Annuler'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                const response = await secureApiEndpoints.schoolClasses.delete(classItem.id);
+                if (response.success) {
+                    loadClasses();
+                    Swal.fire('Supprimé!', 'La classe a été supprimée.', 'success');
+                } else {
+                    Swal.fire('Erreur!', response.message || 'Erreur lors de la suppression.', 'error');
+                }
+            } catch (error) {
+                Swal.fire('Erreur!', 'Erreur lors de la suppression.', 'error');
+            }
+        }
     };
 
-    // Filter classes
-    const filteredClasses = classes.filter(schoolClass => {
-        const matchesSearch = schoolClass.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            (schoolClass.description && schoolClass.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                            (schoolClass.level && schoolClass.level.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                            (schoolClass.level && schoolClass.level.section && schoolClass.level.section.name.toLowerCase().includes(searchTerm.toLowerCase()));
-        
-        const matchesFilter = filterActive === 'all' || 
-                            (filterActive === 'active' && schoolClass.is_active) ||
-                            (filterActive === 'inactive' && !schoolClass.is_active);
-
-        const matchesSection = filterSection === 'all' || 
-                              (schoolClass.level && schoolClass.level.section_id.toString() === filterSection);
-
-        const matchesLevel = filterLevel === 'all' || 
-                           schoolClass.level_id.toString() === filterLevel;
-        
-        return matchesSearch && matchesFilter && matchesSection && matchesLevel;
-    });
-
-    // Get available levels based on section filter
-    const getAvailableLevels = () => {
-        if (filterSection === 'all') return levels;
-        return levels.filter(level => level.section_id.toString() === filterSection);
+    const toggleClassExpansion = (classId) => {
+        setExpandedClasses(prev => ({
+            ...prev,
+            [classId]: !prev[classId]
+        }));
     };
 
-    if (loading) {
+    const getSectionName = (sectionId) => {
+        const section = sections.find(s => s.id === sectionId);
+        return section ? section.name : 'Section inconnue';
+    };
+
+    const getLevelName = (levelId) => {
+        const level = levels.find(l => l.id === levelId);
+        return level ? level.name : 'Niveau inconnu';
+    };
+
+    const getFilteredLevels = () => {
+        if (!filters.section_id) return levels;
+        return levels.filter(level => level.section_id === parseInt(filters.section_id));
+    };
+
+    const groupedClasses = classes.reduce((acc, classItem) => {
+        const key = `${classItem.level?.section?.name || 'Sans section'} - ${classItem.level?.name || 'Sans niveau'}`;
+        if (!acc[key]) {
+            acc[key] = [];
+        }
+        acc[key].push(classItem);
+        return acc;
+    }, {});
+
+    // Afficher un loader si l'authentification est en cours
+    if (authLoading) {
         return (
-            <div className="flex items-center justify-center min-h-96">
-                <LoadingSpinner text="Chargement des classes..." size="lg" />
+            <div className="text-center py-5">
+                <div className="spinner-border" role="status">
+                    <span className="visually-hidden">Chargement de l'authentification...</span>
+                </div>
+            </div>
+        );
+    }
+
+    // Rediriger vers la page de connexion si pas authentifié
+    if (!isAuthenticated) {
+        return (
+            <div className="text-center py-5">
+                <h5 className="text-muted">Vous devez être connecté pour accéder à cette page</h5>
             </div>
         );
     }
 
     return (
-        <div className="p-6 bg-gray-50 min-h-screen">
-            {/* Header */}
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                        Gestion des Classes
-                    </h1>
-                    <p className="text-gray-600">
-                        Bienvenue {user?.name} - Gérez les classes de l'établissement
-                    </p>
+        <div className="container-fluid py-4">
+            <div className="row mb-4">
+                <div className="col-12">
+                    <div className="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 className="h4 mb-1">Gestion des Classes</h2>
+                            <p className="text-muted mb-0">
+                                Gérez les classes, leurs séries et montants de paiement
+                            </p>
+                        </div>
+                        <button
+                            className="btn btn-primary d-flex align-items-center gap-2"
+                            onClick={handleCreateClass}
+                        >
+                            <Plus size={16} />
+                            Nouvelle Classe
+                        </button>
+                    </div>
                 </div>
-                <Button
-                    onClick={() => {
-                        resetForm();
-                        setShowAddModal(true);
-                    }}
-                    className="flex items-center gap-2"
-                >
-                    <Plus size={16} />
-                    Nouvelle Classe
-                </Button>
+            </div>
+
+            {/* Filtres */}
+            <div className="row mb-4">
+                <div className="col-12">
+                    <div className="card">
+                        <div className="card-body">
+                            <div className="row g-3">
+                                <div className="col-md-4">
+                                    <label className="form-label">Section</label>
+                                    <select
+                                        className="form-select"
+                                        value={filters.section_id}
+                                        onChange={(e) => setFilters(prev => ({
+                                            ...prev,
+                                            section_id: e.target.value,
+                                            level_id: '' // Reset level when section changes
+                                        }))}
+                                    >
+                                        <option value="">Toutes les sections</option>
+                                        {sections.map(section => (
+                                            <option key={section.id} value={section.id}>
+                                                {section.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="col-md-4">
+                                    <label className="form-label">Niveau</label>
+                                    <select
+                                        className="form-select"
+                                        value={filters.level_id}
+                                        onChange={(e) => setFilters(prev => ({
+                                            ...prev,
+                                            level_id: e.target.value
+                                        }))}
+                                    >
+                                        <option value="">Tous les niveaux</option>
+                                        {getFilteredLevels().map(level => (
+                                            <option key={level.id} value={level.id}>
+                                                {level.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="col-md-4 d-flex align-items-end">
+                                    <button
+                                        className="btn btn-outline-secondary"
+                                        onClick={() => setFilters({ section_id: '', level_id: '' })}
+                                    >
+                                        Réinitialiser
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Alerts */}
             {error && (
-                <Alert variant="error" className="mb-4" dismissible onDismiss={() => setError('')}>
-                    {error}
-                </Alert>
-            )}
-            {success && (
-                <Alert variant="success" className="mb-4" dismissible onDismiss={() => setSuccess('')}>
-                    {success}
-                </Alert>
-            )}
-
-            {/* Dashboard Stats */}
-            {dashboardStats && (
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-                    <Card className="p-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600">Total Classes</p>
-                                <p className="text-2xl font-bold text-blue-600">
-                                    {dashboardStats.stats.total_classes}
-                                </p>
-                            </div>
-                            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                                <Building className="text-blue-600" size={24} />
-                            </div>
+                <div className="row mb-3">
+                    <div className="col-12">
+                        <div className="alert alert-danger alert-dismissible fade show" role="alert">
+                            {error}
+                            <button 
+                                type="button" 
+                                className="btn-close" 
+                                onClick={() => setError('')}
+                                aria-label="Close"
+                            ></button>
                         </div>
-                    </Card>
-
-                    <Card className="p-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600">Classes Actives</p>
-                                <p className="text-2xl font-bold text-green-600">
-                                    {dashboardStats.stats.active_classes}
-                                </p>
-                            </div>
-                            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                                <ToggleOn className="text-green-600" size={24} />
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Card className="p-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600">Classes Inactives</p>
-                                <p className="text-2xl font-bold text-red-600">
-                                    {dashboardStats.stats.inactive_classes}
-                                </p>
-                            </div>
-                            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                                <ToggleOff className="text-red-600" size={24} />
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Card className="p-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600">Avec Étudiants</p>
-                                <p className="text-2xl font-bold text-purple-600">
-                                    {dashboardStats.stats.classes_with_students}
-                                </p>
-                            </div>
-                            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                                <People className="text-purple-600" size={24} />
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Card className="p-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600">Total Séries</p>
-                                <p className="text-2xl font-bold text-orange-600">
-                                    {dashboardStats.stats.total_series}
-                                </p>
-                            </div>
-                            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                                <Layers className="text-orange-600" size={24} />
-                            </div>
-                        </div>
-                    </Card>
-                </div>
-            )}
-
-            {/* Filters and Search */}
-            <Card className="p-6 mb-8">
-                <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                    <div className="flex flex-col md:flex-row gap-4 flex-1">
-                        <div className="relative flex-1 max-w-md">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-                            <Input
-                                type="text"
-                                placeholder="Rechercher une classe..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10"
-                            />
-                        </div>
-                        
-                        <select
-                            value={filterActive}
-                            onChange={(e) => setFilterActive(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value="all">Toutes les classes</option>
-                            <option value="active">Classes actives</option>
-                            <option value="inactive">Classes inactives</option>
-                        </select>
-
-                        <select
-                            value={filterSection}
-                            onChange={(e) => {
-                                setFilterSection(e.target.value);
-                                setFilterLevel('all'); // Reset level filter when section changes
-                            }}
-                            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value="all">Toutes les sections</option>
-                            {sections.map(section => (
-                                <option key={section.id} value={section.id.toString()}>
-                                    {section.name}
-                                </option>
-                            ))}
-                        </select>
-
-                        <select
-                            value={filterLevel}
-                            onChange={(e) => setFilterLevel(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value="all">Tous les niveaux</option>
-                            {getAvailableLevels().map(level => (
-                                <option key={level.id} value={level.id.toString()}>
-                                    {level.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="flex gap-2">
-                        <Button
-                            variant={viewMode === 'grid' ? 'primary' : 'outline'}
-                            onClick={() => setViewMode('grid')}
-                            className="p-2"
-                        >
-                            <Grid size={16} />
-                        </Button>
-                        <Button
-                            variant={viewMode === 'list' ? 'primary' : 'outline'}
-                            onClick={() => setViewMode('list')}
-                            className="p-2"
-                        >
-                            <List size={16} />
-                        </Button>
                     </div>
                 </div>
-            </Card>
+            )}
 
-            {/* Classes List/Grid */}
-            {filteredClasses.length === 0 ? (
-                <Card className="p-8 text-center">
-                    <p className="text-gray-500 mb-4">Aucune classe trouvée</p>
-                    <Button
-                        onClick={() => {
-                            resetForm();
-                            setShowAddModal(true);
-                        }}
-                        className="flex items-center gap-2 mx-auto"
-                    >
-                        <Plus size={16} />
-                        Créer la première classe
-                    </Button>
-                </Card>
-            ) : viewMode === 'grid' ? (
-                // Vue en grille
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {filteredClasses.map((schoolClass) => (
-                        <Card key={schoolClass.id} className="p-4 hover:shadow-md transition-shadow duration-200">
-                            <div className="flex justify-between items-start mb-3">
-                                <h3 className="text-lg font-semibold text-gray-900">
-                                    {schoolClass.name}
-                                </h3>
-                                <div className="flex items-center gap-1">
-                                    <span className={`px-2 py-1 text-xs rounded-full ${
-                                        schoolClass.is_active 
-                                            ? 'bg-green-100 text-green-800' 
-                                            : 'bg-red-100 text-red-800'
-                                    }`}>
-                                        {schoolClass.is_active ? 'Active' : 'Inactive'}
-                                    </span>
-                                </div>
+            {/* Liste des classes groupées */}
+            <div className="row">
+                <div className="col-12">
+                    {loading ? (
+                        <div className="text-center py-5">
+                            <div className="spinner-border" role="status">
+                                <span className="visually-hidden">Chargement...</span>
                             </div>
-                            
-                            <div className="mb-3 space-y-1">
-                                <p className="text-sm text-gray-600">
-                                    Section: <span className="font-medium text-blue-600">
-                                        {schoolClass.level?.section?.name || 'N/A'}
-                                    </span>
+                        </div>
+                    ) : Object.keys(groupedClasses).length === 0 ? (
+                        <div className="card">
+                            <div className="card-body text-center py-5">
+                                {/* <BookOpen size={48} className="text-muted mb-3" /> */}
+                                <h5 className="text-muted">Aucune classe trouvée</h5>
+                                <p className="text-muted mb-4">
+                                    Commencez par créer votre première classe
                                 </p>
-                                <p className="text-sm text-gray-600">
-                                    Niveau: <span className="font-medium text-purple-600">
-                                        {schoolClass.level?.name || 'N/A'}
-                                    </span>
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                    Séries: <span className="font-medium text-orange-600">
-                                        {schoolClass.series?.length || 0}
-                                    </span>
-                                </p>
-                                {schoolClass.description && (
-                                    <p className="text-gray-600 text-sm mt-2">
-                                        {schoolClass.description}
-                                    </p>
-                                )}
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={handleCreateClass}
+                                >
+                                    <Plus size={16} className="me-2" />
+                                    Créer une classe
+                                </button>
                             </div>
-                            
-                            <div className="flex justify-end items-center">
-                                <div className="flex gap-1">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleToggleStatus(schoolClass)}
-                                        title={schoolClass.is_active ? 'Désactiver' : 'Activer'}
-                                    >
-                                        {schoolClass.is_active ? <ToggleOn size={16} /> : <ToggleOff size={16} />}
-                                    </Button>
-                                    
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => openEditModal(schoolClass)}
-                                        title="Modifier"
-                                    >
-                                        <Pencil size={16} />
-                                    </Button>
-                                    
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => openDeleteModal(schoolClass)}
-                                        className="text-red-600 hover:text-red-700"
-                                        title="Supprimer"
-                                    >
-                                        <Trash size={16} />
-                                    </Button>
-                                </div>
-                            </div>
-                        </Card>
-                    ))}
-                </div>
-            ) : (
-                // Vue en liste
-                <div className="space-y-4">
-                    {filteredClasses.map((schoolClass) => (
-                        <Card key={schoolClass.id} className="p-4 hover:shadow-md transition-shadow duration-200">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-4 flex-1">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-3 mb-1">
-                                            <h3 className="text-lg font-semibold text-gray-900">
-                                                {schoolClass.name}
-                                            </h3>
-                                            <span className={`px-2 py-1 text-xs rounded-full ${
-                                                schoolClass.is_active 
-                                                    ? 'bg-green-100 text-green-800' 
-                                                    : 'bg-red-100 text-red-800'
-                                            }`}>
-                                                {schoolClass.is_active ? 'Active' : 'Inactive'}
+                        </div>
+                    ) : (
+                        <div className="accordion" id="classesAccordion">
+                            {Object.entries(groupedClasses).map(([groupKey, groupClasses], groupIndex) => (
+                                <div key={groupKey} className="card mb-3">
+                                    <div className="card-header bg-light">
+                                        <h6 className="mb-0 d-flex align-items-center">
+                                            <Building size={16} className="me-2 text-primary" />
+                                            {groupKey}
+                                            <span className="badge bg-primary ms-2">
+                                                {groupClasses.length} classe{groupClasses.length > 1 ? 's' : ''}
                                             </span>
-                                            <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
-                                                {schoolClass.level?.section?.name || 'N/A'}
-                                            </span>
-                                            <span className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded">
-                                                {schoolClass.level?.name || 'N/A'}
-                                            </span>
-                                            <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
-                                                {schoolClass.series?.length || 0} série{schoolClass.series?.length !== 1 ? 's' : ''}
-                                            </span>
-                                        </div>
-                                        {schoolClass.description && (
-                                            <p className="text-gray-600 text-sm">
-                                                {schoolClass.description}
-                                            </p>
-                                        )}
+                                        </h6>
+                                    </div>
+                                    <div className="card-body p-0">
+                                        {groupClasses.map((classItem) => (
+                                            <div key={classItem.id} className="border-bottom">
+                                                {/* En-tête de la classe */}
+                                                <div 
+                                                    className="p-3 d-flex justify-content-between align-items-center cursor-pointer"
+                                                    onClick={() => toggleClassExpansion(classItem.id)}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    <div className="d-flex align-items-center">
+                                                        {expandedClasses[classItem.id] ? 
+                                                            <ChevronDown size={16} className="me-2 text-muted" /> :
+                                                            <ChevronRight size={16} className="me-2 text-muted" />
+                                                        }
+                                                        <div>
+                                                            <h6 className="mb-1">{classItem.name}</h6>
+                                                            <small className="text-muted">
+                                                                {classItem.series?.length || 0} série{(classItem.series?.length || 0) > 1 ? 's' : ''}
+                                                                {classItem.payment_amounts?.length > 0 && (
+                                                                    <> • {classItem.payment_amounts.length} tranche{classItem.payment_amounts.length > 1 ? 's' : ''} configurée{classItem.payment_amounts.length > 1 ? 's' : ''}</>
+                                                                )}
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                    <div className="d-flex gap-2">
+                                                        <button
+                                                            className="btn btn-sm btn-outline-primary"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleEditClass(classItem);
+                                                            }}
+                                                            title="Modifier"
+                                                        >
+                                                            <PencilSquare size={14} />
+                                                        </button>
+                                                        <button
+                                                            className="btn btn-sm btn-outline-danger"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDeleteClass(classItem);
+                                                            }}
+                                                            title="Supprimer"
+                                                        >
+                                                            <Trash size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Détails de la classe (séries et paiements) */}
+                                                {expandedClasses[classItem.id] && (
+                                                    <div className="px-3 pb-3">
+                                                        <div className="row">
+                                                            {/* Séries */}
+                                                            <div className="col-md-6">
+                                                                <h6 className="text-primary mb-3">
+                                                                    {/* <Users size={16} className="me-2" /> */}
+                                                                    Séries
+                                                                </h6>
+                                                                {classItem.series && classItem.series.length > 0 ? (
+                                                                    <div className="list-group list-group-flush">
+                                                                        {classItem.series.map((serie) => (
+                                                                            <div key={serie.id} className="list-group-item border-0 px-0 py-2">
+                                                                                <div className="d-flex justify-content-between align-items-center">
+                                                                                    <div>
+                                                                                        <strong>{serie.name}</strong>
+                                                                                        {serie.code && (
+                                                                                            <small className="text-muted ms-2">({serie.code})</small>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div className="text-end">
+                                                                                        <small className="text-muted">
+                                                                                            Capacité: {serie.capacity || 'Non définie'}
+                                                                                        </small>
+                                                                                        <br />
+                                                                                        <span className={`badge ${serie.is_active ? 'bg-success' : 'bg-secondary'}`}>
+                                                                                            {serie.is_active ? 'Active' : 'Inactive'}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-muted">Aucune série configurée</p>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Montants de paiement */}
+                                                            <div className="col-md-6">
+                                                                <h6 className="text-success mb-3">
+                                                                    <CreditCard size={16} className="me-2" />
+                                                                    Montants de Paiement
+                                                                </h6>
+                                                                {classItem.payment_amounts && classItem.payment_amounts.length > 0 ? (
+                                                                    <div className="list-group list-group-flush">
+                                                                        {classItem.payment_amounts.map((payment) => (
+                                                                            <div key={payment.id} className="list-group-item border-0 px-0 py-2">
+                                                                                <div className="d-flex justify-content-between align-items-center">
+                                                                                    <div>
+                                                                                        <strong>{payment.payment_tranche?.name}</strong>
+                                                                                        <br />
+                                                                                        <small className="text-muted">
+                                                                                            {payment.payment_tranche?.description}
+                                                                                        </small>
+                                                                                    </div>
+                                                                                    <div className="text-end">
+                                                                                        <div className="fw-bold text-success">
+                                                                                            {payment.amount_new_students?.toLocaleString()} FCFA
+                                                                                        </div>
+                                                                                        <small className="text-muted">
+                                                                                            Ancien: {payment.amount_old_students?.toLocaleString()} FCFA
+                                                                                        </small>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-muted">Aucun montant configuré</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
-                                
-                                <div className="flex gap-1 ml-4">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleToggleStatus(schoolClass)}
-                                        title={schoolClass.is_active ? 'Désactiver' : 'Activer'}
-                                    >
-                                        {schoolClass.is_active ? <ToggleOn size={16} /> : <ToggleOff size={16} />}
-                                    </Button>
-                                    
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => openEditModal(schoolClass)}
-                                        title="Modifier"
-                                    >
-                                        <Pencil size={16} />
-                                    </Button>
-                                    
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => openDeleteModal(schoolClass)}
-                                        className="text-red-600 hover:text-red-700"
-                                        title="Supprimer"
-                                    >
-                                        <Trash size={16} />
-                                    </Button>
-                                </div>
-                            </div>
-                        </Card>
-                    ))}
+                            ))}
+                        </div>
+                    )}
                 </div>
+            </div>
+
+            {/* Modals */}
+            {showCreateModal && (
+                <CreateSchoolClass
+                    show={showCreateModal}
+                    onHide={() => setShowCreateModal(false)}
+                    onSuccess={() => {
+                        setShowCreateModal(false);
+                        loadClasses();
+                    }}
+                    sections={sections}
+                    levels={levels}
+                />
             )}
 
-            {/* Add/Edit Modal */}
-            <Modal
-                isOpen={showAddModal || showEditModal}
-                onClose={() => {
-                    setShowAddModal(false);
-                    setShowEditModal(false);
-                    resetForm();
-                }}
-                title={selectedClass ? 'Modifier la Classe' : 'Nouvelle Classe'}
-            >
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <Input
-                        label="Nom de la classe"
-                        type="text"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        required
-                        placeholder="Ex: 6ème A, CP1 B..."
-                    />
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Niveau *
-                        </label>
-                        <select
-                            value={formData.level_id}
-                            onChange={(e) => setFormData({ ...formData, level_id: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            required
-                        >
-                            <option value="">Sélectionner un niveau</option>
-                            {levels.filter(l => l.is_active).map(level => (
-                                <option key={level.id} value={level.id.toString()}>
-                                    {level.section?.name} - {level.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Description
-                        </label>
-                        <textarea
-                            value={formData.description}
-                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            placeholder="Description de la classe..."
-                            rows={3}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                    </div>
-
-                    <div className="flex items-center">
-                        <input
-                            type="checkbox"
-                            id="is_active"
-                            checked={formData.is_active}
-                            onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <label htmlFor="is_active" className="ml-2 text-sm text-gray-700">
-                            Classe active
-                        </label>
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                                setShowAddModal(false);
-                                setShowEditModal(false);
-                                resetForm();
-                            }}
-                        >
-                            Annuler
-                        </Button>
-                        <Button type="submit">
-                            {selectedClass ? 'Modifier' : 'Créer'}
-                        </Button>
-                    </div>
-                </form>
-            </Modal>
-
-            {/* Delete Modal */}
-            <Modal
-                isOpen={showDeleteModal}
-                onClose={() => {
-                    setShowDeleteModal(false);
-                    setSelectedClass(null);
-                }}
-                title="Confirmer la suppression"
-            >
-                <div className="space-y-4">
-                    <p className="text-gray-700">
-                        Êtes-vous sûr de vouloir supprimer la classe <strong>{selectedClass?.name}</strong> ?
-                    </p>
-                    <p className="text-sm text-red-600">
-                        Cette action est irréversible et ne sera possible que si la classe ne contient aucun étudiant.
-                    </p>
-                    
-                    <div className="flex justify-end gap-2 pt-4">
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                setShowDeleteModal(false);
-                                setSelectedClass(null);
-                            }}
-                        >
-                            Annuler
-                        </Button>
-                        <Button
-                            variant="danger"
-                            onClick={handleDelete}
-                        >
-                            Supprimer
-                        </Button>
-                    </div>
-                </div>
-            </Modal>
+            {showEditModal && selectedClass && (
+                <EditSchoolClass
+                    show={showEditModal}
+                    onHide={() => {
+                        setShowEditModal(false);
+                        setSelectedClass(null);
+                    }}
+                    onSuccess={() => {
+                        setShowEditModal(false);
+                        setSelectedClass(null);
+                        loadClasses();
+                    }}
+                    classData={selectedClass}
+                    sections={sections}
+                    levels={levels}
+                />
+            )}
         </div>
     );
 };

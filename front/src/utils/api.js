@@ -1,5 +1,6 @@
 import { host } from './fetch';
 import { withRateLimit } from './rateLimiter';
+import { authService } from '../services/authService';
 
 /**
  * Configuration par défaut pour les requêtes API
@@ -67,7 +68,7 @@ export const handleApiError = (error, showUserMessage = true) => {
             userMessage = 'Session expirée. Veuillez vous reconnecter.';
             // Rediriger vers la page de connexion
             if (typeof window !== 'undefined') {
-                sessionStorage.clear();
+                authService.removeToken();
                 window.location.href = '/login';
                 return;
             }
@@ -120,9 +121,14 @@ export const safeFetch = async (url, options = {}, config = {}) => {
     } = config;
     
     // Configuration par défaut des headers
+    const token = authService.getToken();
+    console.log('API Debug - Token found:', !!token);
+    if (token) {
+        console.log('Token preview:', token.substring(0, 20) + '...');
+    }
     const defaultHeaders = {
         'Content-Type': 'application/json',
-        ...(sessionStorage.user && { 'Authorization': sessionStorage.user })
+        ...(token && { 'Authorization': `Bearer ${token}` })
     };
     
     const fetchOptions = {

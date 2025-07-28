@@ -220,6 +220,16 @@ export const secureApiEndpoints = {
         delete: (id) => secureApi.delete(`/grades/${id}`)
     },
 
+    // === PAYMENT TRANCHES ===
+    paymentTranches: {
+        getAll: () => secureApi.get('/payment-tranches'),
+        getById: (id) => secureApi.get(`/payment-tranches/${id}`),
+        create: (data) => secureApi.post('/payment-tranches', data),
+        update: (id, data) => secureApi.put(`/payment-tranches/${id}`, data),
+        delete: (id) => secureApi.delete(`/payment-tranches/${id}`),
+        reorder: (data) => secureApi.post('/payment-tranches/reorder', data)
+    },
+
     // === PAYMENTS (pour comptables) ===
     payments: {
         getAll: () => secureApi.get('/payments'),

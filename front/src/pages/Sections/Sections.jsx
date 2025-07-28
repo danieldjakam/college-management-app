@@ -287,50 +287,71 @@ const Sections = () => {
                 </div>
             )}
 
-            {/* Filters and Search */}
-            <Card className="p-4 mb-6">
-                <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                    <div className="flex flex-col md:flex-row gap-4 flex-1">
-                        <div className="relative flex-1 max-w-md">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-                            <Input
-                                type="text"
-                                placeholder="Rechercher une section..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10"
-                            />
+            {/* Filtres */}
+            <div className="row mb-4">
+                <div className="col-12">
+                    <div className="card">
+                        <div className="card-body">
+                            <div className="row g-3">
+                                <div className="col-md-4">
+                                    <label className="form-label">Rechercher</label>
+                                    <div className="position-relative">
+                                        <Search className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" size={16} />
+                                        <input
+                                            type="text"
+                                            className="form-control ps-5"
+                                            placeholder="Rechercher une section..."
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="col-md-4">
+                                    <label className="form-label">Statut</label>
+                                    <select
+                                        className="form-select"
+                                        value={filterActive}
+                                        onChange={(e) => setFilterActive(e.target.value)}
+                                    >
+                                        <option value="all">Toutes les sections</option>
+                                        <option value="active">Sections actives</option>
+                                        <option value="inactive">Sections inactives</option>
+                                    </select>
+                                </div>
+                                <div className="col-md-4 d-flex align-items-end">
+                                    <div className="btn-group me-3" role="group">
+                                        <button
+                                            type="button"
+                                            className={`btn ${viewMode === 'grid' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                                            onClick={() => setViewMode('grid')}
+                                            title="Vue grille"
+                                        >
+                                            <Grid size={16} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`btn ${viewMode === 'list' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                                            onClick={() => setViewMode('list')}
+                                            title="Vue liste"
+                                        >
+                                            <List size={16} />
+                                        </button>
+                                    </div>
+                                    <button
+                                        className="btn btn-outline-secondary"
+                                        onClick={() => {
+                                            setSearchTerm('');
+                                            setFilterActive('all');
+                                        }}
+                                    >
+                                        Réinitialiser
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        
-                        <select
-                            value={filterActive}
-                            onChange={(e) => setFilterActive(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value="all">Toutes les sections</option>
-                            <option value="active">Sections actives</option>
-                            <option value="inactive">Sections inactives</option>
-                        </select>
-                    </div>
-
-                    <div className="flex gap-2">
-                        <Button
-                            variant={viewMode === 'grid' ? 'primary' : 'outline'}
-                            onClick={() => setViewMode('grid')}
-                            className="p-2"
-                        >
-                            <Grid size={16} />
-                        </Button>
-                        <Button
-                            variant={viewMode === 'list' ? 'primary' : 'outline'}
-                            onClick={() => setViewMode('list')}
-                            className="p-2"
-                        >
-                            <List size={16} />
-                        </Button>
                     </div>
                 </div>
-            </Card>
+            </div>
 
             {/* Sections List/Grid */}
             {filteredSections.length === 0 ? (

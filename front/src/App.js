@@ -19,21 +19,16 @@ import Error404 from "./pages/Error404";
 import Levels from "./pages/Levels/Levels";
 import Login from "./pages/Login";
 import PaymentTranches from "./pages/PaymentTranches";
-import Params from "./pages/Profile/Params";
 import SchoolClasses from "./pages/SchoolClasses/SchoolClasses";
-import SearchView from "./pages/Search";
 import Sections from "./pages/Sections/Sections";
 import Settings from "./pages/Settings";
-import Student from "./pages/Students/Student";
-import Teachers from "./pages/Teachers/Teachers";
+import UserProfile from "./pages/Profile/UserProfile";
 
 // Comptable Pages
 import ClassCompt from "./pages/comptables/Class";
 import ParamsCompt from "./pages/comptables/Params";
-import ReductFees from "./pages/comptables/ReductFees";
 import StudentsComp from "./pages/comptables/Students";
 import StudentsByClass from "./pages/comptables/StudentsByClass";
-import TransfertStudent from "./pages/Students/TransfertStudent";
 
 // Components
 import Sidebar from "./components/Sidebar";
@@ -109,41 +104,7 @@ const AppContent = () => {
               />
 
               {/* Routes principales - accessibles à tous les utilisateurs connectés */}
-              <Route
-                path="/search"
-                element={
-                  <ProtectedRoute>
-                    <SearchView />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/params"
-                element={
-                  <ProtectedRoute>
-                    <Params />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/students/:id"
-                element={
-                  <TeacherRoute>
-                    <Student />
-                  </TeacherRoute>
-                }
-              />
-
-              <Route
-                path="/transfert/:id"
-                element={
-                  <TeacherRoute>
-                    <TransfertStudent />
-                  </TeacherRoute>
-                }
-              />
+            
 
               {/* Routes pour administrateurs uniquement */}
               <Route
@@ -169,15 +130,6 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <SchoolClasses />
-                  </AdminRoute>
-                }
-              />
-
-              <Route
-                path="/teachers"
-                element={
-                  <AdminRoute>
-                    <Teachers />
                   </AdminRoute>
                 }
               />
@@ -228,14 +180,6 @@ const AppContent = () => {
                 }
               />
 
-              <Route
-                path="/reduct-fees/:id"
-                element={
-                  <AccountantRoute>
-                    <ReductFees />
-                  </AccountantRoute>
-                }
-              />
 
               <Route
                 path="/params-comp"

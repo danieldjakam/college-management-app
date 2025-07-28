@@ -93,14 +93,16 @@ class SchoolClassController extends Controller
             'name' => 'required|string|max:255',
             'level_id' => 'required|exists:levels,id',
             'description' => 'nullable|string',
+            'is_active' => 'boolean',
             'series' => 'required|array|min:1',
-            'series.*.name' => 'required|string|max:10',
-            'series.*.capacity' => 'nullable|integer|min:1|max:100',
+            'series.*.name' => 'required|string|max:50',
+            'series.*.code' => 'nullable|string|max:10',
+            'series.*.capacity' => 'nullable|integer|min:1|max:200',
+            'series.*.is_active' => 'boolean',
             'payment_amounts' => 'nullable|array',
             'payment_amounts.*.payment_tranche_id' => 'required|exists:payment_tranches,id',
-            'payment_amounts.*.amount_new_students' => 'required|numeric|min:0',
-            'payment_amounts.*.amount_old_students' => 'required|numeric|min:0',
-            'payment_amounts.*.is_required' => 'boolean'
+            'payment_amounts.*.new_student_amount' => 'nullable|numeric|min:0',
+            'payment_amounts.*.old_student_amount' => 'nullable|numeric|min:0'
         ]);
 
         if ($validator->fails()) {
@@ -118,7 +120,8 @@ class SchoolClassController extends Controller
             $schoolClass = SchoolClass::create([
                 'name' => $request->name,
                 'level_id' => $request->level_id,
-                'description' => $request->description
+                'description' => $request->description,
+                'is_active' => $request->is_active ?? true
             ]);
 
             // Créer les séries
@@ -126,20 +129,24 @@ class SchoolClassController extends Controller
                 ClassSeries::create([
                     'class_id' => $schoolClass->id,
                     'name' => $seriesData['name'],
-                    'capacity' => $seriesData['capacity'] ?? 50
+                    'code' => $seriesData['code'] ?? null,
+                    'capacity' => $seriesData['capacity'] ?? null,
+                    'is_active' => $seriesData['is_active'] ?? true
                 ]);
             }
 
             // Créer les montants de paiement si fournis
-            if ($request->has('payment_amounts')) {
+            if ($request->has('payment_amounts') && !empty($request->payment_amounts)) {
                 foreach ($request->payment_amounts as $paymentData) {
-                    ClassPaymentAmount::create([
-                        'class_id' => $schoolClass->id,
-                        'payment_tranche_id' => $paymentData['payment_tranche_id'],
-                        'amount_new_students' => $paymentData['amount_new_students'],
-                        'amount_old_students' => $paymentData['amount_old_students'],
-                        'is_required' => $paymentData['is_required'] ?? true
-                    ]);
+                    // Ne créer que si au moins un montant est défini
+                    if (!empty($paymentData['new_student_amount']) || !empty($paymentData['old_student_amount'])) {
+                        ClassPaymentAmount::create([
+                            'class_id' => $schoolClass->id,
+                            'payment_tranche_id' => $paymentData['payment_tranche_id'],
+                            'amount_new_students' => $paymentData['new_student_amount'] ?? 0,
+                            'amount_old_students' => $paymentData['old_student_amount'] ?? 0
+                        ]);
+                    }
                 }
             }
 
@@ -202,7 +209,18 @@ class SchoolClassController extends Controller
             'name' => 'required|string|max:255',
             'level_id' => 'required|exists:levels,id',
             'description' => 'nullable|string',
-            'is_active' => 'boolean'
+            'is_active' => 'boolean',
+            'series' => 'nullable|array',
+            'series.*.id' => 'nullable|exists:class_series,id',
+            'series.*.name' => 'required|string|max:50',
+            'series.*.code' => 'nullable|string|max:10',
+            'series.*.capacity' => 'nullable|integer|min:1|max:200',
+            'series.*.is_active' => 'boolean',
+            'payment_amounts' => 'nullable|array',
+            'payment_amounts.*.id' => 'nullable|exists:class_payment_amounts,id',
+            'payment_amounts.*.payment_tranche_id' => 'required|exists:payment_tranches,id',
+            'payment_amounts.*.new_student_amount' => 'nullable|numeric|min:0',
+            'payment_amounts.*.old_student_amount' => 'nullable|numeric|min:0'
         ]);
 
         if ($validator->fails()) {
@@ -214,7 +232,97 @@ class SchoolClassController extends Controller
         }
 
         try {
-            $schoolClass->update($request->all());
+            DB::beginTransaction();
+
+            // Mettre à jour les informations de base de la classe
+            $schoolClass->update([
+                'name' => $request->name,
+                'level_id' => $request->level_id,
+                'description' => $request->description,
+                'is_active' => $request->is_active ?? $schoolClass->is_active
+            ]);
+
+            // Gérer les séries si elles sont fournies
+            if ($request->has('series')) {
+                // Obtenir les IDs des séries existantes
+                $existingSeriesIds = $schoolClass->series->pluck('id')->toArray();
+                $updatedSeriesIds = [];
+
+                foreach ($request->series as $seriesData) {
+                    if (isset($seriesData['id'])) {
+                        // Mise à jour d'une série existante
+                        $series = ClassSeries::find($seriesData['id']);
+                        if ($series && $series->class_id === $schoolClass->id) {
+                            $series->update([
+                                'name' => $seriesData['name'],
+                                'code' => $seriesData['code'] ?? null,
+                                'capacity' => $seriesData['capacity'] ?? null,
+                                'is_active' => $seriesData['is_active'] ?? true
+                            ]);
+                            $updatedSeriesIds[] = $series->id;
+                        }
+                    } else {
+                        // Création d'une nouvelle série
+                        $newSeries = ClassSeries::create([
+                            'class_id' => $schoolClass->id,
+                            'name' => $seriesData['name'],
+                            'code' => $seriesData['code'] ?? null,
+                            'capacity' => $seriesData['capacity'] ?? null,
+                            'is_active' => $seriesData['is_active'] ?? true
+                        ]);
+                        $updatedSeriesIds[] = $newSeries->id;
+                    }
+                }
+
+                // Supprimer les séries qui ne sont plus présentes
+                $seriesToDelete = array_diff($existingSeriesIds, $updatedSeriesIds);
+                if (!empty($seriesToDelete)) {
+                    ClassSeries::whereIn('id', $seriesToDelete)->delete();
+                }
+            }
+
+            // Gérer les montants de paiement si ils sont fournis
+            if ($request->has('payment_amounts')) {
+                // Obtenir les IDs des montants existants
+                $existingPaymentIds = $schoolClass->paymentAmounts->pluck('id')->toArray();
+                $updatedPaymentIds = [];
+
+                foreach ($request->payment_amounts as $paymentData) {
+                    // Ne traiter que si au moins un montant est défini
+                    if (!empty($paymentData['new_student_amount']) || !empty($paymentData['old_student_amount'])) {
+                        if (isset($paymentData['id'])) {
+                            // Mise à jour d'un montant existant
+                            $payment = ClassPaymentAmount::find($paymentData['id']);
+                            if ($payment && $payment->class_id === $schoolClass->id) {
+                                $payment->update([
+                                    'amount_new_students' => $paymentData['new_student_amount'] ?? 0,
+                                    'amount_old_students' => $paymentData['old_student_amount'] ?? 0
+                                ]);
+                                $updatedPaymentIds[] = $payment->id;
+                            }
+                        } else {
+                            // Création d'un nouveau montant
+                            $newPayment = ClassPaymentAmount::create([
+                                'class_id' => $schoolClass->id,
+                                'payment_tranche_id' => $paymentData['payment_tranche_id'],
+                                'amount_new_students' => $paymentData['new_student_amount'] ?? 0,
+                                'amount_old_students' => $paymentData['old_student_amount'] ?? 0
+                            ]);
+                            $updatedPaymentIds[] = $newPayment->id;
+                        }
+                    }
+                }
+
+                // Supprimer les montants qui ne sont plus présents
+                $paymentsToDelete = array_diff($existingPaymentIds, $updatedPaymentIds);
+                if (!empty($paymentsToDelete)) {
+                    ClassPaymentAmount::whereIn('id', $paymentsToDelete)->delete();
+                }
+            }
+
+            DB::commit();
+
+            // Recharger avec les relations
             $schoolClass->load(['level.section', 'series', 'paymentAmounts.paymentTranche']);
 
             return response()->json([
@@ -223,6 +331,7 @@ class SchoolClassController extends Controller
                 'message' => 'Classe mise à jour avec succès'
             ]);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la mise à jour de la classe',
