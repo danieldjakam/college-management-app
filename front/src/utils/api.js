@@ -236,12 +236,13 @@ export const api = {
  */
 export const apiEndpoints = {
     // Authentication
-    login: (credentials) => api.post('/users/login', credentials),
-    logout: () => api.post('/users/logout'),
+    login: (credentials) => api.post('/auth/login', credentials),
+    logout: () => api.post('/auth/logout'),
     
     //users
-    getAdminOrTeacher: () => api.get(`/getTeacherOrAdmin`),
+    getAdminOrTeacher: () => api.get(`/users/getTeacherOrAdmin`),
     getUserInfos: () => api.get('/users/getInfos'),
+    getAllUsers: () => api.get('/users/all'),
 
     // Teachers
     getAllTeachers: () => api.get('/teachers/getAll'),
@@ -255,28 +256,82 @@ export const apiEndpoints = {
     getAllStudents: () => api.get('/students/getAll'),
     getStudentsByClass: (classId) => api.get(`/students/${classId}`),
     getOrderedStudents: (classId) => api.get(`/students/getOrdonnedStudents/${classId}`),
-    getStudent: (id) => api.get(`/students/one/${id}`),
+    getOneStudent: (id) => api.get(`/students/one/${id}`),
     addStudent: (classId, data) => api.post(`/students/add/${classId}`, data),
     updateStudent: (id, data) => api.put(`/students/${id}`, data),
     deleteStudent: (id) => api.delete(`/students/${id}`),
+    getStudentSettings: () => api.get('/students/gs'),
     
     // Classes
     getAllClasses: () => api.get('/class/getAll'),
-    getClass: (id) => api.get(`/class/${id}`),
+    getOneClass: (id) => api.get(`/class/${id}`),
     addClass: (data) => api.post('/class/add', data),
     updateClass: (id, data) => api.put(`/class/${id}`, data),
     deleteClass: (id) => api.delete(`/class/${id}`),
     
     // Sections
-    getAllSections: () => api.get('/sections/all'),
-    getSection: (id) => api.get(`/sections/${id}`),
+    getAllSections: () => api.get('/sections'),
+    getOneSection: (id) => api.get(`/sections/${id}`),
     addSection: (data) => api.post('/sections/store', data),
     updateSection: (id, data) => api.put(`/sections/${id}`, data),
     deleteSection: (id) => api.delete(`/sections/${id}`),
     
+    // Sequences
+    getAllSequences: () => api.get('/seq/getAll'),
+    getOneSequence: (id) => api.get(`/seq/${id}`),
+    addSequence: (data) => api.post('/seq/add', data),
+    updateSequence: (id, data) => api.put(`/seq/${id}`, data),
+    deleteSequence: (id) => api.delete(`/seq/${id}`),
+    
+    // Trimesters
+    getAllTrimesters: () => api.get('/trim/getAll'),
+    getOneTrimester: (id) => api.get(`/trim/${id}`),
+    addTrimester: (data) => api.post('/trim/add', data),
+    updateTrimester: (id, data) => api.put(`/trim/${id}`, data),
+    deleteTrimester: (id) => api.delete(`/trim/${id}`),
+    
+    // Annual Exams
+    getAllAnnualExams: () => api.get('/annuals/all'),
+    getOneAnnualExam: (id) => api.get(`/annuals/${id}`),
+    addAnnualExam: (data) => api.post('/annuals/add', data),
+    updateAnnualExam: (id, data) => api.put(`/annuals/${id}`, data),
+    deleteAnnualExam: (id) => api.delete(`/annuals/${id}`),
+    
     // Settings
     getSettings: () => api.get('/settings/getSettings'),
-    updateSettings: (data) => api.post('/settings/setSettings', data)
+    updateSettings: (data) => api.post('/settings/setSettings', data),
+    
+    // Payment Tranches
+    getAllPaymentTranches: () => api.get('/payment-tranches'),
+    getPaymentTranche: (id) => api.get(`/payment-tranches/${id}`),
+    addPaymentTranche: (data) => api.post('/payment-tranches', data),
+    updatePaymentTranche: (id, data) => api.put(`/payment-tranches/${id}`, data),
+    deletePaymentTranche: (id) => api.delete(`/payment-tranches/${id}`),
+    reorderPaymentTranches: (data) => api.post('/payment-tranches/reorder', data),
+    
+    // Levels
+    getAllLevels: (sectionId = null) => {
+        const url = sectionId ? `/levels?section_id=${sectionId}` : '/levels';
+        return api.get(url);
+    },
+    getLevel: (id) => api.get(`/levels/${id}`),
+    addLevel: (data) => api.post('/levels', data),
+    updateLevel: (id, data) => api.put(`/levels/${id}`, data),
+    deleteLevel: (id) => api.delete(`/levels/${id}`),
+    
+    // School Classes
+    getAllSchoolClasses: (filters = {}) => {
+        const params = new URLSearchParams();
+        if (filters.section_id) params.append('section_id', filters.section_id);
+        if (filters.level_id) params.append('level_id', filters.level_id);
+        const url = params.toString() ? `/school-classes?${params}` : '/school-classes';
+        return api.get(url);
+    },
+    getSchoolClass: (id) => api.get(`/school-classes/${id}`),
+    addSchoolClass: (data) => api.post('/school-classes', data),
+    updateSchoolClass: (id, data) => api.put(`/school-classes/${id}`, data),
+    deleteSchoolClass: (id) => api.delete(`/school-classes/${id}`),
+    configureClassPayments: (id, data) => api.post(`/school-classes/${id}/configure-payments`, data)
 };
 
 export default api;

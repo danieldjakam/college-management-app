@@ -22,9 +22,21 @@ class Section extends Model
     ];
 
     // Relations
+    public function levels()
+    {
+        return $this->hasMany(Level::class);
+    }
+    
     public function classes()
     {
-        return $this->hasMany(ClassModel::class);
+        return $this->hasManyThrough(
+            'App\Models\SchoolClass',
+            'App\Models\Level',
+            'section_id', // Foreign key on levels table
+            'level_id',   // Foreign key on school_classes table  
+            'id',         // Local key on sections table
+            'id'          // Local key on levels table
+        );
     }
 
     // Scopes

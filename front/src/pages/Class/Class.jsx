@@ -33,7 +33,7 @@ const Class = () => {
     useEffect(() => {
         const loadClasses = async () => {
             try {
-                const data = await apiEndpoints.getAllClasses();
+                const data = await execute(() => apiEndpoints.getAllClasses());
                 setClass(data);
             } catch (err) {
                 setError(`Erreur lors du chargement des classes: ${err.message}`);
@@ -68,6 +68,7 @@ const Class = () => {
         
         <div style={{marginBottom: '10px'}}>
             <button onClick={() => {setIsAddClass(v => !v)}} className="btn btn-blue">Ajouter une classe</button>
+            <Link to="/classes/create" style={{marginLeft: '10px'}} className="btn btn-violet">Créer Classe Avancée</Link>
                                 <label htmlFor='csvFile' style={{marginLeft: '10px'}} className="btn btn-success">Importer les classes</label>
                                 <input type="file" accept='.csv' id='csvFile' style={{display: 'none'}} onChange={(e) => {handleChangeCsvFile(e, '/upload/class/csv', setError)}} />
         </div>

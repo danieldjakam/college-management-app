@@ -30,7 +30,11 @@ class AuthController extends Controller
         $credentials = $request->only('username', 'password');
 
         if (!$token = auth()->attempt($credentials)) {
-            return response()->json(['error' => 'Unauthorized'], 401);
+            return response()->json([
+                'success' => false,
+                'message' => 'Identifiants invalides. Vérifiez votre nom d\'utilisateur et mot de passe.',
+                'error' => 'Unauthorized'
+            ], 401);
         }
 
         return $this->respondWithToken($token);
@@ -81,6 +85,8 @@ class AuthController extends Controller
     protected function respondWithToken($token)
     {
         return response()->json([
+            'success' => true,
+            'message' => 'Connexion réussie',
             'access_token' => $token,
             'token_type' => 'bearer',
             'expires_in' => auth()->factory()->getTTL() * 60,

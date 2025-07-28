@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import * as Swal from 'sweetalert2'
 import { paramsTraductions } from '../../local/params';
-import { host } from '../../utils/fetch';
 import { getLang } from '../../utils/lang';
 import { roles } from '../../utils/role';
+import { useAuth } from '../../hooks/useAuth';
+import { useApi } from '../../hooks/useApi';
+import { apiEndpoints } from '../../utils/api';
 import EditLanguage from './EditLanguage';
 import EditProfile from './EditProfile';
 import Profile from './Profile';
 function Params() {
+	const { user, isAuthenticated } = useAuth();
+	const { execute, loading: apiLoading } = useApi();
   
 	const [data, setData] = useState({
 		username: '',
@@ -25,33 +29,29 @@ function Params() {
 	const [isEditInfos, setIsEditInfos] = useState(false);
 	
 	useEffect(() => {
-		(
-			async () => {
-			if (sessionStorage.stat === 'ad') {
-				setLoading(true)
-				const resp = await fetch(host+'/users/all', {headers: {
-				'Authorization': sessionStorage.user
-				}})
-				const data = await resp.json();
-				setAdmins(data);
+		const loadData = async () => {
+			if (!isAuthenticated || !user) return;
+			
+			try {
+				// Charger tous les utilisateurs si admin
+				if (user.role === 'admin') {
+					setLoading(true);
+					const adminData = await execute(() => apiEndpoints.getAllUsers());
+					setAdmins(adminData || []);
+				}
+				
+				// Charger les infos utilisateur
+				setUserInfos(user); // Utiliser directement les données du contexte
+				setLoading(false);
+			} catch (error) {
+				console.error('Erreur lors du chargement des données:', error);
+				setError('Erreur lors du chargement des données');
 				setLoading(false);
 			}
-			}
-		)()
-	}, [])
-	useEffect(() => {
-		(
-			async () => {
-				setLoading(true)
-				const resp = await fetch(host+'/users/getTeacherOrAdmin/', {headers: {
-					'Authorization': sessionStorage.user
-				}})
-				const data = await resp.json();
-				setUserInfos(data);
-				setLoading(false);
-			}
-		)()
-	}, [])
+		};
+		
+		loadData();
+	}, [isAuthenticated, user, execute])
 
 	const handleRegister = (e) => {
 		setLoading(true);

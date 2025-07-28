@@ -17,9 +17,11 @@ import { useAuth } from "./hooks/useAuth";
 // Pages
 import Class from "./pages/Class/Class";
 import ClassBySection from "./pages/Class/ClassBySection";
+import CreateClass from "./pages/Class/CreateClass";
 import Docs from "./pages/Documentation";
 import Error404 from "./pages/Error404";
 import Login from "./pages/Login";
+import PaymentTranches from "./pages/PaymentTranches";
 import Params from "./pages/Profile/Params";
 import SearchView from "./pages/Search";
 import Sections from "./pages/Sections/Sections";
@@ -59,6 +61,7 @@ const AppContent = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
+  
   return (
     <div className="app">
       <Router>
@@ -69,7 +72,13 @@ const AppContent = () => {
           />
         )}
 
-        <div className="main-content">
+        <div 
+          className="main-content" 
+          style={{
+            marginLeft: isAuthenticated ? (sidebarCollapsed && !isMobile ? '80px' : '280px') : '0',
+            transition: 'margin-left 0.3s ease'
+          }}
+        >
           {isAuthenticated && (
             <TopBar
               onSidebarToggle={handleSidebarToggle}
@@ -188,6 +197,24 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <Teachers />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/payment-tranches"
+                element={
+                  <AdminRoute>
+                    <PaymentTranches />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/classes/create"
+                element={
+                  <AdminRoute>
+                    <CreateClass />
                   </AdminRoute>
                 }
               />

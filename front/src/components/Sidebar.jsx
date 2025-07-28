@@ -4,20 +4,17 @@ import {
     HospitalFill, HouseHeartFill, 
     PeopleFill, GearFill, Search, 
     BookFill, FileTextFill,
-    BarChartFill, List,
+    BarChartFill, List, CreditCard,
     PersonCircle, BoxArrowRight
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
-import { apiEndpoints } from '../utils/api';
-import { useApi } from '../hooks/useApi';
+import { useAuth } from '../hooks/useAuth';
 function Sidebar({ isCollapsed, onToggle }) {
     const [page, setPage] = useState(window.location.href.split('/')[3])
     const navigate = useNavigate();
-    const [userInfos, setUserInfos] = useState({});
-    // const [loading, setLoading] = useState(false)
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
     const [isOpen, setIsOpen] = useState(false)
-    const { execute, loading } = useApi();
+    const { user, isAuthenticated, logout: authLogout, isLoading } = useAuth();
     
     useEffect(() => {
         const handleResize = () => {
@@ -28,26 +25,17 @@ function Sidebar({ isCollapsed, onToggle }) {
         return () => window.removeEventListener('resize', handleResize)
     }, [])
     
-    useEffect(() => {
-        (async () => {
-            if (sessionStorage.user !== undefined) {
-                // setLoading(true);
-                try {
-                    const data = await execute(() => apiEndpoints.getAdminOrTeacher());
-                    setUserInfos(data || []);
-                } catch (error) {
-                    console.log('Erreur lors du chargement des informations utilisateur:', error);
-                }
-                // setLoading(false);
-            }
-        })()
-    }, [execute])
+    // Les données utilisateur sont directement disponibles via le hook useAuth
 
     // Navigation sections based on user role
     const getNavigationSections = () => {
-        const userStat = sessionStorage.stat;
+        if (!user || !user.role) {
+            return [];
+        }
         
-        if (userStat === 'ad') {
+        const userRole = user.role;
+        
+        if (userRole === 'admin') {
             return [
                 {
                     title: 'Gestion Académique',
@@ -55,6 +43,7 @@ function Sidebar({ isCollapsed, onToggle }) {
                         { name: 'Sections', href: '/', icon: <HospitalFill/> },
                         { name: 'Classes', href: '/class', icon: <HouseHeartFill/> },
                         { name: 'Enseignants', href: '/teachers', icon: <PeopleFill/> },
+                        { name: 'Tranches Paiement', href: '/payment-tranches', icon: <CreditCard/> },
                     ]
                 },
                 {
@@ -73,7 +62,7 @@ function Sidebar({ isCollapsed, onToggle }) {
                     ]
                 }
             ]
-        } else if (userStat === 'comp') {
+        } else if (userRole === 'accountant') {
             return [
                 {
                     title: 'Comptabilité',
@@ -101,7 +90,7 @@ function Sidebar({ isCollapsed, onToggle }) {
                 {
                     title: 'Enseignement',
                     items: [
-                        { name: 'Élèves', href: '/students/'+sessionStorage.classId, icon: <PeopleFill/> },
+                        { name: 'Élèves', href: '/students/'+(user.class_id || '1'), icon: <PeopleFill/> },
                         { name: 'Séquences', href: '/seqs', icon: <List/> },
                         { name: 'Trimestres', href: '/trims', icon: <BookFill/> }
                     ]
@@ -117,32 +106,35 @@ function Sidebar({ isCollapsed, onToggle }) {
         }
     }
 
-    const logout = () => {
-        sessionStorage.removeItem('stat')
-        sessionStorage.removeItem('user')
-        navigate('/login')
-        window.location.reload()
+    const logout = async () => {
+        try {
+            await authLogout();
+            navigate('/login');
+        } catch (error) {
+            console.error('Erreur lors de la déconnexion:', error);
+            // Force logout même en cas d'erreur
+            navigate('/login');
+        }
     }
 
     const getUserDisplayName = () => {
-        if (loading || !userInfos) return '';
+        if (isLoading || !user) return '';
         
-        const stat = sessionStorage.stat;
-        if (stat === 'ad' || stat === 'comp') {
-            return userInfos.username || '';
+        if (user.role === 'admin' || user.role === 'accountant') {
+            return user.username || user.name || '';
         } else {
-            return `${userInfos.name || ''} ${userInfos.subname || ''}`.trim();
+            return user.name || '';
         }
     }
 
     const getUserRole = () => {
-        if (loading) return '';
+        if (isLoading || !user) return '';
         
-        const stat = sessionStorage.stat;
-        switch (stat) {
-            case 'ad': return 'Administrateur';
-            case 'comp': return 'Comptable';
-            default: return 'Enseignant';
+        switch (user.role) {
+            case 'admin': return 'Administrateur';
+            case 'accountant': return 'Comptable';
+            case 'teacher': return 'Enseignant';
+            default: return 'Utilisateur';
         }
     }
 
@@ -164,98 +156,185 @@ function Sidebar({ isCollapsed, onToggle }) {
         }
     }
 
-    if (sessionStorage.user === undefined) {
+    if (!isAuthenticated || !user) {
         return null;
     }
 
     const navigationSections = getNavigationSections();
 
+    // Render the sidebar with proper styling
     return (
         <>
-            {/* Mobile Overlay */}
+            {/* Mobile overlay */}
             {isMobile && isOpen && (
                 <div 
-                    className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                    className="sidebar-overlay" 
                     onClick={() => setIsOpen(false)}
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                        zIndex: 999
+                    }}
                 />
             )}
-            
-            <div className={`sidebar ${isCollapsed && !isMobile ? 'collapsed' : ''} ${isMobile && isOpen ? 'open' : ''}`}>
+
+            {/* Sidebar */}
+            <div 
+                className={`sidebar ${isCollapsed ? 'collapsed' : ''} ${isMobile && isOpen ? 'mobile-open' : ''}`}
+                style={{
+                    position: 'fixed',
+                    left: 0,
+                    top: 0,
+                    width: isCollapsed && !isMobile ? '80px' : '280px',
+                    height: '100vh',
+                    backgroundColor: '#1e293b',
+                    color: 'white',
+                    zIndex: 1000,
+                    transition: 'width 0.3s ease',
+                    transform: isMobile && !isOpen ? 'translateX(-100%)' : 'translateX(0)',
+                    boxShadow: '2px 0 10px rgba(0, 0, 0, 0.1)',
+                    display: 'flex',
+                    flexDirection: 'column'
+                }}
+            >
                 {/* Header */}
-                <div className="sidebar-header">
-                    <div className="sidebar-brand">
-                        <img 
-                            src={logo} 
-                            alt="CPBD Logo" 
-                            className="sidebar-logo"
-                        />
-                        {(!isCollapsed || isMobile) && (
-                            <div>
-                                <div className="sidebar-title">CPBD</div>
-                                <div className="sidebar-subtitle"> College Polyvalent Bilingue de Douala</div>
-                            </div>
-                        )}
-                    </div>
+                <div style={{
+                    padding: '20px',
+                    borderBottom: '1px solid #334155',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px'
+                }}>
+                    <img 
+                        src={logo} 
+                        alt="CPBD Logo" 
+                        style={{
+                            width: '40px',
+                            height: '40px',
+                            objectFit: 'contain'
+                        }}
+                    />
+                    {(!isCollapsed || isMobile) && (
+                        <div>
+                            <div style={{ fontSize: '18px', fontWeight: 'bold' }}>CPBD</div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8' }}>College Polyvalent Bilingue de Douala</div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Navigation */}
-                <div className="sidebar-nav">
+                <div style={{ flex: 1, padding: '20px 0', overflowY: 'auto' }}>
                     {navigationSections.map((section, sectionIndex) => (
-                        <div key={sectionIndex} className="nav-section">
+                        <div key={sectionIndex} style={{ marginBottom: '30px' }}>
                             {(!isCollapsed || isMobile) && (
-                                <div className="nav-section-title">{section.title}</div>
+                                <div style={{
+                                    padding: '0 20px 10px',
+                                    fontSize: '12px',
+                                    color: '#64748b',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em',
+                                    fontWeight: '600'
+                                }}>
+                                    {section.title}
+                                </div>
                             )}
                             {section.items.map((item, itemIndex) => (
-                                <div key={itemIndex} className="nav-item">
-                                    <Link 
-                                        to={item.href} 
-                                        className={`nav-link ${page === item.href.replace('/', '') ? 'active' : ''}`}
-                                        onClick={() => handleLinkClick(item.href.replace('/', ''))}
-                                    >
-                                        <div className="nav-icon">{item.icon}</div>
-                                        {(!isCollapsed || isMobile) && (
-                                            <span className="nav-text">{item.name}</span>
-                                        )}
-                                    </Link>
-                                </div>
+                                <Link 
+                                    key={itemIndex}
+                                    to={item.href} 
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '12px',
+                                        padding: '12px 20px',
+                                        color: page === item.href.replace('/', '') ? '#60a5fa' : '#e2e8f0',
+                                        backgroundColor: page === item.href.replace('/', '') ? '#1e40af20' : 'transparent',
+                                        textDecoration: 'none',
+                                        transition: 'all 0.2s ease',
+                                        borderLeft: page === item.href.replace('/', '') ? '3px solid #60a5fa' : '3px solid transparent'
+                                    }}
+                                    onClick={() => handleLinkClick(item.href.replace('/', ''))}
+                                    onMouseEnter={(e) => {
+                                        if (page !== item.href.replace('/', '')) {
+                                            e.target.style.backgroundColor = '#334155';
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (page !== item.href.replace('/', '')) {
+                                            e.target.style.backgroundColor = 'transparent';
+                                        }
+                                    }}
+                                >
+                                    <div style={{ fontSize: '18px', minWidth: '18px' }}>{item.icon}</div>
+                                    {(!isCollapsed || isMobile) && (
+                                        <span style={{ fontSize: '14px', fontWeight: '500' }}>{item.name}</span>
+                                    )}
+                                </Link>
                             ))}
                         </div>
                     ))}
                 </div>
 
                 {/* User Profile */}
-                <div className="sidebar-footer">
-                    <div className="user-profile">
-                        <div className="user-avatar">
-                            {getUserInitials()}
-                        </div>
-                        {(!isCollapsed || isMobile) && (
-                            <div className="user-info">
-                                <div className="user-name">{getUserDisplayName()}</div>
-                                <div className="user-role">{getUserRole()}</div>
-                            </div>
-                        )}
-                        <button 
-                            className="btn-secondary btn-sm"
-                            onClick={logout}
-                            title="Se déconnecter"
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: 'var(--gray-500)',
-                                padding: '0.5rem',
-                                borderRadius: 'var(--radius-full)',
-                                transition: 'var(--transition-fast)',
-                                marginLeft: 'auto'
-                            }}
-                        >
-                            <BoxArrowRight size={16} />
-                        </button>
+                <div style={{
+                    padding: '20px',
+                    borderTop: '1px solid #334155',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px'
+                }}>
+                    <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        backgroundColor: '#60a5fa',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        color: 'white'
+                    }}>
+                        {getUserInitials()}
                     </div>
+                    {(!isCollapsed || isMobile) && (
+                        <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '14px', fontWeight: '500' }}>{getUserDisplayName()}</div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8' }}>{getUserRole()}</div>
+                        </div>
+                    )}
+                    <button 
+                        onClick={logout}
+                        title="Se déconnecter"
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#94a3b8',
+                            padding: '8px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            fontSize: '16px'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.target.style.backgroundColor = '#334155';
+                            e.target.style.color = '#f8fafc';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.target.style.backgroundColor = 'transparent';
+                            e.target.style.color = '#94a3b8';
+                        }}
+                    >
+                        <BoxArrowRight size={16} />
+                    </button>
                 </div>
             </div>
         </>
-    )
+    );
 }
 
 export default Sidebar

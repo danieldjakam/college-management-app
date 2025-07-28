@@ -14,32 +14,38 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        // Créer un administrateur
-        User::create([
-            'name' => 'Administrateur',
-            'username' => 'admin',
-            'email' => 'admin@gsbpl.com',
-            'password' => Hash::make('password123'),
-            'role' => 'admin',
-        ]);
+        // Créer un administrateur si il n'existe pas
+        User::firstOrCreate(
+            ['username' => 'admin'],
+            [
+                'name' => 'Administrateur',
+                'email' => 'admin@gsbpl.com',
+                'password' => Hash::make('password123'),
+                'role' => 'admin',
+            ]
+        );
 
         // Créer un enseignant
-        User::create([
-            'name' => 'Professeur Martin',
-            'username' => 'prof.martin',
-            'email' => 'martin@gsbpl.com',
-            'password' => Hash::make('password123'),
-            'role' => 'teacher',
-        ]);
+        User::firstOrCreate(
+            ['username' => 'prof.martin'],
+            [
+                'name' => 'Professeur Martin',
+                'email' => 'martin@gsbpl.com',
+                'password' => Hash::make('password123'),
+                'role' => 'teacher',
+            ]
+        );
 
         // Créer un comptable
-        User::create([
-            'name' => 'Comptable Dupont',
-            'username' => 'comptable',
-            'email' => 'comptable@gsbpl.com',
-            'password' => Hash::make('password123'),
-            'role' => 'accountant',
-        ]);
+        User::firstOrCreate(
+            ['username' => 'comptable'],
+            [
+                'name' => 'Comptable Dupont',
+                'email' => 'comptable@gsbpl.com',
+                'password' => Hash::make('password123'),
+                'role' => 'accountant',
+            ]
+        );
 
         // Créer un utilisateur standard
         User::create([

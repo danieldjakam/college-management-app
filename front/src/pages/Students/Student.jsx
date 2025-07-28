@@ -50,7 +50,7 @@ const Student = () => {
     useEffect(() => {
         const loadClass = async () => {
             try {
-                const data = apiEndpoints.getOneClass();
+                const data = await execute(() => apiEndpoints.getClass(id));
                 setClass(data || {});
             } catch (err) {
                 setError('Erreur lors du chargement de la classe');
@@ -63,8 +63,8 @@ const Student = () => {
         const loadStudents = async () => {
             try {
                 const data = !isOrdonned 
-                    ? await apiEndpoints.getOrderedStudents(id)
-                    : await apiEndpoints.getStudentsByClass(id);
+                    ? await execute(() => apiEndpoints.getOrderedStudents(id))
+                    : await execute(() => apiEndpoints.getStudentsByClass(id));
                 setStudents(data || []);
             } catch (err) {
                 setError('Erreur lors du chargement des étudiants');
