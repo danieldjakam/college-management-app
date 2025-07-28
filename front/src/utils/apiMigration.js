@@ -188,6 +188,20 @@ export const secureApiEndpoints = {
         getBySection: (sectionId) => secureApi.get(`/levels?section_id=${sectionId}`)
     },
 
+    // === SCHOOL CLASSES ===
+    schoolClasses: {
+        getAll: () => secureApi.get('/school-classes'),
+        getById: (id) => secureApi.get(`/school-classes/${id}`),
+        create: (data) => secureApi.post('/school-classes', data),
+        update: (id, data) => secureApi.put(`/school-classes/${id}`, data),
+        delete: (id) => secureApi.delete(`/school-classes/${id}`),
+        getDashboard: () => secureApi.get('/school-classes/dashboard'),
+        toggleStatus: (id) => secureApi.post(`/school-classes/${id}/toggle-status`),
+        configurePayments: (id, data) => secureApi.post(`/school-classes/${id}/configure-payments`, data),
+        getByLevel: (levelId) => secureApi.get(`/school-classes?level_id=${levelId}`),
+        getBySection: (sectionId) => secureApi.get(`/school-classes?section_id=${sectionId}`)
+    },
+
     // === SUBJECTS ===
     subjects: {
         getAll: () => secureApi.get('/subjects'),

@@ -65,11 +65,13 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les classes
     Route::prefix('school-classes')->group(function () {
+        Route::get('/dashboard', [SchoolClassController::class, 'dashboard']);
         Route::get('/', [SchoolClassController::class, 'index']);
         Route::post('/', [SchoolClassController::class, 'store']);
         Route::get('/{schoolClass}', [SchoolClassController::class, 'show']);
         Route::put('/{schoolClass}', [SchoolClassController::class, 'update']);
         Route::delete('/{schoolClass}', [SchoolClassController::class, 'destroy']);
+        Route::post('/{schoolClass}/toggle-status', [SchoolClassController::class, 'toggleStatus']);
         Route::post('/{schoolClass}/configure-payments', [SchoolClassController::class, 'configurePayments']);
     });
 

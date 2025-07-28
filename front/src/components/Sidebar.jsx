@@ -42,7 +42,7 @@ function Sidebar({ isCollapsed, onToggle }) {
                     items: [
                         { name: 'Sections', href: '/sections', icon: <HospitalFill/> },
                         { name: 'Niveaux', href: '/levels', icon: <BookFill/> },
-                        { name: 'Classes', href: '/class', icon: <HouseHeartFill/> },
+                        { name: 'Classes', href: '/school-classes', icon: <HouseHeartFill/> },
                         { name: 'Enseignants', href: '/teachers', icon: <PeopleFill/> },
                         { name: 'Tranches Paiement', href: '/payment-tranches', icon: <CreditCard/> },
                     ]

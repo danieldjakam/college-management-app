@@ -32,7 +32,7 @@ class SchoolClassController extends Controller
                 });
             }
             
-            $classes = $query->active()->get();
+            $classes = $query->get();
             
             return response()->json([
                 'success' => true,
@@ -43,6 +43,42 @@ class SchoolClassController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération des classes',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get dashboard statistics
+     */
+    public function dashboard()
+    {
+        try {
+            $stats = [
+                'total_classes' => SchoolClass::count(),
+                'active_classes' => SchoolClass::where('is_active', true)->count(),
+                'inactive_classes' => SchoolClass::where('is_active', false)->count(),
+                'classes_with_students' => SchoolClass::has('students')->count(),
+                'total_series' => ClassSeries::count(),
+            ];
+
+            $recentClasses = SchoolClass::with(['level.section'])
+                ->latest()
+                ->take(5)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'stats' => $stats,
+                    'recent_classes' => $recentClasses
+                ],
+                'message' => 'Statistiques récupérées avec succès'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des statistiques',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -219,6 +255,29 @@ class SchoolClassController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la suppression de la classe',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Toggle status of a class
+     */
+    public function toggleStatus(SchoolClass $schoolClass)
+    {
+        try {
+            $schoolClass->is_active = !$schoolClass->is_active;
+            $schoolClass->save();
+
+            return response()->json([
+                'success' => true,
+                'data' => $schoolClass,
+                'message' => $schoolClass->is_active ? 'Classe activée avec succès' : 'Classe désactivée avec succès'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du changement de statut',
                 'error' => $e->getMessage()
             ], 500);
         }

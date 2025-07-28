@@ -15,19 +15,15 @@ import ProtectedRoute, {
 import { useAuth } from "./hooks/useAuth";
 
 // Pages
-import Class from "./pages/Class/Class";
-import ClassBySection from "./pages/Class/ClassBySection";
-import CreateClass from "./pages/Class/CreateClass";
-import Docs from "./pages/Documentation";
 import Error404 from "./pages/Error404";
+import Levels from "./pages/Levels/Levels";
 import Login from "./pages/Login";
 import PaymentTranches from "./pages/PaymentTranches";
 import Params from "./pages/Profile/Params";
+import SchoolClasses from "./pages/SchoolClasses/SchoolClasses";
 import SearchView from "./pages/Search";
 import Sections from "./pages/Sections/Sections";
-import Levels from "./pages/Levels/Levels";
 import Settings from "./pages/Settings";
-import Statistics from "./pages/Statistics.jsx";
 import Student from "./pages/Students/Student";
 import Teachers from "./pages/Teachers/Teachers";
 
@@ -62,7 +58,6 @@ const AppContent = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
-  
   return (
     <div className="app">
       <Router>
@@ -73,11 +68,15 @@ const AppContent = () => {
           />
         )}
 
-        <div 
-          className="main-content" 
+        <div
+          className="main-content"
           style={{
-            marginLeft: isAuthenticated ? (sidebarCollapsed && !isMobile ? '80px' : '280px') : '0',
-            transition: 'margin-left 0.3s ease'
+            marginLeft: isAuthenticated
+              ? sidebarCollapsed && !isMobile
+                ? "80px"
+                : "280px"
+              : "0",
+            transition: "margin-left 0.3s ease",
           }}
         >
           {isAuthenticated && (
@@ -129,34 +128,6 @@ const AppContent = () => {
               />
 
               <Route
-                path="/docs"
-                element={
-                  <ProtectedRoute>
-                    <Docs />
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* Routes pour enseignants et administrateurs */}
-              <Route
-                path="/class"
-                element={
-                  <TeacherRoute>
-                    <Class />
-                  </TeacherRoute>
-                }
-              />
-
-              <Route
-                path="/classBySection/:name"
-                element={
-                  <TeacherRoute>
-                    <ClassBySection />
-                  </TeacherRoute>
-                }
-              />
-
-              <Route
                 path="/students/:id"
                 element={
                   <TeacherRoute>
@@ -170,15 +141,6 @@ const AppContent = () => {
                 element={
                   <TeacherRoute>
                     <TransfertStudent />
-                  </TeacherRoute>
-                }
-              />
-
-              <Route
-                path="/stats"
-                element={
-                  <TeacherRoute>
-                    <Statistics />
                   </TeacherRoute>
                 }
               />
@@ -203,6 +165,15 @@ const AppContent = () => {
               />
 
               <Route
+                path="/school-classes"
+                element={
+                  <AdminRoute>
+                    <SchoolClasses />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
                 path="/teachers"
                 element={
                   <AdminRoute>
@@ -216,15 +187,6 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <PaymentTranches />
-                  </AdminRoute>
-                }
-              />
-
-              <Route
-                path="/classes/create"
-                element={
-                  <AdminRoute>
-                    <CreateClass />
                   </AdminRoute>
                 }
               />
