@@ -8,6 +8,7 @@ use App\Http\Controllers\PaymentTrancheController;
 use App\Http\Controllers\LevelController;
 use App\Http\Controllers\SchoolClassController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\StudentController;
 
 // Routes d'authentification
 Route::prefix('auth')->group(function () {
@@ -47,6 +48,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/', [PaymentTrancheController::class, 'index']);
         Route::post('/', [PaymentTrancheController::class, 'store']);
         Route::get('/{paymentTranche}', [PaymentTrancheController::class, 'show']);
+        Route::get('/{paymentTranche}/usage-stats', [PaymentTrancheController::class, 'usageStats']);
         Route::put('/{paymentTranche}', [PaymentTrancheController::class, 'update']);
         Route::delete('/{paymentTranche}', [PaymentTrancheController::class, 'destroy']);
         Route::post('/reorder', [PaymentTrancheController::class, 'reorder']);
@@ -73,6 +75,20 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/{schoolClass}', [SchoolClassController::class, 'destroy']);
         Route::post('/{schoolClass}/toggle-status', [SchoolClassController::class, 'toggleStatus']);
         Route::post('/{schoolClass}/configure-payments', [SchoolClassController::class, 'configurePayments']);
+    });
+
+    // Routes pour les élèves
+    Route::prefix('students')->group(function () {
+        Route::get('/class-series/{seriesId}', [StudentController::class, 'getByClassSeries']);
+        Route::post('/', [StudentController::class, 'store']);
+        Route::put('/{student}', [StudentController::class, 'update']);
+        Route::delete('/{student}', [StudentController::class, 'destroy']);
+        Route::get('/export-csv/{seriesId}', [StudentController::class, 'exportCsv']);
+        Route::get('/export-pdf/{seriesId}', [StudentController::class, 'exportPdf']);
+        Route::post('/import-csv', [StudentController::class, 'importCsv']);
+        Route::get('/school-years', [StudentController::class, 'getSchoolYears']);
+        Route::post('/reorder', [StudentController::class, 'reorder']);
+        Route::post('/class-series/{seriesId}/sort-alphabetically', [StudentController::class, 'sortAlphabetically']);
     });
 
     // Routes utilisateurs (pour compatibilité)

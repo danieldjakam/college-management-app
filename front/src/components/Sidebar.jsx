@@ -58,7 +58,7 @@ function Sidebar({ isCollapsed, onToggle }) {
                 {
                     title: 'Administration',
                     items: [
-                        { name: 'Profil', href: '/params', icon: <PersonCircle/> },
+                        { name: 'Profil', href: '/profile', icon: <PersonCircle/> },
                         { name: 'Paramètres', href: '/settings', icon: <GearFill/> }
                     ]
                 }
@@ -82,7 +82,7 @@ function Sidebar({ isCollapsed, onToggle }) {
                 {
                     title: 'Compte',
                     items: [
-                        { name: 'Profil', href: '/params-comp', icon: <PersonCircle/> }
+                        { name: 'Profil', href: '/profile', icon: <PersonCircle/> }
                     ]
                 }
             ]
@@ -100,7 +100,7 @@ function Sidebar({ isCollapsed, onToggle }) {
                     title: 'Outils',
                     items: [
                         { name: 'Rechercher', href: '/search', icon: <Search/> },
-                        { name: 'Profil', href: '/params', icon: <PersonCircle/> }
+                        { name: 'Profil', href: '/profile', icon: <PersonCircle/> }
                     ]
                 }
             ]

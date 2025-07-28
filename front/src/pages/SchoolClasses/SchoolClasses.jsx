@@ -3,20 +3,23 @@ import {
     Plus, 
     PencilSquare, 
     Trash, 
-    // Users, 
+    People, 
     CreditCard,
     ChevronDown,
     ChevronRight,
     Building,
+    Eye
     // BookOpen
 } from 'react-bootstrap-icons';
 import { useAuth } from '../../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import CreateSchoolClass from './CreateSchoolClass';
 import EditSchoolClass from './EditSchoolClass';
 import Swal from 'sweetalert2';
 
 const SchoolClasses = () => {
+    const navigate = useNavigate();
     const [classes, setClasses] = useState([]);
     const [sections, setSections] = useState([]);
     const [levels, setLevels] = useState([]);
@@ -137,6 +140,10 @@ const SchoolClasses = () => {
             ...prev,
             [classId]: !prev[classId]
         }));
+    };
+
+    const handleViewStudents = (seriesId) => {
+        navigate(`/students/series/${seriesId}`);
     };
 
     const getSectionName = (sectionId) => {
@@ -373,7 +380,7 @@ const SchoolClasses = () => {
                                                             {/* Séries */}
                                                             <div className="col-md-6">
                                                                 <h6 className="text-primary mb-3">
-                                                                    {/* <Users size={16} className="me-2" /> */}
+                                                                    <People size={16} className="me-2" />
                                                                     Séries
                                                                 </h6>
                                                                 {classItem.series && classItem.series.length > 0 ? (
@@ -381,20 +388,32 @@ const SchoolClasses = () => {
                                                                         {classItem.series.map((serie) => (
                                                                             <div key={serie.id} className="list-group-item border-0 px-0 py-2">
                                                                                 <div className="d-flex justify-content-between align-items-center">
-                                                                                    <div>
+                                                                                    <div className="flex-grow-1">
                                                                                         <strong>{serie.name}</strong>
                                                                                         {serie.code && (
                                                                                             <small className="text-muted ms-2">({serie.code})</small>
                                                                                         )}
+                                                                                        <div className="small text-muted">
+                                                                                            Capacité: {serie.capacity || 'Non définie'}
+                                                                                        </div>
                                                                                     </div>
                                                                                     <div className="text-end">
-                                                                                        <small className="text-muted">
-                                                                                            Capacité: {serie.capacity || 'Non définie'}
-                                                                                        </small>
-                                                                                        <br />
-                                                                                        <span className={`badge ${serie.is_active ? 'bg-success' : 'bg-secondary'}`}>
-                                                                                            {serie.is_active ? 'Active' : 'Inactive'}
-                                                                                        </span>
+                                                                                        <div className="mb-2">
+                                                                                            <span className={`badge ${serie.is_active ? 'bg-success' : 'bg-secondary'} me-2`}>
+                                                                                                {serie.is_active ? 'Active' : 'Inactive'}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        <button
+                                                                                            className="btn btn-sm btn-outline-info"
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation();
+                                                                                                handleViewStudents(serie.id);
+                                                                                            }}
+                                                                                            title="Voir les élèves"
+                                                                                        >
+                                                                                            <Eye size={12} className="me-1" />
+                                                                                            Élèves
+                                                                                        </button>
                                                                                     </div>
                                                                                 </div>
                                                                             </div>

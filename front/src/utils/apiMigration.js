@@ -147,12 +147,55 @@ export const secureApiEndpoints = {
     students: {
         getAll: () => secureApi.get('/students'),
         getByClass: (classId) => secureApi.get(`/students/class/${classId}`),
+        getByClassSeries: (seriesId) => secureApi.get(`/students/class-series/${seriesId}`),
         getById: (id) => secureApi.get(`/students/${id}`),
         create: (data) => secureApi.post('/students', data),
         update: (id, data) => secureApi.put(`/students/${id}`, data),
         delete: (id) => secureApi.delete(`/students/${id}`),
+        exportCsv: async (seriesId) => {
+            const token = authService.getToken();
+            const response = await fetch(`${secureApi.baseURL}/students/export-csv/${seriesId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'text/csv'
+                }
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Erreur lors de l\'export CSV');
+            }
+            
+            return await response.blob();
+        },
+        exportPdf: async (seriesId) => {
+            const token = authService.getToken();
+            const response = await fetch(`${secureApi.baseURL}/students/export-pdf/${seriesId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'text/html'
+                }
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Erreur lors de l\'export PDF');
+            }
+            
+            return response; // Retourner la réponse pour permettre .text()
+        },
+        importCsv: (formData) => secureApi.makeRequest('/students/import-csv', {
+            method: 'POST',
+            body: formData,
+            headers: {} // Remove Content-Type to let browser set it with boundary for FormData
+        }),
+        getSchoolYears: () => secureApi.get('/students/school-years'),
         transfer: (id, newClassId) => secureApi.post(`/students/${id}/transfer`, { class_id: newClassId }),
-        getOrdered: (classId) => secureApi.get(`/students/class/${classId}/ordered`)
+        getOrdered: (classId) => secureApi.get(`/students/class/${classId}/ordered`),
+        reorder: (data) => secureApi.post('/students/reorder', data),
+        sortAlphabetically: (seriesId, data) => secureApi.post(`/students/class-series/${seriesId}/sort-alphabetically`, data)
     },
 
     // === CLASSES ===
@@ -227,7 +270,8 @@ export const secureApiEndpoints = {
         create: (data) => secureApi.post('/payment-tranches', data),
         update: (id, data) => secureApi.put(`/payment-tranches/${id}`, data),
         delete: (id) => secureApi.delete(`/payment-tranches/${id}`),
-        reorder: (data) => secureApi.post('/payment-tranches/reorder', data)
+        reorder: (data) => secureApi.post('/payment-tranches/reorder', data),
+        getUsageStats: (id) => secureApi.get(`/payment-tranches/${id}/usage-stats`)
     },
 
     // === PAYMENTS (pour comptables) ===

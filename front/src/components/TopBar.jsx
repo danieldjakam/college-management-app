@@ -32,6 +32,7 @@ const TopBar = ({ onSidebarToggle, showSidebarToggle = false }) => {
             'matieres': 'Matières',
             'search': 'Recherche',
             'params': 'Profil',
+            'profile': 'Profil',
             'settings': 'Paramètres',
             'docs': 'Documents',
             'stats': 'Statistiques',
@@ -153,7 +154,7 @@ const TopBar = ({ onSidebarToggle, showSidebarToggle = false }) => {
                             )}
 
                             {/* User Profile */}
-                            <Link to="/params" className="action-btn" title="Profil">
+                            <Link to="/profile" className="action-btn" title="Profil">
                                 <PersonCircle size={18} />
                             </Link>
 

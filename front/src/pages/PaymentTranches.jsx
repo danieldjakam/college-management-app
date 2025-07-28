@@ -134,19 +134,59 @@ const PaymentTranches = () => {
     };
 
     const handleDelete = async (tranche) => {
-        const result = await Swal.fire({
-            title: 'Confirmez la suppression',
-            text: `Êtes-vous sûr de vouloir supprimer la tranche "${tranche.name}" ?`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#EF4444',
-            cancelButtonColor: '#6B7280',
-            confirmButtonText: 'Oui, supprimer',
-            cancelButtonText: 'Annuler'
-        });
+        try {
+            // Récupérer d'abord les statistiques d'utilisation de la tranche
+            const usageResponse = await secureApiEndpoints.paymentTranches.getUsageStats(tranche.id);
+            
+            if (!usageResponse.success) {
+                setError('Erreur lors de la vérification de l\'utilisation de la tranche');
+                return;
+            }
 
-        if (result.isConfirmed) {
-            try {
+            const usageData = usageResponse.data;
+            let confirmMessage = `Êtes-vous sûr de vouloir supprimer la tranche "${tranche.name}" ?`;
+            let warningText = '';
+            
+            if (usageData.has_usage) {
+                confirmMessage = `⚠️ Attention : Suppression en cascade`;
+                
+                let classNamesList = '';
+                if (usageData.class_names && usageData.class_names.length > 0) {
+                    classNamesList = usageData.class_names.join(', ');
+                    if (usageData.classes_count > usageData.class_names.length) {
+                        classNamesList += ` et ${usageData.classes_count - usageData.class_names.length} autre(s)`;
+                    }
+                }
+                
+                warningText = `
+                    <div class="text-left">
+                        <p><strong>Cette tranche est utilisée par ${usageData.classes_count} classe(s).</strong></p>
+                        ${classNamesList ? `<p><strong>Classes concernées :</strong> ${classNamesList}</p>` : ''}
+                        <p class="text-danger">
+                            <strong>La supprimer entraînera la suppression automatique de tous les montants 
+                            de paiement associés dans ces classes.</strong>
+                        </p>
+                        <p>Cette action est <strong>irréversible</strong>. Voulez-vous vraiment continuer ?</p>
+                    </div>
+                `;
+            }
+
+            const result = await Swal.fire({
+                title: confirmMessage,
+                html: warningText || `Êtes-vous sûr de vouloir supprimer la tranche "${tranche.name}" ?`,
+                icon: usageData.has_usage ? 'warning' : 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#EF4444',
+                cancelButtonColor: '#6B7280',
+                confirmButtonText: usageData.has_usage ? 'Oui, supprimer tout' : 'Oui, supprimer',
+                cancelButtonText: 'Annuler',
+                width: '600px',
+                customClass: {
+                    htmlContainer: 'text-left'
+                }
+            });
+
+            if (result.isConfirmed) {
                 const response = await secureApiEndpoints.paymentTranches.delete(tranche.id);
                 
                 if (response.success) {
@@ -154,20 +194,25 @@ const PaymentTranches = () => {
                     loadDashboard();
                     setSuccess(response.message || 'La tranche a été supprimée avec succès');
                     
+                    // Afficher un message différent selon qu'il y avait des suppressions en cascade
+                    const successTitle = response.deleted_amounts_count > 0 
+                        ? 'Suppression en cascade effectuée' 
+                        : 'Supprimée';
+                        
                     Swal.fire({
-                        title: 'Supprimée',
+                        title: successTitle,
                         text: response.message || 'La tranche a été supprimée avec succès',
                         icon: 'success',
-                        timer: 2000,
+                        timer: 4000,
                         showConfirmButton: false
                     });
                 } else {
                     setError(response.message || 'Erreur lors de la suppression de la tranche');
                 }
-            } catch (error) {
-                console.error('Error deleting payment tranche:', error);
-                setError('Erreur lors de la suppression de la tranche');
             }
+        } catch (error) {
+            console.error('Error deleting payment tranche:', error);
+            setError('Erreur lors de la suppression de la tranche');
         }
     };
 

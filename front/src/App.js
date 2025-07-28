@@ -23,6 +23,7 @@ import SchoolClasses from "./pages/SchoolClasses/SchoolClasses";
 import Sections from "./pages/Sections/Sections";
 import Settings from "./pages/Settings";
 import UserProfile from "./pages/Profile/UserProfile";
+import SeriesStudents from "./pages/Students/SeriesStudents";
 
 // Comptable Pages
 import ClassCompt from "./pages/comptables/Class";
@@ -104,7 +105,23 @@ const AppContent = () => {
               />
 
               {/* Routes principales - accessibles à tous les utilisateurs connectés */}
-            
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <UserProfile />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/students/series/:seriesId"
+                element={
+                  <ProtectedRoute>
+                    <SeriesStudents />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Routes pour administrateurs uniquement */}
               <Route

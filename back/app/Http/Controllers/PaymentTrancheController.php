@@ -130,24 +130,61 @@ class PaymentTrancheController extends Controller
     }
 
     /**
+     * Get usage statistics for a tranche before deletion
+     */
+    public function usageStats(PaymentTranche $paymentTranche)
+    {
+        try {
+            $classesCount = $paymentTranche->classPaymentAmounts()->count();
+            $classNames = $paymentTranche->classPaymentAmounts()
+                ->with('schoolClass')
+                ->get()
+                ->pluck('schoolClass.name')
+                ->unique()
+                ->take(5); // Limiter à 5 noms pour l'affichage
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'classes_count' => $classesCount,
+                    'class_names' => $classNames,
+                    'has_usage' => $classesCount > 0
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des statistiques',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Remove the specified resource from storage.
      */
     public function destroy(PaymentTranche $paymentTranche)
     {
         try {
-            // Vérifier si la tranche est utilisée dans des classes
-            if ($paymentTranche->classPaymentAmounts()->exists()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Impossible de supprimer cette tranche car elle est utilisée par des classes'
-                ], 400);
+            // Compter les classes utilisant cette tranche
+            $classesCount = $paymentTranche->classPaymentAmounts()->count();
+            
+            // Supprimer d'abord tous les montants de classes associés
+            if ($classesCount > 0) {
+                $paymentTranche->classPaymentAmounts()->delete();
             }
 
+            // Ensuite supprimer la tranche
             $paymentTranche->delete();
+
+            $message = $classesCount > 0 
+                ? "Tranche supprimée avec succès. {$classesCount} montant(s) de classe(s) ont également été supprimé(s)."
+                : 'Tranche supprimée avec succès';
 
             return response()->json([
                 'success' => true,
-                'message' => 'Tranche supprimée avec succès'
+                'message' => $message,
+                'deleted_amounts_count' => $classesCount
             ]);
         } catch (\Exception $e) {
             return response()->json([
