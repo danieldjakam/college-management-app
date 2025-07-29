@@ -183,6 +183,7 @@ function Sidebar({ isCollapsed, onToggle }) {
                 />
             )}
 
+
             {/* Sidebar */}
             <div 
                 className={`sidebar ${isCollapsed ? 'collapsed' : ''} ${isMobile && isOpen ? 'mobile-open' : ''}`}

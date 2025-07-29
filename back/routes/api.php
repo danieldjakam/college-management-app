@@ -9,6 +9,8 @@ use App\Http\Controllers\LevelController;
 use App\Http\Controllers\SchoolClassController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\StudentController;
+use App\Http\Controllers\AccountantController;
+use App\Http\Controllers\SchoolYearController;
 
 // Routes d'authentification
 Route::prefix('auth')->group(function () {
@@ -82,6 +84,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/class-series/{seriesId}', [StudentController::class, 'getByClassSeries']);
         Route::post('/', [StudentController::class, 'store']);
         Route::put('/{student}', [StudentController::class, 'update']);
+        Route::post('/{student}/update-with-photo', [StudentController::class, 'updateWithPhoto']);
         Route::delete('/{student}', [StudentController::class, 'destroy']);
         Route::get('/export-csv/{seriesId}', [StudentController::class, 'exportCsv']);
         Route::get('/export-pdf/{seriesId}', [StudentController::class, 'exportPdf']);
@@ -98,5 +101,28 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/getInfos', [UserController::class, 'getInfos']);
         Route::get('/all', [UserController::class, 'all']);
         Route::put('/profile', [UserController::class, 'updateProfile']);
+    });
+
+    // Routes pour les comptables
+    Route::prefix('accountant')->group(function () {
+        Route::get('/dashboard', [AccountantController::class, 'dashboard']);
+        Route::get('/classes', [AccountantController::class, 'getClasses']);
+        Route::get('/classes/{classId}/series', [AccountantController::class, 'getClassSeries']);
+        Route::get('/series/{seriesId}/students', [AccountantController::class, 'getSeriesStudents']);
+        Route::get('/students/{studentId}', [AccountantController::class, 'getStudent']);
+    });
+
+    // Routes pour les années scolaires
+    Route::prefix('school-years')->group(function () {
+        // Routes accessibles aux admins et comptables (avec authentification)
+        Route::get('/active', [SchoolYearController::class, 'getActiveYears']);
+        Route::get('/user-working-year', [SchoolYearController::class, 'getUserWorkingYear']);
+        Route::post('/set-user-working-year', [SchoolYearController::class, 'setUserWorkingYear']);
+        
+        // Routes pour administrateurs uniquement
+        Route::get('/', [SchoolYearController::class, 'index'])->middleware('role:admin');
+        Route::post('/', [SchoolYearController::class, 'store'])->middleware('role:admin');
+        Route::put('/{schoolYear}', [SchoolYearController::class, 'update'])->middleware('role:admin');
+        Route::post('/{schoolYear}/set-current', [SchoolYearController::class, 'setCurrent'])->middleware('role:admin');
     });
 });

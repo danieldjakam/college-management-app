@@ -1,247 +1,268 @@
-import React, { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom';
-import { studentTraductions } from '../../local/student';
-import { host } from '../../utils/fetch';
-import ReactLoading from 'react-loading';
-import { getLang } from '../../utils/lang';
-import { Modal } from "reactstrap";
-import EditStudent from '../Students/EditStudent';
-import AddStudent from '../Students/AddStudent';
-import * as Swal from 'sweetalert2'
+import React, { useState, useEffect } from 'react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
+import {
+    ArrowLeft,
+    HouseHeartFill,
+    PeopleFill,
+    Search,
+    Grid,
+    List,
+    InfoCircle
+} from 'react-bootstrap-icons';
+import { secureApiEndpoints } from '../../utils/apiMigration';
 
-function StudentsByClass() {
-    const params = useParams();
-    const {id} = params;
-    const [classs, setClass] = useState({});
-    const [students, setStudents] = useState({});
+const AccountantClassSeries = () => {
+    const { id: classId } = useParams();
+    const navigate = useNavigate();
+    
+    const [classData, setClassData] = useState(null);
+    const [series, setSeries] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [loadingDel, setLoadingDel] = useState(false);
-    const [isAddStudent, setIsAddStudent] = useState(false);
-    const [isEditStudent, setIsEditStudent] = useState(false);
-    const [studentToEditId, setStudentToEditId] = useState('')
+    const [searchTerm, setSearchTerm] = useState('');
+    const [viewMode, setViewMode] = useState('grid');
 
-    const deleteStudent = (id) => {
-		Swal.fire({
-			title: 'Entrer le mot de passe de l\'admin',
-			input: 'password',
-			inputLabel: 'Mot de passe de l\'admin',
-			showCancelButton: true
-		}).then(({value}) => {
-			fetch(host+'/users/confirmAdminPassword', 
-					{	
-						method: 'POST', 
-						body: JSON.stringify({password: value}), 
-						headers: {	
-									'Content-Type': 'application/json', 
-									'Authorization': sessionStorage.user
-								}
-					}
-				)
-				.then((res) => res.json())
-				.then(res => {
-					console.log(res, value);
-					if (res.success) {
-						
-                        Swal.fire({
-                            title: 'Confirmez la suppression !',
-                            icon: 'question',
-                            text: 'Cette action est irreversible !!'
-                        }).then(res => {
-                            if (res.value) {
-                                setLoadingDel(true);
-                                fetch(host+'/students/'+id, {method: 'DELETE', headers: {'Authorization': sessionStorage.user}})
-                                    .then((res) => res.json())
-                                    .then((res) => {
-                                        if (res.success) {
-                                            window.location.reload();
-                                        }else{
-                                            setError(res.message)
-                                        }
-                                    })
-                                    .catch(e => setError(e))
-                                setLoadingDel(false)
-                            }
-                        })
-					}else{
-						setError(res.message)
-					}
-				})
-			
-		})
-    }
     useEffect(() => {
-        (
-            async () => {
-                setLoading(true)
-                const resp = await fetch(host+'/class/'+id, {headers: {
-                    'Authorization': sessionStorage.user
-                  }})
-                const data = await resp.json();
-                const resp2 = await fetch(host+'/students/'+id, {headers: {
-                    'Authorization': sessionStorage.user
-                  }})
-                const data2 = await resp2.json();
-                setClass(data);
-                setStudents(data2);
-                setLoading(false);
+        loadClassSeries();
+    }, [classId]);
+
+    const loadClassSeries = async () => {
+        try {
+            setLoading(true);
+            const response = await secureApiEndpoints.accountant.getClassSeries(classId);
+            
+            if (response.success) {
+                setClassData(response.data.class);
+                setSeries(response.data.series);
+            } else {
+                setError(response.message || 'Erreur lors du chargement des séries');
             }
-        )()
-    }, [id])
-    return (
-        <div className='container'>
-            <nav className="navbar navbar-expand-lg" style={{padding: '10px 10px', display:"flex", justifyContent:'space-between'}}>
-                <h2 style={{marginLeft  : '40px'}}>{studentTraductions[getLang()].studentList} {classs.name}</h2><button onClick={() => {setIsAddStudent(v => !v)}} className="btn btn-blue">{studentTraductions[getLang()].addStudent}</button>
-                <Link to={`/transfert/${id}`} className="btn btn-primary" style={{ marginBottom: '10px', marginLeft: '10px' }}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" className="bi bi-airplane-engines-fill" viewBox="0 0 16 16">
-                        <path d="M8 0c-.787 0-1.292.592-1.572 1.151A4.347 4.347 0 0 0 6 3v3.691l-2 1V7.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.191l-1.17.585A1.5 1.5 0 0 0 0 10.618V12a.5.5 0 0 0 .582.493l1.631-.272.313.937a.5.5 0 0 0 .948 0l.405-1.214 2.21-.369.375 2.253-1.318 1.318A.5.5 0 0 0 5.5 16h5a.5.5 0 0 0 .354-.854l-1.318-1.318.375-2.253 2.21.369.405 1.214a.5.5 0 0 0 .948 0l.313-.937 1.63.272A.5.5 0 0 0 16 12v-1.382a1.5 1.5 0 0 0-.83-1.342L14 8.691V7.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v.191l-2-1V3c0-.568-.14-1.271-.428-1.849C9.292.591 8.787 0 8 0Z"/>
-                    </svg>
-                    Transfert
-                </Link>
-            </nav>
-            <nav className=" " style={{padding: '10px 10px'}}>
-                <div className="colla" id="navbarNav" style={{padding: '10px 10px', display:"flex", justifyContent:'space-between'}}>
-                    <a target={'_blank'} rel='noreferrer' style={{marginLeft: '30px'}} href={`${host}/download/pdf/students/${id}/${JSON.stringify([])}`} className="btn btn-secondary">{studentTraductions[getLang()].downloadPdf}</a>
+        } catch (error) {
+            console.error('Error loading class series:', error);
+            setError('Erreur lors du chargement des séries');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Filtrer les séries selon la recherche
+    const filteredSeries = series.filter(serie =>
+        serie.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    if (loading && !classData) {
+        return (
+            <div className="container-fluid py-4">
+                <div className="text-center py-5">
+                    <div className="spinner-border" role="status">
+                        <span className="visually-hidden">Chargement des séries...</span>
+                    </div>
                 </div>
-            </nav>
-            {
-                error ? <div className="alert alert-danger"> {error} </div> : ''
-            }
-            <table className="table table-dark table-bordered table-striped">
-            <thead>
-                <tr>
-                    <td>{studentTraductions[getLang()].n} </td>
-                    <th>{studentTraductions[getLang()].name}s et Prenoms</th>
-                    <th align='center' style={{ textAlign: 'center' }}>
-                        Inscription <br />
-                        <a target={'_blank'} rel='noreferrer' 
-                        href={host+'/download/pdf/insolvables/'+id+'/1/'+sessionStorage.user} className="btn btn-secondary">
-                            Insolvables</a>
-                    </th>
-                    <th align='center' style={{ textAlign: 'center' }}>
-                        1ere tranche<br />
-                        <a target={'_blank'} rel='noreferrer' 
-                        href={host+'/download/pdf/insolvables/'+id+'/2/'+sessionStorage.user} className="btn btn-secondary">
-                            Insolvables</a>
-                    </th>
-                    <th align='center' style={{ textAlign: 'center' }}>
-                        2eme tranche<br />
-                        <a target={'_blank'} rel='noreferrer'
-                         href={host+'/download/pdf/insolvables/'+id+'/3/'+sessionStorage.user} className="btn btn-secondary">
-                            Insolvables</a>
-                    </th>
-                    <th align='center' style={{ textAlign: 'center' }}>
-                        3eme tranche<br />
-                        <a target={'_blank'} rel='noreferrer' 
-                        href={host+'/download/pdf/insolvables/'+id+'/4/'+sessionStorage.user} className="btn btn-secondary">
-                            Insolvables</a>
-                    </th>
-                    {
-                        classs.graduation ? 
-                            <th align='center' style={{ textAlign: 'center' }}>
-                                Graduations <br />
-                                <a target={'_blank'} rel='noreferrer' 
-                                href={host+'/download/pdf/insolvables/'+id+'/5/'+sessionStorage.user} className="btn btn-secondary">
-                                    Insolvables</a>
-                            </th>
-                        : <></>
-                    }
-                    <th align='center' style={{ textAlign: 'center' }}>
-                        Assurance<br />
-                        <a target={'_blank'} rel='noreferrer' 
-                        href={host+'/download/pdf/insolvables/'+id+'/8/'+sessionStorage.user} className="btn btn-secondary">
-                            Insolvables</a>
-                    </th>
-                    <th align='center' style={{ textAlign: 'center' }}>
-                        Total <br />
-                        <a target={'_blank'} rel='noreferrer' 
-                        href={host+'/download/pdf/insolvables/'+id+'/6/'+sessionStorage.user} className="btn btn-secondary">
-                            Insolvables</a> <br />
+            </div>
+        );
+    }
 
-                        <a target={'_blank'} rel='noreferrer' 
-                        href={host+'/download/pdf/insolvables/'+id+'/7/'+sessionStorage.user} 
-                        style={{ marginTop: '10px' }}
-                        className="btn btn-secondary">
-                            Etat</a>
-                    </th>
-                    <th>{studentTraductions[getLang()].action}</th>
-                </tr>
-            </thead>
-            <tbody>
-                {
-                    loading ? 
-                                <tr>
-                                    <td colSpan={5} style={{justifyItems: 'center', paddingLeft: '50%'}}>
-                                        <ReactLoading color="#fff" type="cylon"/>
-                                    </td>
-                                </tr> 
-                            : 
-                            students.length > 0 ? students.map((student, id) => {
-                                const inscription = student.status === 'old' ? classs.inscriptions_olds_students : classs.inscriptions_news_students
-                                const first_tranch = student.status === 'old' ? classs.first_tranch_olds_students : classs.first_tranch_news_students
-                                const second_tranch = student.status === 'old' ? classs.second_tranch_olds_students : classs.second_tranch_news_students;
-                                const third_tranch = student.status === 'old' ? classs.third_tranch_olds_students : classs.third_tranch_news_students;
-                                const graduation = classs.graduation ? classs.graduation : 0;
-                                const insolvable = student.inscription + student.first_tranch + student.second_tranch + student.third_tranch + student.graduation < inscription + first_tranch + second_tranch + third_tranch + graduation;
-                                
-                                return <tr key={id}>
-                                    <td>{id + 1}</td>
-                                    <td>{student.name} {student.subname}</td> 
-                                    <td>
-                                        {student.inscription} / {inscription}
-                                    </td>
-                                    <td>
-                                        {student.first_tranch} / {first_tranch}
-                                    </td>
-                                    <td>
-                                        {student.second_tranch} / {second_tranch}
-                                    </td>
-                                    <td>
-                                        {student.third_tranch} / {third_tranch}
-                                    </td>
-                                    {
-                                        classs.graduation ? 
-                                            <td>
-                                                {student.graduation} / {classs.graduation}
-                                            </td>
-                                        : <></>
-                                    }
-                                    <td>
-                                        {student.assurance} / {3000}
-                                    </td>
-                                    <td>
-                                        {
-                                            student.inscription + student.first_tranch + student.second_tranch + student.assurance + student.third_tranch + student.graduation
-                                        } /
-                                        {
-                                            inscription + 3000 + first_tranch + second_tranch + third_tranch + graduation
+    return (
+        <div className="container-fluid py-4">
+            {/* Header */}
+            <div className="row mb-4">
+                <div className="col-12">
+                    <div className="d-flex justify-content-between align-items-center">
+                        <div className="d-flex align-items-center">
+                            <button
+                                className="btn btn-outline-secondary me-3"
+                                onClick={() => navigate('/class-comp')}
+                            >
+                                <ArrowLeft size={16} className="me-1" />
+                                Retour
+                            </button>
+                            <div>
+                                <h2 className="h4 mb-1">Séries - {classData?.name}</h2>
+                                <p className="text-muted mb-0">
+                                    {classData?.level?.section?.name} - {classData?.level?.name}
+                                    {filteredSeries.length > 0 && ` • ${filteredSeries.length} série${filteredSeries.length > 1 ? 's' : ''}`}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="d-flex align-items-center gap-2">
+                            <span className="badge bg-info">
+                                <InfoCircle size={14} className="me-1" />
+                                Mode Comptable
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Alerts */}
+            {error && (
+                <div className="row mb-3">
+                    <div className="col-12">
+                        <div className="alert alert-danger alert-dismissible fade show" role="alert">
+                            {error}
+                            <button 
+                                type="button" 
+                                className="btn-close" 
+                                onClick={() => setError('')}
+                                aria-label="Close"
+                            ></button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Filters */}
+            <div className="row mb-4">
+                <div className="col-12">
+                    <div className="card">
+                        <div className="card-body">
+                            <div className="row g-3">
+                                <div className="col-md-8">
+                                    <label className="form-label">Rechercher</label>
+                                    <div className="position-relative">
+                                        <Search className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" size={16} />
+                                        <input
+                                            type="text"
+                                            className="form-control ps-5"
+                                            placeholder="Rechercher par nom de série..."
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="col-md-4 d-flex align-items-end">
+                                    <div className="btn-group w-100" role="group">
+                                        <button
+                                            type="button"
+                                            className={`btn ${viewMode === 'grid' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                                            onClick={() => setViewMode('grid')}
+                                        >
+                                            <Grid size={16} className="me-1" />
+                                            Grille
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`btn ${viewMode === 'list' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                                            onClick={() => setViewMode('list')}
+                                        >
+                                            <List size={16} className="me-1" />
+                                            Liste
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Series Grid */}
+            {viewMode === 'grid' ? (
+                <div className="row">
+                    {filteredSeries.length === 0 ? (
+                        <div className="col-12">
+                            <div className="card">
+                                <div className="card-body text-center py-5">
+                                    <HouseHeartFill size={48} className="text-muted mb-3" />
+                                    <h5 className="text-muted">Aucune série trouvée</h5>
+                                    <p className="text-muted">
+                                        {searchTerm 
+                                            ? 'Aucune série ne correspond à vos critères de recherche.'
+                                            : 'Cette classe n\'a pas encore de séries configurées.'
                                         }
-                                    </td>
-                                    <td style={{display: 'flex', flexDirection:'column', alignItems:'center', justifyContent: 'space-between'}}>
-                                        <Link to={'/reduct-fees/'+student.id}  
-                                            style={{ marginBottom: '10px' }} className="btn btn-secondary">
-                                                Payer
-                                        </Link>
-                                        <button style={{ marginBottom: '10px' }} onClick={() => {setStudentToEditId(student.id); setIsEditStudent(v => !v)}} to={`/students/edit/${student.id}`} className="btn btn-warning"> Editer</button>
-                                        <button className="btn btn-danger" onClick={() => {deleteStudent(student.id)}}> {loadingDel ? studentTraductions[getLang()].deleting : studentTraductions[getLang()].delete} </button>
-                                    </td>
-                                </tr> }) : <tr> 
-                                    <td colSpan={10} style={{textAlign: 'center'}}>
-                                    {` ${studentTraductions[getLang()].noStudent}`}
-                                    </td>
-                                </tr>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        filteredSeries.map((serie) => (
+                            <div key={serie.id} className="col-md-6 col-lg-4 mb-4">
+                                <div className="card h-100 hover-card">
+                                    <div className="card-body">
+                                        <div className="d-flex justify-content-between align-items-start mb-3">
+                                            <div>
+                                                <h6 className="card-title mb-1">{serie.name}</h6>
+                                                <small className="text-muted">
+                                                    Série de {classData?.name}
+                                                </small>
+                                            </div>
+                                            <span className="badge bg-primary">
+                                                {serie.students_count || 0} élève{(serie.students_count || 0) > 1 ? 's' : ''}
+                                            </span>
+                                        </div>
+                                        
+                                        <div className="d-flex justify-content-end mt-auto">
+                                            <Link
+                                                to={`/students/series/${serie.id}`}
+                                                className="btn btn-primary btn-sm"
+                                            >
+                                                <PeopleFill size={14} className="me-1" />
+                                                Voir les élèves
+                                            </Link>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            ) : (
+                // List view
+                <div className="row">
+                    <div className="col-12">
+                        <div className="card">
+                            <div className="card-body p-0">
+                                <div className="table-responsive">
+                                    <table className="table table-hover mb-0">
+                                        <thead className="table-light">
+                                            <tr>
+                                                <th>Série</th>
+                                                <th>Classe</th>
+                                                <th>Élèves</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredSeries.map((serie) => (
+                                                <tr key={serie.id}>
+                                                    <td className="fw-medium">{serie.name}</td>
+                                                    <td>{classData?.name}</td>
+                                                    <td>
+                                                        <span className="badge bg-light text-dark">
+                                                            {serie.students_count || 0} élève{(serie.students_count || 0) > 1 ? 's' : ''}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <Link
+                                                            to={`/students/series/${serie.id}`}
+                                                            className="btn btn-sm btn-primary"
+                                                        >
+                                                            <PeopleFill size={14} className="me-1" />
+                                                            Voir les élèves
+                                                        </Link>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* CSS for hover effects */}
+            <style jsx>{`
+                .hover-card {
+                    transition: box-shadow 0.2s ease-in-out;
                 }
-            </tbody>
-            </table>
-
-            <Modal isOpen={isAddStudent}>
-                <AddStudent error={error} setError={setError} setIsAddStudent={setIsAddStudent}/>
-            </Modal>
-            <Modal isOpen={isEditStudent}>
-                <EditStudent error={error} setError={setError} setIsEditStudent={setIsEditStudent} studentToEditId={studentToEditId}/>
-            </Modal>
+                .hover-card:hover {
+                    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+                }
+            `}</style>
         </div>
-    )
-}
+    );
+};
 
-export default StudentsByClass
+export default AccountantClassSeries;

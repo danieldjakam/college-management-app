@@ -24,6 +24,7 @@ class User extends Authenticatable implements JWTSubject
         'email',
         'password',
         'role',
+        'working_school_year_id',
     ];
 
     /**
@@ -57,5 +58,13 @@ class User extends Authenticatable implements JWTSubject
     public function getJWTCustomClaims()
     {
         return [];
+    }
+
+    /**
+     * Relation avec l'année scolaire de travail
+     */
+    public function workingSchoolYear()
+    {
+        return $this->belongsTo(SchoolYear::class, 'working_school_year_id');
     }
 }

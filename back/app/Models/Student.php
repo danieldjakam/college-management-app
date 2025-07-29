@@ -19,6 +19,7 @@ class Student extends Model
         'parent_phone',
         'parent_email',
         'address',
+        'photo',
         'class_series_id',
         'school_year_id',
         'student_number',
@@ -43,6 +44,11 @@ class Student extends Model
         'birthday' => 'date',
         'is_new' => 'boolean',
         'is_active' => 'boolean'
+    ];
+
+    protected $appends = [
+        'full_name',
+        'photo_url'
     ];
 
     /**
@@ -106,6 +112,17 @@ class Student extends Model
             return $this->subname . ' ' . $this->name;
         }
         return $this->name ?: '';
+    }
+
+    /**
+     * Obtenir l'URL complète de la photo
+     */
+    public function getPhotoUrlAttribute()
+    {
+        if ($this->photo) {
+            return url('/storage/' . $this->photo);
+        }
+        return null;
     }
 
     /**

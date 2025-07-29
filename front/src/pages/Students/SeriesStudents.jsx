@@ -16,7 +16,10 @@ import {
     List,
     ArrowLeft,
     SortAlphaDown,
-    GripVertical
+    GripVertical,
+    Camera,
+    X,
+    Image
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import Swal from 'sweetalert2';
@@ -38,6 +41,32 @@ import {
     useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+
+// Composant pour afficher les photos d'élèves avec fallback
+const StudentPhoto = ({ student, size = 40, className = "" }) => {
+    const [imageError, setImageError] = useState(false);
+    
+    if (!student.photo_url || imageError) {
+        return (
+            <div 
+                className={`bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center ${className}`}
+                style={{ width: `${size}px`, height: `${size}px` }}
+            >
+                <Person className="text-primary" size={Math.floor(size * 0.5)} />
+            </div>
+        );
+    }
+    
+    return (
+        <img 
+            src={student.photo_url} 
+            alt={student.full_name || `${student.last_name} ${student.first_name}`}
+            className={`rounded-circle ${className}`}
+            style={{ width: `${size}px`, height: `${size}px`, objectFit: 'cover' }}
+            onError={() => setImageError(true)}
+        />
+    );
+};
 
 // Composant pour les éléments sortables
 const SortableStudent = ({ student, handleEdit, handleDelete }) => {
@@ -68,6 +97,7 @@ const SortableStudent = ({ student, handleEdit, handleDelete }) => {
                     >
                         <GripVertical size={14} className="text-muted" />
                     </div>
+                    <StudentPhoto student={student} size={32} className="me-2" />
                     <small className="text-muted">
                         N° {student.student_number}
                     </small>
@@ -187,8 +217,13 @@ const SeriesStudents = () => {
         parent_email: '',
         address: '',
         class_series_id: seriesId,
-        school_year_id: ''
     });
+    
+    // Photo states
+    const [studentPhoto, setStudentPhoto] = useState(null);
+    const [photoPreview, setPhotoPreview] = useState('');
+    const [showCamera, setShowCamera] = useState(false);
+    const [cameraStream, setCameraStream] = useState(null);
     
     // Import data
     const [importFile, setImportFile] = useState(null);
@@ -199,6 +234,15 @@ const SeriesStudents = () => {
         loadSchoolYears();
     }, [seriesId]);
 
+    // Cleanup camera stream on unmount
+    useEffect(() => {
+        return () => {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, [cameraStream]);
+
     const loadStudents = async () => {
         try {
             setLoading(true);
@@ -208,10 +252,7 @@ const SeriesStudents = () => {
                 setStudents(response.data.students);
                 setSeries(response.data.series);
                 setSchoolYear(response.data.school_year);
-                setFormData(prev => ({
-                    ...prev,
-                    school_year_id: response.data.school_year?.id || ''
-                }));
+                // L'année scolaire est maintenant gérée automatiquement par le backend
                 
                 // Vérifier si les élèves ont un ordre personnalisé
                 const hasCustom = response.data.students.some(student => student.order != null);
@@ -245,18 +286,107 @@ const SeriesStudents = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         
+        // Validation côté client
+        const requiredFields = ['first_name', 'last_name', 'date_of_birth', 'place_of_birth', 'gender', 'parent_name'];
+        const missingFields = requiredFields.filter(field => !formData[field] || formData[field].trim() === '');
+        
+        if (missingFields.length > 0) {
+            setError(`Champs obligatoires manquants: ${missingFields.map(field => {
+                const labels = {
+                    first_name: 'Prénom',
+                    last_name: 'Nom',
+                    date_of_birth: 'Date de naissance',
+                    place_of_birth: 'Lieu de naissance',
+                    gender: 'Sexe',
+                    parent_name: 'Nom du parent'
+                };
+                return labels[field];
+            }).join(', ')}`);
+            return;
+        }
+        
+        // L'année scolaire est maintenant gérée automatiquement par le backend
+        
+        if (!seriesId) {
+            setError('Série de classe manquante');
+            return;
+        }
+        
+        // Debug: afficher les données avant envoi
+        console.log('Form data before submission:', formData);
+        console.log('School year:', schoolYear);
+        console.log('Series ID:', seriesId);
+        
         try {
             setLoading(true);
             setError('');
             
-            const submissionData = {
+            // Préparer les données finales (school_year_id géré automatiquement par le backend)
+            const finalFormData = {
                 ...formData,
-                class_series_id: seriesId
+                class_series_id: parseInt(seriesId)
             };
+            
+            // Validation finale des IDs
+            if (!finalFormData.class_series_id || isNaN(finalFormData.class_series_id)) {
+                setError('ID de série de classe invalide');
+                return;
+            }
+            
+            console.log('Final form data:', finalFormData);
+            
+            let response;
 
-            const response = selectedStudent 
-                ? await secureApiEndpoints.students.update(selectedStudent.id, submissionData)
-                : await secureApiEndpoints.students.create(submissionData);
+            // Debug pour l'édition
+            if (selectedStudent) {
+                console.log('Editing student:', selectedStudent.id);
+                console.log('Has new photo:', !!studentPhoto);
+                console.log('Student photo type:', typeof studentPhoto);
+                console.log('Student photo:', studentPhoto);
+            }
+            
+            // Si on a une photo, utiliser FormData, sinon utiliser JSON
+            if (studentPhoto) {
+                // Créer FormData pour inclure la photo
+                const formDataToSend = new FormData();
+                
+                // Ajouter tous les champs du formulaire 
+                Object.keys(finalFormData).forEach(key => {
+                    const value = finalFormData[key];
+                    // S'assurer que les valeurs ne sont pas undefined ou null
+                    if (value !== undefined && value !== null && value !== '') {
+                        formDataToSend.append(key, String(value));
+                    } else if (['first_name', 'last_name', 'date_of_birth', 'place_of_birth', 'gender', 'parent_name', 'class_series_id'].includes(key)) {
+                        // Pour les champs requis, utiliser une chaîne vide si la valeur est manquante
+                        formDataToSend.append(key, '');
+                    }
+                });
+                
+                // Ajouter la photo
+                formDataToSend.append('photo', studentPhoto);
+                
+                // Debug: afficher le contenu de FormData
+                console.log('FormData contents:');
+                for (let [key, value] of formDataToSend.entries()) {
+                    console.log(`${key}:`, value);
+                }
+                
+                response = selectedStudent 
+                    ? await secureApiEndpoints.students.updateWithPhoto(selectedStudent.id, formDataToSend)
+                    : await secureApiEndpoints.students.createWithPhoto(formDataToSend);
+            } else {
+                
+                // Pas de photo, utiliser l'API normale avec JSON
+                const jsonData = {
+                    ...formData,
+                    class_series_id: parseInt(seriesId)
+                };
+                
+                
+                response = selectedStudent 
+                    ? await secureApiEndpoints.students.update(selectedStudent.id, jsonData)
+                    : await secureApiEndpoints.students.create(jsonData);
+            }
 
             if (response.success) {
                 setSuccess(response.message || `Élève ${selectedStudent ? 'modifié' : 'créé'} avec succès`);
@@ -285,10 +415,24 @@ const SeriesStudents = () => {
 
     const handleEdit = (student) => {
         setSelectedStudent(student);
+        
+        // Convertir la date au format YYYY-MM-DD pour l'input HTML
+        let dateOfBirth = '';
+        if (student.date_of_birth) {
+            try {
+                const date = new Date(student.date_of_birth);
+                if (!isNaN(date.getTime())) {
+                    dateOfBirth = date.toISOString().split('T')[0];
+                }
+            } catch (error) {
+                console.error('Error parsing date:', error);
+            }
+        }
+        
         setFormData({
             first_name: student.first_name || '',
             last_name: student.last_name || '',
-            date_of_birth: student.date_of_birth || '',
+            date_of_birth: dateOfBirth,
             place_of_birth: student.place_of_birth || '',
             gender: student.gender || 'M',
             parent_name: student.parent_name || '',
@@ -296,8 +440,17 @@ const SeriesStudents = () => {
             parent_email: student.parent_email || '',
             address: student.address || '',
             class_series_id: seriesId,
-            school_year_id: student.school_year_id || ''
+            // school_year_id géré automatiquement par le backend
         });
+        
+        // Charger la photo existante
+        if (student.photo_url) {
+            setPhotoPreview(student.photo_url);
+        } else {
+            setPhotoPreview('');
+        }
+        setStudentPhoto(null); // Reset file input for new photo
+        
         setShowEditModal(true);
     };
 
@@ -431,7 +584,7 @@ const SeriesStudents = () => {
             const formData = new FormData();
             formData.append('file', importFile);
             formData.append('class_series_id', seriesId);
-            formData.append('school_year_id', selectedSchoolYear);
+            // school_year_id géré automatiquement par le backend
 
             // Debug log détaillé
             console.log('Import CSV - FormData contents:', {
@@ -442,7 +595,6 @@ const SeriesStudents = () => {
                     lastModified: importFile.lastModified
                 },
                 class_series_id: seriesId,
-                school_year_id: selectedSchoolYear,
                 seriesInfo: series?.name,
                 schoolYearInfo: schoolYears.find(y => y.id == selectedSchoolYear)?.name
             });
@@ -483,14 +635,231 @@ const SeriesStudents = () => {
                     });
                 }
             } else {
-                setError(response.message || 'Erreur lors de l\'import');
+                // Gérer les erreurs de validation du backend
+                if (response.errors) {
+                    let errorMessage = 'Erreurs de validation:\n';
+                    Object.keys(response.errors).forEach(field => {
+                        errorMessage += `• ${field}: ${response.errors[field].join(', ')}\n`;
+                    });
+                    setError(errorMessage);
+                } else {
+                    setError(response.message || 'Erreur lors de l\'import');
+                }
             }
         } catch (error) {
             console.error('Error importing CSV:', error);
-            setError('Erreur lors de l\'import CSV');
+            
+            // Gestion d'erreur plus détaillée
+            let errorMessage = 'Erreur lors de l\'import CSV';
+            
+            if (error.message) {
+                errorMessage += ': ' + error.message;
+            }
+            
+            // Si c'est une erreur réseau
+            if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                errorMessage = 'Impossible de se connecter au serveur. Vérifiez votre connexion.';
+            }
+            
+            // Si c'est une erreur de parsing JSON
+            if (error.message.includes('JSON')) {
+                errorMessage = 'Erreur de format de réponse du serveur.';
+            }
+            
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
+    };
+
+    // Fonction pour télécharger un modèle CSV
+    const handleDownloadTemplate = () => {
+        const headers = [
+            'Nom',
+            'Prénom', 
+            'Date de naissance (DD/MM/YYYY)',
+            'Lieu de naissance',
+            'Sexe (M/F)',
+            'Nom du parent',
+            'Téléphone parent (optionnel)',
+            'Email parent (optionnel)',
+            'Adresse (optionnel)'
+        ];
+        
+        const sampleData = [
+            [
+                'NGUEME',
+                'Jean',
+                '15/03/2010',
+                'Douala',
+                'M',
+                'NGUEME Paul',
+                '690123456',
+                'parent@email.com',
+                'Bonanjo, Douala'
+            ],
+            [
+                'TCHOUA',
+                'Marie',
+                '20/08/2009',
+                'Yaoundé',
+                'F',
+                'TCHOUA Pierre',
+                '691234567',
+                'marie.parent@email.com',
+                'Melen, Yaoundé'
+            ]
+        ];
+        
+        // Créer le contenu CSV
+        const csvContent = [headers, ...sampleData]
+            .map(row => row.map(field => `"${field}"`).join(';'))
+            .join('\n');
+        
+        // Créer le blob et télécharger
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'modele_import_eleves.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        setSuccess('Modèle CSV téléchargé avec succès');
+    };
+
+    // Fonction pour prévisualiser le fichier CSV avant import
+    const handleFilePreview = (file) => {
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const csvText = e.target.result;
+                const lines = csvText.split('\n').filter(line => line.trim());
+                
+                if (lines.length < 2) {
+                    setError('Le fichier CSV doit contenir au moins une ligne d\'en-têtes et une ligne de données');
+                    return;
+                }
+                
+                const headers = lines[0].split(';').map(h => h.replace(/"/g, '').trim());
+                const expectedHeaders = ['Nom', 'Prénom', 'Date de naissance', 'Lieu de naissance', 'Sexe', 'Nom du parent'];
+                
+                // Vérifier les en-têtes obligatoires
+                const missingHeaders = expectedHeaders.filter(expected => 
+                    !headers.some(header => 
+                        header.toLowerCase().includes(expected.toLowerCase()) ||
+                        expected.toLowerCase().includes(header.toLowerCase())
+                    )
+                );
+                
+                if (missingHeaders.length > 0) {
+                    setError(`En-têtes manquants dans le CSV: ${missingHeaders.join(', ')}`);
+                    return;
+                }
+                
+                console.log('Prévisualisation CSV:', {
+                    totalLines: lines.length,
+                    headers: headers,
+                    dataLines: lines.length - 1,
+                    firstDataLine: lines[1]?.split(';').map(d => d.replace(/"/g, '').trim())
+                });
+                
+                setError(''); // Clear any previous errors
+                setSuccess(`Fichier CSV valide: ${lines.length - 1} ligne(s) de données détectée(s)`);
+                
+            } catch (error) {
+                setError('Erreur lors de la lecture du fichier CSV: ' + error.message);
+            }
+        };
+        
+        reader.onerror = () => {
+            setError('Erreur lors de la lecture du fichier');
+        };
+        
+        reader.readAsText(file, 'UTF-8');
+    };
+
+    // Fonctions pour la gestion des photos
+    const handlePhotoUpload = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            // Validation du type de fichier
+            if (!file.type.startsWith('image/')) {
+                setError('Veuillez sélectionner un fichier image valide');
+                return;
+            }
+            
+            // Validation de la taille (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                setError('La taille de l\'image ne doit pas dépasser 5MB');
+                return;
+            }
+            
+            setStudentPhoto(file);
+            
+            // Créer un aperçu
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setPhotoPreview(e.target.result);
+            };
+            reader.readAsDataURL(file);
+            
+            setError(''); // Clear any errors
+        }
+    };
+
+    const startCamera = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    width: 640, 
+                    height: 480,
+                    facingMode: 'user' // Utiliser la caméra frontale si disponible
+                } 
+            });
+            setCameraStream(stream);
+            setShowCamera(true);
+        } catch (error) {
+            console.error('Erreur d\'accès à la caméra:', error);
+            setError('Impossible d\'accéder à la caméra. Vérifiez les permissions.');
+        }
+    };
+
+    const stopCamera = () => {
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+            setCameraStream(null);
+        }
+        setShowCamera(false);
+    };
+
+    const capturePhoto = () => {
+        const video = document.getElementById('cameraVideo');
+        const canvas = document.createElement('canvas');
+        
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0);
+        
+        // Convertir en blob
+        canvas.toBlob((blob) => {
+            const file = new File([blob], 'photo_eleve.jpg', { type: 'image/jpeg' });
+            setStudentPhoto(file);
+            setPhotoPreview(canvas.toDataURL());
+            stopCamera();
+        }, 'image/jpeg', 0.8);
+    };
+
+    const removePhoto = () => {
+        setStudentPhoto(null);
+        setPhotoPreview('');
+        setError('');
     };
 
     // Fonction pour gérer le drag & drop
@@ -514,8 +883,8 @@ const SeriesStudents = () => {
 
                 await secureApiEndpoints.students.reorder({
                     students: studentsWithOrder,
-                    class_series_id: parseInt(seriesId),
-                    school_year_id: schoolYear?.id
+                    class_series_id: parseInt(seriesId)
+                    // school_year_id géré automatiquement par le backend
                 });
 
                 setSuccess('Ordre des élèves mis à jour avec succès');
@@ -547,7 +916,7 @@ const SeriesStudents = () => {
                 setLoading(true);
                 const response = await secureApiEndpoints.students.sortAlphabetically(
                     seriesId, 
-                    { school_year_id: schoolYear?.id }
+                    {} // school_year_id géré automatiquement par le backend
                 );
 
                 if (response.success) {
@@ -579,9 +948,12 @@ const SeriesStudents = () => {
             parent_email: '',
             address: '',
             class_series_id: seriesId,
-            school_year_id: schoolYear?.id || ''
+            // school_year_id géré automatiquement par le backend
         });
         setSelectedStudent(null);
+        setStudentPhoto(null);
+        setPhotoPreview('');
+        stopCamera(); // Arrêter la caméra si elle est active
     };
 
     const handleCloseModal = () => {
@@ -802,10 +1174,7 @@ const SeriesStudents = () => {
                                         <div className="card-body">
                                             <div className="d-flex justify-content-between align-items-start mb-3">
                                                 <div className="d-flex align-items-center">
-                                                    <div className="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center me-3" 
-                                                         style={{ width: '40px', height: '40px' }}>
-                                                        <Person className="text-primary" size={20} />
-                                                    </div>
+                                                    <StudentPhoto student={student} size={40} className="me-3" />
                                                     <div>
                                                         <h6 className="card-title mb-1">
                                                             {student.full_name || `${student.last_name || student.subname || ''} ${student.first_name || student.name || ''}`}
@@ -881,7 +1250,7 @@ const SeriesStudents = () => {
                                         <table className="table table-hover mb-0">
                                             <thead className="table-light">
                                                 <tr>
-                                                    <th>N°</th>
+                                                    <th>Photo & N°</th>
                                                     <th>Nom & Prénom</th>
                                                     <th>Date/Lieu naissance</th>
                                                     <th>Sexe</th>
@@ -931,6 +1300,114 @@ const SeriesStudents = () => {
                             </div>
                             <form onSubmit={handleSubmit}>
                                 <div className="modal-body">
+                                    {/* Section Photo */}
+                                    <div className="row mb-4">
+                                        <div className="col-12">
+                                            <label className="form-label">Photo de l'élève</label>
+                                            <div className="d-flex flex-column align-items-center">
+                                                {/* Aperçu de la photo */}
+                                                <div className="mb-3 position-relative" style={{ width: '150px', height: '150px' }}>
+                                                    {photoPreview ? (
+                                                        <>
+                                                            <img 
+                                                                src={photoPreview} 
+                                                                alt="Aperçu photo élève" 
+                                                                className="img-thumbnail border-2 shadow-sm"
+                                                                style={{ width: '150px', height: '150px', objectFit: 'cover' }}
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-sm btn-danger position-absolute"
+                                                                onClick={removePhoto}
+                                                                style={{ top: '-8px', right: '-8px' }}
+                                                                title="Supprimer la photo"
+                                                            >
+                                                                <X size={12} />
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        <div 
+                                                            className="d-flex flex-column align-items-center justify-content-center border border-dashed border-2 rounded h-100"
+                                                            style={{ backgroundColor: '#f8f9fa' }}
+                                                        >
+                                                            <Person size={48} className="text-muted mb-2" />
+                                                            <small className="text-muted text-center">Aucune photo</small>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                
+                                                {/* Boutons d'action photo */}
+                                                <div className="d-flex gap-2 mb-3">
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-outline-primary btn-sm"
+                                                        onClick={startCamera}
+                                                    >
+                                                        <Camera size={16} className="me-1" />
+                                                        Capturer
+                                                    </button>
+                                                    <label className="btn btn-outline-secondary btn-sm" htmlFor="photoUpload">
+                                                        <Image size={16} className="me-1" />
+                                                        Choisir fichier
+                                                    </label>
+                                                    <input
+                                                        id="photoUpload"
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={handlePhotoUpload}
+                                                        style={{ display: 'none' }}
+                                                    />
+                                                </div>
+                                                
+                                                {/* Modal caméra */}
+                                                {showCamera && (
+                                                    <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" 
+                                                         style={{ backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 9999 }}>
+                                                        <div className="bg-white p-4 rounded">
+                                                            <div className="d-flex justify-content-between align-items-center mb-3">
+                                                                <h5 className="mb-0">Capture Photo</h5>
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn-close"
+                                                                    onClick={stopCamera}
+                                                                ></button>
+                                                            </div>
+                                                            <video
+                                                                id="cameraVideo"
+                                                                autoPlay
+                                                                playsInline
+                                                                ref={(video) => {
+                                                                    if (video && cameraStream) {
+                                                                        video.srcObject = cameraStream;
+                                                                    }
+                                                                }}
+                                                                style={{ width: '400px', height: '300px' }}
+                                                                className="border rounded mb-3"
+                                                            />
+                                                            <div className="d-flex justify-content-center gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn btn-primary"
+                                                                    onClick={capturePhoto}
+                                                                >
+                                                                    <Camera size={16} className="me-1" />
+                                                                    Capturer
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn btn-secondary"
+                                                                    onClick={stopCamera}
+                                                                >
+                                                                    Annuler
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div className="row">
                                         <div className="col-md-6">
                                             <div className="mb-3">
@@ -1104,16 +1581,35 @@ const SeriesStudents = () => {
                                     </div>
                                     
                                     <div className="mb-3">
-                                        <label className="form-label">Fichier CSV *</label>
+                                        <div className="d-flex justify-content-between align-items-center mb-2">
+                                            <label className="form-label mb-0">Fichier CSV *</label>
+                                            <button
+                                                type="button"
+                                                className="btn btn-sm btn-outline-info"
+                                                onClick={handleDownloadTemplate}
+                                                title="Télécharger le modèle CSV"
+                                            >
+                                                <Download size={14} className="me-1" />
+                                                Modèle CSV
+                                            </button>
+                                        </div>
                                         <input
                                             type="file"
                                             className="form-control"
                                             accept=".csv,.txt"
-                                            onChange={(e) => setImportFile(e.target.files[0])}
+                                            onChange={(e) => {
+                                                const file = e.target.files[0];
+                                                setImportFile(file);
+                                                if (file) {
+                                                    handleFilePreview(file);
+                                                }
+                                            }}
                                             required
                                         />
                                         <div className="form-text">
                                             Le fichier doit contenir les colonnes : Nom, Prénom, Date naissance, Lieu naissance, Sexe, Nom parent, Téléphone parent (optionnel), Email parent (optionnel), Adresse (optionnel)
+                                            <br />
+                                            <small className="text-muted">💡 Cliquez sur "Modèle CSV" pour télécharger un exemple de format</small>
                                         </div>
                                     </div>
                                 </div>

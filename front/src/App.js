@@ -20,6 +20,7 @@ import Levels from "./pages/Levels/Levels";
 import Login from "./pages/Login";
 import PaymentTranches from "./pages/PaymentTranches";
 import SchoolClasses from "./pages/SchoolClasses/SchoolClasses";
+import SchoolYears from "./pages/SchoolYears";
 import Sections from "./pages/Sections/Sections";
 import Settings from "./pages/Settings";
 import UserProfile from "./pages/Profile/UserProfile";
@@ -165,6 +166,15 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <Settings />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/school-years"
+                element={
+                  <AdminRoute>
+                    <SchoolYears />
                   </AdminRoute>
                 }
               />

@@ -8,39 +8,191 @@ use App\Models\ClassSeries;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 
 class StudentController extends Controller
 {
+    /**
+     * Obtenir l'année scolaire de travail de l'utilisateur connecté
+     */
+    private function getUserWorkingYear()
+    {
+        $user = Auth::user();
+        
+        // Si l'utilisateur a une année de travail définie, l'utiliser
+        if ($user && $user->working_school_year_id) {
+            $workingYear = SchoolYear::find($user->working_school_year_id);
+            if ($workingYear && $workingYear->is_active) {
+                return $workingYear;
+            }
+        }
+        
+        // Sinon, utiliser l'année courante par défaut
+        $currentYear = SchoolYear::where('is_current', true)->first();
+        
+        if (!$currentYear) {
+            // Si aucune année courante, prendre la première année active
+            $currentYear = SchoolYear::where('is_active', true)->first();
+        }
+        
+        return $currentYear;
+    }
+
+    /**
+     * Gérer l'upload et le redimensionnement de photo
+     */
+    private function handlePhotoUpload($photo, $studentNumber)
+    {
+        try {
+            if (!$photo || !$photo->isValid()) {
+                \Log::error('Photo upload failed: Invalid photo file');
+                return null;
+            }
+
+            // Vérifier si GD est disponible
+            if (!extension_loaded('gd')) {
+                \Log::warning('GD extension not available, storing original image');
+                // Fallback: stocker l'image sans redimensionnement
+                $extension = $photo->getClientOriginalExtension() ?: 'jpg';
+                $filename = 'student_' . $studentNumber . '_' . time() . '.' . $extension;
+                $uploadPath = 'students/photos';
+                
+                if (!Storage::disk('public')->exists($uploadPath)) {
+                    Storage::disk('public')->makeDirectory($uploadPath);
+                }
+                
+                $path = $photo->storeAs($uploadPath, $filename, 'public');
+                return $path;
+            }
+
+            // Validation du type de fichier
+            $allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+            if (!in_array($photo->getMimeType(), $allowedMimes)) {
+                \Log::error('Photo upload failed: Invalid mime type', ['mime' => $photo->getMimeType()]);
+                throw new \Exception('Format de fichier non supporté. Utilisez JPG, PNG ou GIF.');
+            }
+
+            // Validation de la taille (max 5MB)
+            if ($photo->getSize() > 5 * 1024 * 1024) {
+                \Log::error('Photo upload failed: File too large', ['size' => $photo->getSize()]);
+                throw new \Exception('La taille de l\'image ne doit pas dépasser 5MB.');
+            }
+
+            // Créer le nom de fichier unique
+            $extension = $photo->getClientOriginalExtension() ?: 'jpg';
+            $filename = 'student_' . $studentNumber . '_' . time() . '.' . $extension;
+
+            // Créer le dossier s'il n'existe pas
+            $uploadPath = 'students/photos';
+            if (!Storage::disk('public')->exists($uploadPath)) {
+                Storage::disk('public')->makeDirectory($uploadPath);
+            }
+
+            // Redimensionner et optimiser l'image
+            $imageData = file_get_contents($photo->getRealPath());
+            $image = imagecreatefromstring($imageData);
+            
+            if (!$image) {
+                \Log::error('Photo upload failed: Could not create image from string');
+                // Fallback: stocker l'image sans redimensionnement
+                $path = $photo->storeAs($uploadPath, $filename, 'public');
+                return $path;
+            }
+
+        // Obtenir les dimensions originales
+        $originalWidth = imagesx($image);
+        $originalHeight = imagesy($image);
+
+        // Calculer les nouvelles dimensions (max 300x300 en gardant les proportions)
+        $maxSize = 300;
+        if ($originalWidth > $originalHeight) {
+            $newWidth = $maxSize;
+            $newHeight = intval(($originalHeight * $maxSize) / $originalWidth);
+        } else {
+            $newHeight = $maxSize;
+            $newWidth = intval(($originalWidth * $maxSize) / $originalHeight);
+        }
+
+        // Créer la nouvelle image redimensionnée
+        $resizedImage = imagecreatetruecolor($newWidth, $newHeight);
+        
+        // Préserver la transparence pour PNG et GIF
+        if ($photo->getMimeType() === 'image/png' || $photo->getMimeType() === 'image/gif') {
+            imagealphablending($resizedImage, false);
+            imagesavealpha($resizedImage, true);
+            $transparent = imagecolorallocatealpha($resizedImage, 255, 255, 255, 127);
+            imagefilledrectangle($resizedImage, 0, 0, $newWidth, $newHeight, $transparent);
+        }
+
+        // Redimensionner
+        imagecopyresampled($resizedImage, $image, 0, 0, 0, 0, $newWidth, $newHeight, $originalWidth, $originalHeight);
+
+        // Sauvegarder dans le storage
+        $fullPath = storage_path('app/public/' . $uploadPath . '/' . $filename);
+        
+        // Sauvegarder selon le type
+        switch ($photo->getMimeType()) {
+            case 'image/png':
+                imagepng($resizedImage, $fullPath, 8);
+                break;
+            case 'image/gif':
+                imagegif($resizedImage, $fullPath);
+                break;
+            default:
+                imagejpeg($resizedImage, $fullPath, 85);
+                break;
+        }
+
+            // Libérer la mémoire
+            imagedestroy($image);
+            imagedestroy($resizedImage);
+
+            return $uploadPath . '/' . $filename;
+            
+        } catch (\Exception $e) {
+            \Log::error('Photo upload failed with exception: ' . $e->getMessage());
+            // Si le traitement échoue, essayer de stocker l'image sans redimensionnement
+            try {
+                $extension = $photo->getClientOriginalExtension() ?: 'jpg';
+                $filename = 'student_' . $studentNumber . '_' . time() . '.' . $extension;
+                $uploadPath = 'students/photos';
+                
+                if (!Storage::disk('public')->exists($uploadPath)) {
+                    Storage::disk('public')->makeDirectory($uploadPath);
+                }
+                
+                $path = $photo->storeAs($uploadPath, $filename, 'public');
+                \Log::info('Photo stored without processing: ' . $path);
+                return $path;
+            } catch (\Exception $fallbackException) {
+                \Log::error('Fallback photo upload also failed: ' . $fallbackException->getMessage());
+                throw new \Exception('Impossible de sauvegarder la photo.');
+            }
+        }
+    }
+
     /**
      * Obtenir tous les élèves d'une série de classe
      */
     public function getByClassSeries($seriesId)
     {
         try {
-            // Récupérer l'année scolaire courante
-            $currentYear = SchoolYear::where('is_current', true)->first();
+            // Récupérer l'année scolaire de travail de l'utilisateur
+            $workingYear = $this->getUserWorkingYear();
             
-            if (!$currentYear) {
-                // Si aucune année courante, prendre la première année active
-                $currentYear = SchoolYear::where('is_active', true)->first();
-            }
-            
-            if (!$currentYear) {
+            if (!$workingYear) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Aucune année scolaire définie'
                 ], 400);
             }
 
-            // Récupérer les élèves
+            // Récupérer les élèves pour l'année de travail sélectionnée
             $studentsQuery = Student::with(['schoolYear', 'classSeries'])
                 ->where('class_series_id', $seriesId)
-                ->where('is_active', true);
-                
-            // Filtrer par année scolaire si elle existe
-            if ($currentYear) {
-                $studentsQuery->where('school_year_id', $currentYear->id);
-            }
+                ->where('is_active', true)
+                ->where('school_year_id', $workingYear->id);
             
             $students = $studentsQuery
                 ->orderBy('order', 'asc')
@@ -63,7 +215,7 @@ class StudentController extends Controller
                 'data' => [
                     'students' => $students,
                     'series' => $series,
-                    'school_year' => $currentYear,
+                    'school_year' => $workingYear,
                     'total' => $students->count()
                 ]
             ]);
@@ -82,18 +234,32 @@ class StudentController extends Controller
      */
     public function store(Request $request)
     {
+        // Debug: afficher les données reçues
+        \Log::info('Student creation request data:', $request->all());
+        \Log::info('Student creation files:', $request->allFiles());
+
+        // Obtenir l'année de travail de l'utilisateur
+        $workingYear = $this->getUserWorkingYear();
+        
+        if (!$workingYear) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aucune année scolaire définie'
+            ], 400);
+        }
+
         $validator = Validator::make($request->all(), [
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            'date_of_birth' => 'required|date|before:today',
+            'date_of_birth' => 'required|date',
             'place_of_birth' => 'required|string|max:255',
             'gender' => 'required|in:M,F',
             'parent_name' => 'required|string|max:255',
             'parent_phone' => 'nullable|string|max:20',
             'parent_email' => 'nullable|email|max:255',
             'address' => 'nullable|string|max:500',
-            'class_series_id' => 'required|exists:class_series,id',
-            'school_year_id' => 'required|exists:school_years,id'
+            'class_series_id' => 'required|integer|exists:class_series,id',
+            'photo' => 'nullable|image|mimes:jpeg,jpg,png,gif|max:5120' // 5MB max
         ]);
 
         if ($validator->fails()) {
@@ -107,26 +273,32 @@ class StudentController extends Controller
         try {
             DB::beginTransaction();
 
-            // Générer le numéro d'élève
-            $schoolYear = SchoolYear::find($request->school_year_id);
+            // Générer le numéro d'élève pour l'année de travail
             $studentNumber = Student::generateStudentNumber(
-                $schoolYear->start_date, 
+                $workingYear->start_date, 
                 $request->class_series_id
             );
 
             // Calculer l'ordre automatiquement (position alphabétique)
             $maxOrder = Student::where('class_series_id', $request->class_series_id)
-                ->where('school_year_id', $request->school_year_id)
+                ->where('school_year_id', $workingYear->id)
                 ->max('order') ?: 0;
 
-            $studentData = $request->all();
+            $studentData = $request->except(['photo']);
             $studentData['student_number'] = $studentNumber;
+            $studentData['school_year_id'] = $workingYear->id;
             $studentData['order'] = $maxOrder + 1; // Ajouter à la fin par défaut
             $studentData['is_active'] = true;
             
             // Combiner nom + prénom pour le champ legacy 'name'
             if (!empty($studentData['last_name']) && !empty($studentData['first_name'])) {
                 $studentData['name'] = $studentData['last_name'] . ' ' . $studentData['first_name'];
+            }
+
+            // Gérer l'upload de photo
+            if ($request->hasFile('photo')) {
+                $photoPath = $this->handlePhotoUpload($request->file('photo'), $studentNumber);
+                $studentData['photo'] = $photoPath;
             }
 
             $student = Student::create($studentData);
@@ -157,7 +329,7 @@ class StudentController extends Controller
         $validator = Validator::make($request->all(), [
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            'date_of_birth' => 'required|date|before:today',
+            'date_of_birth' => 'required|date',
             'place_of_birth' => 'required|string|max:255',
             'gender' => 'required|in:M,F',
             'parent_name' => 'required|string|max:255',
@@ -166,7 +338,8 @@ class StudentController extends Controller
             'address' => 'nullable|string|max:500',
             'class_series_id' => 'required|exists:class_series,id',
             'school_year_id' => 'required|exists:school_years,id',
-            'is_active' => 'boolean'
+            'is_active' => 'boolean',
+            'photo' => 'nullable|image|mimes:jpeg,jpg,png,gif|max:5120' // 5MB max
         ]);
 
         if ($validator->fails()) {
@@ -178,11 +351,87 @@ class StudentController extends Controller
         }
 
         try {
-            $updateData = $request->all();
+            $updateData = $request->except(['photo']);
             
             // Combiner nom + prénom pour le champ legacy 'name'
             if (!empty($updateData['last_name']) && !empty($updateData['first_name'])) {
                 $updateData['name'] = $updateData['last_name'] . ' ' . $updateData['first_name'];
+            }
+            
+            // Gérer l'upload de photo
+            if ($request->hasFile('photo')) {
+                // Supprimer l'ancienne photo si elle existe
+                if ($student->photo && Storage::disk('public')->exists($student->photo)) {
+                    Storage::disk('public')->delete($student->photo);
+                }
+                
+                $photoPath = $this->handlePhotoUpload($request->file('photo'), $student->student_number);
+                $updateData['photo'] = $photoPath;
+            }
+            
+            $student->update($updateData);
+            $student->load(['schoolYear', 'classSeries']);
+
+            return response()->json([
+                'success' => true,
+                'data' => $student,
+                'message' => 'Élève mis à jour avec succès'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour de l\'élève',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Mettre à jour un élève avec photo (via POST pour FormData)
+     */
+    public function updateWithPhoto(Request $request, Student $student)
+    {
+        $validator = Validator::make($request->all(), [
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'date_of_birth' => 'required|date',
+            'place_of_birth' => 'required|string|max:255',
+            'gender' => 'required|in:M,F',
+            'parent_name' => 'required|string|max:255',
+            'parent_phone' => 'nullable|string|max:20',
+            'parent_email' => 'nullable|email|max:255',
+            'address' => 'nullable|string|max:500',
+            'class_series_id' => 'required|exists:class_series,id',
+            'school_year_id' => 'required|exists:school_years,id',
+            'is_active' => 'nullable|boolean',
+            'photo' => 'nullable|image|mimes:jpeg,jpg,png,gif|max:5120' // 5MB max
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Données invalides',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $updateData = $request->except(['photo']);
+            
+            // Combiner nom + prénom pour le champ legacy 'name'
+            if (!empty($updateData['last_name']) && !empty($updateData['first_name'])) {
+                $updateData['name'] = $updateData['last_name'] . ' ' . $updateData['first_name'];
+            }
+            
+            // Gérer l'upload de photo
+            if ($request->hasFile('photo')) {
+                // Supprimer l'ancienne photo si elle existe
+                if ($student->photo && Storage::disk('public')->exists($student->photo)) {
+                    Storage::disk('public')->delete($student->photo);
+                }
+                
+                $photoPath = $this->handlePhotoUpload($request->file('photo'), $student->student_number);
+                $updateData['photo'] = $photoPath;
             }
             
             $student->update($updateData);
@@ -208,6 +457,11 @@ class StudentController extends Controller
     public function destroy(Student $student)
     {
         try {
+            // Supprimer la photo si elle existe
+            if ($student->photo && Storage::disk('public')->exists($student->photo)) {
+                Storage::disk('public')->delete($student->photo);
+            }
+            
             $student->delete();
 
             return response()->json([
@@ -229,12 +483,10 @@ class StudentController extends Controller
     public function exportCsv($seriesId)
     {
         try {
-            $currentYear = SchoolYear::where('is_current', true)->first();
-            if (!$currentYear) {
-                $currentYear = SchoolYear::where('is_active', true)->first();
-            }
+            // Utiliser l'année de travail de l'utilisateur
+            $workingYear = $this->getUserWorkingYear();
             
-            if (!$currentYear) {
+            if (!$workingYear) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Aucune année scolaire définie'
@@ -243,7 +495,7 @@ class StudentController extends Controller
 
             $students = Student::with(['schoolYear', 'classSeries'])
                 ->forSeries($seriesId)
-                ->forYear($currentYear->id)
+                ->forYear($workingYear->id)
                 ->active()
                 ->orderBy('last_name')
                 ->orderBy('first_name')
@@ -310,12 +562,10 @@ class StudentController extends Controller
     public function exportPdf($seriesId)
     {
         try {
-            $currentYear = SchoolYear::where('is_current', true)->first();
-            if (!$currentYear) {
-                $currentYear = SchoolYear::where('is_active', true)->first();
-            }
+            // Utiliser l'année de travail de l'utilisateur
+            $workingYear = $this->getUserWorkingYear();
             
-            if (!$currentYear) {
+            if (!$workingYear) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Aucune année scolaire définie'
@@ -324,7 +574,7 @@ class StudentController extends Controller
 
             $students = Student::with(['schoolYear', 'classSeries'])
                 ->forSeries($seriesId)
-                ->forYear($currentYear->id)
+                ->forYear($workingYear->id)
                 ->active()
                 ->orderBy('last_name')
                 ->orderBy('first_name')
@@ -333,7 +583,7 @@ class StudentController extends Controller
             $series = ClassSeries::with(['schoolClass.level.section'])->find($seriesId);
 
             // Générer le HTML pour le PDF
-            $html = $this->generateStudentListHtml($students, $series, $currentYear);
+            $html = $this->generateStudentListHtml($students, $series, $workingYear);
             
             $filename = 'eleves_' . str_replace(' ', '_', $series->name) . '_' . date('Y-m-d') . '.pdf';
             
@@ -506,10 +756,19 @@ class StudentController extends Controller
      */
     public function importCsv(Request $request)
     {
+        // Obtenir l'année de travail de l'utilisateur
+        $workingYear = $this->getUserWorkingYear();
+        
+        if (!$workingYear) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aucune année scolaire définie'
+            ], 400);
+        }
+
         $validator = Validator::make($request->all(), [
             'file' => 'required|file|mimes:csv,txt',
-            'class_series_id' => 'required|exists:class_series,id',
-            'school_year_id' => 'required|exists:school_years,id'
+            'class_series_id' => 'required|exists:class_series,id'
         ]);
 
         if ($validator->fails()) {
@@ -550,20 +809,58 @@ class StudentController extends Controller
                     $lastName = trim($row[0] ?? '');
                     $firstName = trim($row[1] ?? '');
                     
+                    // Validation des champs obligatoires
+                    if (empty($lastName) || empty($firstName)) {
+                        $errors[] = "Ligne " . ($index + 2) . ": Nom et prénom obligatoires";
+                        continue;
+                    }
+                    
+                    // Traitement de la date de naissance avec plusieurs formats possibles
+                    $dateOfBirth = null;
+                    if (!empty($row[2])) {
+                        $dateStr = trim($row[2]);
+                        // Essayer différents formats de date
+                        $formats = ['d/m/Y', 'Y-m-d', 'd-m-Y', 'd.m.Y'];
+                        foreach ($formats as $format) {
+                            $dateObj = \DateTime::createFromFormat($format, $dateStr);
+                            if ($dateObj && $dateObj->format($format) === $dateStr) {
+                                $dateOfBirth = $dateObj->format('Y-m-d');
+                                break;
+                            }
+                        }
+                        if (!$dateOfBirth) {
+                            $errors[] = "Ligne " . ($index + 2) . ": Format de date invalide (utilisez DD/MM/YYYY)";
+                            continue;
+                        }
+                    }
+                    
+                    // Traitement du sexe
+                    $gender = strtoupper(trim($row[4] ?? ''));
+                    if (!in_array($gender, ['M', 'F'])) {
+                        $gender = $gender === 'MASCULIN' || $gender === 'HOMME' ? 'M' : 
+                                 ($gender === 'FEMININ' || $gender === 'FÉMININ' || $gender === 'FEMME' ? 'F' : 'M');
+                    }
+                    
+                    // Calculer l'ordre automatiquement
+                    $maxOrder = Student::where('class_series_id', $request->class_series_id)
+                        ->where('school_year_id', $workingYear->id)
+                        ->max('order') ?: 0;
+                    
                     Student::create([
                         'last_name' => $lastName,
                         'first_name' => $firstName,
                         'name' => $lastName . ' ' . $firstName, // Combiner pour compatibilité
-                        'date_of_birth' => $row[2] ? date('Y-m-d', strtotime($row[2])) : null,
+                        'date_of_birth' => $dateOfBirth,
                         'place_of_birth' => trim($row[3] ?? ''),
-                        'gender' => strtoupper(trim($row[4] ?? '')) === 'M' ? 'M' : 'F',
+                        'gender' => $gender,
                         'parent_name' => trim($row[5] ?? ''),
                         'parent_phone' => trim($row[6] ?? null),
                         'parent_email' => trim($row[7] ?? null),
                         'address' => trim($row[8] ?? null),
                         'class_series_id' => $request->class_series_id,
-                        'school_year_id' => $request->school_year_id,
+                        'school_year_id' => $workingYear->id,
                         'student_number' => $studentNumber,
+                        'order' => $maxOrder + 1,
                         'is_active' => true
                     ]);
                     
@@ -622,12 +919,21 @@ class StudentController extends Controller
      */
     public function reorder(Request $request)
     {
+        // Obtenir l'année de travail de l'utilisateur
+        $workingYear = $this->getUserWorkingYear();
+        
+        if (!$workingYear) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aucune année scolaire définie'
+            ], 400);
+        }
+
         $validator = Validator::make($request->all(), [
             'students' => 'required|array',
             'students.*.id' => 'required|exists:students,id',
             'students.*.order' => 'required|integer|min:1',
-            'class_series_id' => 'required|exists:class_series,id',
-            'school_year_id' => 'required|exists:school_years,id'
+            'class_series_id' => 'required|exists:class_series,id'
         ]);
 
         if ($validator->fails()) {
@@ -644,7 +950,7 @@ class StudentController extends Controller
             foreach ($request->students as $studentData) {
                 Student::where('id', $studentData['id'])
                     ->where('class_series_id', $request->class_series_id)
-                    ->where('school_year_id', $request->school_year_id)
+                    ->where('school_year_id', $workingYear->id)
                     ->update(['order' => $studentData['order']]);
             }
 
@@ -669,16 +975,14 @@ class StudentController extends Controller
      */
     public function sortAlphabetically(Request $request, $seriesId)
     {
-        $validator = Validator::make($request->all(), [
-            'school_year_id' => 'required|exists:school_years,id'
-        ]);
-
-        if ($validator->fails()) {
+        // Obtenir l'année de travail de l'utilisateur
+        $workingYear = $this->getUserWorkingYear();
+        
+        if (!$workingYear) {
             return response()->json([
                 'success' => false,
-                'message' => 'Données invalides',
-                'errors' => $validator->errors()
-            ], 422);
+                'message' => 'Aucune année scolaire définie'
+            ], 400);
         }
 
         try {
@@ -686,7 +990,7 @@ class StudentController extends Controller
 
             // Récupérer les élèves de la série et année scolaire
             $students = Student::where('class_series_id', $seriesId)
-                ->where('school_year_id', $request->school_year_id)
+                ->where('school_year_id', $workingYear->id)
                 ->where('is_active', true)
                 ->orderByRaw('COALESCE(last_name, name) ASC')
                 ->orderByRaw('COALESCE(first_name, subname) ASC')

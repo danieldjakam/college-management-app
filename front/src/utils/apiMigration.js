@@ -150,7 +150,43 @@ export const secureApiEndpoints = {
         getByClassSeries: (seriesId) => secureApi.get(`/students/class-series/${seriesId}`),
         getById: (id) => secureApi.get(`/students/${id}`),
         create: (data) => secureApi.post('/students', data),
+        createWithPhoto: (formData) => {
+            const token = authService.getToken();
+            return fetch(`${secureApi.baseURL}/students`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                    // Don't set Content-Type - let browser set it with boundary for FormData
+                },
+                body: formData
+            }).then(async response => {
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP Error ${response.status}`);
+                }
+                return response.json();
+            });
+        },
         update: (id, data) => secureApi.put(`/students/${id}`, data),
+        updateWithPhoto: (id, formData) => {
+            const token = authService.getToken();
+            return fetch(`${secureApi.baseURL}/students/${id}/update-with-photo`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                    // Don't set Content-Type - let browser set it with boundary for FormData
+                },
+                body: formData
+            }).then(async response => {
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP Error ${response.status}`);
+                }
+                return response.json();
+            });
+        },
         delete: (id) => secureApi.delete(`/students/${id}`),
         exportCsv: async (seriesId) => {
             const token = authService.getToken();
@@ -186,11 +222,24 @@ export const secureApiEndpoints = {
             
             return response; // Retourner la réponse pour permettre .text()
         },
-        importCsv: (formData) => secureApi.makeRequest('/students/import-csv', {
-            method: 'POST',
-            body: formData,
-            headers: {} // Remove Content-Type to let browser set it with boundary for FormData
-        }),
+        importCsv: (formData) => {
+            const token = authService.getToken();
+            return fetch(`${secureApi.baseURL}/students/import-csv`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                    // Don't set Content-Type - let browser set it with boundary for FormData
+                },
+                body: formData
+            }).then(async response => {
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP Error ${response.status}`);
+                }
+                return response.json();
+            });
+        },
         getSchoolYears: () => secureApi.get('/students/school-years'),
         transfer: (id, newClassId) => secureApi.post(`/students/${id}/transfer`, { class_id: newClassId }),
         getOrdered: (classId) => secureApi.get(`/students/class/${classId}/ordered`),
@@ -302,6 +351,26 @@ export const secureApiEndpoints = {
         global: (query) => secureApi.get(`/search?q=${encodeURIComponent(query)}`),
         students: (query) => secureApi.get(`/search/students?q=${encodeURIComponent(query)}`),
         teachers: (query) => secureApi.get(`/search/teachers?q=${encodeURIComponent(query)}`)
+    },
+
+    // === ACCOUNTANT ===
+    accountant: {
+        dashboard: () => secureApi.get('/accountant/dashboard'),
+        getClasses: () => secureApi.get('/accountant/classes'),
+        getClassSeries: (classId) => secureApi.get(`/accountant/classes/${classId}/series`),
+        getSeriesStudents: (seriesId) => secureApi.get(`/accountant/series/${seriesId}/students`),
+        getStudent: (studentId) => secureApi.get(`/accountant/students/${studentId}`)
+    },
+
+    // === SCHOOL YEARS ===
+    schoolYears: {
+        getAll: () => secureApi.get('/school-years'),
+        create: (data) => secureApi.post('/school-years', data),
+        update: (id, data) => secureApi.put(`/school-years/${id}`, data),
+        setCurrent: (id) => secureApi.post(`/school-years/${id}/set-current`),
+        getActiveYears: () => secureApi.get('/school-years/active'),
+        getUserWorkingYear: () => secureApi.get('/school-years/user-working-year'),
+        setUserWorkingYear: (yearId) => secureApi.post('/school-years/set-user-working-year', { school_year_id: yearId })
     }
 };
 
