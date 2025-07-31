@@ -34,6 +34,12 @@ class TeacherAssignmentController extends Controller
             // Filtrer par année scolaire
             if ($request->has('school_year_id')) {
                 $query->where('school_year_id', $request->school_year_id);
+            } else {
+                // Par défaut, filtrer par l'année scolaire courante
+                $currentYear = SchoolYear::where('is_current', true)->first();
+                if ($currentYear) {
+                    $query->where('school_year_id', $currentYear->id);
+                }
             }
 
             // Filtrer par matière

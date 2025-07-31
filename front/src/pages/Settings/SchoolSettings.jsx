@@ -21,7 +21,9 @@ import {
     Percent,
     Upload,
     Save,
-    Palette
+    Palette,
+    Whatsapp,
+    Check2Circle
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import ColorPicker from '../../components/ColorPicker';
@@ -46,7 +48,12 @@ const SchoolSettings = () => {
         footer_text: '',
         scholarship_deadline: '',
         reduction_percentage: 10,
-        primary_color: '#007bff'
+        primary_color: '#007bff',
+        whatsapp_notification_number: '',
+        whatsapp_notifications_enabled: false,
+        whatsapp_api_url: '',
+        whatsapp_instance_id: '',
+        whatsapp_token: ''
     });
     
     const [loading, setLoading] = useState(true);
@@ -55,6 +62,7 @@ const SchoolSettings = () => {
     const [success, setSuccess] = useState('');
     const [logoFile, setLogoFile] = useState(null);
     const [logoPreview, setLogoPreview] = useState('');
+    const [testingWhatsApp, setTestingWhatsApp] = useState(false);
 
     useEffect(() => {
         loadSettings();
@@ -224,6 +232,45 @@ const SchoolSettings = () => {
             console.error('Error updating settings:', error);
         } finally {
             setSaving(false);
+        }
+    };
+
+    const testWhatsApp = async () => {
+        try {
+            setTestingWhatsApp(true);
+            setError('');
+            setSuccess('');
+
+            const response = await secureApiEndpoints.needs.testWhatsApp();
+            
+            if (response.success) {
+                setSuccess(response.message);
+                Swal.fire({
+                    title: 'Test réussi !',
+                    text: response.message,
+                    icon: 'success',
+                    confirmButtonText: 'OK'
+                });
+            } else {
+                setError(response.message);
+                Swal.fire({
+                    title: 'Test échoué',
+                    text: response.message,
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
+            }
+        } catch (error) {
+            const errorMessage = 'Erreur lors du test WhatsApp';
+            setError(errorMessage);
+            Swal.fire({
+                title: 'Erreur',
+                text: errorMessage,
+                icon: 'error',
+                confirmButtonText: 'OK'
+            });
+        } finally {
+            setTestingWhatsApp(false);
         }
     };
 
@@ -461,6 +508,147 @@ const SchoolSettings = () => {
                                         </Form.Group>
                                     </Col>
                                 </Row>
+                            </Card.Body>
+                        </Card>
+
+                        {/* Configuration WhatsApp */}
+                        <Card className="mb-4">
+                            <Card.Header>
+                                <h5 className="mb-0">
+                                    <Whatsapp className="me-2" />
+                                    Notifications WhatsApp
+                                </h5>
+                            </Card.Header>
+                            <Card.Body>
+                                <Row className="mb-3">
+                                    <Col md={6}>
+                                        <Form.Group className="mb-3">
+                                            <Form.Label>
+                                                <Telephone className="me-1" />
+                                                Numéro WhatsApp pour notifications
+                                            </Form.Label>
+                                            <Form.Control
+                                                type="text"
+                                                value={settings.whatsapp_notification_number}
+                                                onChange={(e) => handleInputChange('whatsapp_notification_number', e.target.value)}
+                                                placeholder="Ex: +237 6XX XX XX XX"
+                                            />
+                                            <Form.Text className="text-muted">
+                                                Ce numéro recevra les notifications
+                                            </Form.Text>
+                                        </Form.Group>
+                                    </Col>
+                                    <Col md={6}>
+                                        <Form.Group className="mb-3">
+                                            <Form.Label>État des notifications</Form.Label>
+                                            <div>
+                                                <Form.Check
+                                                    type="switch"
+                                                    id="whatsapp-notifications-switch"
+                                                    label={settings.whatsapp_notifications_enabled ? "Activées" : "Désactivées"}
+                                                    checked={settings.whatsapp_notifications_enabled}
+                                                    onChange={(e) => handleInputChange('whatsapp_notifications_enabled', e.target.checked)}
+                                                />
+                                            </div>
+                                        </Form.Group>
+                                    </Col>
+                                </Row>
+
+                                <div className="border-top pt-3 mb-3">
+                                    <h6 className="text-muted mb-3">Configuration API UltraMsg</h6>
+                                    <Row>
+                                        <Col md={12}>
+                                            <Form.Group className="mb-3">
+                                                <Form.Label>URL de l'API UltraMsg</Form.Label>
+                                                <Form.Control
+                                                    type="url"
+                                                    value={settings.whatsapp_api_url}
+                                                    onChange={(e) => handleInputChange('whatsapp_api_url', e.target.value)}
+                                                    placeholder="https://api.ultramsg.com"
+                                                />
+                                                <Form.Text className="text-muted">
+                                                    URL de base de l'API UltraMsg
+                                                </Form.Text>
+                                            </Form.Group>
+                                        </Col>
+                                    </Row>
+                                    <Row>
+                                        <Col md={6}>
+                                            <Form.Group className="mb-3">
+                                                <Form.Label>Instance ID</Form.Label>
+                                                <Form.Control
+                                                    type="text"
+                                                    value={settings.whatsapp_instance_id}
+                                                    onChange={(e) => handleInputChange('whatsapp_instance_id', e.target.value)}
+                                                    placeholder="instanceXXXXX"
+                                                />
+                                                <Form.Text className="text-muted">
+                                                    ID de votre instance UltraMsg
+                                                </Form.Text>
+                                            </Form.Group>
+                                        </Col>
+                                        <Col md={6}>
+                                            <Form.Group className="mb-3">
+                                                <Form.Label>Token API</Form.Label>
+                                                <Form.Control
+                                                    type="password"
+                                                    value={settings.whatsapp_token}
+                                                    onChange={(e) => handleInputChange('whatsapp_token', e.target.value)}
+                                                    placeholder="Votre token UltraMsg"
+                                                />
+                                                <Form.Text className="text-muted">
+                                                    Token d'authentification UltraMsg
+                                                </Form.Text>
+                                            </Form.Group>
+                                        </Col>
+                                    </Row>
+                                </div>
+                                
+                                {settings.whatsapp_notifications_enabled && 
+                                 settings.whatsapp_notification_number && 
+                                 settings.whatsapp_api_url && 
+                                 settings.whatsapp_instance_id && 
+                                 settings.whatsapp_token && (
+                                    <div className="bg-light p-3 rounded">
+                                        <div className="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <strong className="text-success">✅ Configuration complète</strong>
+                                                <div className="text-muted small">
+                                                    Tous les paramètres requis sont configurés
+                                                </div>
+                                            </div>
+                                            <Button
+                                                variant="outline-success"
+                                                size="sm"
+                                                onClick={testWhatsApp}
+                                                disabled={testingWhatsApp}
+                                            >
+                                                {testingWhatsApp ? (
+                                                    <>
+                                                        <Spinner animation="border" size="sm" className="me-2" />
+                                                        Test en cours...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Check2Circle className="me-2" />
+                                                        Tester UltraMsg
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {settings.whatsapp_notifications_enabled && 
+                                 (!settings.whatsapp_notification_number || 
+                                  !settings.whatsapp_api_url || 
+                                  !settings.whatsapp_instance_id || 
+                                  !settings.whatsapp_token) && (
+                                    <div className="alert alert-warning">
+                                        <strong>⚠️ Configuration incomplète</strong>
+                                        <div>Veuillez remplir tous les champs pour activer les notifications WhatsApp.</div>
+                                    </div>
+                                )}
                             </Card.Body>
                         </Card>
 

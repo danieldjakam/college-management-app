@@ -510,6 +510,24 @@ export const secureApiEndpoints = {
         toggleStatus: (id) => secureApi.post(`/main-teachers/${id}/toggle-status`)
     },
 
+    // === NEEDS ===
+    needs: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/needs${queryString ? '?' + queryString : ''}`);
+        },
+        getMyNeeds: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/needs/my-needs${queryString ? '?' + queryString : ''}`);
+        },
+        getById: (id) => secureApi.get(`/needs/${id}`),
+        create: (data) => secureApi.post('/needs', data),
+        approve: (id) => secureApi.post(`/needs/${id}/approve`),
+        reject: (id, data) => secureApi.post(`/needs/${id}/reject`, data),
+        getStatistics: () => secureApi.get('/needs/statistics/summary'),
+        testWhatsApp: () => secureApi.post('/needs/test-whatsapp')
+    },
+
     // === REPORTS ===
     reports: {
         getInsolvableReport: (params) => {

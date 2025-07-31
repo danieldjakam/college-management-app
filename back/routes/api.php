@@ -20,6 +20,7 @@ use App\Http\Controllers\TeacherController;
 use App\Http\Controllers\SeriesSubjectController;
 use App\Http\Controllers\TeacherAssignmentController;
 use App\Http\Controllers\MainTeacherController;
+use App\Http\Controllers\NeedController;
 
 // Routes d'authentification
 Route::prefix('auth')->group(function () {
@@ -268,5 +269,20 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/{mainTeacher}', [MainTeacherController::class, 'update'])->middleware(['role:admin']);
         Route::delete('/{mainTeacher}', [MainTeacherController::class, 'destroy'])->middleware(['role:admin']);
         Route::post('/{mainTeacher}/toggle-status', [MainTeacherController::class, 'toggleStatus'])->middleware(['role:admin']);
+    });
+
+    // Routes pour les besoins
+    Route::prefix('needs')->group(function () {
+        // Routes pour tous les utilisateurs authentifiés
+        Route::post('/', [NeedController::class, 'store']); // Soumettre un besoin
+        Route::get('/my-needs', [NeedController::class, 'myNeeds']); // Voir ses propres besoins
+        Route::get('/{need}', [NeedController::class, 'show']); // Voir un besoin spécifique (avec contrôle d'accès)
+        
+        // Routes pour administrateurs uniquement
+        Route::get('/', [NeedController::class, 'index'])->middleware(['role:admin']); // Lister tous les besoins
+        Route::post('/{need}/approve', [NeedController::class, 'approve'])->middleware(['role:admin']); // Approuver
+        Route::post('/{need}/reject', [NeedController::class, 'reject'])->middleware(['role:admin']); // Rejeter
+        Route::get('/statistics/summary', [NeedController::class, 'statistics'])->middleware(['role:admin']); // Statistiques
+        Route::post('/test-whatsapp', [NeedController::class, 'testWhatsApp'])->middleware(['role:admin']); // Test WhatsApp
     });
 });

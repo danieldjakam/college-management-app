@@ -14,6 +14,8 @@ import {
   PersonCircle,
   Receipt,
   Search,
+  Clipboard2PlusFill,
+  ClipboardCheckFill,
 } from "react-bootstrap-icons";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useSchool } from "../contexts/SchoolContext";
@@ -79,7 +81,7 @@ function Sidebar({ isCollapsed, onToggle }) {
               icon: <JournalBookmarkFill />,
             },
             { name: "Enseignants", href: "/teachers", icon: <PeopleFill /> },
-            { name: "Affectations", href: "/teacher-assignments", icon: <PeopleFill /> },
+            { name: "Affectations & Prof. Principaux", href: "/teacher-assignments", icon: <PeopleFill /> },
             {
               name: "Tranches Paiement",
               href: "/payment-tranches",
@@ -98,6 +100,8 @@ function Sidebar({ isCollapsed, onToggle }) {
         {
           title: "Administration",
           items: [
+            { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> },
+            { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
             { name: "Profil", href: "/profile", icon: <PersonCircle /> },
             { name: "Paramètres", href: "/settings", icon: <GearFill /> },
           ],
@@ -135,7 +139,10 @@ function Sidebar({ isCollapsed, onToggle }) {
         },
         {
           title: "Compte",
-          items: [{ name: "Profil", href: "/profile", icon: <PersonCircle /> }],
+          items: [
+            { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
+            { name: "Profil", href: "/profile", icon: <PersonCircle /> }
+          ],
         },
       ];
     } else {
@@ -155,6 +162,7 @@ function Sidebar({ isCollapsed, onToggle }) {
         {
           title: "Outils",
           items: [
+            { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
             { name: "Profil", href: "/profile", icon: <PersonCircle /> },
           ],

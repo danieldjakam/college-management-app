@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button, Modal, Form, Alert, Badge, Card, Table, Row, Col } from 'react-bootstrap';
 import { PlusCircle, PencilFill, Trash2, JournalBookmarkFill, HouseHeartFill, Save, X } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
+import { extractErrorMessage } from '../../utils/errorHandler';
 import Swal from 'sweetalert2';
 
 const SeriesSubjectConfiguration = () => {
@@ -100,8 +101,8 @@ const SeriesSubjectConfiguration = () => {
                 Swal.fire('Erreur', response.message || 'Erreur lors de l\'ajout', 'error');
             }
         } catch (error) {
-            console.error('Erreur lors de l\'ajout:', error);
-            Swal.fire('Erreur', error.message || 'Une erreur est survenue', 'error');
+            const errorMessage = extractErrorMessage(error, 'Erreur lors de l\'ajout de la matière');
+            Swal.fire('Erreur', errorMessage, 'error');
         }
     };
 
@@ -124,12 +125,17 @@ const SeriesSubjectConfiguration = () => {
                 );
 
                 if (configToDelete) {
-                    const response = await secureApiEndpoints.seriesSubjects.delete(configToDelete.id);
-                    if (response.success) {
-                        Swal.fire('Supprimé!', response.message || 'Matière retirée de la série', 'success');
-                        loadData();
-                    } else {
-                        Swal.fire('Erreur', response.message || 'Erreur lors de la suppression', 'error');
+                    try {
+                        const response = await secureApiEndpoints.seriesSubjects.delete(configToDelete.id);
+                        if (response.success) {
+                            Swal.fire('Supprimé!', response.message || 'Matière retirée de la série', 'success');
+                            loadData();
+                        } else {
+                            Swal.fire('Erreur', response.message || 'Erreur lors de la suppression', 'error');
+                        }
+                    } catch (apiError) {
+                        const errorMessage = extractErrorMessage(apiError, 'Erreur lors de la suppression de la configuration');
+                        Swal.fire('Erreur', errorMessage, 'error');
                     }
                 } else {
                     Swal.fire('Erreur', 'Configuration introuvable', 'error');
