@@ -5,16 +5,19 @@ import {
     PeopleFill, GearFill, Search, 
     BookFill, FileTextFill,
     BarChartFill, List, CreditCard,
-    PersonCircle, BoxArrowRight
+    PersonCircle, BoxArrowRight, CashCoin,
+    Receipt
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
+import { useSchool } from '../contexts/SchoolContext';
 function Sidebar({ isCollapsed, onToggle }) {
     const [page, setPage] = useState(window.location.href.split('/')[3])
     const navigate = useNavigate();
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
     const [isOpen, setIsOpen] = useState(false)
     const { user, isAuthenticated, logout: authLogout, isLoading } = useAuth();
+    const { schoolSettings, getLogoUrl } = useSchool();
     
     useEffect(() => {
         const handleResize = () => {
@@ -74,9 +77,15 @@ function Sidebar({ isCollapsed, onToggle }) {
                     ]
                 },
                 {
+                    title: 'Paiements',
+                    items: [
+                        { name: 'États de Paiements', href: '/payment-reports', icon: <Receipt/> }
+                    ]
+                },
+                {
                     title: 'Rapports',
                     items: [
-                        { name: 'Documents', href: '/docs', icon: <FileTextFill/> }
+                        { name: 'Rapports Financiers', href: '/reports', icon: <FileTextFill/> }
                     ]
                 },
                 {
@@ -212,8 +221,8 @@ function Sidebar({ isCollapsed, onToggle }) {
                     gap: '12px'
                 }}>
                     <img 
-                        src={logo} 
-                        alt="CPBD Logo" 
+                        src={getLogoUrl() || logo} 
+                        alt={`${schoolSettings.school_name || 'CPBD'} Logo`} 
                         style={{
                             width: '40px',
                             height: '40px',
@@ -222,8 +231,12 @@ function Sidebar({ isCollapsed, onToggle }) {
                     />
                     {(!isCollapsed || isMobile) && (
                         <div>
-                            <div style={{ fontSize: '18px', fontWeight: 'bold' }}>CPBD</div>
-                            <div style={{ fontSize: '12px', color: '#94a3b8' }}>College Polyvalent Bilingue de Douala</div>
+                            <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                                {schoolSettings.school_name?.split(' ').map(word => word.charAt(0)).join('') || 'CPBD'}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                                {schoolSettings.school_name || 'College Polyvalent Bilingue de Douala'}
+                            </div>
                         </div>
                     )}
                 </div>

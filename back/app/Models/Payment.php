@@ -1,0 +1,112 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Payment extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'student_id',
+        'school_year_id',
+        'total_amount',
+        'payment_date',
+        'payment_method',
+        'reference_number',
+        'notes',
+        'created_by_user_id',
+        'receipt_number',
+        'is_rame_physical',
+        'has_scholarship',
+        'scholarship_amount',
+        'has_reduction',
+        'reduction_amount',
+        'discount_reason'
+    ];
+
+    protected $casts = [
+        'total_amount' => 'decimal:2',
+        'payment_date' => 'date',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'is_rame_physical' => 'boolean',
+        'has_scholarship' => 'boolean',
+        'scholarship_amount' => 'decimal:2',
+        'has_reduction' => 'boolean',
+        'reduction_amount' => 'decimal:2'
+    ];
+
+    /**
+     * Relation avec l'étudiant
+     */
+    public function student()
+    {
+        return $this->belongsTo(Student::class);
+    }
+
+    /**
+     * Relation avec l'année scolaire
+     */
+    public function schoolYear()
+    {
+        return $this->belongsTo(SchoolYear::class);
+    }
+
+    /**
+     * Relation avec l'utilisateur qui a créé le paiement
+     */
+    public function createdByUser()
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    /**
+     * Relation avec les détails de paiement
+     */
+    public function paymentDetails()
+    {
+        return $this->hasMany(PaymentDetail::class);
+    }
+
+    /**
+     * Générer un numéro de reçu unique
+     */
+    public static function generateReceiptNumber($schoolYear, $date = null)
+    {
+        $date = $date ?: now();
+        $yearSuffix = substr($schoolYear->name, -2); // Ex: "25" pour "2024-2025"
+        $datePrefix = $date->format('ymd'); // Ex: "250129" pour 29/01/2025
+        
+        // Compter les paiements du jour
+        $dailyCount = self::whereDate('payment_date', $date->toDateString())->count() + 1;
+        
+        return "REC{$yearSuffix}{$datePrefix}" . str_pad($dailyCount, 3, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Scope pour filtrer par année scolaire
+     */
+    public function scopeForYear($query, $yearId)
+    {
+        return $query->where('school_year_id', $yearId);
+    }
+
+    /**
+     * Scope pour filtrer par période
+     */
+    public function scopeBetweenDates($query, $startDate, $endDate)
+    {
+        return $query->whereBetween('payment_date', [$startDate, $endDate]);
+    }
+
+    /**
+     * Scope pour filtrer par étudiant
+     */
+    public function scopeForStudent($query, $studentId)
+    {
+        return $query->where('student_id', $studentId);
+    }
+}

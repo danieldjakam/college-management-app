@@ -169,6 +169,7 @@ export const secureApiEndpoints = {
             });
         },
         update: (id, data) => secureApi.put(`/students/${id}`, data),
+        updateStatus: (id, status) => secureApi.patch(`/students/${id}/status`, { student_status: status }),
         updateWithPhoto: (id, formData) => {
             const token = authService.getToken();
             return fetch(`${secureApi.baseURL}/students/${id}/update-with-photo`, {
@@ -242,6 +243,7 @@ export const secureApiEndpoints = {
         },
         getSchoolYears: () => secureApi.get('/students/school-years'),
         transfer: (id, newClassId) => secureApi.post(`/students/${id}/transfer`, { class_id: newClassId }),
+        transferToSeries: (id, newSeriesId) => secureApi.post(`/students/${id}/transfer-series`, { class_series_id: newSeriesId }),
         getOrdered: (classId) => secureApi.get(`/students/class/${classId}/ordered`),
         reorder: (data) => secureApi.post('/students/reorder', data),
         sortAlphabetically: (seriesId, data) => secureApi.post(`/students/class-series/${seriesId}/sort-alphabetically`, data)
@@ -323,15 +325,6 @@ export const secureApiEndpoints = {
         getUsageStats: (id) => secureApi.get(`/payment-tranches/${id}/usage-stats`)
     },
 
-    // === PAYMENTS (pour comptables) ===
-    payments: {
-        getAll: () => secureApi.get('/payments'),
-        getByStudent: (studentId) => secureApi.get(`/payments/student/${studentId}`),
-        getByClass: (classId) => secureApi.get(`/payments/class/${classId}`),
-        create: (data) => secureApi.post('/payments', data),
-        update: (id, data) => secureApi.put(`/payments/${id}`, data),
-        delete: (id) => secureApi.delete(`/payments/${id}`)
-    },
 
     // === SETTINGS ===
     settings: {
@@ -371,6 +364,119 @@ export const secureApiEndpoints = {
         getActiveYears: () => secureApi.get('/school-years/active'),
         getUserWorkingYear: () => secureApi.get('/school-years/user-working-year'),
         setUserWorkingYear: (yearId) => secureApi.post('/school-years/set-user-working-year', { school_year_id: yearId })
+    },
+
+    // === PAYMENTS ===
+    payments: {
+        getStudentInfo: (studentId) => secureApi.get(`/payments/student/${studentId}/info`),
+        getStudentHistory: (studentId) => secureApi.get(`/payments/student/${studentId}/history`),
+        create: (data) => secureApi.post('/payments', data),
+        generateReceipt: (paymentId) => secureApi.get(`/payments/${paymentId}/receipt`),
+        getStats: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/payments/stats${queryString ? '?' + queryString : ''}`);
+        }
+    },
+
+    // === SCHOOL SETTINGS ===
+    schoolSettings: {
+        get: () => secureApi.get('/school-settings'),
+        update: (data) => {
+            // Si c'est un FormData (avec logo), utiliser une requête multipart
+            if (data instanceof FormData) {
+                // Ajouter _method=PUT pour simuler PUT avec POST
+                data.append('_method', 'PUT');
+                
+                const token = authService.getToken();
+                return fetch(`${secureApi.baseURL}/school-settings`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                        // Ne pas définir Content-Type pour FormData
+                    },
+                    body: data
+                }).then(async response => {
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.message || `HTTP Error ${response.status}`);
+                    }
+                    return response.json();
+                });
+            } else {
+                return secureApi.put('/school-settings', data);
+            }
+        },
+        getLogo: () => secureApi.get('/school-settings/logo')
+    },
+
+    // === SECTIONS ===
+    sections: {
+        getAll: () => secureApi.get('/sections'),
+        getById: (id) => secureApi.get(`/sections/${id}`),
+        create: (data) => secureApi.post('/sections', data),
+        update: (id, data) => secureApi.put(`/sections/${id}`, data),
+        delete: (id) => secureApi.delete(`/sections/${id}`),
+        dashboard: () => secureApi.get('/sections/dashboard')
+    },
+
+    // === SCHOOL CLASSES ===
+    schoolClasses: {
+        getAll: () => secureApi.get('/school-classes'),
+        getById: (id) => secureApi.get(`/school-classes/${id}`),
+        create: (data) => secureApi.post('/school-classes', data),
+        update: (id, data) => secureApi.put(`/school-classes/${id}`, data),
+        delete: (id) => secureApi.delete(`/school-classes/${id}`),
+        dashboard: () => secureApi.get('/school-classes/dashboard')
+    },
+
+    // === CLASS SCHOLARSHIPS ===
+    scholarships: {
+        getAll: () => secureApi.get('/class-scholarships'),
+        getById: (id) => secureApi.get(`/class-scholarships/${id}`),
+        getByClass: (classId) => secureApi.get(`/class-scholarships/class/${classId}`),
+        create: (data) => secureApi.post('/class-scholarships', data),
+        update: (id, data) => secureApi.put(`/class-scholarships/${id}`, data),
+        delete: (id) => secureApi.delete(`/class-scholarships/${id}`)
+    },
+
+    // === REPORTS ===
+    reports: {
+        getInsolvableReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/insolvable?${queryString}`);
+        },
+        getPaymentsReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/payments?${queryString}`);
+        },
+        getRameReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/rame?${queryString}`);
+        },
+        getRecoveryReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/recovery?${queryString}`);
+        },
+        exportPdf: async (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            const token = authService.getToken();
+            const response = await fetch(`${secureApi.baseURL}/reports/export-pdf?${queryString}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/pdf'
+                }
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Erreur lors de l\'export PDF');
+            }
+            
+            const blob = await response.blob();
+            return { success: true, data: blob };
+        }
     }
 };
 

@@ -19,9 +19,17 @@ import {
     GripVertical,
     Camera,
     X,
-    Image
+    Image,
+    CashCoin,
+    Printer,
+    ArrowRightCircle
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
+import { useAuth } from '../../hooks/useAuth';
+import { useSchool } from '../../contexts/SchoolContext';
+import StudentCardPrint from '../../components/StudentCardPrint';
+import StudentTransfer from '../../components/StudentTransfer';
+import StudentActionsDropdown from '../../components/StudentActionsDropdown';
 import Swal from 'sweetalert2';
 import {
     DndContext,
@@ -69,7 +77,7 @@ const StudentPhoto = ({ student, size = 40, className = "" }) => {
 };
 
 // Composant pour les éléments sortables
-const SortableStudent = ({ student, handleEdit, handleDelete }) => {
+const SortableStudent = ({ student, handleEdit, handleDelete, handlePrintCard, handleTransferStudent, handleViewStudent, handleViewPayments, handleStatusChange, navigate, userRole }) => {
     const {
         attributes,
         listeners,
@@ -108,6 +116,11 @@ const SortableStudent = ({ student, handleEdit, handleDelete }) => {
                     <div className="fw-medium">
                         {student.full_name || `${student.last_name || student.subname || ''} ${student.first_name || student.name || ''}`}
                     </div>
+                    {student.student_status === 'old' && (
+                        <span className="badge bg-success bg-opacity-25 text-success small mt-1">
+                            Ancien élève
+                        </span>
+                    )}
                 </div>
             </td>
             <td>
@@ -132,6 +145,17 @@ const SortableStudent = ({ student, handleEdit, handleDelete }) => {
                 </span>
             </td>
             <td>
+                <select 
+                    className={`form-select form-select-sm ${student.student_status === 'old' ? 'text-success' : 'text-primary'}`}
+                    value={student.student_status || 'new'}
+                    onChange={(e) => handleStatusChange(student.id, e.target.value)}
+                    style={{ minWidth: '100px' }}
+                >
+                    <option value="new">Nouveau</option>
+                    <option value="old">Ancien</option>
+                </select>
+            </td>
+            <td>
                 <div className="small">
                     {student.parent_name || student.father_name || '-'}
                 </div>
@@ -153,22 +177,16 @@ const SortableStudent = ({ student, handleEdit, handleDelete }) => {
                 </div>
             </td>
             <td>
-                <div className="d-flex gap-1">
-                    <button
-                        className="btn btn-sm btn-outline-primary"
-                        onClick={() => handleEdit(student)}
-                        title="Modifier"
-                    >
-                        <PencilSquare size={14} />
-                    </button>
-                    <button
-                        className="btn btn-sm btn-outline-danger"
-                        onClick={() => handleDelete(student)}
-                        title="Supprimer"
-                    >
-                        <Trash size={14} />
-                    </button>
-                </div>
+                <StudentActionsDropdown
+                    student={student}
+                    onPrintCard={handlePrintCard}
+                    onTransfer={handleTransferStudent}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onViewPayments={handleViewPayments}
+                    onViewStudent={handleViewStudent}
+                    userRole={userRole}
+                />
             </td>
         </tr>
     );
@@ -177,6 +195,8 @@ const SortableStudent = ({ student, handleEdit, handleDelete }) => {
 const SeriesStudents = () => {
     const { seriesId } = useParams();
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const { schoolSettings, formatCurrency } = useSchool();
     
     const [students, setStudents] = useState([]);
     const [series, setSeries] = useState(null);
@@ -197,13 +217,18 @@ const SeriesStudents = () => {
     
     // Filters and search
     const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
     const [viewMode, setViewMode] = useState('list');
     
     // Modal states
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
+    const [showCardPrint, setShowCardPrint] = useState(false);
+    const [showTransferModal, setShowTransferModal] = useState(false);
     const [selectedStudent, setSelectedStudent] = useState(null);
+    const [newStudentForCard, setNewStudentForCard] = useState(null);
+    const [studentToTransfer, setStudentToTransfer] = useState(null);
     
     // Form data
     const [formData, setFormData] = useState({
@@ -217,6 +242,7 @@ const SeriesStudents = () => {
         parent_email: '',
         address: '',
         class_series_id: seriesId,
+        student_status: 'new',
     });
     
     // Photo states
@@ -395,13 +421,40 @@ const SeriesStudents = () => {
                 setShowEditModal(false);
                 loadStudents();
                 
-                Swal.fire({
-                    title: 'Succès',
-                    text: response.message || `Élève ${selectedStudent ? 'modifié' : 'créé'} avec succès`,
-                    icon: 'success',
-                    timer: 2000,
-                    showConfirmButton: false
-                });
+                // Si c'est une création d'élève (pas une modification), proposer l'impression de la carte
+                if (!selectedStudent && response.data) {
+                    // Enrichir les données de l'élève créé avec les infos de la série
+                    const enrichedStudent = {
+                        ...response.data,
+                        class_series: series,
+                        current_class: series?.name
+                    };
+                    
+                    setNewStudentForCard(enrichedStudent);
+                    
+                    Swal.fire({
+                        title: 'Élève créé avec succès !',
+                        text: 'Voulez-vous imprimer sa carte scolaire maintenant ?',
+                        icon: 'success',
+                        showCancelButton: true,
+                        confirmButtonText: '🖨️ Imprimer la carte',
+                        cancelButtonText: 'Plus tard',
+                        confirmButtonColor: '#28a745',
+                        cancelButtonColor: '#6c757d'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            setShowCardPrint(true);
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Succès',
+                        text: response.message || `Élève ${selectedStudent ? 'modifié' : 'créé'} avec succès`,
+                        icon: 'success',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                }
             } else {
                 setError(response.message || `Erreur lors de ${selectedStudent ? 'la modification' : 'la création'} de l'élève`);
             }
@@ -411,6 +464,50 @@ const SeriesStudents = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handlePrintCard = (student) => {
+        // Enrichir les données de l'élève avec les infos de la série
+        const enrichedStudent = {
+            ...student,
+            class_series: series,
+            current_class: series?.name
+        };
+        
+        setNewStudentForCard(enrichedStudent);
+        setShowCardPrint(true);
+    };
+
+    const handleTransferStudent = (student) => {
+        // Enrichir les données de l'élève avec les infos de la série actuelle
+        const enrichedStudent = {
+            ...student,
+            class_series: series,
+            class_series_id: series?.id,
+            current_class: series?.name
+        };
+        
+        setStudentToTransfer(enrichedStudent);
+        setShowTransferModal(true);
+    };
+
+    const handleTransferSuccess = (transferredStudent, newClassInfo) => {
+        // Recharger la liste des étudiants pour refléter le changement
+        loadStudents();
+        
+        // Optionnel: message de confirmation déjà géré dans le composant StudentTransfer
+        console.log(`Élève transféré vers ${newClassInfo.className} - ${newClassInfo.seriesName}`);
+    };
+
+    const handleViewStudent = (student) => {
+        // Naviguer vers la page détaillée de l'élève ou ouvrir un modal
+        console.log('Voir élève:', student);
+        // navigate(`/students/${student.id}`); // Si vous avez une page dédiée
+    };
+
+    const handleViewPayments = (student) => {
+        // Naviguer vers la page des paiements de l'élève
+        navigate(`/student-payment/${student.id}`);
     };
 
     const handleEdit = (student) => {
@@ -440,6 +537,7 @@ const SeriesStudents = () => {
             parent_email: student.parent_email || '',
             address: student.address || '',
             class_series_id: seriesId,
+            student_status: student.student_status || 'new',
             // school_year_id géré automatiquement par le backend
         });
         
@@ -452,6 +550,31 @@ const SeriesStudents = () => {
         setStudentPhoto(null); // Reset file input for new photo
         
         setShowEditModal(true);
+    };
+
+    const handleStatusChange = async (studentId, newStatus) => {
+        try {
+            const response = await secureApiEndpoints.students.updateStatus(studentId, newStatus);
+            
+            if (response.success) {
+                // Mettre à jour l'état local
+                setStudents(prevStudents => 
+                    prevStudents.map(student => 
+                        student.id === studentId 
+                            ? { ...student, student_status: newStatus }
+                            : student
+                    )
+                );
+                
+                setSuccess(`Statut mis à jour: ${newStatus === 'old' ? 'Ancien élève' : 'Nouvel élève'}`);
+                setTimeout(() => setSuccess(''), 3000);
+            } else {
+                setError(response.message || 'Erreur lors de la mise à jour du statut');
+            }
+        } catch (error) {
+            setError('Erreur lors de la mise à jour du statut');
+            console.error('Error updating student status:', error);
+        }
     };
 
     const handleDelete = async (student) => {
@@ -948,6 +1071,7 @@ const SeriesStudents = () => {
             parent_email: '',
             address: '',
             class_series_id: seriesId,
+            student_status: 'new',
             // school_year_id géré automatiquement par le backend
         });
         setSelectedStudent(null);
@@ -970,9 +1094,16 @@ const SeriesStudents = () => {
         // Nom + Prénom (au lieu de Prénom Nom)
         const fullName = `${student.last_name || student.subname || ''} ${student.first_name || student.name || ''}`.toLowerCase();
         const parentName = (student.parent_name || student.father_name || '').toLowerCase();
-        return fullName.includes(searchTerm.toLowerCase()) || 
+        
+        const matchesSearch = fullName.includes(searchTerm.toLowerCase()) || 
                parentName.includes(searchTerm.toLowerCase()) ||
                (student.student_number || '').toLowerCase().includes(searchTerm.toLowerCase());
+        
+        const matchesStatus = statusFilter === 'all' || 
+            (statusFilter === 'new' && (student.student_status === 'new' || !student.student_status)) ||
+            (statusFilter === 'old' && student.student_status === 'old');
+        
+        return matchesSearch && matchesStatus;
     });
 
     if (loading && students.length === 0) {
@@ -1100,7 +1231,19 @@ const SeriesStudents = () => {
                                         />
                                     </div>
                                 </div>
-                                <div className="col-md-6 d-flex align-items-end">
+                                <div className="col-md-3">
+                                    <label className="form-label">Statut</label>
+                                    <select
+                                        className="form-select"
+                                        value={statusFilter}
+                                        onChange={(e) => setStatusFilter(e.target.value)}
+                                    >
+                                        <option value="all">Tous les élèves</option>
+                                        <option value="new">Nouveaux élèves</option>
+                                        <option value="old">Anciens élèves</option>
+                                    </select>
+                                </div>
+                                <div className="col-md-3 d-flex align-items-end">
                                     <div className="btn-group me-3" role="group">
                                         <button
                                             type="button"
@@ -1216,21 +1359,17 @@ const SeriesStudents = () => {
                                                 )}
                                             </div>
                                             
-                                            <div className="d-flex justify-content-end gap-2 mt-auto">
-                                                <button
-                                                    className="btn btn-sm btn-outline-primary"
-                                                    onClick={() => handleEdit(student)}
-                                                    title="Modifier"
-                                                >
-                                                    <PencilSquare size={14} />
-                                                </button>
-                                                <button
-                                                    className="btn btn-sm btn-outline-danger"
-                                                    onClick={() => handleDelete(student)}
-                                                    title="Supprimer"
-                                                >
-                                                    <Trash size={14} />
-                                                </button>
+                                            <div className="d-flex justify-content-end mt-auto">
+                                                <StudentActionsDropdown
+                                                    student={student}
+                                                    onPrintCard={handlePrintCard}
+                                                    onTransfer={handleTransferStudent}
+                                                    onEdit={handleEdit}
+                                                    onDelete={handleDelete}
+                                                    onViewPayments={handleViewPayments}
+                                                    onViewStudent={handleViewStudent}
+                                                    userRole={user?.role}
+                                                />
                                             </div>
                                         </div>
                                     </div>
@@ -1254,6 +1393,7 @@ const SeriesStudents = () => {
                                                     <th>Nom & Prénom</th>
                                                     <th>Date/Lieu naissance</th>
                                                     <th>Sexe</th>
+                                                    <th>Statut</th>
                                                     <th>Parent</th>
                                                     <th>Contact</th>
                                                     <th>Actions</th>
@@ -1270,6 +1410,13 @@ const SeriesStudents = () => {
                                                             student={student}
                                                             handleEdit={handleEdit}
                                                             handleDelete={handleDelete}
+                                                            handlePrintCard={handlePrintCard}
+                                                            handleTransferStudent={handleTransferStudent}
+                                                            handleViewStudent={handleViewStudent}
+                                                            handleViewPayments={handleViewPayments}
+                                                            handleStatusChange={handleStatusChange}
+                                                            navigate={navigate}
+                                                            userRole={user?.role}
                                                         />
                                                     ))}
                                                 </tbody>
@@ -1463,7 +1610,7 @@ const SeriesStudents = () => {
                                     </div>
                                     
                                     <div className="row">
-                                        <div className="col-md-6">
+                                        <div className="col-md-4">
                                             <div className="mb-3">
                                                 <label className="form-label">Sexe *</label>
                                                 <select
@@ -1472,12 +1619,26 @@ const SeriesStudents = () => {
                                                     onChange={(e) => setFormData({...formData, gender: e.target.value})}
                                                     required
                                                 >
+                                                    <option value="">Sélectionner</option>
                                                     <option value="M">Masculin</option>
                                                     <option value="F">Féminin</option>
                                                 </select>
                                             </div>
                                         </div>
-                                        <div className="col-md-6">
+                                        <div className="col-md-4">
+                                            <div className="mb-3">
+                                                <label className="form-label">Statut</label>
+                                                <select
+                                                    className="form-select"
+                                                    value={formData.student_status || 'new'}
+                                                    onChange={(e) => setFormData({...formData, student_status: e.target.value})}
+                                                >
+                                                    <option value="new">Nouveau élève</option>
+                                                    <option value="old">Ancien élève</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div className="col-md-4">
                                             <div className="mb-3">
                                                 <label className="form-label">Nom du parent *</label>
                                                 <input
@@ -1660,6 +1821,35 @@ const SeriesStudents = () => {
                     opacity: 1;
                 }
             `}</style>
+
+            {/* Modal d'impression de carte scolaire */}
+            {showCardPrint && newStudentForCard && (
+                <StudentCardPrint
+                    student={newStudentForCard}
+                    schoolYear={schoolYear}
+                    show={showCardPrint}
+                    onHide={() => {
+                        setShowCardPrint(false);
+                        setNewStudentForCard(null);
+                    }}
+                    onPrintSuccess={() => {
+                        console.log('Carte imprimée avec succès');
+                    }}
+                />
+            )}
+
+            {/* Modal de transfert d'élève */}
+            {showTransferModal && studentToTransfer && (
+                <StudentTransfer
+                    student={studentToTransfer}
+                    show={showTransferModal}
+                    onHide={() => {
+                        setShowTransferModal(false);
+                        setStudentToTransfer(null);
+                    }}
+                    onTransferSuccess={handleTransferSuccess}
+                />
+            )}
         </div>
     );
 };

@@ -36,7 +36,9 @@ class Student extends Model
         'father_name',
         'profession',
         'status',
-        'is_new'
+        'is_new',
+        'student_status',
+        'registration_fee'
     ];
 
     protected $casts = [
@@ -45,6 +47,22 @@ class Student extends Model
         'is_new' => 'boolean',
         'is_active' => 'boolean'
     ];
+
+    /**
+     * Vérifier si l'étudiant est nouveau
+     */
+    public function isNew()
+    {
+        return $this->student_status === 'new';
+    }
+
+    /**
+     * Vérifier si l'étudiant est ancien
+     */
+    public function isOld()
+    {
+        return $this->student_status === 'old';
+    }
 
     protected $appends = [
         'full_name',
@@ -73,6 +91,14 @@ class Student extends Model
     public function schoolClass()
     {
         return $this->hasOneThrough(SchoolClass::class, ClassSeries::class, 'id', 'id', 'class_series_id', 'class_id');
+    }
+
+    /**
+     * Relation avec les paiements
+     */
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
     }
 
     /**
@@ -143,5 +169,13 @@ class Student extends Model
         }
         
         return $yearPrefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Obtenir le montant d'inscription (les bourses s'appliquent maintenant aux tranches)
+     */
+    public function getNetRegistrationFee()
+    {
+        return $this->registration_fee ?? 30000; // Montant standard, les bourses sont appliquées aux tranches
     }
 }

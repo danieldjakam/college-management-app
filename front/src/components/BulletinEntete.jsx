@@ -2,7 +2,9 @@ import React from 'react';
 import sem from '../images/logo.png'
 import { downloadTraductions } from '../local/bulletin';
 import { getLang } from '../utils/lang';
+import { useSchool } from '../contexts/SchoolContext';
 const BulletinEntete = ({student, currentClass, actualExam}) => {
+    const { schoolSettings, getLogoUrl } = useSchool();
         
     const months = [
         'Incorrect',
@@ -28,20 +30,19 @@ const BulletinEntete = ({student, currentClass, actualExam}) => {
                         <th>
                             REPUBLIQUE DU CAMEROUN <br />
                             Paix - Travail - Patrie <br />
-                            GROUPE SCOLAIRE BILINGUE PRIVE  <br />
-                            LAIC LA SEMENCE  <br />
-                            BP: 1661 DOUALA BANGUE <br />
-                            TEL: (237) 33 08 95 82/699717529 <br />
+                            {schoolSettings.school_name?.toUpperCase() || 'GROUPE SCOLAIRE BILINGUE PRIVE LAIC LA SEMENCE'}  <br />
+                            {schoolSettings.school_address && <>{schoolSettings.school_address} <br /></>}
+                            {schoolSettings.school_phone && <>TEL: {schoolSettings.school_phone} <br /></>}
                         </th>
                         <th className=' '>
-                            <img src={sem} height={200} alt='logo' />
+                            <img src={getLogoUrl() || sem} height={200} alt={`${schoolSettings.school_name || 'École'} logo`} />
                         </th>
                         <th className=''>
                             REPUBLIC OF CAMEROON  <br />
                             Peace - Work - Father/land  <br />
-                            GROUPE SCOLAIRE BILINGUE PRIVE <br /> LAIC LA SEMENCE  <br />
-                            P.O Box : 1661 DOUALA-BANGUE  <br />
-                            Tel : (237) 33089582 <br />
+                            {schoolSettings.school_name?.toUpperCase() || 'GROUPE SCOLAIRE BILINGUE PRIVE LAIC LA SEMENCE'}  <br />
+                            {schoolSettings.school_address && <>{schoolSettings.school_address}  <br /></>}
+                            {schoolSettings.school_phone && <>Tel : {schoolSettings.school_phone} <br /></>}
                         </th>
                     </tr>
                 </thead>

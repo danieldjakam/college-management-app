@@ -2,6 +2,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import { useEffect, useState } from "react";
 import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import "./App.css";
+import "./styles/theme.css";
 
 // Auth Components
 import AppAuthProvider from "./components/AuthProvider";
@@ -13,6 +14,8 @@ import ProtectedRoute, {
   TeacherRoute,
 } from "./components/ProtectedRoute";
 import { useAuth } from "./hooks/useAuth";
+import { SchoolProvider } from "./contexts/SchoolContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
 // Pages
 import Error404 from "./pages/Error404";
@@ -31,6 +34,13 @@ import ClassCompt from "./pages/comptables/Class";
 import ParamsCompt from "./pages/comptables/Params";
 import StudentsComp from "./pages/comptables/Students";
 import StudentsByClass from "./pages/comptables/StudentsByClass";
+
+// Payment Pages
+import StudentPayment from "./pages/Payments/StudentPayment";
+import PaymentReports from "./pages/Payments/PaymentReports";
+
+// Reports
+import Reports from "./pages/Reports";
 
 // Components
 import Sidebar from "./components/Sidebar";
@@ -217,6 +227,32 @@ const AppContent = () => {
                 }
               />
 
+              <Route
+                path="/payment-reports"
+                element={
+                  <AccountantRoute>
+                    <PaymentReports />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/reports"
+                element={
+                  <AccountantRoute>
+                    <Reports />
+                  </AccountantRoute>
+                }
+              />
+
+              <Route
+                path="/student-payment/:studentId"
+                element={
+                  <AccountantRoute>
+                    <StudentPayment />
+                  </AccountantRoute>
+                }
+              />
+
               {/* 404 pour les utilisateurs connectés */}
               <Route
                 path="*"
@@ -238,7 +274,11 @@ const AppContent = () => {
 function App() {
   return (
     <AppAuthProvider>
-      <AppContent />
+      <SchoolProvider>
+        <ThemeProvider>
+          <AppContent />
+        </ThemeProvider>
+      </SchoolProvider>
     </AppAuthProvider>
   );
 }

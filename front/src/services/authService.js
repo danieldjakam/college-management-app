@@ -97,9 +97,14 @@ class AuthService {
                 
                 // Gestion spéciale pour les erreurs 401
                 if (response.status === 401) {
-                    this.removeToken();
-                    window.dispatchEvent(new CustomEvent('auth:unauthorized'));
-                    throw new Error('Session expirée. Veuillez vous reconnecter.');
+                    // Ne déclencher la déconnexion automatique que pour les requêtes authentifiées
+                    // Pas pour les tentatives de login (qui ont includeAuth = false)
+                    if (options.includeAuth !== false) {
+                        this.removeToken();
+                        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+                        throw new Error('Session expirée. Veuillez vous reconnecter.');
+                    }
+                    // Pour les erreurs de login, laisser passer l'erreur normale
                 }
                 
                 throw new Error(
@@ -131,7 +136,8 @@ class AuthService {
             });
 
             if (response.access_token && response.user) {
-                // Stocker les informations utilisateur
+                // Stocker le token et les informations utilisateur
+                this.setToken(response.access_token);
                 localStorage.setItem(this.userKey, JSON.stringify(response.user));
                 
                 return response;

@@ -1017,4 +1017,171 @@ class StudentController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Mettre à jour uniquement le statut d'un élève
+     */
+    public function updateStatus(Request $request, Student $student)
+    {
+        $validator = Validator::make($request->all(), [
+            'student_status' => 'required|in:new,old'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Données invalides',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $student->update([
+                'student_status' => $request->student_status
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Statut mis à jour avec succès',
+                'data' => $student->fresh()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour du statut',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Transférer un élève vers une nouvelle série
+     */
+    public function transferToSeries(Request $request, Student $student)
+    {
+        $validator = Validator::make($request->all(), [
+            'class_series_id' => 'required|exists:class_series,id'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Données invalides',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $newSeriesId = $request->class_series_id;
+            $oldSeriesId = $student->class_series_id;
+
+            // Vérifier que la nouvelle série est différente de l'actuelle
+            if ($oldSeriesId == $newSeriesId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'L\'élève est déjà dans cette série'
+                ], 422);
+            }
+
+            // Récupérer les informations de la nouvelle série
+            $newSeries = ClassSeries::with(['schoolClass', 'schoolClass.level', 'schoolClass.level.section'])
+                ->find($newSeriesId);
+
+            if (!$newSeries) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Série de destination non trouvée'
+                ], 404);
+            }
+
+            // Vérifier que la série est active
+            if (!$newSeries->is_active) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La série de destination n\'est pas active'
+                ], 422);
+            }
+
+            // Récupérer les informations de l'ancienne série pour le log
+            $oldSeries = null;
+            if ($oldSeriesId) {
+                $oldSeries = ClassSeries::with(['schoolClass'])->find($oldSeriesId);
+            }
+
+            // Déterminer le nouvel ordre dans la série de destination
+            $maxOrder = Student::where('class_series_id', $newSeriesId)
+                ->where('school_year_id', $student->school_year_id)
+                ->max('order') ?? 0;
+            $newOrder = $maxOrder + 1;
+
+            // Effectuer le transfert
+            $student->update([
+                'class_series_id' => $newSeriesId,
+                'order' => $newOrder
+            ]);
+
+            // Log du transfert
+            \Log::info('Student transfer completed', [
+                'student_id' => $student->id,
+                'student_name' => $student->first_name . ' ' . $student->last_name,
+                'from_series' => $oldSeries ? $oldSeries->name : 'Aucune série',
+                'from_class' => $oldSeries ? $oldSeries->schoolClass->name : 'Aucune classe',
+                'to_series' => $newSeries->name,
+                'to_class' => $newSeries->schoolClass->name,
+                'new_order' => $newOrder,
+                'transferred_by' => Auth::user()->username ?? 'Unknown'
+            ]);
+
+            DB::commit();
+
+            // Recharger l'élève avec ses nouvelles relations
+            $student = $student->fresh()->load([
+                'classSeries',
+                'classSeries.schoolClass',
+                'classSeries.schoolClass.level',
+                'classSeries.schoolClass.level.section',
+                'schoolYear'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => sprintf(
+                    'Élève transféré avec succès vers %s - %s',
+                    $newSeries->schoolClass->name,
+                    $newSeries->name
+                ),
+                'data' => $student,
+                'transfer_info' => [
+                    'from' => [
+                        'series_name' => $oldSeries ? $oldSeries->name : 'Aucune série',
+                        'class_name' => $oldSeries ? $oldSeries->schoolClass->name : 'Aucune classe'
+                    ],
+                    'to' => [
+                        'series_name' => $newSeries->name,
+                        'class_name' => $newSeries->schoolClass->name,
+                        'section_name' => $newSeries->schoolClass->level->section->name ?? '',
+                        'level_name' => $newSeries->schoolClass->level->name ?? ''
+                    ]
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Student transfer failed', [
+                'student_id' => $student->id,
+                'class_series_id' => $request->class_series_id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du transfert de l\'élève',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

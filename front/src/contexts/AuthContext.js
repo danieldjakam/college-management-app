@@ -9,7 +9,8 @@ const initialState = {
     isAuthenticated: false,
     isLoading: true,
     error: null,
-    refreshTokenTimeout: null
+    refreshTokenTimeout: null,
+    isLoggingOut: false
 };
 
 const authReducer = (state, action) => {
@@ -39,6 +40,12 @@ const authReducer = (state, action) => {
                 isAuthenticated: false,
                 isLoading: false,
                 error: action.payload
+            };
+
+        case 'LOGOUT_START':
+            return {
+                ...state,
+                isLoggingOut: true
             };
 
         case 'LOGOUT':
@@ -158,6 +165,13 @@ export const AuthProvider = ({ children }) => {
 
     // Fonction de déconnexion
     const logout = async () => {
+        // Éviter les appels multiples de logout
+        if (state.isLoggingOut) {
+            console.log('Logout déjà en cours, ignorer');
+            return;
+        }
+        
+        dispatch({ type: 'LOGOUT_START' });
         dispatch({ type: 'CLEAR_REFRESH_TIMEOUT' });
         
         try {
@@ -231,27 +245,43 @@ export const AuthProvider = ({ children }) => {
     // Vérification de l'authentification au chargement
     useEffect(() => {
         const initializeAuth = async () => {
-            const token = authService.getToken();
-            
-            if (token) {
-                try {
-                    // Vérifier si le token est valide
-                    const user = await authService.getCurrentUser();
+            try {
+                const token = authService.getToken();
+                
+                if (token) {
+                    // Vérifier d'abord si le token n'est pas expiré côté client
+                    if (authService.isTokenExpired(token)) {
+                        console.log('Token expiré détecté lors de l\'initialisation');
+                        authService.removeToken();
+                        dispatch({ type: 'LOGOUT' });
+                        return;
+                    }
                     
-                    dispatch({
-                        type: 'LOGIN_SUCCESS',
-                        payload: { user, token }
-                    });
+                    try {
+                        // Vérifier si le token est valide côté serveur
+                        const user = await authService.getCurrentUser();
+                        
+                        dispatch({
+                            type: 'LOGIN_SUCCESS',
+                            payload: { user, token }
+                        });
 
-                    // Configurer le refresh automatique
-                    setupTokenRefresh(token);
-                } catch (error) {
-                    console.error('Token invalide:', error);
-                    authService.removeToken();
-                    dispatch({ type: 'LOGOUT' });
+                        // Configurer le refresh automatique
+                        setupTokenRefresh(token);
+                    } catch (error) {
+                        console.error('Token invalide côté serveur:', error);
+                        // Ne pas supprimer le token ici, car l'événement auth:unauthorized le fera
+                        // Cela évite le double logout
+                        dispatch({ type: 'LOGOUT' });
+                    }
+                } else {
+                    dispatch({ type: 'SET_LOADING', payload: false });
                 }
-            } else {
-                dispatch({ type: 'SET_LOADING', payload: false });
+            } catch (error) {
+                console.error('Erreur lors de l\'initialisation de l\'authentification:', error);
+                // Nettoyer les données corrompues
+                authService.removeToken();
+                dispatch({ type: 'LOGOUT' });
             }
         };
 
@@ -268,8 +298,12 @@ export const AuthProvider = ({ children }) => {
     // Intercepteur pour gérer les erreurs 401
     useEffect(() => {
         const handleUnauthorized = () => {
-            dispatch({ type: 'SET_ERROR', payload: 'Session expirée' });
-            logout();
+            // Éviter les appels multiples si l'utilisateur n'est plus authentifié
+            if (state.isAuthenticated) {
+                console.log('Session expirée détectée, déconnexion automatique');
+                dispatch({ type: 'SET_ERROR', payload: 'Session expirée' });
+                logout();
+            }
         };
 
         // Écouter les événements d'erreur d'authentification
@@ -278,7 +312,7 @@ export const AuthProvider = ({ children }) => {
         return () => {
             window.removeEventListener('auth:unauthorized', handleUnauthorized);
         };
-    }, []);
+    }, [state.isAuthenticated, logout]);
 
     const value = {
         // État
