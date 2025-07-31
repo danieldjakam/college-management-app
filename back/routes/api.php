@@ -15,6 +15,11 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\SchoolSettingsController;
 use App\Http\Controllers\ClassScholarshipController;
 use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\SubjectController;
+use App\Http\Controllers\TeacherController;
+use App\Http\Controllers\SeriesSubjectController;
+use App\Http\Controllers\TeacherAssignmentController;
+use App\Http\Controllers\MainTeacherController;
 
 // Routes d'authentification
 Route::prefix('auth')->group(function () {
@@ -190,5 +195,78 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/rame', [ReportsController::class, 'getRameReport']);
         Route::get('/recovery', [ReportsController::class, 'getRecoveryReport']);
         Route::get('/export-pdf', [ReportsController::class, 'exportPdf']);
+    });
+
+    // Routes pour les matières
+    Route::prefix('subjects')->group(function () {
+        // Routes accessibles aux admins et comptables (consultation)
+        Route::get('/', [SubjectController::class, 'index'])->middleware(['role:admin,accountant,teacher']);
+        Route::get('/{subject}', [SubjectController::class, 'show'])->middleware(['role:admin,accountant,teacher']);
+        Route::get('/series/{classSeries}', [SubjectController::class, 'getForSeries'])->middleware(['role:admin,accountant,teacher']);
+        
+        // Routes pour administrateurs uniquement (gestion)
+        Route::post('/', [SubjectController::class, 'store'])->middleware(['role:admin']);
+        Route::put('/{subject}', [SubjectController::class, 'update'])->middleware(['role:admin']);
+        Route::delete('/{subject}', [SubjectController::class, 'destroy'])->middleware(['role:admin']);
+        Route::post('/{subject}/toggle-status', [SubjectController::class, 'toggleStatus'])->middleware(['role:admin']);
+        Route::post('/series/{classSeries}/configure', [SubjectController::class, 'configureForSeries'])->middleware(['role:admin']);
+    });
+
+    // Routes pour les enseignants
+    Route::prefix('teachers')->group(function () {
+        // Routes accessibles aux admins et comptables (consultation)
+        Route::get('/', [TeacherController::class, 'index'])->middleware(['role:admin,accountant']);
+        Route::get('/{teacher}', [TeacherController::class, 'show'])->middleware(['role:admin,accountant']);
+        Route::get('/{teacher}/stats', [TeacherController::class, 'getStats'])->middleware(['role:admin,accountant']);
+        
+        // Routes pour administrateurs uniquement (gestion)
+        Route::post('/', [TeacherController::class, 'store'])->middleware(['role:admin']);
+        Route::put('/{teacher}', [TeacherController::class, 'update'])->middleware(['role:admin']);
+        Route::delete('/{teacher}', [TeacherController::class, 'destroy'])->middleware(['role:admin']);
+        Route::post('/{teacher}/toggle-status', [TeacherController::class, 'toggleStatus'])->middleware(['role:admin']);
+        Route::post('/{teacher}/assign-subjects', [TeacherController::class, 'assignSubjects'])->middleware(['role:admin']);
+        Route::post('/{teacher}/remove-assignment', [TeacherController::class, 'removeAssignment'])->middleware(['role:admin']);
+    });
+
+    // Routes pour la configuration des matières par série
+    Route::prefix('series-subjects')->group(function () {
+        // Routes accessibles aux admins et comptables (consultation)
+        Route::get('/', [SeriesSubjectController::class, 'index'])->middleware(['role:admin,accountant,teacher']);
+        Route::get('/class/{schoolClass}', [SeriesSubjectController::class, 'getByClass'])->middleware(['role:admin,accountant,teacher']);
+        
+        // Routes pour administrateurs uniquement (gestion)
+        Route::post('/', [SeriesSubjectController::class, 'store'])->middleware(['role:admin']);
+        Route::put('/{seriesSubject}', [SeriesSubjectController::class, 'update'])->middleware(['role:admin']);
+        Route::delete('/{seriesSubject}', [SeriesSubjectController::class, 'destroy'])->middleware(['role:admin']);
+        Route::post('/{seriesSubject}/toggle-status', [SeriesSubjectController::class, 'toggleStatus'])->middleware(['role:admin']);
+        Route::post('/class/{schoolClass}/bulk-configure', [SeriesSubjectController::class, 'bulkConfigure'])->middleware(['role:admin']);
+    });
+
+    // Routes pour les affectations d'enseignants
+    Route::prefix('teacher-assignments')->group(function () {
+        // Routes accessibles aux admins et comptables (consultation)
+        Route::get('/', [TeacherAssignmentController::class, 'index'])->middleware(['role:admin,accountant,teacher']);
+        Route::get('/teacher/{teacher}', [TeacherAssignmentController::class, 'getByTeacher'])->middleware(['role:admin,accountant,teacher']);
+        Route::get('/teacher/{teacher}/available-subjects', [TeacherAssignmentController::class, 'getAvailableSubjects'])->middleware(['role:admin,accountant']);
+        
+        // Routes pour administrateurs uniquement (gestion)
+        Route::post('/', [TeacherAssignmentController::class, 'store'])->middleware(['role:admin']);
+        Route::delete('/{assignment}', [TeacherAssignmentController::class, 'destroy'])->middleware(['role:admin']);
+        Route::post('/{assignment}/toggle-status', [TeacherAssignmentController::class, 'toggleStatus'])->middleware(['role:admin']);
+        Route::post('/teacher/{teacher}/bulk-assign', [TeacherAssignmentController::class, 'bulkAssign'])->middleware(['role:admin']);
+    });
+
+    // Routes pour les professeurs principaux
+    Route::prefix('main-teachers')->group(function () {
+        // Routes accessibles aux admins et comptables (consultation)
+        Route::get('/', [MainTeacherController::class, 'index'])->middleware(['role:admin,accountant,teacher']);
+        Route::get('/classes-without-main-teacher', [MainTeacherController::class, 'getClassesWithoutMainTeacher'])->middleware(['role:admin,accountant']);
+        Route::get('/available-teachers', [MainTeacherController::class, 'getAvailableTeachers'])->middleware(['role:admin,accountant']);
+        
+        // Routes pour administrateurs uniquement (gestion)
+        Route::post('/', [MainTeacherController::class, 'store'])->middleware(['role:admin']);
+        Route::put('/{mainTeacher}', [MainTeacherController::class, 'update'])->middleware(['role:admin']);
+        Route::delete('/{mainTeacher}', [MainTeacherController::class, 'destroy'])->middleware(['role:admin']);
+        Route::post('/{mainTeacher}/toggle-status', [MainTeacherController::class, 'toggleStatus'])->middleware(['role:admin']);
     });
 });

@@ -42,6 +42,12 @@ import PaymentReports from "./pages/Payments/PaymentReports";
 // Reports
 import Reports from "./pages/Reports";
 
+// Subjects & Teachers
+import Subjects from "./pages/Subjects/Subjects";
+import SeriesSubjectConfiguration from "./pages/Subjects/SeriesSubjectConfiguration";
+import Teachers from "./pages/Teachers/Teachers";
+import TeacherAssignments from "./pages/Teachers/TeacherAssignments";
+
 // Components
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
@@ -185,6 +191,42 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <SchoolYears />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/subjects"
+                element={
+                  <AdminRoute>
+                    <Subjects />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/series-subject-configuration"
+                element={
+                  <AdminRoute>
+                    <SeriesSubjectConfiguration />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/teachers"
+                element={
+                  <AdminRoute>
+                    <Teachers />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/teacher-assignments"
+                element={
+                  <AdminRoute>
+                    <TeacherAssignments />
                   </AdminRoute>
                 }
               />

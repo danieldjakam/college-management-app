@@ -1,50 +1,37 @@
 import React from 'react';
+import { Spinner } from 'react-bootstrap';
 
 const LoadingSpinner = ({
   size = 'default',
-  color = 'primary',
+  variant = 'primary',
   overlay = false,
   text = null,
   className = ''
 }) => {
-  const sizeClasses = {
-    sm: 'w-4 h-4 border-2',
-    default: 'w-10 h-10 border-4',
-    lg: 'w-16 h-16 border-4',
-    xl: 'w-20 h-20 border-4'
-  };
-
-  const colorClasses = {
-    primary: 'border-primary-violet',
-    gray: 'border-gray-300',
-    white: 'border-white'
-  };
-
-  const spinnerClasses = [
-    'loading-spinner',
-    sizeClasses[size],
-    colorClasses[color],
-    className
-  ].filter(Boolean).join(' ');
+  const spinnerSize = size === 'sm' ? 'sm' : undefined;
 
   const spinner = (
-    <div className="flex flex-col items-center gap-3">
-      <div className={spinnerClasses}></div>
+    <div className={`d-flex flex-column align-items-center ${className}`}>
+      <Spinner animation="border" size={spinnerSize} variant={variant} />
       {text && (
-        <span className="text-sm text-gray-600 font-medium">{text}</span>
+        <div className="mt-2 text-muted small">{text}</div>
       )}
     </div>
   );
 
   if (overlay) {
     return (
-      <div className="loading-overlay">
+      <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-light bg-opacity-75" style={{ zIndex: 9999 }}>
         {spinner}
       </div>
     );
   }
 
-  return spinner;
+  return (
+    <div className="d-flex justify-content-center align-items-center py-4">
+      {spinner}
+    </div>
+  );
 };
 
 export default LoadingSpinner;
