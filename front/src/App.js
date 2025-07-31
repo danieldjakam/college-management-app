@@ -42,6 +42,9 @@ import PaymentReports from "./pages/Payments/PaymentReports";
 // Reports
 import Reports from "./pages/Reports";
 
+// User Management
+import UserManagement from "./pages/UserManagement";
+
 // Components
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
@@ -185,6 +188,15 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <SchoolYears />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/user-management"
+                element={
+                  <AdminRoute>
+                    <UserManagement />
                   </AdminRoute>
                 }
               />

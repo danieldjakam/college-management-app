@@ -6,7 +6,7 @@ import {
     BookFill, FileTextFill,
     BarChartFill, List, CreditCard,
     PersonCircle, BoxArrowRight, CashCoin,
-    Receipt
+    Receipt, People
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -61,6 +61,7 @@ function Sidebar({ isCollapsed, onToggle }) {
                 {
                     title: 'Administration',
                     items: [
+                        { name: 'Utilisateurs', href: '/user-management', icon: <People/> },
                         { name: 'Profil', href: '/profile', icon: <PersonCircle/> },
                         { name: 'Paramètres', href: '/settings', icon: <GearFill/> }
                     ]

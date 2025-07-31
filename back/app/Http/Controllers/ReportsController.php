@@ -47,6 +47,7 @@ class ReportsController extends Controller
     public function getInsolvableReport(Request $request)
     {
         try {
+            
             $workingYear = $this->getUserWorkingYear();
             
             if (!$workingYear) {
@@ -56,9 +57,10 @@ class ReportsController extends Controller
                 ], 400);
             }
 
-            $groupBy = $request->get('groupBy', 'series'); // series, class, section
+            $filterType = $request->get('filterType', 'section'); // section, class, series
             $sectionId = $request->get('sectionId');
             $classId = $request->get('classId');
+            $seriesId = $request->get('seriesId');
 
             // Récupérer tous les étudiants avec leurs informations de paiement
             $studentsQuery = Student::with([
@@ -69,16 +71,20 @@ class ReportsController extends Controller
             ->where('is_active', true);
 
             // Appliquer les filtres
-            if ($sectionId) {
+            if (!empty($sectionId)) {
                 $studentsQuery->whereHas('classSeries.schoolClass.level.section', function ($query) use ($sectionId) {
                     $query->where('id', $sectionId);
                 });
             }
 
-            if ($classId) {
+            if (!empty($classId)) {
                 $studentsQuery->whereHas('classSeries.schoolClass', function ($query) use ($classId) {
                     $query->where('id', $classId);
                 });
+            }
+
+            if (!empty($seriesId)) {
+                $studentsQuery->where('class_series_id', $seriesId);
             }
 
             $students = $studentsQuery->get();
@@ -215,9 +221,10 @@ class ReportsController extends Controller
                 ], 400);
             }
 
-            $groupBy = $request->get('groupBy', 'series'); // series, class, section
+            $filterType = $request->get('filterType', 'section'); // section, class, series
             $sectionId = $request->get('sectionId');
             $classId = $request->get('classId');
+            $seriesId = $request->get('seriesId');
 
             // Récupérer tous les étudiants avec leurs informations de paiement
             $studentsQuery = Student::with([
@@ -228,16 +235,20 @@ class ReportsController extends Controller
             ->where('is_active', true);
 
             // Appliquer les filtres
-            if ($sectionId) {
+            if (!empty($sectionId)) {
                 $studentsQuery->whereHas('classSeries.schoolClass.level.section', function ($query) use ($sectionId) {
                     $query->where('id', $sectionId);
                 });
             }
 
-            if ($classId) {
+            if (!empty($classId)) {
                 $studentsQuery->whereHas('classSeries.schoolClass', function ($query) use ($classId) {
                     $query->where('id', $classId);
                 });
+            }
+
+            if (!empty($seriesId)) {
+                $studentsQuery->where('class_series_id', $seriesId);
             }
 
             $students = $studentsQuery->get();
@@ -333,9 +344,10 @@ class ReportsController extends Controller
                 ], 400);
             }
 
-            $groupBy = $request->get('groupBy', 'series'); // series, class, section
+            $filterType = $request->get('filterType', 'section'); // section, class, series
             $sectionId = $request->get('sectionId');
             $classId = $request->get('classId');
+            $seriesId = $request->get('seriesId');
 
             // Récupérer la tranche RAME
             $rameTranche = PaymentTranche::active()
@@ -361,16 +373,20 @@ class ReportsController extends Controller
             ->where('is_active', true);
 
             // Appliquer les filtres
-            if ($sectionId) {
+            if (!empty($sectionId)) {
                 $studentsQuery->whereHas('classSeries.schoolClass.level.section', function ($query) use ($sectionId) {
                     $query->where('id', $sectionId);
                 });
             }
 
-            if ($classId) {
+            if (!empty($classId)) {
                 $studentsQuery->whereHas('classSeries.schoolClass', function ($query) use ($classId) {
                     $query->where('id', $classId);
                 });
+            }
+
+            if (!empty($seriesId)) {
+                $studentsQuery->where('class_series_id', $seriesId);
             }
 
             $students = $studentsQuery->get();
@@ -641,13 +657,16 @@ class ReportsController extends Controller
             // Générer le HTML pour le PDF
             $html = $this->generateReportHtml($reportType, $reportData, $request);
             
-            // Générer le PDF
-            $pdf = \PDF::loadHTML($html);
-            $pdf->setPaper('A4', 'portrait');
+            // Retourner le HTML optimisé pour impression/PDF (comme dans StudentController)
+            $printOptimizedHtml = $this->generatePdfFromHtml($html);
             
             $filename = "rapport_{$reportType}_" . date('Y-m-d_H-i-s') . ".pdf";
             
-            return $pdf->download($filename);
+            // Retourner le HTML formaté que le navigateur peut imprimer en PDF
+            return response($printOptimizedHtml, 200, [
+                'Content-Type' => 'text/html',
+                'Content-Disposition' => 'inline; filename="' . $filename . '"'
+            ]);
 
         } catch (\Exception $e) {
             Log::error('Error in ReportsController@exportPdf: ' . $e->getMessage());
@@ -657,6 +676,49 @@ class ReportsController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Générer un PDF à partir du HTML (méthode simple mais robuste)
+     */
+    private function generatePdfFromHtml($html)
+    {
+        // Approche simple et robuste : retourner directement le HTML formaté pour impression
+        // Le navigateur peut ensuite imprimer en PDF si nécessaire
+        
+        // Ajouter des styles optimisés pour l'impression/PDF
+        $printOptimizedHtml = str_replace(
+            '<style>',
+            '<style>
+                @page { 
+                    size: A4; 
+                    margin: 10mm; 
+                }
+                body { 
+                    font-family: Arial, sans-serif; 
+                    font-size: 10pt; 
+                    line-height: 1.3;
+                    margin: 0;
+                    padding: 0;
+                }
+                .no-print { display: none !important; }
+                table { 
+                    page-break-inside: avoid; 
+                    width: 100%;
+                    font-size: 9pt;
+                }
+                thead { 
+                    display: table-header-group; 
+                }
+                tr { 
+                    page-break-inside: avoid; 
+                }
+            ',
+            $html
+        );
+        
+        // Retourner le HTML optimisé - le navigateur se chargera de la conversion PDF
+        return $printOptimizedHtml;
     }
 
     /**
@@ -800,32 +862,38 @@ class ReportsController extends Controller
         $html .= "<p><strong>Total élèves insolvables:</strong> {$reportData['total_insolvable_students']}</p>";
         $html .= "</div>";
 
-        foreach ($reportData['grouped_data'] as $group) {
-            $html .= "<div class='group-header'>{$group['group_name']}</div>";
-            $html .= "<table>
-                <thead>
-                    <tr>
-                        <th>Étudiant</th>
-                        <th>Classe/Série</th>
-                        <th class='text-right'>Total Requis</th>
-                        <th class='text-right'>Total Payé</th>
-                        <th class='text-right'>Reste à Payer</th>
-                    </tr>
-                </thead>
-                <tbody>";
-            
-            foreach ($group['students'] as $studentData) {
-                $html .= "<tr>
-                    <td>{$studentData['student']['full_name']}</td>
-                    <td>{$studentData['student']['class_series']}</td>
-                    <td class='text-right'>" . number_format($studentData['total_required'], 0, ',', ' ') . " FCFA</td>
-                    <td class='text-right'>" . number_format($studentData['total_paid'], 0, ',', ' ') . " FCFA</td>
-                    <td class='text-right'>" . number_format($studentData['total_remaining'], 0, ',', ' ') . " FCFA</td>
-                </tr>";
+        $html .= "<table>
+            <thead>
+                <tr>
+                    <th>Étudiant</th>
+                    <th>Classe/Série</th>
+                    <th class='text-right'>Total Requis</th>
+                    <th class='text-right'>Total Payé</th>
+                    <th class='text-right'>Reste à Payer</th>
+                    <th>Tranches Incomplètes</th>
+                </tr>
+            </thead>
+            <tbody>";
+        
+        foreach ($reportData['students'] as $studentData) {
+            $incompleteTranches = '';
+            if (isset($studentData['incomplete_tranches'])) {
+                foreach ($studentData['incomplete_tranches'] as $tranche) {
+                    $incompleteTranches .= $tranche['tranche_name'] . ': ' . number_format($tranche['paid_amount'], 0, ',', ' ') . '/' . number_format($tranche['required_amount'], 0, ',', ' ') . ' FCFA<br>';
+                }
             }
             
-            $html .= "</tbody></table>";
+            $html .= "<tr>
+                <td>{$studentData['student']['full_name']}</td>
+                <td>{$studentData['student']['class_series']}</td>
+                <td class='text-right'>" . number_format($studentData['total_required'], 0, ',', ' ') . " FCFA</td>
+                <td class='text-right'>" . number_format($studentData['total_paid'], 0, ',', ' ') . " FCFA</td>
+                <td class='text-right'>" . number_format($studentData['total_remaining'], 0, ',', ' ') . " FCFA</td>
+                <td>{$incompleteTranches}</td>
+            </tr>";
         }
+        
+        $html .= "</tbody></table>";
 
         return $html;
     }
@@ -840,36 +908,32 @@ class ReportsController extends Controller
         $html .= "<p><strong>Total étudiants:</strong> {$reportData['total_students']}</p>";
         $html .= "</div>";
 
-        foreach ($reportData['grouped_data'] as $group) {
-            $html .= "<div class='group-header'>{$group['group_name']}</div>";
+        foreach ($reportData['students'] as $studentData) {
+            $html .= "<h4>{$studentData['student']['full_name']} - {$studentData['student']['class_series']}</h4>";
+            $html .= "<table>
+                <thead>
+                    <tr>
+                        <th>Tranche</th>
+                        <th class='text-right'>Montant Requis</th>
+                        <th class='text-right'>Montant Payé</th>
+                        <th class='text-right'>Reste à Payer</th>
+                        <th class='text-center'>Statut</th>
+                    </tr>
+                </thead>
+                <tbody>";
             
-            foreach ($group['students'] as $studentData) {
-                $html .= "<h4>{$studentData['student']['full_name']} - {$studentData['student']['class_series']}</h4>";
-                $html .= "<table>
-                    <thead>
-                        <tr>
-                            <th>Tranche</th>
-                            <th class='text-right'>Montant Requis</th>
-                            <th class='text-right'>Montant Payé</th>
-                            <th class='text-right'>Reste à Payer</th>
-                            <th class='text-center'>Statut</th>
-                        </tr>
-                    </thead>
-                    <tbody>";
-                
-                foreach ($studentData['tranches_details'] as $tranche) {
-                    $status = $tranche['status'] === 'complete' ? 'Complet' : 'Incomplet';
-                    $html .= "<tr>
-                        <td>{$tranche['tranche_name']}</td>
-                        <td class='text-right'>" . number_format($tranche['required_amount'], 0, ',', ' ') . " FCFA</td>
-                        <td class='text-right'>" . number_format($tranche['paid_amount'], 0, ',', ' ') . " FCFA</td>
-                        <td class='text-right'>" . number_format($tranche['remaining_amount'], 0, ',', ' ') . " FCFA</td>
-                        <td class='text-center'>{$status}</td>
-                    </tr>";
-                }
-                
-                $html .= "</tbody></table>";
+            foreach ($studentData['tranches_details'] as $tranche) {
+                $status = $tranche['status'] === 'complete' ? 'Complet' : 'Incomplet';
+                $html .= "<tr>
+                    <td>{$tranche['tranche_name']}</td>
+                    <td class='text-right'>" . number_format($tranche['required_amount'], 0, ',', ' ') . " FCFA</td>
+                    <td class='text-right'>" . number_format($tranche['paid_amount'], 0, ',', ' ') . " FCFA</td>
+                    <td class='text-right'>" . number_format($tranche['remaining_amount'], 0, ',', ' ') . " FCFA</td>
+                    <td class='text-center'>{$status}</td>
+                </tr>";
             }
+            
+            $html .= "</tbody></table>";
         }
 
         return $html;
@@ -890,38 +954,40 @@ class ReportsController extends Controller
         $html .= "<strong>Non payés:</strong> {$summary['unpaid_count']}</p>";
         $html .= "</div>";
 
-        foreach ($reportData['grouped_data'] as $group) {
-            $html .= "<div class='group-header'>{$group['group_name']}</div>";
-            $html .= "<table>
-                <thead>
-                    <tr>
-                        <th>Étudiant</th>
-                        <th>Classe/Série</th>
-                        <th class='text-right'>Montant RAME</th>
-                        <th class='text-right'>Montant Payé</th>
-                        <th class='text-center'>Type</th>
-                        <th class='text-center'>Statut</th>
-                    </tr>
-                </thead>
-                <tbody>";
+        $html .= "<table>
+            <thead>
+                <tr>
+                    <th>Étudiant</th>
+                    <th>Classe/Série</th>
+                    <th class='text-right'>Montant RAME</th>
+                    <th class='text-right'>Montant Payé</th>
+                    <th class='text-center'>Type</th>
+                    <th class='text-center'>Statut</th>
+                    <th class='text-center'>Date Paiement</th>
+                </tr>
+            </thead>
+            <tbody>";
+        
+        foreach ($reportData['students'] as $studentData) {
+            $type = $studentData['rame_details']['payment_type'] === 'physical' ? 'Physique' : 
+                   ($studentData['rame_details']['payment_type'] === 'cash' ? 'Espèces' : 'Non payé');
+            $status = $studentData['rame_details']['payment_status'] === 'paid' ? 'Payé' : 'En attente';
+            $paymentDate = isset($studentData['rame_details']['payment_date']) && $studentData['rame_details']['payment_date'] 
+                          ? date('d/m/Y', strtotime($studentData['rame_details']['payment_date'])) 
+                          : '-';
             
-            foreach ($group['students'] as $studentData) {
-                $type = $studentData['rame_details']['payment_type'] === 'physical' ? 'Physique' : 
-                       ($studentData['rame_details']['payment_type'] === 'cash' ? 'Espèces' : 'Non payé');
-                $status = $studentData['rame_details']['payment_status'] === 'paid' ? 'Payé' : 'En attente';
-                
-                $html .= "<tr>
-                    <td>{$studentData['student']['full_name']}</td>
-                    <td>{$studentData['student']['class_series']}</td>
-                    <td class='text-right'>" . number_format($studentData['rame_details']['required_amount'], 0, ',', ' ') . " FCFA</td>
-                    <td class='text-right'>" . number_format($studentData['rame_details']['paid_amount'], 0, ',', ' ') . " FCFA</td>
-                    <td class='text-center'>{$type}</td>
-                    <td class='text-center'>{$status}</td>
-                </tr>";
-            }
-            
-            $html .= "</tbody></table>";
+            $html .= "<tr>
+                <td>{$studentData['student']['full_name']}</td>
+                <td>{$studentData['student']['class_series']}</td>
+                <td class='text-right'>" . number_format($studentData['rame_details']['required_amount'], 0, ',', ' ') . " FCFA</td>
+                <td class='text-right'>" . number_format($studentData['rame_details']['paid_amount'], 0, ',', ' ') . " FCFA</td>
+                <td class='text-center'>{$type}</td>
+                <td class='text-center'>{$status}</td>
+                <td class='text-center'>{$paymentDate}</td>
+            </tr>";
         }
+        
+        $html .= "</tbody></table>";
 
         return $html;
     }
