@@ -42,8 +42,21 @@ import PaymentReports from "./pages/Payments/PaymentReports";
 // Reports
 import Reports from "./pages/Reports";
 
+
 // User Management
 import UserManagement from "./pages/UserManagement";
+
+// Subjects & Teachers
+import Subjects from "./pages/Subjects/Subjects";
+import SeriesSubjectConfiguration from "./pages/Subjects/SeriesSubjectConfiguration";
+import Teachers from "./pages/Teachers/Teachers";
+import TeacherAssignments from "./pages/Teachers/TeacherAssignments";
+import TeacherAssignmentManagement from "./pages/Teachers/TeacherAssignmentManagement";
+
+// Needs
+import MyNeeds from "./pages/Needs/MyNeeds";
+import NeedsManagement from "./pages/Needs/NeedsManagement";
+
 
 // Components
 import Sidebar from "./components/Sidebar";
@@ -137,6 +150,15 @@ const AppContent = () => {
                 }
               />
 
+              <Route
+                path="/my-needs"
+                element={
+                  <ProtectedRoute>
+                    <MyNeeds />
+                  </ProtectedRoute>
+                }
+              />
+
               {/* Routes pour administrateurs uniquement */}
               <Route
                 path="/sections"
@@ -193,10 +215,62 @@ const AppContent = () => {
               />
 
               <Route
+
                 path="/user-management"
                 element={
                   <AdminRoute>
                     <UserManagement />
+
+                path="/subjects"
+                element={
+                  <AdminRoute>
+                    <Subjects />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/series-subject-configuration"
+                element={
+                  <AdminRoute>
+                    <SeriesSubjectConfiguration />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/teachers"
+                element={
+                  <AdminRoute>
+                    <Teachers />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/teacher-assignments"
+                element={
+                  <AdminRoute>
+                    <TeacherAssignmentManagement />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/teacher-assignments-old"
+                element={
+                  <AdminRoute>
+                    <TeacherAssignments />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/needs-management"
+                element={
+                  <AdminRoute>
+                    <NeedsManagement />
+
                   </AdminRoute>
                 }
               />

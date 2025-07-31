@@ -14,7 +14,9 @@ class ClassSeries extends Model
         'name',
         'code',
         'capacity',
-        'is_active'
+        'is_active',
+        'main_teacher_id',
+        'school_year_id'
     ];
 
     protected $casts = [
@@ -47,10 +49,77 @@ class ClassSeries extends Model
     }
 
     /**
+     * Relation avec le professeur principal
+     */
+    public function mainTeacher()
+    {
+        return $this->belongsTo(Teacher::class, 'main_teacher_id');
+    }
+
+    /**
+     * Relation avec l'année scolaire
+     */
+    public function schoolYear()
+    {
+        return $this->belongsTo(SchoolYear::class);
+    }
+
+    /**
+     * Relation avec les matières enseignées
+     */
+    public function subjects()
+    {
+        return $this->belongsToMany(Subject::class, 'class_series_subjects')
+                    ->withPivot('coefficient', 'is_active')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Relation avec les matières actives uniquement
+     */
+    public function activeSubjects()
+    {
+        return $this->belongsToMany(Subject::class, 'class_series_subjects')
+                    ->withPivot('coefficient', 'is_active')
+                    ->wherePivot('is_active', true)
+                    ->withTimestamps();
+    }
+
+    /**
+     * Relation avec les assignations enseignant-matière
+     */
+    public function teacherSubjects()
+    {
+        return $this->hasMany(TeacherSubject::class, 'class_series_id');
+    }
+
+    /**
      * Obtenir le nom complet de la série
      */
     public function getFullNameAttribute()
     {
         return $this->schoolClass->name . ' ' . $this->name;
+    }
+
+    /**
+     * Obtenir les enseignants de cette série pour une année donnée
+     */
+    public function getTeachersForYear($yearId)
+    {
+        return $this->teacherSubjects()
+                    ->with(['teacher', 'subject'])
+                    ->where('school_year_id', $yearId)
+                    ->where('is_active', true)
+                    ->get()
+                    ->pluck('teacher')
+                    ->unique('id');
+    }
+
+    /**
+     * Obtenir le nombre total de matières enseignées
+     */
+    public function getSubjectCount()
+    {
+        return $this->activeSubjects()->count();
     }
 }

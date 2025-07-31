@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { secureApiEndpoints } from '../utils/apiMigration';
+import { host } from '../utils/fetch';
 
 const SchoolContext = createContext();
 
@@ -75,9 +76,8 @@ export const SchoolProvider = ({ children }) => {
             return schoolSettings.school_logo;
         }
         
-        // Si c'est un chemin relatif, construire l'URL complète
-        const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-        return `${baseUrl}/storage/${schoolSettings.school_logo}`;
+        // Si c'est un chemin relatif, construire l'URL complète en utilisant l'host configuré
+        return `${host}/storage/${schoolSettings.school_logo}`;
     };
 
     const formatCurrency = (amount) => {

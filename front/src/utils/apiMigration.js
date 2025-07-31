@@ -135,12 +135,36 @@ export const secureApiEndpoints = {
 
     // === TEACHERS ===
     teachers: {
-        getAll: () => secureApi.get('/teachers'),
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teachers${queryString ? '?' + queryString : ''}`);
+        },
         getById: (id) => secureApi.get(`/teachers/${id}`),
         create: (data) => secureApi.post('/teachers', data),
         update: (id, data) => secureApi.put(`/teachers/${id}`, data),
         delete: (id) => secureApi.delete(`/teachers/${id}`),
-        regeneratePasswords: () => secureApi.post('/teachers/regenerate-passwords')
+        toggleStatus: (id) => secureApi.post(`/teachers/${id}/toggle-status`),
+        assignSubjects: (id, data) => secureApi.post(`/teachers/${id}/assign-subjects`, data),
+        removeAssignment: (id, data) => secureApi.post(`/teachers/${id}/remove-assignment`, data),
+        getStats: (id, params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teachers/${id}/stats${queryString ? '?' + queryString : ''}`);
+        }
+    },
+
+    // === SUBJECTS ===
+    subjects: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/subjects${queryString ? '?' + queryString : ''}`);
+        },
+        getById: (id) => secureApi.get(`/subjects/${id}`),
+        create: (data) => secureApi.post('/subjects', data),
+        update: (id, data) => secureApi.put(`/subjects/${id}`, data),
+        delete: (id) => secureApi.delete(`/subjects/${id}`),
+        toggleStatus: (id) => secureApi.post(`/subjects/${id}/toggle-status`),
+        getForSeries: (seriesId) => secureApi.get(`/subjects/series/${seriesId}`),
+        configureForSeries: (seriesId, data) => secureApi.post(`/subjects/series/${seriesId}/configure`, data)
     },
 
     // === STUDENTS ===
@@ -296,14 +320,6 @@ export const secureApiEndpoints = {
         getBySection: (sectionId) => secureApi.get(`/school-classes?section_id=${sectionId}`)
     },
 
-    // === SUBJECTS ===
-    subjects: {
-        getAll: () => secureApi.get('/subjects'),
-        getById: (id) => secureApi.get(`/subjects/${id}`),
-        create: (data) => secureApi.post('/subjects', data),
-        update: (id, data) => secureApi.put(`/subjects/${id}`, data),
-        delete: (id) => secureApi.delete(`/subjects/${id}`)
-    },
 
     // === GRADES ===
     grades: {
@@ -420,6 +436,78 @@ export const secureApiEndpoints = {
         delete: (id) => secureApi.delete(`/class-scholarships/${id}`)
     },
 
+    // === SERIES SUBJECTS ===
+    seriesSubjects: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/series-subjects${queryString ? '?' + queryString : ''}`);
+        },
+        getByClass: (classId) => secureApi.get(`/series-subjects/class/${classId}`),
+        create: (data) => secureApi.post('/series-subjects', data),
+        update: (id, data) => secureApi.put(`/series-subjects/${id}`, data),
+        delete: (id) => secureApi.delete(`/series-subjects/${id}`),
+        toggleStatus: (id) => secureApi.post(`/series-subjects/${id}/toggle-status`),
+        bulkConfigure: (classId, data) => secureApi.post(`/series-subjects/class/${classId}/bulk-configure`, data)
+    },
+
+    // === TEACHER ASSIGNMENTS ===
+    teacherAssignments: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-assignments${queryString ? '?' + queryString : ''}`);
+        },
+        getByTeacher: (teacherId, params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-assignments/teacher/${teacherId}${queryString ? '?' + queryString : ''}`);
+        },
+        getAvailableSubjects: (teacherId, params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-assignments/teacher/${teacherId}/available-subjects${queryString ? '?' + queryString : ''}`);
+        },
+        create: (data) => secureApi.post('/teacher-assignments', data),
+        delete: (id) => secureApi.delete(`/teacher-assignments/${id}`),
+        toggleStatus: (id) => secureApi.post(`/teacher-assignments/${id}/toggle-status`),
+        bulkAssign: (teacherId, data) => secureApi.post(`/teacher-assignments/teacher/${teacherId}/bulk-assign`, data)
+    },
+
+    // === MAIN TEACHERS ===
+    mainTeachers: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/main-teachers${queryString ? '?' + queryString : ''}`);
+        },
+        getClassesWithoutMainTeacher: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/main-teachers/classes-without-main-teacher${queryString ? '?' + queryString : ''}`);
+        },
+        getAvailableTeachers: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/main-teachers/available-teachers${queryString ? '?' + queryString : ''}`);
+        },
+        create: (data) => secureApi.post('/main-teachers', data),
+        update: (id, data) => secureApi.put(`/main-teachers/${id}`, data),
+        delete: (id) => secureApi.delete(`/main-teachers/${id}`),
+        toggleStatus: (id) => secureApi.post(`/main-teachers/${id}/toggle-status`)
+    },
+
+    // === NEEDS ===
+    needs: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/needs${queryString ? '?' + queryString : ''}`);
+        },
+        getMyNeeds: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/needs/my-needs${queryString ? '?' + queryString : ''}`);
+        },
+        getById: (id) => secureApi.get(`/needs/${id}`),
+        create: (data) => secureApi.post('/needs', data),
+        approve: (id) => secureApi.post(`/needs/${id}/approve`),
+        reject: (id, data) => secureApi.post(`/needs/${id}/reject`, data),
+        getStatistics: () => secureApi.get('/needs/statistics/summary'),
+        testWhatsApp: () => secureApi.post('/needs/test-whatsapp')
+    },
+
     // === REPORTS ===
     reports: {
         getInsolvableReport: (params) => {
@@ -534,7 +622,11 @@ export const migrationUtils = {
         const hasNewData = !!authService.getToken();
         
         return hasOldData && !hasNewData;
-    }
+    },
+
+    // === CONVENIENCE METHODS ===
+    getTeachers: (params = {}) => secureApiEndpoints.teachers.getAll(params),
+    getSubjects: (params = {}) => secureApiEndpoints.subjects.getAll(params)
 };
 
 export { secureApi };

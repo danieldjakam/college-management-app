@@ -21,12 +21,18 @@ class SchoolSetting extends Model
         'footer_text',
         'scholarship_deadline',
         'reduction_percentage',
-        'primary_color'
+        'primary_color',
+        'whatsapp_notification_number',
+        'whatsapp_notifications_enabled',
+        'whatsapp_api_url',
+        'whatsapp_instance_id',
+        'whatsapp_token'
     ];
 
     protected $casts = [
         'scholarship_deadline' => 'date',
-        'reduction_percentage' => 'decimal:2'
+        'reduction_percentage' => 'decimal:2',
+        'whatsapp_notifications_enabled' => 'boolean'
     ];
 
     /**
