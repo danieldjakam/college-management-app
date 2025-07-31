@@ -415,7 +415,7 @@ function Sidebar({ isCollapsed, onToggle }) {
           </div>
           {(!isCollapsed || isMobile) && (
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: "14px", fontWeight: "500" }}>
+              <div style={{ fontSize: "14px", fontWeight: "500", color: lightenColor(primaryColor, 0) }}>
                 {getUserDisplayName()}
               </div>
               <div
