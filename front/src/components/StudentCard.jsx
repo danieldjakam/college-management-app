@@ -15,7 +15,7 @@ const StudentCard = ({ student, schoolYear, onPrint }) => {
         }
         
         // Si c'est un chemin relatif, construire l'URL complète
-        const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+        const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:4000';
         return `${baseUrl}/storage/${student.photo}`;
     };
 

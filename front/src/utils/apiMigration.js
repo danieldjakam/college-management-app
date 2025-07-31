@@ -423,7 +423,8 @@ export const secureApiEndpoints = {
                 return secureApi.put('/school-settings', data);
             }
         },
-        getLogo: () => secureApi.get('/school-settings/logo')
+        getLogo: () => secureApi.get('/school-settings/logo'),
+        testWhatsApp: () => secureApi.post('/school-settings/test-whatsapp')
     },
 
     // === CLASS SCHOLARSHIPS ===

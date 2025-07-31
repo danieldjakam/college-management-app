@@ -74,7 +74,14 @@ const SchoolSettings = () => {
             const response = await secureApiEndpoints.schoolSettings.get();
             
             if (response.success) {
-                setSettings(response.data);
+                // Convertir la date au format requis pour l'input date
+                const settingsData = { ...response.data };
+                if (settingsData.scholarship_deadline) {
+                    // Convertir de '2025-08-15T00:00:00.000000Z' vers '2025-08-15'
+                    settingsData.scholarship_deadline = settingsData.scholarship_deadline.split('T')[0];
+                }
+                
+                setSettings(settingsData);
                 
                 // Synchroniser le thème avec la couleur primaire chargée
                 if (response.data.primary_color) {
@@ -241,7 +248,7 @@ const SchoolSettings = () => {
             setError('');
             setSuccess('');
 
-            const response = await secureApiEndpoints.needs.testWhatsApp();
+            const response = await secureApiEndpoints.schoolSettings.testWhatsApp();
             
             if (response.success) {
                 setSuccess(response.message);

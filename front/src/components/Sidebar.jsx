@@ -7,6 +7,7 @@ import {
     Receipt, People, JournalBookmarkFill,
     Clipboard2PlusFill,
     ClipboardCheckFill,
+    QrCodeScan,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -100,6 +101,7 @@ function Sidebar({ isCollapsed, onToggle }) {
             { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> },
             { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
             { name: 'Utilisateurs', href: '/user-management', icon: <People/> },
+            { name: 'Affectations Surveillants', href: '/supervisor-assignments', icon: <PersonCircle/> },
             { name: "Profil", href: "/profile", icon: <PersonCircle /> },
             { name: "Paramètres", href: "/settings", icon: <GearFill /> },
           ],
@@ -140,6 +142,23 @@ function Sidebar({ isCollapsed, onToggle }) {
           items: [
             { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
             { name: "Profil", href: "/profile", icon: <PersonCircle /> }
+          ],
+        },
+      ];
+    } else if (userRole === "surveillant_general") {
+      return [
+        {
+          title: "Surveillance",
+          items: [
+            { name: "Scanner QR", href: "/attendance", icon: <QrCodeScan /> },
+            { name: "Rapports", href: "/attendance-reports", icon: <FileTextFill /> },
+          ],
+        },
+        {
+          title: "Compte",
+          items: [
+            { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
+            { name: "Profil", href: "/profile", icon: <PersonCircle /> },
           ],
         },
       ];

@@ -56,9 +56,13 @@ const MyNeeds = () => {
             setLoading(true);
             const params = {
                 page: currentPage,
-                per_page: 10,
-                ...filters
+                per_page: 10
             };
+
+            // N'ajouter le filtre status que s'il n'est pas vide
+            if (filters.status && filters.status.trim() !== '') {
+                params.status = filters.status;
+            }
 
             const response = await secureApiEndpoints.needs.getMyNeeds(params);
             

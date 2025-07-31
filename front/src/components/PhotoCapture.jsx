@@ -92,7 +92,7 @@ const PhotoCapture = ({ show, onHide, onPhotoSelected }) => {
             const formData = new FormData();
             formData.append('photo', photoFile);
             
-            const response = await fetch('http://localhost:8000/api/upload-photo', {
+            const response = await fetch('http://localhost:4000/api/upload-photo', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('authToken')}`

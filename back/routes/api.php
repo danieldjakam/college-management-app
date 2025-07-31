@@ -23,6 +23,7 @@ use App\Http\Controllers\SeriesSubjectController;
 use App\Http\Controllers\TeacherAssignmentController;
 use App\Http\Controllers\MainTeacherController;
 use App\Http\Controllers\NeedController;
+use App\Http\Controllers\SupervisorController;
 
 
 // Routes d'authentification
@@ -174,12 +175,13 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les paramètres de l'école
     Route::prefix('school-settings')->group(function () {
-        Route::get('/', [SchoolSettingsController::class, 'index'])->middleware(['role:admin,accountant']);
-        Route::get('/logo', [SchoolSettingsController::class, 'getLogo'])->middleware(['role:admin,accountant']);
+        Route::get('/', [SchoolSettingsController::class, 'index'])->middleware(['role:admin,accountant,surveillant_general']);
+        Route::get('/logo', [SchoolSettingsController::class, 'getLogo'])->middleware(['role:admin,accountant,surveillant_general']);
         
         // Routes admin uniquement
         Route::put('/', [SchoolSettingsController::class, 'update'])->middleware(['role:admin']);
         Route::post('/', [SchoolSettingsController::class, 'update'])->middleware(['role:admin']); // Pour FormData avec _method=PUT
+        Route::post('/test-whatsapp', [SchoolSettingsController::class, 'testWhatsApp'])->middleware(['role:admin']); // Test WhatsApp
     });
 
     // Routes pour les bourses de classe
@@ -303,6 +305,24 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{need}/reject', [NeedController::class, 'reject'])->middleware(['role:admin']); // Rejeter
         Route::get('/statistics/summary', [NeedController::class, 'statistics'])->middleware(['role:admin']); // Statistiques
         Route::post('/test-whatsapp', [NeedController::class, 'testWhatsApp'])->middleware(['role:admin']); // Test WhatsApp
+    });
+
+    // Routes pour les surveillants généraux
+    Route::prefix('supervisors')->group(function () {
+        // Routes pour administrateurs uniquement (gestion des affectations)
+        Route::post('/assign-to-class', [SupervisorController::class, 'assignSupervisorToClass'])->middleware(['role:admin']);
+        Route::get('/all-assignments', [SupervisorController::class, 'getAllAssignments'])->middleware(['role:admin']);
+        Route::delete('/assignments/{assignmentId}', [SupervisorController::class, 'deleteAssignment'])->middleware(['role:admin']);
+        Route::get('/{supervisorId}/assignments', [SupervisorController::class, 'getSupervisorAssignments'])->middleware(['role:admin,surveillant_general']);
+        
+        // Routes pour surveillants généraux (scanner QR et voir présences)
+        Route::post('/scan-qr', [SupervisorController::class, 'scanStudentQR'])->middleware(['role:admin,surveillant_general']);
+        Route::get('/daily-attendance', [SupervisorController::class, 'getDailyAttendance'])->middleware(['role:admin,surveillant_general']);
+        Route::get('/attendance-range', [SupervisorController::class, 'getAttendanceRange'])->middleware(['role:admin,surveillant_general']);
+        
+        // Routes pour génération codes QR
+        Route::get('/generate-qr/{studentId}', [SupervisorController::class, 'generateStudentQR'])->middleware(['role:admin']);
+        Route::get('/generate-all-qrs', [SupervisorController::class, 'generateAllStudentQRs'])->middleware(['role:admin']);
     });
 
 });

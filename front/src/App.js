@@ -57,6 +57,13 @@ import TeacherAssignmentManagement from "./pages/Teachers/TeacherAssignmentManag
 import MyNeeds from "./pages/Needs/MyNeeds";
 import NeedsManagement from "./pages/Needs/NeedsManagement";
 
+// Attendance
+import AttendanceScanner from "./pages/Attendance/AttendanceScanner";
+import AttendanceReports from "./pages/Attendance/AttendanceReports";
+
+// Supervisor Management
+import SupervisorAssignments from "./pages/SupervisorManagement/SupervisorAssignments";
+
 
 // Components
 import Sidebar from "./components/Sidebar";
@@ -159,6 +166,24 @@ const AppContent = () => {
                 }
               />
 
+              <Route
+                path="/attendance"
+                element={
+                  <ProtectedRoute requiredRoles={['surveillant_general']}>
+                    <AttendanceScanner />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/attendance-reports"
+                element={
+                  <ProtectedRoute requiredRoles={['surveillant_general']}>
+                    <AttendanceReports />
+                  </ProtectedRoute>
+                }
+              />
+
               {/* Routes pour administrateurs uniquement */}
               <Route
                 path="/sections"
@@ -220,6 +245,15 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <UserManagement />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/supervisor-assignments"
+                element={
+                  <AdminRoute>
+                    <SupervisorAssignments />
                   </AdminRoute>
                 }
               />

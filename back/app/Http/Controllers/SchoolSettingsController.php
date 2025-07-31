@@ -41,6 +41,15 @@ class SchoolSettingsController extends Controller
         \Log::info('SchoolSettings content type:', ['content_type' => $request->header('Content-Type')]);
         \Log::info('User authenticated:', auth()->check() ? auth()->user()->toArray() : 'Not authenticated');
         
+        // Spécifiquement pour les champs WhatsApp
+        \Log::info('WhatsApp fields:', [
+            'whatsapp_notification_number' => $request->get('whatsapp_notification_number'),
+            'whatsapp_notifications_enabled' => $request->get('whatsapp_notifications_enabled'),
+            'whatsapp_api_url' => $request->get('whatsapp_api_url'),
+            'whatsapp_instance_id' => $request->get('whatsapp_instance_id'),
+            'whatsapp_token' => $request->get('whatsapp_token')
+        ]);
+        
         $validator = Validator::make($request->all(), [
             'school_name' => 'required|string|max:255',
             'school_motto' => 'nullable|string|max:255',
@@ -56,7 +65,13 @@ class SchoolSettingsController extends Controller
             'footer_text' => 'nullable|string',
             'scholarship_deadline' => 'nullable|date',
             'reduction_percentage' => 'nullable|numeric|min:0|max:100',
-            'primary_color' => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/'
+            'primary_color' => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
+            // Champs WhatsApp UltraMsg
+            'whatsapp_notification_number' => 'nullable|string|max:50',
+            'whatsapp_notifications_enabled' => 'nullable|in:true,false,1,0',
+            'whatsapp_api_url' => 'nullable|string|max:255',
+            'whatsapp_instance_id' => 'nullable|string|max:100',
+            'whatsapp_token' => 'nullable|string|max:255'
         ]);
 
         if ($validator->fails()) {
@@ -77,6 +92,11 @@ class SchoolSettingsController extends Controller
             
             $data = $request->except(['school_logo']);
             \Log::info('Data to update:', $data);
+
+            // Convertir le boolean WhatsApp
+            if (isset($data['whatsapp_notifications_enabled'])) {
+                $data['whatsapp_notifications_enabled'] = filter_var($data['whatsapp_notifications_enabled'], FILTER_VALIDATE_BOOLEAN);
+            }
 
             // Appliquer des valeurs par défaut pour les champs requis
             $data = array_merge([
@@ -174,6 +194,28 @@ class SchoolSettingsController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération du logo',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Tester la configuration WhatsApp
+     */
+    public function testWhatsApp()
+    {
+        try {
+            $whatsappService = app(\App\Services\WhatsAppService::class);
+            $result = $whatsappService->testConfiguration();
+
+            return response()->json([
+                'success' => $result['success'],
+                'message' => $result['message']
+            ], $result['success'] ? 200 : 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du test WhatsApp',
                 'error' => $e->getMessage()
             ], 500);
         }

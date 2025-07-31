@@ -184,6 +184,7 @@ export const RoleBasedRedirect = ({ children }) => {
       admin: "/sections",
       teacher: "/students",
       accountant: "/class-comp",
+      surveillant_general: "/attendance",
       user: "/profile",
     };
 
