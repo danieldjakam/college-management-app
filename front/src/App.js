@@ -42,6 +42,10 @@ import PaymentReports from "./pages/Payments/PaymentReports";
 // Reports
 import Reports from "./pages/Reports";
 
+
+// User Management
+import UserManagement from "./pages/UserManagement";
+
 // Subjects & Teachers
 import Subjects from "./pages/Subjects/Subjects";
 import SeriesSubjectConfiguration from "./pages/Subjects/SeriesSubjectConfiguration";
@@ -52,6 +56,7 @@ import TeacherAssignmentManagement from "./pages/Teachers/TeacherAssignmentManag
 // Needs
 import MyNeeds from "./pages/Needs/MyNeeds";
 import NeedsManagement from "./pages/Needs/NeedsManagement";
+
 
 // Components
 import Sidebar from "./components/Sidebar";
@@ -210,6 +215,12 @@ const AppContent = () => {
               />
 
               <Route
+
+                path="/user-management"
+                element={
+                  <AdminRoute>
+                    <UserManagement />
+
                 path="/subjects"
                 element={
                   <AdminRoute>
@@ -259,6 +270,7 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <NeedsManagement />
+
                   </AdminRoute>
                 }
               />

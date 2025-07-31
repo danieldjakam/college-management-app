@@ -15,12 +15,15 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\SchoolSettingsController;
 use App\Http\Controllers\ClassScholarshipController;
 use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\UserManagementController;
+use App\Http\Controllers\PhotoUploadController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TeacherController;
 use App\Http\Controllers\SeriesSubjectController;
 use App\Http\Controllers\TeacherAssignmentController;
 use App\Http\Controllers\MainTeacherController;
 use App\Http\Controllers\NeedController;
+
 
 // Routes d'authentification
 Route::prefix('auth')->group(function () {
@@ -198,6 +201,22 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/export-pdf', [ReportsController::class, 'exportPdf']);
     });
 
+
+    // Routes pour la gestion des utilisateurs (admin uniquement)
+    Route::prefix('user-management')->middleware(['role:admin'])->group(function () {
+        Route::get('/', [UserManagementController::class, 'index']);
+        Route::get('/stats', [UserManagementController::class, 'getStats']);
+        Route::post('/', [UserManagementController::class, 'store']);
+        Route::get('/{id}', [UserManagementController::class, 'show']);
+        Route::put('/{id}', [UserManagementController::class, 'update']);
+        Route::post('/{id}/reset-password', [UserManagementController::class, 'resetPassword']);
+        Route::post('/{id}/toggle-status', [UserManagementController::class, 'toggleStatus']);
+        Route::delete('/{id}', [UserManagementController::class, 'destroy']);
+    });
+
+    // Routes d'upload de photos
+    Route::post('upload-photo', [PhotoUploadController::class, 'upload']);
+
     // Routes pour les matières
     Route::prefix('subjects')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)
@@ -285,4 +304,5 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/statistics/summary', [NeedController::class, 'statistics'])->middleware(['role:admin']); // Statistiques
         Route::post('/test-whatsapp', [NeedController::class, 'testWhatsApp'])->middleware(['role:admin']); // Test WhatsApp
     });
+
 });

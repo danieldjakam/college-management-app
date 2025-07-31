@@ -36,16 +36,13 @@ const Reports = () => {
 
     // États pour les filtres
     const [filters, setFilters] = useState({
-        // Filtres communs
-        startDate: new Date().toISOString().split('T')[0],
-        endDate: new Date().toISOString().split('T')[0],
-        groupBy: 'series', // series, class, section
+        // Filtre principal
+        filterType: 'section', // section, class, series
         
         // Filtres spécifiques
         sectionId: '',
         classId: '',
-        seriesId: '',
-        includeRame: false
+        seriesId: ''
     });
 
     const [availableOptions, setAvailableOptions] = useState({
@@ -60,16 +57,43 @@ const Reports = () => {
 
     const loadAvailableOptions = async () => {
         try {
-            // Charger les sections, classes et séries disponibles
+            // Charger les sections, classes disponibles
             const [sectionsRes, classesRes] = await Promise.all([
                 secureApiEndpoints.sections.getAll(),
                 secureApiEndpoints.schoolClasses.getAll()
             ]);
 
+            // S'assurer que les données sont des tableaux
+            const sections = (sectionsRes.success && Array.isArray(sectionsRes.data)) ? sectionsRes.data : [];
+            const classes = (classesRes.success && Array.isArray(classesRes.data)) ? classesRes.data : [];
+            
+            
+            // Charger toutes les séries de toutes les classes
+            let allSeries = [];
+            if (classes.length > 0) {
+                try {
+                    const seriesPromises = classes.map(schoolClass => 
+                        secureApiEndpoints.accountant.getClassSeries(schoolClass.id)
+                    );
+                    const seriesResults = await Promise.all(seriesPromises);
+                    
+                    seriesResults.forEach((result, index) => {
+                        if (result.success && result.data) {
+                            // S'assurer que result.data est un tableau
+                            const seriesData = Array.isArray(result.data) ? result.data : [];
+                            allSeries = [...allSeries, ...seriesData];
+                        }
+                    });
+                } catch (seriesError) {
+                    console.error('Error loading series:', seriesError);
+                }
+            }
+
+
             setAvailableOptions({
-                sections: sectionsRes.success ? sectionsRes.data : [],
-                classes: classesRes.success ? classesRes.data : [],
-                series: []
+                sections,
+                classes,
+                series: allSeries
             });
         } catch (error) {
             console.error('Error loading options:', error);
@@ -79,6 +103,7 @@ const Reports = () => {
     const generateReport = async (reportType) => {
         setLoading(true);
         setError('');
+        
         
         try {
             let response;
@@ -101,7 +126,6 @@ const Reports = () => {
             }
 
             if (response.success) {
-                console.log('Report data received:', response.data); // Debug
                 setReportData(response.data);
             } else {
                 setError(response.message || 'Erreur lors de la génération du rapport');
@@ -141,18 +165,18 @@ const Reports = () => {
             const response = await secureApiEndpoints.reports.exportPdf(exportParams);
             
             if (response.success) {
-                // Créer un lien de téléchargement
-                const blob = new Blob([response.data], { type: 'application/pdf' });
-                const url = window.URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `rapport_${activeTab}_${new Date().toISOString().split('T')[0]}.pdf`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(url);
+                // Ouvrir le HTML dans une nouvelle fenêtre pour impression/sauvegarde PDF
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write(response.data);
+                printWindow.document.close();
+                
+                // Attendre un peu que le contenu se charge puis déclencher l'impression
+                setTimeout(() => {
+                    printWindow.focus();
+                    printWindow.print();
+                }, 500);
 
-                Swal.fire('Succès', 'Rapport PDF téléchargé avec succès', 'success');
+                Swal.fire('Succès', 'Rapport ouvert pour impression/sauvegarde PDF', 'success');
             } else {
                 Swal.fire('Erreur', response.message || 'Erreur lors de l\'export PDF', 'error');
             }
@@ -174,50 +198,69 @@ const Reports = () => {
             </Card.Header>
             <Card.Body>
                 <Row>
-                    <Col md={3}>
+                    <Col md={4}>
                         <Form.Group className="mb-3">
-                            <Form.Label>Date de début</Form.Label>
-                            <Form.Control
-                                type="date"
-                                value={filters.startDate}
-                                onChange={(e) => setFilters({...filters, startDate: e.target.value})}
-                            />
-                        </Form.Group>
-                    </Col>
-                    <Col md={3}>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Date de fin</Form.Label>
-                            <Form.Control
-                                type="date"
-                                value={filters.endDate}
-                                onChange={(e) => setFilters({...filters, endDate: e.target.value})}
-                            />
-                        </Form.Group>
-                    </Col>
-                    <Col md={3}>
-                        <Form.Group className="mb-3">
-                            <Form.Label>Grouper par</Form.Label>
+                            <Form.Label>Filtrer par</Form.Label>
                             <Form.Select
-                                value={filters.groupBy}
-                                onChange={(e) => setFilters({...filters, groupBy: e.target.value})}
+                                value={filters.filterType}
+                                onChange={(e) => {
+                                    setFilters({
+                                        ...filters, 
+                                        filterType: e.target.value,
+                                        sectionId: '',
+                                        classId: '',
+                                        seriesId: ''
+                                    });
+                                }}
                             >
-                                <option value="series">Série</option>
-                                <option value="class">Classe</option>
                                 <option value="section">Section</option>
+                                <option value="class">Classe</option>
+                                <option value="series">Série</option>
                             </Form.Select>
                         </Form.Group>
                     </Col>
-                    <Col md={3}>
+                    <Col md={4}>
                         <Form.Group className="mb-3">
-                            <Form.Label>Section</Form.Label>
+                            <Form.Label>
+                                {filters.filterType === 'section' ? 'Section' : 
+                                 filters.filterType === 'class' ? 'Classe' : 'Série'}
+                            </Form.Label>
                             <Form.Select
-                                value={filters.sectionId}
-                                onChange={(e) => setFilters({...filters, sectionId: e.target.value})}
+                                value={
+                                    filters.filterType === 'section' ? filters.sectionId :
+                                    filters.filterType === 'class' ? filters.classId :
+                                    filters.seriesId
+                                }
+                                onChange={(e) => {
+                                    const newFilters = {...filters};
+                                    if (filters.filterType === 'section') {
+                                        newFilters.sectionId = e.target.value;
+                                    } else if (filters.filterType === 'class') {
+                                        newFilters.classId = e.target.value;
+                                    } else {
+                                        newFilters.seriesId = e.target.value;
+                                    }
+                                    setFilters(newFilters);
+                                }}
                             >
-                                <option value="">Toutes les sections</option>
-                                {availableOptions.sections.map(section => (
+                                <option value="">
+                                    {filters.filterType === 'section' ? 'Toutes les sections' :
+                                     filters.filterType === 'class' ? 'Toutes les classes' : 
+                                     'Toutes les séries'}
+                                </option>
+                                {filters.filterType === 'section' && availableOptions.sections.map(section => (
                                     <option key={section.id} value={section.id}>
                                         {section.name}
+                                    </option>
+                                ))}
+                                {filters.filterType === 'class' && availableOptions.classes.map(schoolClass => (
+                                    <option key={schoolClass.id} value={schoolClass.id}>
+                                        {schoolClass.name}
+                                    </option>
+                                ))}
+                                {filters.filterType === 'series' && availableOptions.series.map(series => (
+                                    <option key={series.id} value={series.id}>
+                                        {series.name}
                                     </option>
                                 ))}
                             </Form.Select>
@@ -320,42 +363,37 @@ const Reports = () => {
                         <div className="mb-3">
                             <Badge bg="info">Total des élèves: {reportData?.total_students || 0}</Badge>
                         </div>
-                        {reportData.grouped_data?.map((group, groupIndex) => (
-                            <div key={groupIndex} className="mb-4">
-                                <h6 className="text-primary border-bottom pb-2">{group.group_name}</h6>
-                                {group.students?.map((studentData, studentIndex) => (
-                                    <div key={studentIndex} className="mb-3 p-3 border rounded">
-                                        <h6 className="mb-2">{studentData.student.full_name} - {studentData.student.class_series}</h6>
-                                        <Table responsive striped size="sm">
-                                            <thead>
-                                                <tr>
-                                                    <th>Tranche</th>
-                                                    <th>Montant Requis</th>
-                                                    <th>Montant Payé</th>
-                                                    <th>Reste à Payer</th>
-                                                    <th>Statut</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {studentData.tranches_details?.map((tranche, trancheIndex) => (
-                                                    <tr key={trancheIndex}>
-                                                        <td>{tranche.tranche_name}</td>
-                                                        <td>{formatCurrency(tranche?.required_amount || 0)}</td>
-                                                        <td>{formatCurrency(tranche?.paid_amount || 0)}</td>
-                                                        <td className={(tranche?.remaining_amount || 0) > 0 ? "text-danger" : "text-success"}>
-                                                            {formatCurrency(tranche?.remaining_amount || 0)}
-                                                        </td>
-                                                        <td>
-                                                            <Badge bg={tranche?.status === 'complete' ? 'success' : 'warning'}>
-                                                                {tranche?.status === 'complete' ? 'Complet' : 'Incomplet'}
-                                                            </Badge>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </Table>
-                                    </div>
-                                ))}
+                        {reportData.students?.map((studentData, studentIndex) => (
+                            <div key={studentIndex} className="mb-3 p-3 border rounded">
+                                <h6 className="mb-2">{studentData?.student?.full_name} - {studentData?.student?.class_series}</h6>
+                                <Table responsive striped size="sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Tranche</th>
+                                            <th>Montant Requis</th>
+                                            <th>Montant Payé</th>
+                                            <th>Reste à Payer</th>
+                                            <th>Statut</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {studentData?.tranches_details?.map((tranche, trancheIndex) => (
+                                            <tr key={trancheIndex}>
+                                                <td>{tranche?.tranche_name}</td>
+                                                <td>{formatCurrency(tranche?.required_amount || 0)}</td>
+                                                <td>{formatCurrency(tranche?.paid_amount || 0)}</td>
+                                                <td className={(tranche?.remaining_amount || 0) > 0 ? "text-danger" : "text-success"}>
+                                                    {formatCurrency(tranche?.remaining_amount || 0)}
+                                                </td>
+                                                <td>
+                                                    <Badge bg={tranche?.status === 'complete' ? 'success' : 'warning'}>
+                                                        {tranche?.status === 'complete' ? 'Complet' : 'Incomplet'}
+                                                    </Badge>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </Table>
                             </div>
                         ))}
                     </>
@@ -390,56 +428,51 @@ const Reports = () => {
                                 </Col>
                             </Row>
                         </div>
-                        {reportData.grouped_data?.map((group, groupIndex) => (
-                            <div key={groupIndex} className="mb-4">
-                                <h6 className="text-primary border-bottom pb-2">{group.group_name}</h6>
-                                <Table responsive striped size="sm">
-                                    <thead>
-                                        <tr>
-                                            <th>Étudiant</th>
-                                            <th>Classe/Série</th>
-                                            <th>Montant RAME</th>
-                                            <th>Montant Payé</th>
-                                            <th>Type de Paiement</th>
-                                            <th>Statut</th>
-                                            <th>Date Paiement</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {group.students?.map((studentData, studentIndex) => (
-                                            <tr key={studentIndex}>
-                                                <td>{studentData.student.full_name}</td>
-                                                <td>{studentData.student.class_series}</td>
-                                                <td>{formatCurrency(studentData?.rame_details?.required_amount || 0)}</td>
-                                                <td>{formatCurrency(studentData?.rame_details?.paid_amount || 0)}</td>
-                                                <td>
-                                                    <Badge bg={
-                                                        studentData?.rame_details?.payment_type === 'physical' ? 'success' : 
-                                                        studentData?.rame_details?.payment_type === 'cash' ? 'primary' : 
-                                                        'secondary'
-                                                    }>
-                                                        {studentData?.rame_details?.payment_type === 'physical' ? 'Physique' : 
-                                                         studentData?.rame_details?.payment_type === 'cash' ? 'Espèces' : 
-                                                         'Non payé'}
-                                                    </Badge>
-                                                </td>
-                                                <td>
-                                                    <Badge bg={studentData?.rame_details?.payment_status === 'paid' ? 'success' : 'warning'}>
-                                                        {studentData?.rame_details?.payment_status === 'paid' ? 'Payé' : 'En attente'}
-                                                    </Badge>
-                                                </td>
-                                                <td>
-                                                    {studentData?.rame_details?.payment_date ? 
-                                                        new Date(studentData.rame_details.payment_date).toLocaleDateString('fr-FR') : 
-                                                        '-'
-                                                    }
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </Table>
-                            </div>
-                        ))}
+                        <Table responsive striped size="sm">
+                            <thead>
+                                <tr>
+                                    <th>Étudiant</th>
+                                    <th>Classe/Série</th>
+                                    <th>Montant RAME</th>
+                                    <th>Montant Payé</th>
+                                    <th>Type de Paiement</th>
+                                    <th>Statut</th>
+                                    <th>Date Paiement</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {reportData.students?.map((studentData, studentIndex) => (
+                                    <tr key={studentIndex}>
+                                        <td>{studentData?.student?.full_name}</td>
+                                        <td>{studentData?.student?.class_series}</td>
+                                        <td>{formatCurrency(studentData?.rame_details?.required_amount || 0)}</td>
+                                        <td>{formatCurrency(studentData?.rame_details?.paid_amount || 0)}</td>
+                                        <td>
+                                            <Badge bg={
+                                                studentData?.rame_details?.payment_type === 'physical' ? 'success' : 
+                                                studentData?.rame_details?.payment_type === 'cash' ? 'primary' : 
+                                                'secondary'
+                                            }>
+                                                {studentData?.rame_details?.payment_type === 'physical' ? 'Physique' : 
+                                                 studentData?.rame_details?.payment_type === 'cash' ? 'Espèces' : 
+                                                 'Non payé'}
+                                            </Badge>
+                                        </td>
+                                        <td>
+                                            <Badge bg={studentData?.rame_details?.payment_status === 'paid' ? 'success' : 'warning'}>
+                                                {studentData?.rame_details?.payment_status === 'paid' ? 'Payé' : 'En attente'}
+                                            </Badge>
+                                        </td>
+                                        <td>
+                                            {studentData?.rame_details?.payment_date ? 
+                                                new Date(studentData.rame_details.payment_date).toLocaleDateString('fr-FR') : 
+                                                '-'
+                                            }
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </Table>
                     </>
                 ) : (
                     <p className="text-muted text-center">Générez un rapport pour voir les données</p>

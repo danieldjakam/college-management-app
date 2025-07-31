@@ -426,26 +426,6 @@ export const secureApiEndpoints = {
         getLogo: () => secureApi.get('/school-settings/logo')
     },
 
-    // === SECTIONS ===
-    sections: {
-        getAll: () => secureApi.get('/sections'),
-        getById: (id) => secureApi.get(`/sections/${id}`),
-        create: (data) => secureApi.post('/sections', data),
-        update: (id, data) => secureApi.put(`/sections/${id}`, data),
-        delete: (id) => secureApi.delete(`/sections/${id}`),
-        dashboard: () => secureApi.get('/sections/dashboard')
-    },
-
-    // === SCHOOL CLASSES ===
-    schoolClasses: {
-        getAll: () => secureApi.get('/school-classes'),
-        getById: (id) => secureApi.get(`/school-classes/${id}`),
-        create: (data) => secureApi.post('/school-classes', data),
-        update: (id, data) => secureApi.put(`/school-classes/${id}`, data),
-        delete: (id) => secureApi.delete(`/school-classes/${id}`),
-        dashboard: () => secureApi.get('/school-classes/dashboard')
-    },
-
     // === CLASS SCHOLARSHIPS ===
     scholarships: {
         getAll: () => secureApi.get('/class-scholarships'),
@@ -553,7 +533,7 @@ export const secureApiEndpoints = {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/pdf'
+                    'Accept': 'text/html'
                 }
             });
             
@@ -562,9 +542,26 @@ export const secureApiEndpoints = {
                 throw new Error(errorData.message || 'Erreur lors de l\'export PDF');
             }
             
-            const blob = await response.blob();
-            return { success: true, data: blob };
+            const htmlContent = await response.text();
+            return { success: true, data: htmlContent };
         }
+    },
+
+    // === USER MANAGEMENT ===
+    userManagement: {
+        getAll: () => secureApi.get('/user-management'),
+        getStats: () => secureApi.get('/user-management/stats'),
+        getById: (id) => secureApi.get(`/user-management/${id}`),
+        create: (data) => secureApi.post('/user-management', data),
+        update: (id, data) => secureApi.put(`/user-management/${id}`, data),
+        resetPassword: (id) => secureApi.post(`/user-management/${id}/reset-password`),
+        toggleStatus: (id) => secureApi.post(`/user-management/${id}/toggle-status`),
+        delete: (id) => secureApi.delete(`/user-management/${id}`),
+        uploadPhoto: (formData) => secureApi.makeRequest('/upload-photo', {
+            method: 'POST',
+            headers: {}, // Pas de Content-Type pour FormData
+            body: formData
+        })
     }
 };
 
