@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('school_settings', function (Blueprint $table) {
-            $table->string('whatsapp_api_url')->nullable()->after('whatsapp_notifications_enabled');
-            $table->string('whatsapp_instance_id')->nullable()->after('whatsapp_api_url');
-            $table->string('whatsapp_token')->nullable()->after('whatsapp_instance_id');
+            // $table->string('whatsapp_api_url')->nullable()->after('whatsapp_notifications_enabled');
+            // $table->string('whatsapp_instance_id')->nullable()->after('whatsapp_api_url');
+            // $table->string('whatsapp_token')->nullable()->after('whatsapp_instance_id');
         });
     }
 

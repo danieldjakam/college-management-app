@@ -27,7 +27,7 @@ return new class extends Migration
     {
         Schema::table('school_settings', function (Blueprint $table) {
             $table->dropColumn([
-                'whatsapp_notification_number', 
+                'whatsapp_notification_number',
                 'whatsapp_notifications_enabled',
                 'whatsapp_api_url',
                 'whatsapp_instance_id',

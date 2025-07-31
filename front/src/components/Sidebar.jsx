@@ -1,40 +1,20 @@
-
-import { Link, useNavigate } from 'react-router-dom'
 import { 
     HospitalFill, HouseHeartFill, 
     PeopleFill, GearFill, Search, 
     BookFill, FileTextFill,
     BarChartFill, List, CreditCard,
     PersonCircle, BoxArrowRight, CashCoin,
-    Receipt, People
+    Receipt, People, JournalBookmarkFill,
+    Clipboard2PlusFill,
+    ClipboardCheckFill,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
 import { useSchool } from '../contexts/SchoolContext';
 import { useEffect, useState } from "react";
-import {
-  BarChartFill,
-  BookFill,
-  BoxArrowRight,
-  CreditCard,
-  FileTextFill,
-  GearFill,
-  HospitalFill,
-  HouseHeartFill,
-  JournalBookmarkFill,
-  List,
-  PeopleFill,
-  PersonCircle,
-  Receipt,
-  Search,
-  Clipboard2PlusFill,
-  ClipboardCheckFill,
-} from "react-bootstrap-icons";
+
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useSchool } from "../contexts/SchoolContext";
 import { useTheme } from "../contexts/ThemeContext";
-import { useAuth } from "../hooks/useAuth";
-import logo from "../images/logo.png";
 
 function Sidebar({ isCollapsed, onToggle }) {
   const location = useLocation();
@@ -46,98 +26,13 @@ function Sidebar({ isCollapsed, onToggle }) {
   const { primaryColor, darkenColor, lightenColor, hexToRgba } = useTheme();
 
 
-    // Navigation sections based on user role
-    const getNavigationSections = () => {
-        if (!user || !user.role) {
-            return [];
-        }
-        
-        const userRole = user.role;
-        
-        if (userRole === 'admin') {
-            return [
-                {
-                    title: 'Gestion Académique',
-                    items: [
-                        { name: 'Sections', href: '/sections', icon: <HospitalFill/> },
-                        { name: 'Niveaux', href: '/levels', icon: <BookFill/> },
-                        { name: 'Classes', href: '/school-classes', icon: <HouseHeartFill/> },
-                        { name: 'Enseignants', href: '/teachers', icon: <PeopleFill/> },
-                        { name: 'Tranches Paiement', href: '/payment-tranches', icon: <CreditCard/> },
-                    ]
-                },
-                {
-                    title: 'Outils',
-                    items: [
-                        { name: 'Rechercher', href: '/search', icon: <Search/> },
-                        { name: 'Documents', href: '/docs', icon: <FileTextFill/> },
-                        { name: 'Statistiques', href: '/stats', icon: <BarChartFill/> }
-                    ]
-                },
-                {
-                    title: 'Administration',
-                    items: [
-                        { name: 'Utilisateurs', href: '/user-management', icon: <People/> },
-                        { name: 'Profil', href: '/profile', icon: <PersonCircle/> },
-                        { name: 'Paramètres', href: '/settings', icon: <GearFill/> }
-                    ]
-                }
-            ]
-        } else if (userRole === 'accountant') {
-            return [
-                {
-                    title: 'Comptabilité',
-                    items: [
-                        { name: 'Classes', href: '/class-comp', icon: <HouseHeartFill/> },
-                        { name: 'Statistiques', href: '/stats', icon: <BarChartFill/> },
-                        { name: 'Rechercher', href: '/search', icon: <Search/> }
-                    ]
-                },
-                {
-                    title: 'Paiements',
-                    items: [
-                        { name: 'États de Paiements', href: '/payment-reports', icon: <Receipt/> }
-                    ]
-                },
-                {
-                    title: 'Rapports',
-                    items: [
-                        { name: 'Rapports Financiers', href: '/reports', icon: <FileTextFill/> }
-                    ]
-                },
-                {
-                    title: 'Compte',
-                    items: [
-                        { name: 'Profil', href: '/profile', icon: <PersonCircle/> }
-                    ]
-                }
-            ]
-        } else {
-            return [
-                {
-                    title: 'Enseignement',
-                    items: [
-                        { name: 'Élèves', href: '/students/'+(user.class_id || '1'), icon: <PeopleFill/> },
-                        { name: 'Séquences', href: '/seqs', icon: <List/> },
-                        { name: 'Trimestres', href: '/trims', icon: <BookFill/> }
-                    ]
-                },
-                {
-                    title: 'Outils',
-                    items: [
-                        { name: 'Rechercher', href: '/search', icon: <Search/> },
-                        { name: 'Profil', href: '/profile', icon: <PersonCircle/> }
-                    ]
-                }
-            ]
-        }
-
   // Debug pour le logo
   const getLogoSrc = () => {
-    const logoUrl = getLogoUrl();
-    console.log("School logo path:", schoolSettings.school_logo);
-    console.log("Generated logo URL:", logoUrl);
-    return logoUrl || logo;
+    // const logoUrl = getLogoUrl();
+    // console.log("School logo path:", schoolSettings.school_logo);
+    // console.log("Generated logo URL:", logoUrl);
+    // return logoUrl || logo;
+    return logo;
   };
 
   useEffect(() => {
@@ -204,6 +99,7 @@ function Sidebar({ isCollapsed, onToggle }) {
           items: [
             { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> },
             { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
+            { name: 'Utilisateurs', href: '/user-management', icon: <People/> },
             { name: "Profil", href: "/profile", icon: <PersonCircle /> },
             { name: "Paramètres", href: "/settings", icon: <GearFill /> },
           ],
@@ -399,7 +295,7 @@ function Sidebar({ isCollapsed, onToggle }) {
           />
           {(!isCollapsed || isMobile) && (
             <div>
-              <div style={{ fontSize: "18px", fontWeight: "bold" }}>
+              <div style={{ fontSize: "18px", fontWeight: "bold", color: lightenColor(primaryColor, 0) }}>
                 {schoolSettings.school_name
                   ?.split(" ")
                   .map((word) => word.charAt(0))

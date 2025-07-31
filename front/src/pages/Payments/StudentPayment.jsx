@@ -433,6 +433,7 @@ const StudentPayment = () => {
                                                     {status.is_fully_paid ? 'Complet' : 'Partiel'}
                                                 </Badge>
                                                 {status.is_optional && !status.is_fully_paid && (
+                                                    
                                                     <small className="text-muted d-block">Non obligatoire</small>
                                                 )}
                                             </td>

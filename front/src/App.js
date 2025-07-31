@@ -220,7 +220,11 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <UserManagement />
+                  </AdminRoute>
+                }
+              />
 
+              <Route
                 path="/subjects"
                 element={
                   <AdminRoute>
