@@ -17,11 +17,10 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
 
-function Sidebar({ isCollapsed, onToggle }) {
+function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const [isOpen, setIsOpen] = useState(false);
   const { user, isAuthenticated, logout: authLogout, isLoading } = useAuth();
   const { schoolSettings, getLogoUrl } = useSchool();
   const { primaryColor, darkenColor, lightenColor, hexToRgba } = useTheme();
@@ -314,7 +313,7 @@ function Sidebar({ isCollapsed, onToggle }) {
           />
           {(!isCollapsed || isMobile) && (
             <div>
-              <div style={{ fontSize: "18px", fontWeight: "bold", color: lightenColor(primaryColor, 0) }}>
+              <div style={{ fontSize: "18px", fontWeight: "bold", color: primaryColor }}>
                 {schoolSettings.school_name
                   ?.split(" ")
                   .map((word) => word.charAt(0))
@@ -362,7 +361,7 @@ function Sidebar({ isCollapsed, onToggle }) {
                     padding: "12px 20px",
                     color:
                       location.pathname === item.href
-                        ? lightenColor(primaryColor, 10)
+                        ? primaryColor
                         : "rgba(0,0,0,0.6)",
                     backgroundColor:
                       location.pathname === item.href
@@ -382,7 +381,7 @@ function Sidebar({ isCollapsed, onToggle }) {
                         primaryColor,
                         0.15
                       );
-                      e.target.style.color = lightenColor(primaryColor, 20);
+                      e.target.style.color = "white";
                     }
                   }}
                   onMouseLeave={(e) => {
@@ -434,7 +433,7 @@ function Sidebar({ isCollapsed, onToggle }) {
           </div>
           {(!isCollapsed || isMobile) && (
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: "14px", fontWeight: "500", color: lightenColor(primaryColor, 0) }}>
+              <div style={{ fontSize: "14px", fontWeight: "500", color: primaryColor }}>
                 {getUserDisplayName()}
               </div>
               <div

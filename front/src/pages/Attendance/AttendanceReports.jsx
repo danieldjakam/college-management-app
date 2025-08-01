@@ -6,7 +6,8 @@ import {
 import { 
   Calendar, Search, Filter, Download, Printer, 
   CheckCircleFill, XCircleFill, People, Clock,
-  FileEarmarkText, CalendarRange
+  FileEarmarkText, CalendarRange, ArrowRightCircle, ArrowLeftCircle,
+  PersonXFill
 } from 'react-bootstrap-icons';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -15,6 +16,7 @@ const AttendanceReports = () => {
   const [filteredAttendances, setFilteredAttendances] = useState([]);
   const [classes, setClasses] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isMarkingAbsent, setIsMarkingAbsent] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('');
   
@@ -23,11 +25,14 @@ const AttendanceReports = () => {
     endDate: new Date().toISOString().split('T')[0],
     classId: '',
     status: 'all', // all, present, absent
+    eventType: 'all', // all, entry, exit
     searchTerm: ''
   });
 
   const [summary, setSummary] = useState({
-    totalStudents: 0,
+    totalRecords: 0,
+    entryCount: 0,
+    exitCount: 0,
     presentCount: 0,
     absentCount: 0,
     presentPercentage: 0
@@ -36,21 +41,53 @@ const AttendanceReports = () => {
   const { user, token } = useAuth();
 
   useEffect(() => {
+    console.log('🚀 AttendanceReports monté');
+    console.log('👤 User:', user);
+    console.log('🔑 Token présent:', !!token);
+    console.log('📊 User role:', user?.role);
+    
+    if (!user || !token) {
+      setMessage('Utilisateur non connecté ou token manquant');
+      setMessageType('danger');
+      return;
+    }
+    
+    if (user.role !== 'surveillant_general' && user.role !== 'admin') {
+      setMessage('Accès refusé: rôle insuffisant');
+      setMessageType('danger');
+      return;
+    }
+    
     loadSupervisorClasses();
-  }, []);
+  }, [user, token]);
 
   useEffect(() => {
-    if (filters.startDate && filters.endDate) {
+    console.log('🔄 Effect loadAttendances déclenché');
+    console.log('📅 Dates:', filters.startDate, 'à', filters.endDate);
+    console.log('🏫 Classe ID:', filters.classId);
+    
+    if (filters.startDate && filters.endDate && user && token) {
+      console.log('▶️ Déclenchement loadAttendances');
       loadAttendances();
+    } else {
+      console.log('⏸️ Conditions non remplies:', {
+        startDate: !!filters.startDate,
+        endDate: !!filters.endDate, 
+        user: !!user,
+        token: !!token
+      });
     }
-  }, [filters.startDate, filters.endDate, filters.classId]);
+  }, [filters.startDate, filters.endDate, filters.classId, user, token]);
 
   useEffect(() => {
     filterAndSummarizeAttendances();
-  }, [attendances, filters.status, filters.searchTerm]);
+  }, [attendances, filters.status, filters.eventType, filters.searchTerm]);
 
   const loadSupervisorClasses = async () => {
     try {
+      console.log('🔍 Chargement des classes pour superviseur:', user.id);
+      console.log('🔑 Token:', token ? 'présent' : 'absent');
+      
       // Le token est déjà disponible depuis useAuth
       const response = await fetch(`http://localhost:4000/api/supervisors/${user.id}/assignments`, {
         headers: {
@@ -59,20 +96,37 @@ const AttendanceReports = () => {
         }
       });
 
+      console.log('📡 Response status:', response.status);
       const data = await response.json();
+      console.log('📊 Response data:', data);
+      
       if (data.success) {
+        console.log('✅ Classes trouvées:', data.data?.length || 0);
         setClasses(data.data || []);
+        setMessage(`${data.data?.length || 0} classe(s) assignée(s) trouvée(s)`);
+        setMessageType('success');
+      } else {
+        console.log('❌ Échec chargement classes:', data.message);
+        setMessage(data.message || 'Erreur lors du chargement des classes');
+        setMessageType('warning');
       }
     } catch (error) {
-      console.error('Erreur lors du chargement des classes:', error);
+      console.error('🚨 Erreur lors du chargement des classes:', error);
+      setMessage('Erreur réseau lors du chargement des classes');
+      setMessageType('danger');
     }
   };
 
   const loadAttendances = async () => {
-    if (!filters.startDate || !filters.endDate) return;
+    if (!filters.startDate || !filters.endDate) {
+      console.log('⚠️ Dates manquantes:', filters.startDate, filters.endDate);
+      return;
+    }
 
     try {
       setIsLoading(true);
+      console.log('📅 Chargement attendance:', filters.startDate, 'à', filters.endDate);
+      
       // Le token est déjà disponible depuis useAuth
       const params = new URLSearchParams({
         supervisor_id: user.id,
@@ -82,27 +136,43 @@ const AttendanceReports = () => {
 
       if (filters.classId) {
         params.append('class_id', filters.classId);
+        console.log('🏫 Filtre classe:', filters.classId);
       }
 
-      const response = await fetch(`http://localhost:4000/api/supervisors/attendance-range?${params}`, {
+      const url = `http://localhost:4000/api/supervisors/attendance-range?${params}`;
+      console.log('🌐 URL requête:', url);
+
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
 
+      console.log('📡 Attendance response status:', response.status);
       const data = await response.json();
+      console.log('📊 Attendance data:', data);
+      
       if (data.success) {
+        const attendanceCount = data.data?.attendances?.length || 0;
+        console.log('✅ Attendances trouvées:', attendanceCount);
         setAttendances(data.data.attendances || []);
-        setMessage('');
+        if (attendanceCount === 0) {
+          setMessage('Aucune donnée de présence trouvée pour cette période');
+          setMessageType('info');
+        } else {
+          setMessage(`${attendanceCount} enregistrement(s) de présence trouvé(s)`);
+          setMessageType('success');
+        }
       } else {
+        console.log('❌ Échec chargement attendance:', data.message);
         setMessage(data.message || 'Erreur lors du chargement');
         setMessageType('danger');
       }
     } catch (error) {
+      console.error('🚨 Erreur attendance:', error);
       setMessage('Erreur lors du chargement des présences');
       setMessageType('danger');
-      console.error('Erreur:', error);
     } finally {
       setIsLoading(false);
     }
@@ -118,6 +188,13 @@ const AttendanceReports = () => {
       filtered = filtered.filter(att => !att.is_present);
     }
 
+    // Filter by event type
+    if (filters.eventType === 'entry') {
+      filtered = filtered.filter(att => att.event_type === 'entry');
+    } else if (filters.eventType === 'exit') {
+      filtered = filtered.filter(att => att.event_type === 'exit');
+    }
+
     // Filter by search term
     if (filters.searchTerm) {
       const searchLower = filters.searchTerm.toLowerCase();
@@ -130,13 +207,17 @@ const AttendanceReports = () => {
     setFilteredAttendances(filtered);
 
     // Calculate summary
-    const totalStudents = attendances.length;
+    const totalRecords = attendances.length;
+    const entryCount = attendances.filter(att => att.event_type === 'entry').length;
+    const exitCount = attendances.filter(att => att.event_type === 'exit').length;
     const presentCount = attendances.filter(att => att.is_present).length;
-    const absentCount = totalStudents - presentCount;
-    const presentPercentage = totalStudents > 0 ? ((presentCount / totalStudents) * 100).toFixed(1) : 0;
+    const absentCount = totalRecords - presentCount;
+    const presentPercentage = totalRecords > 0 ? ((presentCount / totalRecords) * 100).toFixed(1) : 0;
 
     setSummary({
-      totalStudents,
+      totalRecords,
+      entryCount,
+      exitCount,
       presentCount,
       absentCount,
       presentPercentage
@@ -156,6 +237,7 @@ const AttendanceReports = () => {
       endDate: new Date().toISOString().split('T')[0],
       classId: '',
       status: 'all',
+      eventType: 'all',
       searchTerm: ''
     });
   };
@@ -176,6 +258,70 @@ const AttendanceReports = () => {
     // TODO: Implement PDF export
     setMessage('Fonction d\'export PDF en cours de développement');
     setMessageType('info');
+  };
+
+  const markAbsentStudents = async () => {
+    if (!filters.classId) {
+      setMessage('Veuillez sélectionner une classe pour marquer les absents');
+      setMessageType('warning');
+      return;
+    }
+
+    const confirmAction = window.confirm(
+      `Êtes-vous sûr de vouloir marquer tous les élèves non présents comme absents pour le ${new Date(filters.startDate).toLocaleDateString('fr-FR')} ?`
+    );
+
+    if (!confirmAction) return;
+
+    try {
+      setIsMarkingAbsent(true);
+      console.log('🔄 Marquage des absents pour classe:', filters.classId, 'date:', filters.startDate);
+
+      const response = await fetch('http://localhost:4000/api/supervisors/mark-absent-students', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          supervisor_id: user.id,
+          school_class_id: filters.classId,
+          attendance_date: filters.startDate
+        })
+      });
+
+      const data = await response.json();
+      console.log('📊 Résultat marquage absents:', data);
+
+      if (data.success) {
+        setMessage(data.message);
+        setMessageType('success');
+        
+        // Recharger les données d'attendance
+        loadAttendances();
+        
+        // Afficher les statistiques
+        if (data.data) {
+          setTimeout(() => {
+            setMessage(
+              `✅ ${data.message}\n` +
+              `📊 Total étudiants: ${data.data.total_students}\n` +
+              `✅ Présents: ${data.data.present_students}\n` +
+              `❌ Absents marqués: ${data.data.absent_students_marked}`
+            );
+          }, 1000);
+        }
+      } else {
+        setMessage(data.message || 'Erreur lors du marquage des absents');
+        setMessageType('danger');
+      }
+    } catch (error) {
+      console.error('🚨 Erreur marquage absents:', error);
+      setMessage('Erreur réseau lors du marquage des absents');
+      setMessageType('danger');
+    } finally {
+      setIsMarkingAbsent(false);
+    }
   };
 
   const printReport = () => {
@@ -295,6 +441,29 @@ const AttendanceReports = () => {
         </Col>
       </Row>
 
+      {/* État de connexion */}
+      <Row className="mb-3">
+        <Col>
+          {!user || !token ? (
+            <Alert variant="danger">
+              <strong>⚠️ Problème d'authentification</strong><br/>
+              Veuillez vous reconnecter avec un compte surveillant général.
+            </Alert>
+          ) : user.role !== 'surveillant_general' && user.role !== 'admin' ? (
+            <Alert variant="warning">
+              <strong>🚫 Accès refusé</strong><br/>
+              Cette page est réservée aux surveillants généraux et administrateurs.
+            </Alert>
+          ) : (
+            <Alert variant="info">
+              <strong>👤 Connecté en tant que:</strong> {user.name} ({user.role})<br/>
+              <strong>📊 Classes assignées:</strong> {classes.length} classe(s)
+            </Alert>
+          )}
+        </Col>
+      </Row>
+
+      {/* Messages de l'application */}
       {message && (
         <Row className="mb-3">
           <Col>
@@ -368,7 +537,20 @@ const AttendanceReports = () => {
                 </Col>
               </Row>
               <Row>
-                <Col md={8}>
+                <Col md={3}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Type d'événement</Form.Label>
+                    <Form.Select
+                      value={filters.eventType}
+                      onChange={(e) => handleFilterChange('eventType', e.target.value)}
+                    >
+                      <option value="all">Tous les événements</option>
+                      <option value="entry">Entrées seulement</option>
+                      <option value="exit">Sorties seulement</option>
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+                <Col md={5}>
                   <Form.Group className="mb-3">
                     <Form.Label>Rechercher un élève</Form.Label>
                     <InputGroup>
@@ -397,39 +579,57 @@ const AttendanceReports = () => {
 
       {/* Summary Section */}
       <Row className="mb-4">
-        <Col md={3}>
+        <Col md={2}>
           <Card className="text-center border-primary">
             <Card.Body>
-              <People size={32} className="text-primary mb-2" />
-              <h4 className="mb-0">{summary.totalStudents}</h4>
-              <small className="text-muted">Total Enregistrements</small>
+              <People size={28} className="text-primary mb-2" />
+              <h5 className="mb-0">{summary.totalRecords}</h5>
+              <small className="text-muted">Total</small>
             </Card.Body>
           </Card>
         </Col>
-        <Col md={3}>
+        <Col md={2}>
           <Card className="text-center border-success">
             <Card.Body>
-              <CheckCircleFill size={32} className="text-success mb-2" />
-              <h4 className="mb-0">{summary.presentCount}</h4>
+              <ArrowRightCircle size={28} className="text-success mb-2" />
+              <h5 className="mb-0">{summary.entryCount}</h5>
+              <small className="text-muted">Entrées</small>
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col md={2}>
+          <Card className="text-center border-danger">
+            <Card.Body>
+              <ArrowLeftCircle size={28} className="text-danger mb-2" />
+              <h5 className="mb-0">{summary.exitCount}</h5>
+              <small className="text-muted">Sorties</small>
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col md={2}>
+          <Card className="text-center border-success">
+            <Card.Body>
+              <CheckCircleFill size={28} className="text-success mb-2" />
+              <h5 className="mb-0">{summary.presentCount}</h5>
               <small className="text-muted">Présents</small>
             </Card.Body>
           </Card>
         </Col>
-        <Col md={3}>
-          <Card className="text-center border-danger">
+        <Col md={2}>
+          <Card className="text-center border-warning">
             <Card.Body>
-              <XCircleFill size={32} className="text-danger mb-2" />
-              <h4 className="mb-0">{summary.absentCount}</h4>
+              <XCircleFill size={28} className="text-warning mb-2" />
+              <h5 className="mb-0">{summary.absentCount}</h5>
               <small className="text-muted">Absents</small>
             </Card.Body>
           </Card>
         </Col>
-        <Col md={3}>
+        <Col md={2}>
           <Card className="text-center border-info">
             <Card.Body>
-              <CalendarRange size={32} className="text-info mb-2" />
-              <h4 className="mb-0">{summary.presentPercentage}%</h4>
-              <small className="text-muted">Taux de Présence</small>
+              <CalendarRange size={28} className="text-info mb-2" />
+              <h5 className="mb-0">{summary.presentPercentage}%</h5>
+              <small className="text-muted">Taux</small>
             </Card.Body>
           </Card>
         </Col>
@@ -437,7 +637,37 @@ const AttendanceReports = () => {
 
       {/* Actions */}
       <Row className="mb-3">
-        <Col className="d-flex justify-content-end">
+        <Col className="d-flex justify-content-between align-items-center">
+          {/* Bouton marquer absents */}
+          <div>
+            {filters.classId && (
+              <Button 
+                variant="warning" 
+                onClick={markAbsentStudents}
+                disabled={isMarkingAbsent || !filters.classId}
+              >
+                {isMarkingAbsent ? (
+                  <>
+                    <Spinner size="sm" className="me-2" />
+                    Marquage en cours...
+                  </>
+                ) : (
+                  <>
+                    <PersonXFill className="me-2" />
+                    Marquer Absents du Jour
+                  </>
+                )}
+              </Button>
+            )}
+            {!filters.classId && (
+              <small className="text-muted">
+                <PersonXFill className="me-1" />
+                Sélectionnez une classe pour marquer les absents
+              </small>
+            )}
+          </div>
+
+          {/* Boutons d'export */}
           <ButtonGroup>
             <Button variant="outline-primary" onClick={printReport}>
               <Printer className="me-2" />
@@ -478,6 +708,7 @@ const AttendanceReports = () => {
                         <th>Date</th>
                         <th>Élève</th>
                         <th>Classe</th>
+                        <th>Type</th>
                         <th>Heure</th>
                         <th>Statut</th>
                         <th>Surveillant</th>
@@ -493,6 +724,21 @@ const AttendanceReports = () => {
                           <td>
                             <Badge bg="light" text="dark">
                               {attendance.school_class?.name || 'N/A'}
+                            </Badge>
+                          </td>
+                          <td>
+                            <Badge bg={attendance.event_type === 'entry' ? 'success' : 'danger'}>
+                              {attendance.event_type === 'entry' ? (
+                                <>
+                                  <ArrowRightCircle size={12} className="me-1" />
+                                  Entrée
+                                </>
+                              ) : (
+                                <>
+                                  <ArrowLeftCircle size={12} className="me-1" />
+                                  Sortie
+                                </>
+                              )}
                             </Badge>
                           </td>
                           <td>

@@ -1076,14 +1076,16 @@ button{
     z-index: 50;
     transform: translateX(-100%);
     transition: transform var(--transition-normal);
+    width: 280px !important;
   }
   
-  .sidebar.open {
+  .sidebar.open, .sidebar.mobile-open {
     transform: translateX(0);
   }
   
   .main-content {
     width: 100%;
+    margin-left: 0 !important;
   }
   
   .sidebar-toggle {
@@ -1106,28 +1108,34 @@ button{
     grid-template-columns: 1fr;
   }
   
-  .nav-section-title {
-    display: none;
+  .card {
+    margin: 0.5rem 0;
+    padding: 1rem;
   }
   
-  .sidebar.collapsed .nav-text,
-  .sidebar.collapsed .sidebar-title,
-  .sidebar.collapsed .sidebar-subtitle,
-  .sidebar.collapsed .user-info {
-    display: none;
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
   
-  .sidebar.collapsed .sidebar-brand {
-    justify-content: center;
+  .btn-group {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
   }
   
-  .sidebar.collapsed .nav-link {
-    justify-content: center;
-    padding: 0.875rem;
+  .btn-group .btn {
+    margin: 2px 0;
+    width: 100%;
   }
   
-  .sidebar.collapsed .user-profile {
-    justify-content: center;
+  .form-control, .form-select {
+    font-size: 16px;
+  }
+  
+  .modal-dialog {
+    margin: 10px;
+    max-width: calc(100% - 20px);
   }
 }
 
@@ -1149,6 +1157,7 @@ button{
   .btn {
     padding: 0.625rem 1.25rem;
     font-size: 0.8125rem;
+    min-height: 44px;
   }
   
   .card-header {
@@ -1163,6 +1172,31 @@ button{
   .table td {
     padding: 0.75rem 0.5rem;
     font-size: 0.8125rem;
+  }
+  
+  .container-fluid {
+    padding: 5px;
+  }
+  
+  .view {
+    padding: 0.5rem;
+  }
+  
+  .row {
+    margin: 0;
+  }
+  
+  .col-md-6, .col-lg-4, .col-lg-6, .col-lg-8 {
+    padding: 2px;
+  }
+  
+  .form-group {
+    margin-bottom: 1rem;
+  }
+  
+  .form-control, .form-select {
+    min-height: 44px;
+    font-size: 16px;
   }
 }
 

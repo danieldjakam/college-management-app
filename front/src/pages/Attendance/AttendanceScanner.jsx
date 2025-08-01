@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Button, Alert, Container, Row, Col, Table, Badge, Spinner } from 'react-bootstrap';
-import { QrCodeScan, CheckCircleFill, XCircleFill, Calendar, Clock } from 'react-bootstrap-icons';
+import { Card, Button, Alert, Container, Row, Col, Table, Badge, Spinner, ButtonGroup } from 'react-bootstrap';
+import { QrCodeScan, CheckCircleFill, XCircleFill, Calendar, Clock, ArrowRightCircle, ArrowLeftCircle } from 'react-bootstrap-icons';
 import { useAuth } from '../../hooks/useAuth';
+import { secureApiEndpoints } from '../../utils/apiMigration';
 import QrScanner from 'qr-scanner';
 
 const AttendanceScanner = () => {
@@ -11,8 +12,9 @@ const AttendanceScanner = () => {
   const [todayAttendances, setTodayAttendances] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [scannerError, setScannerError] = useState('');
+  const [eventType, setEventType] = useState('entry'); // 'entry' ou 'exit'
   
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const videoRef = useRef(null);
   const qrScannerRef = useRef(null);
 
@@ -28,19 +30,14 @@ const AttendanceScanner = () => {
   const loadTodayAttendances = async () => {
     try {
       setIsLoading(true);
-      // Le token est déjà disponible depuis useAuth
-      const response = await fetch(`http://localhost:4000/api/supervisors/daily-attendance?supervisor_id=${user.id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+      const response = await secureApiEndpoints.supervisors.getDailyAttendance({
+        supervisor_id: user.id
       });
 
-      const data = await response.json();
-      if (data.success) {
-        setTodayAttendances(data.data.attendances || []);
+      if (response.success) {
+        setTodayAttendances(response.data.attendances || []);
       } else {
-        console.error('Erreur API:', data.message);
+        console.error('Erreur API:', response.message);
       }
     } catch (error) {
       console.error('Erreur lors du chargement des présences:', error);
@@ -90,27 +87,20 @@ const AttendanceScanner = () => {
       stopScanner();
       setIsLoading(true);
       
-      // Le token est déjà disponible depuis useAuth
-      const response = await fetch('http://localhost:4000/api/supervisors/scan-qr', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          student_qr_code: qrCode,
-          supervisor_id: user.id
-        })
+      const response = await secureApiEndpoints.supervisors.scanQR({
+        student_qr_code: qrCode,
+        supervisor_id: user.id,
+        event_type: eventType
       });
-
-      const data = await response.json();
       
-      if (data.success) {
-        setMessage(`✅ ${data.data.student_name} marqué(e) présent(e) à ${data.data.marked_at}`);
+      if (response.success) {
+        const eventIcon = eventType === 'entry' ? '🟢' : '🔴';
+        const eventLabel = eventType === 'entry' ? 'entrée' : 'sortie';
+        setMessage(`${eventIcon} ${response.data.event_label} de ${response.data.student_name} enregistrée à ${response.data.marked_at}`);
         setMessageType('success');
         loadTodayAttendances(); // Recharger la liste
       } else {
-        setMessage(`❌ ${data.message}`);
+        setMessage(`❌ ${response.message}`);
         setMessageType('danger');
       }
     } catch (error) {
@@ -168,6 +158,29 @@ const AttendanceScanner = () => {
                   {message}
                 </Alert>
               )}
+
+              {/* Event Type Selection */}
+              <div className="mb-4">
+                <h6 className="mb-3">Type d'événement :</h6>
+                <ButtonGroup className="w-100">
+                  <Button
+                    variant={eventType === 'entry' ? 'success' : 'outline-success'}
+                    onClick={() => setEventType('entry')}
+                    disabled={isScanning}
+                  >
+                    <ArrowRightCircle className="me-2" />
+                    Entrée
+                  </Button>
+                  <Button
+                    variant={eventType === 'exit' ? 'danger' : 'outline-danger'}
+                    onClick={() => setEventType('exit')}
+                    disabled={isScanning}
+                  >
+                    <ArrowLeftCircle className="me-2" />
+                    Sortie
+                  </Button>
+                </ButtonGroup>
+              </div>
 
               <div className="text-center mb-3">
                 {!isScanning ? (
@@ -262,6 +275,7 @@ const AttendanceScanner = () => {
                       <tr>
                         <th>Élève</th>
                         <th>Classe</th>
+                        <th>Type</th>
                         <th>Heure</th>
                         <th>Statut</th>
                       </tr>
@@ -271,6 +285,21 @@ const AttendanceScanner = () => {
                         <tr key={index}>
                           <td>{attendance.student?.full_name || 'N/A'}</td>
                           <td>{attendance.school_class?.name || 'N/A'}</td>
+                          <td>
+                            <Badge bg={attendance.event_type === 'entry' ? 'success' : 'danger'}>
+                              {attendance.event_type === 'entry' ? (
+                                <>
+                                  <ArrowRightCircle size={12} className="me-1" />
+                                  Entrée
+                                </>
+                              ) : (
+                                <>
+                                  <ArrowLeftCircle size={12} className="me-1" />
+                                  Sortie
+                                </>
+                              )}
+                            </Badge>
+                          </td>
                           <td>
                             <Clock size={14} className="me-1" />
                             {formatTime(attendance.scanned_at)}
@@ -311,15 +340,16 @@ const AttendanceScanner = () => {
         <Col>
           <Card className="border-info">
             <Card.Header className="bg-info text-white">
-              <h6 className="mb-0">Instructions d'utilisation</h6>
+              <h6 className="mb-0">Instructions d'utilisation - Entrées/Sorties</h6>
             </Card.Header>
             <Card.Body>
               <ol className="mb-0">
+                <li><strong>Choisissez le type :</strong> "Entrée" pour l'arrivée ou "Sortie" pour le départ</li>
                 <li>Cliquez sur "Démarrer le Scanner" pour activer la caméra</li>
                 <li>Dirigez la caméra vers le code QR du badge de l'élève</li>
-                <li>Le système vérifiera automatiquement si l'élève appartient à vos classes</li>
-                <li>La présence sera enregistrée si tout est valide</li>
-                <li>Consultez la liste des présences du jour dans le panneau de droite</li>
+                <li>Le système vérifiera automatiquement les conditions (entrée avant sortie)</li>
+                <li>Les parents recevront une notification WhatsApp automatique</li>
+                <li>Consultez la liste des entrées/sorties du jour dans le panneau de droite</li>
               </ol>
             </Card.Body>
           </Card>

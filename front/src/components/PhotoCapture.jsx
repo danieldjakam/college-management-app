@@ -9,19 +9,41 @@ const PhotoCapture = ({ show, onHide, onPhotoSelected }) => {
     const [isStreaming, setIsStreaming] = useState(false);
     const [error, setError] = useState('');
     const [uploading, setUploading] = useState(false);
+    const [startingCamera, setStartingCamera] = useState(false);
     
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     const fileInputRef = useRef(null);
     const streamRef = useRef(null);
 
-    // Démarrer la caméra
-    const startCamera = async () => {
+    // Démarrer la caméra - DOIT être appelé directement depuis un événement utilisateur pour iOS
+    const startCamera = async (event) => {
+        // Empêcher la propagation pour éviter les interférences
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        
         try {
             setError('');
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { width: 640, height: 480 }
-            });
+            setStartingCamera(true);
+            
+            // Configuration spécifique pour iOS Safari
+            const constraints = {
+                video: {
+                    width: { ideal: 640, max: 1280 },
+                    height: { ideal: 480, max: 720 },
+                    facingMode: 'environment' // Caméra arrière par défaut
+                }
+            };
+            
+            // Vérification de compatibilité
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error('getUserMedia n\'est pas supporté sur ce navigateur');
+            }
+            
+            // IMPORTANT: Appel direct sans await intermédiaire pour iOS
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
@@ -30,8 +52,22 @@ const PhotoCapture = ({ show, onHide, onPhotoSelected }) => {
                 setMode('camera');
             }
         } catch (err) {
-            setError('Impossible d\'accéder à la caméra. Vérifiez les permissions.');
             console.error('Camera error:', err);
+            let errorMessage = 'Impossible d\'accéder à la caméra.';
+            
+            if (err.name === 'NotAllowedError') {
+                errorMessage = 'Accès à la caméra refusé. Sur iPhone: Réglages > Safari > Caméra > Autoriser, puis rechargez la page.';
+            } else if (err.name === 'NotFoundError') {
+                errorMessage = 'Aucune caméra trouvée sur cet appareil.';
+            } else if (err.name === 'NotSupportedError') {
+                errorMessage = 'La caméra n\'est pas supportée sur ce navigateur. Utilisez Safari sur iOS.';
+            } else if (err.name === 'NotReadableError') {
+                errorMessage = 'La caméra est utilisée par une autre application.';
+            }
+            
+            setError(errorMessage);
+        } finally {
+            setStartingCamera(false);
         }
     };
 
@@ -124,6 +160,7 @@ const PhotoCapture = ({ show, onHide, onPhotoSelected }) => {
         setPhotoFile(null);
         setError('');
         setUploading(false);
+        setStartingCamera(false);
         onHide();
     };
 
@@ -145,7 +182,21 @@ const PhotoCapture = ({ show, onHide, onPhotoSelected }) => {
                 </Modal.Title>
             </Modal.Header>
             <Modal.Body>
-                {error && <Alert variant="danger">{error}</Alert>}
+                {error && (
+                    <Alert variant="danger">
+                        <div>{error}</div>
+                        {error.includes('autorisez') && (
+                            <div className="mt-2">
+                                <small>
+                                    <strong>Sur iPhone:</strong><br/>
+                                    1. Ouvrez Réglages → Safari → Caméra<br/>
+                                    2. Sélectionnez "Autoriser"<br/>
+                                    3. Rechargez cette page
+                                </small>
+                            </div>
+                        )}
+                    </Alert>
+                )}
                 
                 {mode === 'select' && (
                     <Row className="text-center">
@@ -156,9 +207,23 @@ const PhotoCapture = ({ show, onHide, onPhotoSelected }) => {
                                     size="lg"
                                     onClick={startCamera}
                                     className="py-4"
+                                    style={{ minHeight: '120px' }}
+                                    disabled={startingCamera}
                                 >
-                                    <Camera size={32} className="mb-2 d-block mx-auto" />
-                                    Prendre une photo
+                                    {startingCamera ? (
+                                        <>
+                                            <div className="spinner-border spinner-border-sm mb-2 d-block mx-auto" />
+                                            Démarrage caméra...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Camera size={32} className="mb-2 d-block mx-auto" />
+                                            Prendre une photo
+                                            <small className="d-block mt-1" style={{ fontSize: '0.8em', opacity: 0.8 }}>
+                                                (Toucher pour activer)
+                                            </small>
+                                        </>
+                                    )}
                                 </Button>
                             </div>
                         </Col>
@@ -190,11 +255,14 @@ const PhotoCapture = ({ show, onHide, onPhotoSelected }) => {
                         <video
                             ref={videoRef}
                             autoPlay
+                            playsInline
+                            muted
                             style={{
                                 width: '100%',
                                 maxWidth: '500px',
                                 borderRadius: '8px',
-                                marginBottom: '20px'
+                                marginBottom: '20px',
+                                backgroundColor: '#f0f0f0'
                             }}
                         />
                         <canvas ref={canvasRef} style={{ display: 'none' }} />

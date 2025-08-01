@@ -39,12 +39,11 @@ const StudentCard = ({ student, schoolYear, onPrint }) => {
     };
 
     const generateQRCode = (student) => {
-        // Pour l'instant, on utilise un QR code générique
-        // Dans une implémentation complète, on utiliserait une bibliothèque comme qrcode
-        const qrData = `Student: ${student.first_name} ${student.last_name}, ID: ${student.id}, Year: ${schoolYear?.year || new Date().getFullYear()}`;
+        // Format conforme au système de présences : "STUDENT_ID_123"
+        const qrData = `STUDENT_ID_${student.id}`;
         
-        // QR code placeholder - dans une vraie implémentation, utiliser une lib comme 'qrcode'
-        return `https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(qrData)}`;
+        // Générer le QR code avec l'API QR Server (plus grande taille pour une meilleure lisibilité)
+        return `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(qrData)}`;
     };
 
     const cardStyle = {

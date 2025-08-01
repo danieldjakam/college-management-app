@@ -217,9 +217,12 @@ class NeedController extends Controller
                 'rejection_reason' => null
             ]);
 
-            // Envoyer notification WhatsApp
+            // Envoyer notifications WhatsApp
             try {
+                // Notification à l'admin
                 $this->whatsappService->sendStatusUpdateNotification($need, $previousStatus);
+                // Notification au demandeur
+                $this->whatsappService->sendStatusUpdateNotificationToRequester($need, $previousStatus);
             } catch (\Exception $e) {
                 \Log::error('Erreur envoi WhatsApp pour approbation besoin #' . $need->id . ': ' . $e->getMessage());
             }
@@ -277,9 +280,12 @@ class NeedController extends Controller
                 'rejection_reason' => $request->rejection_reason
             ]);
 
-            // Envoyer notification WhatsApp
+            // Envoyer notifications WhatsApp
             try {
+                // Notification à l'admin
                 $this->whatsappService->sendStatusUpdateNotification($need, $previousStatus);
+                // Notification au demandeur
+                $this->whatsappService->sendStatusUpdateNotificationToRequester($need, $previousStatus);
             } catch (\Exception $e) {
                 \Log::error('Erreur envoi WhatsApp pour rejet besoin #' . $need->id . ': ' . $e->getMessage());
             }

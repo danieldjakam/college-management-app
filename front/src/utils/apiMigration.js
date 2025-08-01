@@ -119,7 +119,8 @@ export const secureApiEndpoints = {
         login: (credentials) => authService.login(credentials),
         logout: () => authService.logout(),
         refresh: () => authService.refreshToken(),
-        me: () => authService.getCurrentUser()
+        me: () => authService.getCurrentUser(),
+        updateProfile: (data) => secureApi.put('/users/profile', data)
     },
 
     // === USERS ===
@@ -563,6 +564,30 @@ export const secureApiEndpoints = {
             headers: {}, // Pas de Content-Type pour FormData
             body: formData
         })
+    },
+
+    // === SUPERVISORS & ATTENDANCE ===
+    supervisors: {
+        // Gestion des affectations (admin uniquement)
+        assignToClass: (data) => secureApi.post('/supervisors/assign-to-class', data),
+        getAllAssignments: () => secureApi.get('/supervisors/all-assignments'),
+        deleteAssignment: (assignmentId) => secureApi.delete(`/supervisors/assignments/${assignmentId}`),
+        getSupervisorAssignments: (supervisorId) => secureApi.get(`/supervisors/${supervisorId}/assignments`),
+        
+        // Scanner QR et présences
+        scanQR: (data) => secureApi.post('/supervisors/scan-qr', data),
+        getDailyAttendance: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/supervisors/daily-attendance${queryString ? '?' + queryString : ''}`);
+        },
+        getAttendanceRange: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/supervisors/attendance-range${queryString ? '?' + queryString : ''}`);
+        },
+        
+        // Génération QR codes
+        generateStudentQR: (studentId) => secureApi.get(`/supervisors/generate-qr/${studentId}`),
+        generateAllQRs: () => secureApi.get('/supervisors/generate-all-qrs')
     }
 };
 
