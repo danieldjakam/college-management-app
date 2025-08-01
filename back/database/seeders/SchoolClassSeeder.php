@@ -76,14 +76,13 @@ class SchoolClassSeeder extends Seeder
     private function configurePaymentsForClass($schoolClass, $tranches, $level)
     {
         foreach ($tranches as $tranche) {
-            // Définir les montants selon le niveau
+            // Définir les montants selon le niveau (montant unique)
             $amounts = $this->getAmountsForLevel($level->name, $tranche->name);
             
             ClassPaymentAmount::create([
                 'class_id' => $schoolClass->id,
                 'payment_tranche_id' => $tranche->id,
-                'amount_new_students' => $amounts['new'],
-                'amount_old_students' => $amounts['old'],
+                'amount' => $amounts['amount'],
                 'is_required' => $amounts['required']
             ]);
         }
@@ -115,28 +114,24 @@ class SchoolClassSeeder extends Seeder
         switch ($trancheName) {
             case 'Inscription':
                 return [
-                    'new' => $levelAmounts['inscription'],
-                    'old' => $levelAmounts['inscription'] * 0.8, // 20% de réduction pour anciens
+                    'amount' => $levelAmounts['inscription'],
                     'required' => true
                 ];
             case '1ère Tranche':
             case '2ème Tranche':
             case '3ème Tranche':
                 return [
-                    'new' => $levelAmounts['tranche'],
-                    'old' => $levelAmounts['tranche'] * 0.9, // 10% de réduction pour anciens
+                    'amount' => $levelAmounts['tranche'],
                     'required' => true
                 ];
             case 'Examen':
                 return [
-                    'new' => 15000,
-                    'old' => 15000,
+                    'amount' => 15000,
                     'required' => false // Optionnel
                 ];
             default:
                 return [
-                    'new' => 25000,
-                    'old' => 22500,
+                    'amount' => 25000,
                     'required' => true
                 ];
         }

@@ -12,14 +12,12 @@ class ClassPaymentAmount extends Model
     protected $fillable = [
         'class_id',
         'payment_tranche_id',
-        'amount_new_students',
-        'amount_old_students',
+        'amount',
         'is_required'
     ];
 
     protected $casts = [
-        'amount_new_students' => 'decimal:2',
-        'amount_old_students' => 'decimal:2',
+        'amount' => 'decimal:2',
         'is_required' => 'boolean'
     ];
 
@@ -40,10 +38,10 @@ class ClassPaymentAmount extends Model
     }
 
     /**
-     * Obtenir le montant selon le type d'étudiant
+     * Obtenir le montant (simplifié - plus de différenciation nouveau/ancien)
      */
     public function getAmountForStudent($isNewStudent = true)
     {
-        return $isNewStudent ? $this->amount_new_students : $this->amount_old_students;
+        return $this->amount;
     }
 }

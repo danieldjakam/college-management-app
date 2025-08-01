@@ -33,8 +33,8 @@ const CreateSchoolClass = ({ show, onHide, onSuccess, sections, levels }) => {
                 ...prev,
                 payment_amounts: paymentTranches.map(tranche => ({
                     payment_tranche_id: tranche.id,
-                    new_student_amount: '',
-                    old_student_amount: ''
+                    amount: '',
+                    is_required: true
                 }))
             }));
         }
@@ -123,11 +123,7 @@ const CreateSchoolClass = ({ show, onHide, onSuccess, sections, levels }) => {
 
             // Validate payment amounts
             for (const amount of formData.payment_amounts) {
-                if (amount.new_student_amount && isNaN(amount.new_student_amount)) {
-                    Swal.fire('Erreur', 'Les montants doivent être des nombres', 'error');
-                    return;
-                }
-                if (amount.old_student_amount && isNaN(amount.old_student_amount)) {
+                if (amount.amount && isNaN(amount.amount)) {
                     Swal.fire('Erreur', 'Les montants doivent être des nombres', 'error');
                     return;
                 }
@@ -136,7 +132,7 @@ const CreateSchoolClass = ({ show, onHide, onSuccess, sections, levels }) => {
             const submissionData = {
                 ...formData,
                 payment_amounts: formData.payment_amounts.filter(amount => 
-                    amount.new_student_amount || amount.old_student_amount
+                    amount.amount
                 )
             };
 
@@ -374,30 +370,34 @@ const CreateSchoolClass = ({ show, onHide, onSuccess, sections, levels }) => {
                                             )}
                                             
                                             <div className="row">
-                                                <div className="col-md-6">
+                                                <div className="col-md-8">
                                                     <div className="mb-3">
-                                                        <label className="form-label">Nouvel élève (FCFA)</label>
+                                                        <label className="form-label">Montant (FCFA)</label>
                                                         <input
                                                             type="number"
                                                             className="form-control"
-                                                            value={paymentAmount?.new_student_amount || ''}
-                                                            onChange={(e) => handlePaymentAmountChange(tranche.id, 'new_student_amount', e.target.value)}
-                                                            placeholder="Montant pour nouveaux élèves"
+                                                            value={paymentAmount?.amount || ''}
+                                                            onChange={(e) => handlePaymentAmountChange(tranche.id, 'amount', e.target.value)}
+                                                            placeholder="Montant pour cette tranche"
                                                             min="0"
                                                         />
                                                     </div>
                                                 </div>
-                                                <div className="col-md-6">
+                                                <div className="col-md-4">
                                                     <div className="mb-3">
-                                                        <label className="form-label">Ancien élève (FCFA)</label>
-                                                        <input
-                                                            type="number"
-                                                            className="form-control"
-                                                            value={paymentAmount?.old_student_amount || ''}
-                                                            onChange={(e) => handlePaymentAmountChange(tranche.id, 'old_student_amount', e.target.value)}
-                                                            placeholder="Montant pour anciens élèves"
-                                                            min="0"
-                                                        />
+                                                        <label className="form-label">Obligatoire</label>
+                                                        <div className="form-check mt-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="form-check-input"
+                                                                id={`required-${tranche.id}`}
+                                                                checked={paymentAmount?.is_required !== false}
+                                                                onChange={(e) => handlePaymentAmountChange(tranche.id, 'is_required', e.target.checked)}
+                                                            />
+                                                            <label className="form-check-label" htmlFor={`required-${tranche.id}`}>
+                                                                Requis
+                                                            </label>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>

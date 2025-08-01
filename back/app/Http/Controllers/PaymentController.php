@@ -94,8 +94,8 @@ class PaymentController extends Controller
             $totalRequired = 0;
 
             foreach ($paymentTranches as $tranche) {
-                // Utiliser la nouvelle méthode qui gère les montants par défaut et les bourses
-                $requiredAmount = $tranche->getAmountForStudent($student, true, false, true); // Appliquer les bourses
+                // Utiliser la nouvelle méthode simplifiée qui gère les montants par défaut et les bourses
+                $requiredAmount = $tranche->getAmountForStudent($student, true, false, true); // Le paramètre isNewStudent n'a plus d'effet
                 if ($requiredAmount <= 0) continue;
                 
                 // La RAME est optionnelle et ne compte pas dans le total obligatoire à payer

@@ -101,8 +101,8 @@ class SchoolClassController extends Controller
             'series.*.is_active' => 'boolean',
             'payment_amounts' => 'nullable|array',
             'payment_amounts.*.payment_tranche_id' => 'required|exists:payment_tranches,id',
-            'payment_amounts.*.new_student_amount' => 'nullable|numeric|min:0',
-            'payment_amounts.*.old_student_amount' => 'nullable|numeric|min:0'
+            'payment_amounts.*.amount' => 'nullable|numeric|min:0',
+            'payment_amounts.*.is_required' => 'boolean'
         ]);
 
         if ($validator->fails()) {
@@ -138,13 +138,13 @@ class SchoolClassController extends Controller
             // Créer les montants de paiement si fournis
             if ($request->has('payment_amounts') && !empty($request->payment_amounts)) {
                 foreach ($request->payment_amounts as $paymentData) {
-                    // Ne créer que si au moins un montant est défini
-                    if (!empty($paymentData['new_student_amount']) || !empty($paymentData['old_student_amount'])) {
+                    // Ne créer que si un montant est défini
+                    if (!empty($paymentData['amount'])) {
                         ClassPaymentAmount::create([
                             'class_id' => $schoolClass->id,
                             'payment_tranche_id' => $paymentData['payment_tranche_id'],
-                            'amount_new_students' => $paymentData['new_student_amount'] ?? 0,
-                            'amount_old_students' => $paymentData['old_student_amount'] ?? 0
+                            'amount' => $paymentData['amount'] ?? 0,
+                            'is_required' => $paymentData['is_required'] ?? true
                         ]);
                     }
                 }
@@ -219,8 +219,8 @@ class SchoolClassController extends Controller
             'payment_amounts' => 'nullable|array',
             'payment_amounts.*.id' => 'nullable|exists:class_payment_amounts,id',
             'payment_amounts.*.payment_tranche_id' => 'required|exists:payment_tranches,id',
-            'payment_amounts.*.new_student_amount' => 'nullable|numeric|min:0',
-            'payment_amounts.*.old_student_amount' => 'nullable|numeric|min:0'
+            'payment_amounts.*.amount' => 'nullable|numeric|min:0',
+            'payment_amounts.*.is_required' => 'boolean'
         ]);
 
         if ($validator->fails()) {
@@ -288,15 +288,15 @@ class SchoolClassController extends Controller
                 $updatedPaymentIds = [];
 
                 foreach ($request->payment_amounts as $paymentData) {
-                    // Ne traiter que si au moins un montant est défini
-                    if (!empty($paymentData['new_student_amount']) || !empty($paymentData['old_student_amount'])) {
+                    // Ne traiter que si un montant est défini
+                    if (!empty($paymentData['amount'])) {
                         if (isset($paymentData['id'])) {
                             // Mise à jour d'un montant existant
                             $payment = ClassPaymentAmount::find($paymentData['id']);
                             if ($payment && $payment->class_id === $schoolClass->id) {
                                 $payment->update([
-                                    'amount_new_students' => $paymentData['new_student_amount'] ?? 0,
-                                    'amount_old_students' => $paymentData['old_student_amount'] ?? 0
+                                    'amount' => $paymentData['amount'] ?? 0,
+                                    'is_required' => $paymentData['is_required'] ?? true
                                 ]);
                                 $updatedPaymentIds[] = $payment->id;
                             }
@@ -305,8 +305,8 @@ class SchoolClassController extends Controller
                             $newPayment = ClassPaymentAmount::create([
                                 'class_id' => $schoolClass->id,
                                 'payment_tranche_id' => $paymentData['payment_tranche_id'],
-                                'amount_new_students' => $paymentData['new_student_amount'] ?? 0,
-                                'amount_old_students' => $paymentData['old_student_amount'] ?? 0
+                                'amount' => $paymentData['amount'] ?? 0,
+                                'is_required' => $paymentData['is_required'] ?? true
                             ]);
                             $updatedPaymentIds[] = $newPayment->id;
                         }
@@ -400,8 +400,7 @@ class SchoolClassController extends Controller
         $validator = Validator::make($request->all(), [
             'payment_amounts' => 'required|array',
             'payment_amounts.*.payment_tranche_id' => 'required|exists:payment_tranches,id',
-            'payment_amounts.*.amount_new_students' => 'required|numeric|min:0',
-            'payment_amounts.*.amount_old_students' => 'required|numeric|min:0',
+            'payment_amounts.*.amount' => 'required|numeric|min:0',
             'payment_amounts.*.is_required' => 'boolean'
         ]);
 
@@ -424,8 +423,7 @@ class SchoolClassController extends Controller
                 ClassPaymentAmount::create([
                     'class_id' => $schoolClass->id,
                     'payment_tranche_id' => $paymentData['payment_tranche_id'],
-                    'amount_new_students' => $paymentData['amount_new_students'],
-                    'amount_old_students' => $paymentData['amount_old_students'],
+                    'amount' => $paymentData['amount'],
                     'is_required' => $paymentData['is_required'] ?? true
                 ]);
             }

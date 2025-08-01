@@ -52,7 +52,7 @@ class PaymentTranche extends Model
     }
 
     /**
-     * Obtenir le montant pour un étudiant selon sa classe
+     * Obtenir le montant pour un étudiant selon sa classe (simplifié)
      */
     public function getAmountForStudent($student, $isNewStudent = true, $applyReduction = false, $applyScholarship = false)
     {
@@ -62,7 +62,7 @@ class PaymentTranche extends Model
         if ($this->use_default_amount && $this->default_amount) {
             $baseAmount = $this->default_amount;
         } else {
-            // Sinon, utiliser la logique existante par classe
+            // Sinon, utiliser le montant unique par classe
             $classPaymentAmount = $this->classPaymentAmounts()
                 ->where('class_id', $student->classSeries->schoolClass->id)
                 ->first();
@@ -71,9 +71,7 @@ class PaymentTranche extends Model
                 return 0;
             }
 
-            $baseAmount = $isNewStudent 
-                ? $classPaymentAmount->amount_new_students 
-                : $classPaymentAmount->amount_old_students;
+            $baseAmount = $classPaymentAmount->amount;
         }
         
         // Appliquer la réduction de 10% si l'étudiant y est éligible
