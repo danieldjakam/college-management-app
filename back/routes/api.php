@@ -319,6 +319,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/scan-qr', [SupervisorController::class, 'scanStudentQR'])->middleware(['role:admin,surveillant_general']);
         Route::get('/daily-attendance', [SupervisorController::class, 'getDailyAttendance'])->middleware(['role:admin,surveillant_general']);
         Route::get('/attendance-range', [SupervisorController::class, 'getAttendanceRange'])->middleware(['role:admin,surveillant_general']);
+        Route::post('/mark-absent-students', [SupervisorController::class, 'markAbsentStudents'])->middleware(['role:admin,surveillant_general']);
         
         // Routes pour génération codes QR
         Route::get('/generate-qr/{studentId}', [SupervisorController::class, 'generateStudentQR'])->middleware(['role:admin']);

@@ -89,6 +89,7 @@ class UserController extends Controller
                 'name' => 'sometimes|string|max:255',
                 'email' => 'sometimes|email|unique:users,email,' . $user->id,
                 'username' => 'sometimes|string|unique:users,username,' . $user->id,
+                'contact' => 'sometimes|nullable|string|max:50',
                 'password' => 'sometimes|string|min:8|confirmed'
             ]);
 

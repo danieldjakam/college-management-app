@@ -18,6 +18,9 @@ class Attendance extends Model
         'attendance_date',
         'scanned_at',
         'is_present',
+        'event_type',
+        'parent_notified',
+        'notified_at',
         'notes'
     ];
 
@@ -25,6 +28,8 @@ class Attendance extends Model
         'attendance_date' => 'date',
         'scanned_at' => 'datetime:H:i',
         'is_present' => 'boolean',
+        'parent_notified' => 'boolean',
+        'notified_at' => 'datetime',
     ];
 
     public function student()
@@ -80,5 +85,20 @@ class Attendance extends Model
     public function scopeForSchoolYear($query, $schoolYearId)
     {
         return $query->where('school_year_id', $schoolYearId);
+    }
+
+    public function scopeEntries($query)
+    {
+        return $query->where('event_type', 'entry');
+    }
+
+    public function scopeExits($query)
+    {
+        return $query->where('event_type', 'exit');
+    }
+
+    public function scopeNotNotified($query)
+    {
+        return $query->where('parent_notified', false);
     }
 }

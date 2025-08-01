@@ -74,6 +74,7 @@ const AppContent = () => {
   const { isAuthenticated, user } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -85,7 +86,11 @@ const AppContent = () => {
   }, []);
 
   const handleSidebarToggle = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
+    if (isMobile) {
+      setSidebarOpen(!sidebarOpen);
+    } else {
+      setSidebarCollapsed(!sidebarCollapsed);
+    }
   };
 
   return (
@@ -95,6 +100,8 @@ const AppContent = () => {
           <Sidebar
             isCollapsed={sidebarCollapsed}
             onToggle={handleSidebarToggle}
+            isOpen={sidebarOpen}
+            setIsOpen={setSidebarOpen}
           />
         )}
 
@@ -102,7 +109,9 @@ const AppContent = () => {
           className="main-content"
           style={{
             marginLeft: isAuthenticated
-              ? sidebarCollapsed && !isMobile
+              ? isMobile
+                ? "0"
+                : sidebarCollapsed
                 ? "80px"
                 : "280px"
               : "0",

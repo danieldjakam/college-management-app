@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\SchoolSetting;
 use App\Models\Need;
+use App\Models\Student;
+use App\Models\Attendance;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -43,23 +45,113 @@ class WhatsAppService
 
 
     /**
-     * Envoyer une notification de changement de statut
+     * Envoyer une notification de changement de statut à l'admin
      */
     public function sendStatusUpdateNotification(Need $need, $previousStatus)
     {
         $settings = SchoolSetting::getSettings();
         
-        if (!$settings->whatsapp_notifications_enabled || 
-            !$settings->whatsapp_notification_number ||
-            !$settings->whatsapp_api_url ||
-            !$settings->whatsapp_instance_id ||
-            !$settings->whatsapp_token) {
+        if (!$this->isWhatsAppConfigured()) {
             return false;
         }
 
         $message = $this->formatStatusUpdateMessage($need, $previousStatus);
         
         return $this->sendMessage($settings->whatsapp_notification_number, $message);
+    }
+
+    /**
+     * Envoyer une notification de changement de statut au demandeur
+     */
+    public function sendStatusUpdateNotificationToRequester(Need $need, $previousStatus)
+    {
+        if (!$this->isWhatsAppConfigured()) {
+            return false;
+        }
+
+        // Vérifier que l'utilisateur a un numéro de téléphone
+        if (!$need->user || !$need->user->contact) {
+            Log::info('Utilisateur sans numéro de téléphone pour notification WhatsApp', [
+                'need_id' => $need->id,
+                'user_id' => $need->user_id
+            ]);
+            return false;
+        }
+
+        $message = $this->formatStatusUpdateMessageForRequester($need, $previousStatus);
+        
+        return $this->sendMessage($need->user->contact, $message);
+    }
+
+    /**
+     * Envoyer une notification d'entrée/sortie aux parents
+     */
+    public function sendAttendanceNotification(Attendance $attendance)
+    {
+        if (!$this->isWhatsAppConfigured()) {
+            return false;
+        }
+
+        $student = $attendance->student;
+        
+        // Vérifier que l'étudiant a un contact parent
+        if (!$student || !$student->parent_phone) {
+            Log::info('Étudiant sans contact parent pour notification WhatsApp', [
+                'attendance_id' => $attendance->id,
+                'student_id' => $student ? $student->id : null
+            ]);
+            return false;
+        }
+
+        $message = $this->formatAttendanceMessage($attendance);
+        
+        $result = $this->sendMessage($student->parent_phone, $message);
+        
+        if ($result) {
+            // Marquer comme notifié
+            $attendance->update([
+                'parent_notified' => true,
+                'notified_at' => now()
+            ]);
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Formater le message de notification d'entrée/sortie
+     */
+    protected function formatAttendanceMessage(Attendance $attendance)
+    {
+        $schoolName = SchoolSetting::getSettings()->school_name ?? 'École';
+        $student = $attendance->student;
+        
+        // Gérer les absences
+        if (!$attendance->is_present) {
+            return "⚠️ *ABSENCE SIGNALÉE - {$schoolName}*\n\n" .
+                   "👤 *Élève:* {$student->full_name}\n" .
+                   "📚 *Classe:* " . ($student->classSeries->name ?? 'N/A') . "\n" .
+                   "📅 *Date:* " . $attendance->attendance_date->format('d/m/Y') . "\n" .
+                   "🕐 *Heure de contrôle:* " . $attendance->scanned_at->format('H:i') . "\n\n" .
+                   "❌ Votre enfant n'était pas présent lors du contrôle de présence.\n\n" .
+                   "📞 Veuillez contacter l'école si votre enfant devait être présent.\n\n" .
+                   "📱 Notification automatique du système de gestion scolaire.";
+        }
+        
+        // Messages pour présences (entrée/sortie)
+        $eventIcon = $attendance->event_type === 'entry' ? '🟢' : '🔴';
+        $eventText = $attendance->event_type === 'entry' ? 'ENTRÉE' : 'SORTIE';
+        $eventMessage = $attendance->event_type === 'entry' 
+            ? 'est arrivé(e) à l\'école' 
+            : 'a quitté l\'école';
+        
+        return "{$eventIcon} *{$eventText} DÉTECTÉE - {$schoolName}*\n\n" .
+               "👤 *Élève:* {$student->full_name}\n" .
+               "📚 *Classe:* " . ($student->classSeries->name ?? 'N/A') . "\n" .
+               "🕐 *Heure:* " . $attendance->scanned_at->format('H:i') . "\n" .
+               "📅 *Date:* " . $attendance->attendance_date->format('d/m/Y') . "\n\n" .
+               "ℹ️ Votre enfant {$eventMessage} à {$attendance->scanned_at->format('H:i')}.\n\n" .
+               "📱 Notification automatique du système de gestion scolaire.";
     }
 
     /**
@@ -80,7 +172,7 @@ class WhatsAppService
 
 
     /**
-     * Formater le message pour un changement de statut
+     * Formater le message pour un changement de statut (admin)
      */
     protected function formatStatusUpdateMessage(Need $need, $previousStatus)
     {
@@ -100,6 +192,35 @@ class WhatsAppService
                "📅 *Le:* {$approvedDate}\n\n" .
                $rejectionText .
                "ℹ️ Besoin traité dans le système de gestion.";
+    }
+
+    /**
+     * Formater le message pour un changement de statut (demandeur)
+     */
+    protected function formatStatusUpdateMessageForRequester(Need $need, $previousStatus)
+    {
+        $schoolName = SchoolSetting::getSettings()->school_name ?? 'École';
+        $statusIcon = $need->isApproved() ? '✅' : '❌';
+        
+        if ($need->isApproved()) {
+            return "✅ *BONNE NOUVELLE !*\n\n" .
+                   "Votre demande de besoin a été *APPROUVÉE* par l'administration de {$schoolName}.\n\n" .
+                   "📝 *Besoin:* {$need->name}\n" .
+                   "💰 *Montant:* {$need->formatted_amount}\n" .
+                   "📅 *Approuvé le:* " . $need->approved_at->format('d/m/Y à H:i') . "\n\n" .
+                   "🎉 Votre demande a été acceptée. Vous pouvez vous rapprocher de l'administration pour la suite des démarches.\n\n" .
+                   "Merci pour votre confiance !";
+        } else {
+            $rejectionText = $need->rejection_reason ? "\n\n📝 *Motif:* {$need->rejection_reason}" : '';
+            
+            return "❌ *DEMANDE REJETÉE*\n\n" .
+                   "Nous regrettons de vous informer que votre demande de besoin a été *REJETÉE* par l'administration de {$schoolName}.\n\n" .
+                   "📝 *Besoin:* {$need->name}\n" .
+                   "💰 *Montant:* {$need->formatted_amount}\n" .
+                   "📅 *Rejeté le:* " . $need->approved_at->format('d/m/Y à H:i') . 
+                   $rejectionText . "\n\n" .
+                   "💡 N'hésitez pas à contacter l'administration pour plus d'informations ou à soumettre une nouvelle demande si nécessaire.";
+        }
     }
 
     /**
@@ -240,9 +361,55 @@ class WhatsAppService
 
         $result = $this->sendMessage($settings->whatsapp_notification_number, $testMessage);
 
+        if (!$result) {
+            // Vérifier les logs pour donner un message d'erreur plus spécifique
+            $recentLogs = $this->getRecentWhatsAppError();
+            if (strpos($recentLogs, 'non-payment') !== false || strpos($recentLogs, 'Stopped') !== false) {
+                return [
+                    'success' => false,
+                    'message' => '❌ Instance UltraMsg suspendue pour non-paiement. Veuillez renouveler votre abonnement UltraMsg.'
+                ];
+            } elseif (strpos($recentLogs, 'Path not found') !== false) {
+                return [
+                    'success' => false,
+                    'message' => '❌ URL ou Instance ID incorrect. Vérifiez vos paramètres UltraMsg.'
+                ];
+            } else {
+                return [
+                    'success' => false,
+                    'message' => '❌ Échec de l\'envoi du test. Vérifiez votre configuration UltraMsg (Instance ID, Token, numéro de téléphone).'
+                ];
+            }
+        }
+
         return [
-            'success' => $result,
-            'message' => $result ? 'Test envoyé avec succès via UltraMsg' : 'Échec de l\'envoi du test. Vérifiez les logs pour plus de détails.'
+            'success' => true,
+            'message' => '✅ Test envoyé avec succès via UltraMsg'
         ];
+    }
+
+    /**
+     * Récupérer la dernière erreur WhatsApp des logs
+     */
+    private function getRecentWhatsAppError()
+    {
+        try {
+            $logFile = storage_path('logs/laravel.log');
+            if (!file_exists($logFile)) return '';
+            
+            $logs = file_get_contents($logFile);
+            $lines = explode("\n", $logs);
+            $recentLines = array_slice($lines, -50); // Dernières 50 lignes
+            
+            foreach (array_reverse($recentLines) as $line) {
+                if (strpos($line, 'WhatsApp') !== false || strpos($line, 'UltraMsg') !== false) {
+                    return $line;
+                }
+            }
+            
+            return '';
+        } catch (\Exception $e) {
+            return '';
+        }
     }
 }

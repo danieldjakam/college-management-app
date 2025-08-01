@@ -11,8 +11,7 @@ import {
     X,
     Eye,
     EyeSlash,
-    Telephone,
-    GeoAlt
+    Telephone
 } from 'react-bootstrap-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { secureApiEndpoints } from '../../utils/apiMigration';
@@ -34,8 +33,7 @@ const UserProfile = () => {
     const [profileData, setProfileData] = useState({
         name: '',
         email: '',
-        phone: '',
-        address: ''
+        contact: ''
     });
     
     // Password form data
@@ -58,8 +56,7 @@ const UserProfile = () => {
             setProfileData({
                 name: user.name || '',
                 email: user.email || '',
-                phone: user.phone || '',
-                address: user.address || ''
+                contact: user.contact || ''
             });
             
             // Load school year data for admin and accountant
@@ -101,7 +98,7 @@ const UserProfile = () => {
                 setIsEditing(false);
                 
                 // Update user in auth context
-                updateUser(response.data.user);
+                updateUser(response.data);
                 
                 Swal.fire({
                     title: 'Succès',
@@ -397,24 +394,10 @@ const UserProfile = () => {
                                                     <input
                                                         type="tel"
                                                         className="form-control"
-                                                        value={profileData.phone}
+                                                        value={profileData.contact}
                                                         onChange={(e) => setProfileData({
                                                             ...profileData,
-                                                            phone: e.target.value
-                                                        })}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="col-md-6">
-                                                <div className="mb-3">
-                                                    <label className="form-label">Adresse</label>
-                                                    <input
-                                                        type="text"
-                                                        className="form-control"
-                                                        value={profileData.address}
-                                                        onChange={(e) => setProfileData({
-                                                            ...profileData,
-                                                            address: e.target.value
+                                                            contact: e.target.value
                                                         })}
                                                     />
                                                 </div>
@@ -447,8 +430,7 @@ const UserProfile = () => {
                                                     setProfileData({
                                                         name: user.name || '',
                                                         email: user.email || '',
-                                                        phone: user.phone || '',
-                                                        address: user.address || ''
+                                                        contact: user.contact || ''
                                                     });
                                                 }}
                                             >
@@ -468,7 +450,7 @@ const UserProfile = () => {
                                                 <label className="form-label text-muted">Téléphone</label>
                                                 <p className="fw-medium">
                                                     <Telephone size={16} className="me-1" />
-                                                    {user.phone || 'Non renseigné'}
+                                                    {user.contact || 'Non renseigné'}
                                                 </p>
                                             </div>
                                         </div>
@@ -478,13 +460,6 @@ const UserProfile = () => {
                                                 <p className="fw-medium">
                                                     <Envelope size={16} className="me-1" />
                                                     {user.email}
-                                                </p>
-                                            </div>
-                                            <div className="mb-3">
-                                                <label className="form-label text-muted">Adresse</label>
-                                                <p className="fw-medium">
-                                                    <GeoAlt size={16} className="me-1" />
-                                                    {user.address || 'Non renseignée'}
                                                 </p>
                                             </div>
                                         </div>

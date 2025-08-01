@@ -8,6 +8,7 @@ use App\Models\Student;
 use App\Models\SchoolClass;
 use App\Models\SchoolYear;
 use App\Models\User;
+use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
@@ -89,7 +90,8 @@ class SupervisorController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'student_qr_code' => 'required|string',
-            'supervisor_id' => 'required|exists:users,id'
+            'supervisor_id' => 'required|exists:users,id',
+            'event_type' => 'required|in:entry,exit'
         ]);
 
         if ($validator->fails()) {
@@ -127,9 +129,21 @@ class SupervisorController extends Controller
             ], 422);
         }
 
+        // Obtenir la school_class_id via la relation classSeries
+        $student->load('classSeries');
+        $schoolClassId = $student->classSeries ? $student->classSeries->class_id : null;
+        
+        if (!$schoolClassId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Classe de l\'étudiant introuvable',
+                'student_name' => $student->full_name
+            ], 422);
+        }
+
         // Vérifier si le surveillant est affecté à la classe de l'étudiant
         $assignment = SupervisorClassAssignment::where('supervisor_id', $request->supervisor_id)
-            ->where('school_class_id', $student->class_series_id)
+            ->where('school_class_id', $schoolClassId)
             ->where('school_year_id', $currentSchoolYear->id)
             ->active()
             ->first();
@@ -144,38 +158,80 @@ class SupervisorController extends Controller
         }
 
         $today = Carbon::today();
+        $eventType = $request->event_type;
 
-        // Vérifier si l'élève est déjà marqué présent aujourd'hui
-        $existingAttendance = Attendance::where('student_id', $studentId)
-            ->forDate($today)
-            ->first();
+        // Logique différente selon le type d'événement
+        if ($eventType === 'entry') {
+            // Vérifier si l'élève a déjà une entrée aujourd'hui
+            $existingEntry = Attendance::where('student_id', $studentId)
+                ->forDate($today)
+                ->where('event_type', 'entry')
+                ->first();
 
-        if ($existingAttendance) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cet élève est déjà marqué présent aujourd\'hui',
-                'student_name' => $student->full_name,
-                'marked_at' => $existingAttendance->scanned_at->format('H:i')
-            ], 422);
+            if ($existingEntry) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet élève a déjà une entrée enregistrée aujourd\'hui',
+                    'student_name' => $student->full_name,
+                    'marked_at' => $existingEntry->scanned_at->format('H:i')
+                ], 422);
+            }
+        } else {
+            // Pour une sortie, vérifier qu'il y a une entrée sans sortie
+            $lastEntry = Attendance::where('student_id', $studentId)
+                ->forDate($today)
+                ->where('event_type', 'entry')
+                ->first();
+
+            if (!$lastEntry) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune entrée trouvée pour cet élève aujourd\'hui',
+                    'student_name' => $student->full_name
+                ], 422);
+            }
+
+            $existingExit = Attendance::where('student_id', $studentId)
+                ->forDate($today)
+                ->where('event_type', 'exit')
+                ->first();
+
+            if ($existingExit) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet élève a déjà une sortie enregistrée aujourd\'hui',
+                    'student_name' => $student->full_name,
+                    'marked_at' => $existingExit->scanned_at->format('H:i')
+                ], 422);
+            }
         }
 
         try {
             $attendance = Attendance::create([
                 'student_id' => $studentId,
                 'supervisor_id' => $request->supervisor_id,
-                'school_class_id' => $student->class_series_id,
+                'school_class_id' => $schoolClassId,
                 'school_year_id' => $currentSchoolYear->id,
                 'attendance_date' => $today,
                 'scanned_at' => Carbon::now(),
-                'is_present' => true
+                'is_present' => true,
+                'event_type' => $eventType
             ]);
 
+            // Envoyer notification WhatsApp aux parents
+            $whatsAppService = new WhatsAppService();
+            $whatsAppService->sendAttendanceNotification($attendance);
+
+            $eventLabel = $eventType === 'entry' ? 'Entrée' : 'Sortie';
+            
             return response()->json([
                 'success' => true,
-                'message' => 'Présence marquée avec succès',
+                'message' => $eventLabel . ' enregistrée avec succès',
                 'data' => [
                     'student_name' => $student->full_name,
                     'class_name' => $student->classSeries->name ?? 'Classe inconnue',
+                    'event_type' => $eventType,
+                    'event_label' => $eventLabel,
                     'marked_at' => $attendance->scanned_at->format('H:i'),
                     'date' => $attendance->attendance_date->format('d/m/Y')
                 ]
@@ -183,7 +239,7 @@ class SupervisorController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de l\'enregistrement de la présence'
+                'message' => 'Erreur lors de l\'enregistrement de la ' . ($eventType === 'entry' ? 'entrée' : 'sortie')
             ], 500);
         }
     }
@@ -326,6 +382,114 @@ class SupervisorController extends Controller
                 'end_date' => $request->end_date,
                 'total_records' => $attendances->count(),
                 'attendances' => $attendances
+            ]
+        ]);
+    }
+
+    public function markAbsentStudents(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'supervisor_id' => 'required|exists:users,id',
+            'school_class_id' => 'required|exists:school_classes,id',
+            'attendance_date' => 'required|date'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Données invalides',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $supervisorId = $request->supervisor_id;
+        $classId = $request->school_class_id;
+        $attendanceDate = $request->attendance_date;
+        $currentSchoolYear = SchoolYear::where('is_active', true)->first();
+
+        // Vérifier que le superviseur est assigné à cette classe
+        $assignment = SupervisorClassAssignment::where('supervisor_id', $supervisorId)
+            ->where('school_class_id', $classId)
+            ->where('school_year_id', $currentSchoolYear->id)
+            ->active()
+            ->first();
+
+        if (!$assignment) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous n\'êtes pas assigné à cette classe'
+            ], 403);
+        }
+
+        // Obtenir tous les étudiants actifs de cette classe
+        $allStudents = Student::whereHas('classSeries', function($query) use ($classId) {
+            $query->where('class_id', $classId);
+        })
+        ->where('is_active', true)
+        ->get();
+
+        // Obtenir les étudiants déjà présents aujourd'hui
+        $presentStudentIds = Attendance::where('school_class_id', $classId)
+            ->where('attendance_date', $attendanceDate)
+            ->where('is_present', true)
+            ->pluck('student_id')
+            ->toArray();
+
+        // Étudiants absents = tous les étudiants - ceux présents
+        $absentStudents = $allStudents->whereNotIn('id', $presentStudentIds);
+
+        $createdCount = 0;
+        $whatsAppService = new WhatsAppService();
+
+        foreach ($absentStudents as $student) {
+            // Vérifier si l'étudiant n'a pas déjà un enregistrement d'absence
+            $existingRecord = Attendance::where('student_id', $student->id)
+                ->where('attendance_date', $attendanceDate)
+                ->first();
+
+            if (!$existingRecord) {
+                try {
+                    $attendance = Attendance::create([
+                        'student_id' => $student->id,
+                        'supervisor_id' => $supervisorId,
+                        'school_class_id' => $classId,
+                        'school_year_id' => $currentSchoolYear->id,
+                        'attendance_date' => $attendanceDate,
+                        'scanned_at' => now()->format('H:i:s'),
+                        'is_present' => false,
+                        'event_type' => 'entry', // Marqué comme absence d'entrée
+                        'parent_notified' => false,
+                        'notified_at' => null,
+                    ]);
+
+                    // Envoyer notification WhatsApp aux parents pour absence
+                    try {
+                        $whatsAppService->sendAttendanceNotification($attendance);
+                        $attendance->update([
+                            'parent_notified' => true,
+                            'notified_at' => now()
+                        ]);
+                    } catch (\Exception $e) {
+                        // Log l'erreur mais ne pas faire échouer l'opération
+                        \Log::warning('Erreur notification WhatsApp absence: ' . $e->getMessage());
+                    }
+
+                    $createdCount++;
+                } catch (\Exception $e) {
+                    // Log l'erreur mais continuer avec les autres étudiants
+                    \Log::error('Erreur création attendance absence: ' . $e->getMessage());
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$createdCount} étudiant(s) marqué(s) comme absent(s)",
+            'data' => [
+                'total_students' => $allStudents->count(),
+                'present_students' => count($presentStudentIds),
+                'absent_students_marked' => $createdCount,
+                'attendance_date' => $attendanceDate
             ]
         ]);
     }
