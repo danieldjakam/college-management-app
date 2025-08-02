@@ -28,11 +28,10 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
 
   // Debug pour le logo
   const getLogoSrc = () => {
-    // const logoUrl = getLogoUrl();
-    // console.log("School logo path:", schoolSettings.school_logo);
-    // console.log("Generated logo URL:", logoUrl);
-    // return logoUrl || logo;
-    return logo;
+    const logoUrl = getLogoUrl();
+    console.log("School logo path:", schoolSettings.school_logo);
+    console.log("Generated logo URL:", logoUrl);
+    return logoUrl || logo;
   };
 
   useEffect(() => {

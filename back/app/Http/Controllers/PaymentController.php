@@ -879,6 +879,15 @@ class PaymentController extends Controller
                 .header { 
                     text-align: center; 
                     margin-bottom: 20px; 
+                    position: relative;
+                }
+                .logo {
+                    position: absolute;
+                    left: 20px;
+                    top: 0;
+                    width: 60px;
+                    height: 60px;
+                    object-fit: contain;
                 }
                 .school-name { 
                     font-size: 16px; 
@@ -958,6 +967,7 @@ class PaymentController extends Controller
             </div>
             
             <div class='header'>
+                " . ($schoolSettings->school_logo ? "<img src='" . url('storage/' . $schoolSettings->school_logo) . "' alt='Logo école' class='logo'>" : "") . "
                 <div class='school-name'>{$schoolSettings->school_name}</div>
                 <div class='academic-year'>Année académique : " . $workingYear->name . "</div>
                 <div class='receipt-title'>REÇU PENSION/FRAIS DIVERS</div>
