@@ -777,14 +777,40 @@ class PaymentController extends Controller
         $workingYear = $payment->schoolYear;
         $paymentStatus = $this->getPaymentStatusAtTime($student, $payment);
 
+        // Vérifier si l'élève a payé sa RAME (physique ou électronique)
+        $hasRamePaid = $this->checkIfRamePaid($student, $workingYear, $payment);
+
         // Générer le tableau des détails de paiement
         $paymentDetailsRows = '';
         $operationNumber = 1;
+        
+        // Ajouter TOUJOURS la ligne RAME en premier
+        $rameValidationDate = \Carbon\Carbon::parse($payment->versement_date)->format('d/m/Y');
+        if ($hasRamePaid['paid']) {
+            $rameBankName = 'local';
+            $rameAmount = '1';
+        } else {
+            $rameBankName = 'N/A';
+            $rameAmount = '0';
+        }
+        
+        $paymentDetailsRows .= "
+            <tr>
+                <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$operationNumber}</td>
+                <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$rameBankName}</td>
+                <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$rameValidationDate}</td>
+                <td style='border: 1px solid #000; padding: 4px; text-align: center;'>RAME</td>
+                <td style='border: 1px solid #000; padding: 4px; text-align: right;'>{$rameAmount}</td>
+            </tr>
+        ";
+        $operationNumber++;
+
+        // Ensuite, ajouter les autres détails de paiement
         foreach ($payment->paymentDetails as $detail) {
             $trancheName = $detail->paymentTranche->name;
-            $bankName = $schoolSettings->bank_name ?? 'N/A';
             $validationDate = \Carbon\Carbon::parse($payment->versement_date)->format('d/m/Y');
             $paymentType = $trancheName; // Afficher la tranche affectée
+            $bankName = $schoolSettings->bank_name ?? 'N/A';
             $amount = $formatAmount($detail->amount_allocated);
             
             $paymentDetailsRows .= "
@@ -824,6 +850,14 @@ class PaymentController extends Controller
                 $effectiveRemaining = max(0, $trancheRemaining - $discountAmount);
             }
             
+            // Déterminer le statut de paiement de la tranche
+            $trancheStatus = '';
+            if ($effectiveRemaining <= 0) {
+                $trancheStatus = "<span style='color: #28a745; font-weight: bold;'>PAYÉ</span>";
+            } else {
+                $trancheStatus = "<span style='color: #dc3545; font-weight: bold;'>NON PAYÉ</span>";
+            }
+            
             $recapRows .= "
                 <tr>
                     <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$tranche['tranche']->name}</td>
@@ -832,6 +866,7 @@ class PaymentController extends Controller
                     <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($discountAmount) . "</td>
                     <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($scholarshipAmount) . "</td>
                     <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($effectiveRemaining) . "</td>
+                    <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$trancheStatus}</td>
                 </tr>
             ";
             
@@ -851,6 +886,7 @@ class PaymentController extends Controller
                 <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($totalDiscount) . "</td>
                 <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($totalScholarship) . "</td>
                 <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($totalRemaining) . "</td>
+                <td style='border: 1px solid #000; padding: 4px; text-align: center;'>-</td>
             </tr>
         ";
 
@@ -861,6 +897,7 @@ class PaymentController extends Controller
         } elseif ($payment->has_reduction && $payment->reduction_amount > 0) {
             $benefitInfo = "Réduction: " . $formatAmount($payment->reduction_amount) . " FCFA";
         }
+
 
         // HTML du reçu selon le format de l'exemple
         $html = "
@@ -981,6 +1018,7 @@ class PaymentController extends Controller
                 " . ($benefitInfo ? "<div><strong>Motif ou rabais :</strong> {$benefitInfo}</div>" : "") . "
             </div>
 
+
             <table class='payment-table'>
                 <thead>
                     <tr>
@@ -1007,6 +1045,7 @@ class PaymentController extends Controller
                             <th>Réduction</th>
                             <th>Bourse</th>
                             <th>Reste à payer</th>
+                            <th>Statut</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1386,6 +1425,22 @@ class PaymentController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Vérifier si l'élève a apporté sa RAME
+     */
+    private function checkIfRamePaid($student, $workingYear, $currentPayment)
+    {
+        $rameStatus = \App\Models\StudentRameStatus::where('student_id', $student->id)
+            ->where('school_year_id', $workingYear->id)
+            ->first();
+
+        if ($rameStatus && $rameStatus->has_brought_rame) {
+            return ['paid' => true, 'type' => 'physical'];
+        }
+
+        return ['paid' => false, 'type' => null];
     }
 
     /**
