@@ -770,38 +770,99 @@ class PaymentController extends Controller
         
         // Formatage des montants
         $formatAmount = function($amount) {
-            return number_format($amount, 0, ',', ' ') . ' FCFA';
+            return number_format($amount, 0, ',', ' ');
         };
 
-        // Calcul des détails avec bourse ou réduction
-        $benefitText = '';
-        if ($payment->has_scholarship && $payment->scholarship_amount > 0) {
-            $totalValue = $payment->total_amount + $payment->scholarship_amount;
-            $benefitText = "
+        // Obtenir le statut récapitulatif des paiements AU MOMENT de ce paiement
+        $workingYear = $payment->schoolYear;
+        $paymentStatus = $this->getPaymentStatusAtTime($student, $payment);
+
+        // Générer le tableau des détails de paiement
+        $paymentDetailsRows = '';
+        $operationNumber = 1;
+        foreach ($payment->paymentDetails as $detail) {
+            $trancheName = $detail->paymentTranche->name;
+            $bankName = $schoolSettings->bank_name ?? 'N/A';
+            $validationDate = \Carbon\Carbon::parse($payment->versement_date)->format('d/m/Y');
+            $paymentType = $trancheName; // Afficher la tranche affectée
+            $amount = $formatAmount($detail->amount_allocated);
+            
+            $paymentDetailsRows .= "
                 <tr>
-                    <td colspan='2' style='text-align: center; padding: 10px; background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb;'>
-                        <strong>Détail avec bourse :</strong><br>
-                        Montant payé: {$formatAmount($payment->total_amount)} + 
-                        Bourse: {$formatAmount($payment->scholarship_amount)} = 
-                        <strong>Valeur totale: {$formatAmount($totalValue)}</strong>
-                    </td>
+                    <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$operationNumber}</td>
+                    <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$bankName}</td>
+                    <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$validationDate}</td>
+                    <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$paymentType}</td>
+                    <td style='border: 1px solid #000; padding: 4px; text-align: right;'>{$amount}</td>
                 </tr>
             ";
-        } elseif ($payment->has_reduction && $payment->reduction_amount > 0) {
-            $totalValue = $payment->total_amount + $payment->reduction_amount;
-            $benefitText = "
-                <tr>
-                    <td colspan='2' style='text-align: center; padding: 10px; background-color: #cff4fc; color: #055160; border: 1px solid #9eeaf9;'>
-                        <strong>Détail avec réduction :</strong><br>
-                        Montant payé: {$formatAmount($payment->total_amount)} + 
-                        Réduction: {$formatAmount($payment->reduction_amount)} = 
-                        <strong>Valeur totale: {$formatAmount($totalValue)}</strong>
-                    </td>
-                </tr>
-            ";
+            $operationNumber++;
         }
 
-        // HTML du reçu
+        // Générer le tableau récapitulatif des tranches
+        $recapRows = '';
+        $totalRequired = 0;
+        $totalPaid = 0;
+        $totalDiscount = 0;
+        $totalScholarship = 0;
+        $totalRemaining = 0;
+        
+        foreach ($paymentStatus->tranche_status as $tranche) {
+            $trancheRequired = $tranche['required_amount'];
+            $tranchePaid = $tranche['paid_amount'];
+            $trancheRemaining = $tranche['remaining_amount'];
+            
+            // Montants de réduction et bourse
+            $discountAmount = $tranche['has_global_discount'] ? $tranche['global_discount_amount'] : 0;
+            $scholarshipAmount = $tranche['has_scholarship'] ? $tranche['scholarship_amount'] : 0;
+            
+            // Calculer le reste effectif après bourses/réductions
+            $effectiveRemaining = $trancheRemaining;
+            if ($scholarshipAmount > 0) {
+                $effectiveRemaining = max(0, $trancheRemaining - $scholarshipAmount);
+            } elseif ($discountAmount > 0) {
+                $effectiveRemaining = max(0, $trancheRemaining - $discountAmount);
+            }
+            
+            $recapRows .= "
+                <tr>
+                    <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$tranche['tranche']->name}</td>
+                    <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($trancheRequired) . "</td>
+                    <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($tranchePaid) . "</td>
+                    <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($discountAmount) . "</td>
+                    <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($scholarshipAmount) . "</td>
+                    <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($effectiveRemaining) . "</td>
+                </tr>
+            ";
+            
+            $totalRequired += $trancheRequired;
+            $totalPaid += $tranchePaid;
+            $totalDiscount += $discountAmount;
+            $totalScholarship += $scholarshipAmount;
+            $totalRemaining += $effectiveRemaining;
+        }
+
+        // Ajouter la ligne de total
+        $recapRows .= "
+            <tr style='font-weight: bold; background-color: #f0f0f0;'>
+                <td style='border: 1px solid #000; padding: 4px; text-align: center;'>TOTAL</td>
+                <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($totalRequired) . "</td>
+                <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($totalPaid) . "</td>
+                <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($totalDiscount) . "</td>
+                <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($totalScholarship) . "</td>
+                <td style='border: 1px solid #000; padding: 4px; text-align: right;'>" . $formatAmount($totalRemaining) . "</td>
+            </tr>
+        ";
+
+        // Informations sur les avantages
+        $benefitInfo = '';
+        if ($payment->has_scholarship && $payment->scholarship_amount > 0) {
+            $benefitInfo = "Bourse: " . $formatAmount($payment->scholarship_amount) . " FCFA";
+        } elseif ($payment->has_reduction && $payment->reduction_amount > 0) {
+            $benefitInfo = "Réduction: " . $formatAmount($payment->reduction_amount) . " FCFA";
+        }
+
+        // HTML du reçu selon le format de l'exemple
         $html = "
         <!DOCTYPE html>
         <html>
@@ -809,92 +870,297 @@ class PaymentController extends Controller
             <meta charset='utf-8'>
             <title>Reçu de Paiement - {$payment->receipt_number}</title>
             <style>
-                body { font-family: Arial, sans-serif; margin: 20px; }
-                .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
-                .school-name { font-size: 24px; font-weight: bold; color: #333; }
-                .receipt-title { font-size: 18px; margin-top: 10px; color: #666; }
-                .receipt-number { font-size: 16px; margin-top: 5px; color: #999; }
-                .content { margin: 20px 0; }
-                .info-table { width: 100%; border-collapse: collapse; }
-                .info-table td { padding: 8px; border: 1px solid #ddd; }
-                .info-table .label { font-weight: bold; background-color: #f8f9fa; width: 30%; }
-                .amount-section { margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 5px; }
-                .amount-large { font-size: 20px; font-weight: bold; color: #28a745; }
-                .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; }
-                .signature-section { margin-top: 50px; display: flex; justify-content: space-between; }
-                .signature-box { width: 45%; text-align: center; border-top: 1px solid #333; padding-top: 10px; }
+                body { 
+                    font-family: Arial, sans-serif; 
+                    margin: 20px; 
+                    font-size: 12px;
+                    line-height: 1.2;
+                }
+                .header { 
+                    text-align: center; 
+                    margin-bottom: 20px; 
+                }
+                .school-name { 
+                    font-size: 16px; 
+                    font-weight: bold; 
+                    margin-bottom: 5px;
+                }
+                .academic-year {
+                    font-size: 12px;
+                    margin-bottom: 10px;
+                }
+                .receipt-title { 
+                    font-size: 14px; 
+                    font-weight: bold;
+                    text-decoration: underline;
+                    margin: 15px 0;
+                }
+                .student-info {
+                    margin: 15px 0;
+                    text-align: left;
+                }
+                .student-info div {
+                    margin: 3px 0;
+                }
+                .payment-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 15px 0;
+                    font-size: 11px;
+                }
+                .payment-table th {
+                    border: 1px solid #000;
+                    padding: 4px;
+                    background-color: #f0f0f0;
+                    text-align: center;
+                    font-weight: bold;
+                }
+                .recap-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 15px 0;
+                    font-size: 11px;
+                }
+                .recap-table th {
+                    border: 1px solid #000;
+                    padding: 4px;
+                    background-color: #f0f0f0;
+                    text-align: center;
+                    font-weight: bold;
+                }
+                .footer-info {
+                    margin-top: 20px;
+                    font-size: 10px;
+                    line-height: 1.4;
+                }
+                .signature-section {
+                    margin-top: 30px;
+                    text-align: right;
+                    font-size: 11px;
+                }
+                .date-time {
+                    position: absolute;
+                    top: 20px;
+                    right: 20px;
+                    font-size: 10px;
+                }
+                .float-right {
+                    float: right;
+                }
+                .clearfix {
+                    clear: both;
+                }
             </style>
         </head>
         <body>
+            <div class='date-time'>
+                Le " . now()->format('d/m/Y H:i:s') . "
+            </div>
+            
             <div class='header'>
                 <div class='school-name'>{$schoolSettings->school_name}</div>
-                <div class='receipt-title'>REÇU DE PAIEMENT</div>
-                <div class='receipt-number'>N° {$payment->receipt_number}</div>
+                <div class='academic-year'>Année académique : " . $workingYear->name . "</div>
+                <div class='receipt-title'>REÇU PENSION/FRAIS DIVERS</div>
             </div>
 
-            <div class='content'>
-                <table class='info-table'>
+            <div class='student-info'>
+                <div><strong>Matricule :</strong> " . ($student->student_number ?? 'N/A') . "</div>
+                <div><strong>Nom :</strong> {$student->last_name} {$student->first_name} <span class='float-right'><strong>Prénom :</strong></span></div>
+                <div><strong>Classe :</strong> " . ($schoolClass ? $schoolClass->name : 'Non défini') . "</div>
+                <div><strong>Inscription :</strong> " . $formatAmount($paymentStatus->tranche_status[0]['required_amount'] ?? 0) . " <span style='margin-left: 50px;'>Le " . \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y') . "</span> <span class='float-right'><strong>Banque :</strong> " . ($schoolSettings->bank_name ?? 'N/A') . "</span></div>
+                " . ($benefitInfo ? "<div><strong>Motif ou rabais :</strong> {$benefitInfo}</div>" : "") . "
+            </div>
+
+            <table class='payment-table'>
+                <thead>
                     <tr>
-                        <td class='label'>Étudiant</td>
-                        <td>{$student->first_name} {$student->last_name}</td>
+                        <th>N° Op</th>
+                        <th>Banque</th>
+                        <th>Date validation</th>
+                        <th>Tranche affectée</th>
+                        <th>Montant payé</th>
                     </tr>
-                    <tr>
-                        <td class='label'>Classe</td>
-                        <td>" . ($schoolClass ? $schoolClass->name : 'Non défini') . "</td>
-                    </tr>
-                    <tr>
-                        <td class='label'>Date de paiement</td>
-                        <td>" . \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y') . "</td>
-                    </tr>
-                    <tr>
-                        <td class='label'>Méthode de paiement</td>
-                        <td>" . ucfirst($payment->payment_method) . "</td>
-                    </tr>
-                    " . ($payment->reference_number ? "
-                    <tr>
-                        <td class='label'>Référence</td>
-                        <td>{$payment->reference_number}</td>
-                    </tr>
-                    " : "") . "
+                </thead>
+                <tbody>
+                    {$paymentDetailsRows}
+                </tbody>
+            </table>
+
+            <div style='margin: 20px 0;'>
+                <strong>Reste à payer par tranche</strong>
+                <table class='recap-table' style='width: 100%;'>
+                    <thead>
+                        <tr>
+                            <th>Tranche</th>
+                            <th>Montant normal</th>
+                            <th>Montant payé</th>
+                            <th>Réduction</th>
+                            <th>Bourse</th>
+                            <th>Reste à payer</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {$recapRows}
+                    </tbody>
                 </table>
+            </div>
 
-                <div class='amount-section'>
-                    <div style='text-align: center;'>
-                        <div>Montant payé</div>
-                        <div class='amount-large'>{$formatAmount($payment->total_amount)}</div>
+            <div class='footer-info'>
+                <div><strong>N.B :</strong> Vos dossiers ne seront transmis qu'après paiement de la totalité des frais scolaires.</div>
+                <div>Les frais de scolarité et d'étude de dossier ne sont pas remboursables en cas d'abandon ou d'exclusion.</div>
+                <div><em>Registration and studying documents fees are not refundable in case of withdrawal or exclusion.</em></div>
+                <br>
+                <div style='display: flex; justify-content: space-between;'>
+                    <div>
+                        <div><strong>B.P :</strong> " . ($schoolSettings->school_address ? explode(',', $schoolSettings->school_address)[0] : '4100') . "</div>
+                        <div><strong>Tél :</strong> " . ($schoolSettings->school_phone ?? '233 43 25 47') . "</div>
+                        <div><strong>Site web :</strong> " . ($schoolSettings->website ?? 'www.cpdyassa.com') . "</div>
                     </div>
-                </div>
-
-                " . $benefitText . "
-
-                " . ($payment->notes ? "
-                <table class='info-table' style='margin-top: 20px;'>
-                    <tr>
-                        <td class='label'>Notes</td>
-                        <td>{$payment->notes}</td>
-                    </tr>
-                </table>
-                " : "") . "
-
-                <div class='signature-section'>
-                    <div class='signature-box'>
-                        <div>Signature de l'étudiant</div>
-                    </div>
-                    <div class='signature-box'>
-                        <div>Signature du caissier</div>
+                    <div>
+                        <div>" . ($schoolSettings->school_address ? explode(',', $schoolSettings->school_address)[1] ?? 'Douala' : 'Douala') . "</div>
+                        <div><strong>Email :</strong> " . ($schoolSettings->school_email ?? 'contact@cpdyassa.com') . "</div>
                     </div>
                 </div>
             </div>
 
-            <div class='footer'>
-                <p>Ce reçu fait foi de paiement - Généré le " . now()->format('d/m/Y à H:i') . "</p>
-                <p>{$schoolSettings->school_name} - Système de gestion scolaire</p>
+            <div class='signature-section'>
+                <div>Validé par " . ($payment->createdByUser ? $payment->createdByUser->name : 'Comptable') . "</div>
+                <div style='margin-top: 30px;'>_____________________</div>
             </div>
         </body>
         </html>
         ";
 
         return $html;
+    }
+    
+    /**
+     * Obtenir le statut des paiements AU MOMENT d'un paiement spécifique
+     */
+    private function getPaymentStatusAtTime($student, $specificPayment)
+    {
+        $workingYear = $specificPayment->schoolYear;
+        
+        // Récupérer toutes les tranches
+        $paymentTranches = \App\Models\PaymentTranche::active()
+            ->ordered()
+            ->with(['classPaymentAmounts' => function ($query) use ($student) {
+                if ($student->classSeries && $student->classSeries->schoolClass) {
+                    $query->where('class_id', $student->classSeries->schoolClass->id);
+                }
+            }])
+            ->get();
+
+        // Récupérer tous les paiements JUSQU'À et Y COMPRIS ce paiement spécifique
+        $paymentsUpToThis = \App\Models\Payment::forStudent($student->id)
+            ->forYear($workingYear->id)
+            ->where('is_rame_physical', false)
+            ->where('created_at', '<=', $specificPayment->created_at)
+            ->with(['paymentDetails.paymentTranche'])
+            ->orderBy('payment_date', 'asc')
+            ->get();
+
+        // Calculer les montants payés par tranche jusqu'à ce moment
+        $paidPerTranche = [];
+        $discountPerTranche = [];
+        foreach ($paymentsUpToThis as $payment) {
+            foreach ($payment->paymentDetails as $detail) {
+                if (!isset($paidPerTranche[$detail->payment_tranche_id])) {
+                    $paidPerTranche[$detail->payment_tranche_id] = 0;
+                    $discountPerTranche[$detail->payment_tranche_id] = [
+                        'has_discount' => false,
+                        'discount_amount' => 0
+                    ];
+                }
+                $paidPerTranche[$detail->payment_tranche_id] += $detail->amount_allocated;
+                
+                // Vérifier si ce détail a une réduction globale
+                if ($detail->was_reduced && strpos($detail->reduction_context, 'Réduction globale') !== false) {
+                    $schoolSettings = \App\Models\SchoolSetting::getSettings();
+                    $discountPercentage = $schoolSettings->reduction_percentage ?? 0;
+                    
+                    $reducedAmount = $detail->required_amount_at_time;
+                    $normalAmount = round($reducedAmount / (1 - $discountPercentage / 100), 0);
+                    $discountAmount = $normalAmount - $reducedAmount;
+                    
+                    $discountPerTranche[$detail->payment_tranche_id] = [
+                        'has_discount' => true,
+                        'discount_amount' => $discountAmount
+                    ];
+                }
+            }
+        }
+
+        // Récupérer les informations de bourse (elles sont statiques par classe)
+        $discountCalculator = new \App\Services\DiscountCalculatorService();
+        $scholarship = $discountCalculator->getClassScholarship($student);
+
+        // Construire le statut des tranches au moment du paiement
+        $trancheStatus = [];
+        foreach ($paymentTranches as $tranche) {
+            $requiredAmount = $tranche->getAmountForStudent($student, false, false, false);
+            if ($requiredAmount <= 0) continue;
+
+            $paidAmount = $paidPerTranche[$tranche->id] ?? 0;
+            $remainingAmount = max(0, $requiredAmount - $paidAmount);
+
+            // Vérifier si cette tranche bénéficie d'une bourse
+            $scholarshipAmount = 0;
+            $hasScholarship = false;
+            $globalDiscountAmount = 0;
+            $hasGlobalDiscount = false;
+            
+            if ($scholarship && $scholarship->payment_tranche_id == $tranche->id) {
+                $scholarshipAmount = $scholarship->amount;
+                $hasScholarship = true;
+            } else {
+                $discountInfo = $discountPerTranche[$tranche->id] ?? ['has_discount' => false, 'discount_amount' => 0];
+                if ($discountInfo['has_discount']) {
+                    $hasGlobalDiscount = true;
+                    $globalDiscountAmount = $discountInfo['discount_amount'];
+                }
+            }
+
+            $trancheStatus[] = [
+                'tranche' => $tranche,
+                'required_amount' => $requiredAmount,
+                'paid_amount' => $paidAmount,
+                'remaining_amount' => $remainingAmount,
+                'has_scholarship' => $hasScholarship,
+                'scholarship_amount' => $scholarshipAmount,
+                'has_global_discount' => $hasGlobalDiscount,
+                'global_discount_amount' => $globalDiscountAmount,
+            ];
+        }
+
+        // Retourner un objet similaire à PaymentStatusService
+        return (object) [
+            'tranche_status' => $trancheStatus
+        ];
+    }
+
+    /**
+     * Obtenir le libellé du type de paiement
+     */
+    private function getPaymentTypeLabel($payment)
+    {
+        if ($payment->is_rame_physical) {
+            return 'RAME';
+        }
+        
+        $method = strtoupper($payment->payment_method);
+        switch ($method) {
+            case 'CASH':
+                return 'ESP'; // Espèces
+            case 'CARD':
+                return 'CB'; // Carte bancaire
+            case 'TRANSFER':
+                return 'VIR'; // Virement
+            case 'CHECK':
+                return 'CHQ'; // Chèque
+            default:
+                return $method;
+        }
     }
 
     /**
