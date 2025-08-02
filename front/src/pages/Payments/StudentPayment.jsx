@@ -832,12 +832,12 @@ const StudentPayment = () => {
                         <Card.Body>
                             {totals.has_scholarships ? (
                                 <>
-                                    <h3 className={Math.max(0, parseFloat(totals.remaining) - parseFloat(totals.scholarship_amount)) > 0 ? "text-warning" : "text-success"}>
-                                        {formatAmount(Math.max(0, parseFloat(totals.remaining) - parseFloat(totals.scholarship_amount)))}
+                                    <h3 className={totals.remaining > 0 ? "text-warning" : "text-success"}>
+                                        {formatAmount(totals.remaining)}
                                     </h3>
                                     <p className="text-muted mb-0">Reste à payer</p>
                                     <small className="text-success">
-                                        (Avec bourse: {formatAmount(totals.scholarship_amount)})
+                                        (Avec bourse de {formatAmount(totals.scholarship_amount)} déjà appliquée)
                                     </small>
                                 </>
                             ) : (
@@ -911,7 +911,16 @@ const StudentPayment = () => {
                                                 {status.is_physical_only ? (
                                                     <span className="text-info">Physical</span>
                                                 ) : (
-                                                    formatAmount(status.required_amount)
+                                                    <>
+                                                        {formatAmount(status.required_amount)}
+                                                        {status.has_global_discount && status.global_discount_amount > 0 && (
+                                                            <div className="text-success">
+                                                                <small>
+                                                                    Avec réduction ({status.discount_percentage}%): {formatAmount(parseFloat(status.required_amount) - parseFloat(status.global_discount_amount))}
+                                                                </small>
+                                                            </div>
+                                                        )}
+                                                    </>
                                                 )}
                                             </td>
                                             <td>
@@ -953,6 +962,17 @@ const StudentPayment = () => {
                                                                     <div className="text-success">
                                                                         <small>
                                                                             (Avec bourse: {formatAmount(Math.max(0, parseFloat(status.remaining_amount) - parseFloat(status.scholarship_amount)))})
+                                                                        </small>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        ) : status.has_global_discount && status.global_discount_amount > 0 ? (
+                                                            <>
+                                                                {formatAmount(Math.max(0, parseFloat(status.remaining_amount) - parseFloat(status.global_discount_amount)))}
+                                                                {(parseFloat(status.remaining_amount) - parseFloat(status.global_discount_amount)) > 0 && (
+                                                                    <div className="text-success">
+                                                                        <small>
+                                                                            (Avec réduction: {formatAmount(Math.max(0, parseFloat(status.remaining_amount) - parseFloat(status.global_discount_amount)))})
                                                                         </small>
                                                                     </div>
                                                                 )}
