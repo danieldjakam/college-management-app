@@ -331,6 +331,25 @@ class PaymentController extends Controller
 
             $payment->load(['paymentDetails.paymentTranche', 'student', 'schoolYear']);
 
+            // Envoyer la notification WhatsApp avec le reçu au parent
+            try {
+                $whatsAppService = new \App\Services\WhatsAppService();
+                $whatsAppService->sendPaymentNotification($payment);
+                
+                \Log::info('Notification de paiement WhatsApp envoyée', [
+                    'payment_id' => $payment->id,
+                    'student_id' => $payment->student_id,
+                    'parent_phone' => $payment->student->parent_phone ?? 'N/A'
+                ]);
+            } catch (\Exception $e) {
+                \Log::warning('Erreur lors de l\'envoi de la notification WhatsApp pour paiement', [
+                    'payment_id' => $payment->id,
+                    'student_id' => $payment->student_id,
+                    'error' => $e->getMessage()
+                ]);
+                // Ne pas faire échouer le paiement si l'envoi WhatsApp échoue
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => $payment,
