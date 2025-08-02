@@ -17,210 +17,209 @@ class DiscountCalculatorService
     }
 
     /**
-     * Calculer les bourses et réductions applicables pour un étudiant
-     * NOUVELLE LOGIQUE: 
-     * - Bourse déduite de la tranche spécifiée lors de la création de la bourse
-     * - Réduction s'applique directement aux montants par tranche
+     * Détermine si un paiement est éligible à une réduction globale.
+     * RÈGLE: Pas de réduction si la classe a une bourse.
+     *
+     * @param Student $student L'étudiant
+     * @param float $amountToPay Le montant que l'utilisateur essaie de payer.
+     * @param float $totalRemaining Le solde total restant pour l'étudiant.
+     * @param string|Carbon $versementDate La date à laquelle le paiement est effectué.
+     * @param bool $hasExistingPayments Indique si l'étudiant a déjà fait des paiements.
+     * @return bool
      */
-    public function calculateDiscounts(Student $student, $totalAmount, $paymentDate = null, $isFullPayment = false, $totalSchoolFees = null, $hasExistingPayments = false)
+    public function isEligibleForGlobalDiscount($student, float $amountToPay, float $totalRemaining, $versementDate, bool $hasExistingPayments): bool
     {
-        $paymentDate = $paymentDate ? Carbon::parse($paymentDate) : now();
-        
-        $result = [
-            'has_scholarship' => false,
-            'scholarship_amount' => 0,
-            'has_reduction' => false,
-            'reduction_amount' => 0,
-            'discount_reason' => null,
-            'final_amount' => $totalAmount
-        ];
+        $deadline = $this->schoolSettings->scholarship_deadline;
+        $percentage = $this->schoolSettings->reduction_percentage;
 
-        // 1. Vérifier les bourses de classe (déduite de la tranche spécifiée)
-        $scholarship = $this->getClassScholarship($student);
-        if ($scholarship && $this->isEligibleForScholarship($paymentDate)) {
-            $result['has_scholarship'] = true;
-            $result['scholarship_amount'] = $scholarship->amount;
-            $trancheName = $scholarship->paymentTranche ? $scholarship->paymentTranche->name : 'inscription';
-            $result['discount_reason'] = "Bourse: {$scholarship->name} (déduite de {$trancheName})";
+        // Condition 1: Les paramètres de réduction doivent exister.
+        if (!$deadline || !$percentage > 0) {
+            return false;
         }
 
-        // 2. Vérifier l'éligibilité à la réduction (SEULEMENT pour paiement total avant délai ET sans paiements antérieurs ET pas de bourse)
-        if (!$result['has_scholarship'] && $this->isEligibleForFullPaymentReduction($student, $paymentDate, $isFullPayment, $totalSchoolFees, $totalAmount, $hasExistingPayments)) {
-            $result['has_reduction'] = true;
-            // La réduction sera appliquée directement aux montants par tranche via PaymentTranche::getAmountForStudent()
-            // On ne calcule plus la réduction ici, c'est juste un indicateur d'éligibilité
-            
-            $reductionReason = [];
-            if ($student->isOld()) {
-                $reductionReason[] = "Ancien élève";
-            }
-            if ($this->isPaidBeforeDeadline($paymentDate)) {
-                $reductionReason[] = "Paiement intégral avant délai";
-            }
-            
-            $reductionText = "Réduction " . $this->schoolSettings->reduction_percentage . "% (montants par tranche réduits): " . implode(', ', $reductionReason);
-            
-            if ($result['discount_reason']) {
-                $result['discount_reason'] .= " | " . $reductionText;
-            } else {
-                $result['discount_reason'] = $reductionText;
-            }
+        // Condition 2: La classe ne doit PAS avoir de bourse (exclusion mutuelle)
+        if ($this->getClassScholarship($student)) {
+            return false;
         }
 
-        // 3. Le montant final reste le montant original car :
-        // - La bourse ne s'applique pas aux tranches (seulement à l'inscription)
-        // - La réduction est appliquée aux montants requis par tranche
-        $result['final_amount'] = $totalAmount;
+        // Condition 3: L'étudiant ne doit avoir aucun paiement antérieur.
+        if ($hasExistingPayments) {
+            return false;
+        }
 
-        return $result;
+        // Condition 4: Le montant payé doit être égal au solde total avec réduction (paiement intégral réduit).
+        $totalWithDiscount = $totalRemaining * (1 - $percentage / 100);
+        if (abs($amountToPay - $totalWithDiscount) > 0.01) {
+            return false;
+        }
+
+        // Condition 5: La date de versement doit être avant ou à la date limite.
+        if (Carbon::parse($versementDate)->isAfter($deadline)) {
+            return false;
+        }
+
+        // Si toutes les conditions sont remplies, l'étudiant est éligible.
+        return true;
     }
 
     /**
-     * Obtenir la bourse applicable pour la classe de l'étudiant
+     * Ancienne méthode maintenue pour compatibilité
      */
-    public function getClassScholarship(Student $student)
+    public function isEligibleForDiscount(float $amountToPay, float $totalRemaining, $versementDate, bool $hasExistingPayments): bool
+    {
+        // Cette méthode est maintenue pour compatibilité mais ne vérifie pas l'exclusion avec les bourses
+        $deadline = $this->schoolSettings->scholarship_deadline;
+        $percentage = $this->schoolSettings->reduction_percentage;
+
+        if (!$deadline || !$percentage > 0) {
+            return false;
+        }
+
+        if ($hasExistingPayments) {
+            return false;
+        }
+
+        if (abs($amountToPay - $totalRemaining) > 0.01) {
+            return false;
+        }
+
+        if (Carbon::parse($versementDate)->isAfter($deadline)) {
+            return false;
+        }
+
+        return true;
+    }
+    
+    /**
+     * Calcule le résultat final d'un paiement, en appliquant les réductions si éligible.
+     *
+     * @param object $paymentStatus L'objet retourné par PaymentStatusService.
+     * @param float $amountPaid Le montant réel que l'utilisateur paie.
+     * @param string|Carbon $versementDate La date du versement.
+     * @return array
+     */
+    public function calculateFinalPayment(object $paymentStatus, float $amountPaid, $versementDate): array
+    {
+        $isEligible = $this->isEligibleForDiscount(
+            $amountPaid,
+            $paymentStatus->total_remaining,
+            $versementDate,
+            $paymentStatus->has_existing_payments
+        );
+
+        if ($isEligible) {
+            return [
+                'final_amount' => $paymentStatus->amount_to_pay_with_discount,
+                'has_reduction' => true,
+                'reduction_amount' => $paymentStatus->discount_amount,
+                'discount_reason' => "Réduction {$paymentStatus->discount_percentage}% pour paiement intégral avant le " . Carbon::parse($paymentStatus->discount_deadline)->format('d/m/Y'),
+            ];
+        }
+
+        return [
+            'final_amount' => $amountPaid,
+            'has_reduction' => false,
+            'reduction_amount' => 0,
+            'discount_reason' => null,
+        ];
+    }
+
+    /**
+     * Récupère la bourse applicable pour la classe d'un étudiant
+     *
+     * @param Student $student
+     * @return ClassScholarship|null
+     */
+    public function getClassScholarship(Student $student): ?ClassScholarship
     {
         if (!$student->classSeries || !$student->classSeries->schoolClass) {
             return null;
         }
 
         return ClassScholarship::active()
-            ->with('paymentTranche')
             ->where('school_class_id', $student->classSeries->schoolClass->id)
             ->first();
     }
 
     /**
-     * Vérifier si l'étudiant est éligible à une bourse
+     * Détermine si l'étudiant est éligible aux bourses à la date donnée
+     *
+     * @param Carbon|string $currentDate
+     * @return bool 
      */
-    public function isEligibleForScholarship($paymentDate)
+    public function isEligibleForScholarship($currentDate): bool
     {
-        if (!$this->schoolSettings->scholarship_deadline) {
-            return true; // Pas de délai défini
-        }
-
-        return $paymentDate->lte($this->schoolSettings->scholarship_deadline);
-    }
-
-    /**
-     * Vérifier si l'étudiant est éligible à une réduction (ANCIENNE MÉTHODE - conservée pour compatibilité)
-     */
-    private function isEligibleForReduction(Student $student, $paymentDate)
-    {
-        // Réduction pour anciens élèves
-        if ($student->isOld()) {
-            return true;
-        }
-
-        // Réduction pour nouveaux élèves qui paient avant le délai
-        if ($student->isNew() && $this->isPaidBeforeDeadline($paymentDate)) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Vérifier si l'étudiant est éligible à une réduction pour paiement intégral
-     * NOUVELLE LOGIQUE: Réduction seulement si paiement de TOUTE la scolarité en une fois ET aucun paiement antérieur
-     */
-    private function isEligibleForFullPaymentReduction(Student $student, $paymentDate, $isFullPayment, $totalSchoolFees, $paymentAmount, $hasExistingPayments)
-    {
-        // Conditions strictes pour la réduction
+        $deadline = $this->schoolSettings->scholarship_deadline;
         
-        // 1. Doit être un paiement complet de TOUTE la scolarité
-        if (!$isFullPayment || !$totalSchoolFees || $paymentAmount < $totalSchoolFees) {
-            return false;
-        }
-        
-        // 2. CRITIQUE: Pas de paiements antérieurs autorisés
-        if ($hasExistingPayments) {
-            return false; // Déjà payé partiellement, plus éligible à la réduction
-        }
-        
-        // 3. Réduction pour anciens élèves (peut payer n'importe quand)
-        if ($student->isOld()) {
-            return true;
+        if (!$deadline) {
+            return true; // Pas de deadline = toujours éligible
         }
 
-        // 4. Réduction pour nouveaux élèves SEULEMENT s'ils paient avant le délai
-        if ($student->isNew() && $this->isPaidBeforeDeadline($paymentDate)) {
-            return true;
-        }
-
-        return false;
-    }
-
-
-    /**
-     * Vérifier si le paiement est effectué avant le délai
-     */
-    private function isPaidBeforeDeadline($paymentDate)
-    {
-        if (!$this->schoolSettings->scholarship_deadline) {
-            return false;
-        }
-
-        return $paymentDate->lte($this->schoolSettings->scholarship_deadline);
+        return Carbon::parse($currentDate)->isBefore($deadline) || 
+               Carbon::parse($currentDate)->isSameDay($deadline);
     }
 
     /**
-     * Obtenir les informations de réduction pour affichage
+     * Calcule la réduction globale sur toutes les tranches
+     *
+     * @param Student $student
+     * @param float $originalAmount
+     * @return array
      */
-    public function getDiscountInfo(Student $student)
+    public function calculateGlobalDiscount($student, float $originalAmount): array
     {
-        $info = [
-            'eligible_for_scholarship' => false,
-            'scholarship_amount' => 0,
-            'eligible_for_reduction' => false,
-            'reduction_percentage' => $this->schoolSettings->reduction_percentage,
-            'deadline' => $this->schoolSettings->scholarship_deadline,
-            'reasons' => []
+        $discountPercentage = $this->schoolSettings->reduction_percentage ?? 0;
+        
+        if ($discountPercentage <= 0) {
+            return [
+                'has_discount' => false,
+                'discount_percentage' => 0,
+                'discount_amount' => 0,
+                'final_amount' => $originalAmount
+            ];
+        }
+
+        $discountAmount = $originalAmount * ($discountPercentage / 100);
+        $finalAmount = $originalAmount - $discountAmount;
+
+        return [
+            'has_discount' => true,
+            'discount_percentage' => $discountPercentage,
+            'discount_amount' => $discountAmount,
+            'final_amount' => $finalAmount,
+            'discount_reason' => "Réduction {$discountPercentage}% - Paiement intégral avant échéance"
         ];
+    }
 
-        // Vérifier la bourse
-        $scholarship = $this->getClassScholarship($student);
-        if ($scholarship) {
-            $info['eligible_for_scholarship'] = true;
-            $info['scholarship_amount'] = $scholarship->amount;
-            if ($this->isEligibleForScholarship(now())) {
-                $info['reasons'][] = "Bourse disponible: {$scholarship->name} ({$scholarship->amount} FCFA)";
-            } else {
-                $info['reasons'][] = "Bourse expirée: {$scholarship->name}";
-            }
+    /**
+     * Détermine le type de paiement pour un étudiant
+     *
+     * @param Student $student
+     * @param float $paymentAmount
+     * @param string $versementDate
+     * @return string
+     */
+    public function getPaymentType($student, float $paymentAmount, float $totalRemaining, $versementDate, bool $hasExistingPayments): string
+    {
+        // Vérifier si a une bourse
+        if ($this->getClassScholarship($student)) {
+            return 'scholarship';
         }
-
-        // Vérifier la réduction - NOUVELLE LOGIQUE avec paiements existants
-        // D'abord vérifier s'il y a des paiements existants
-        $currentYear = \App\Models\SchoolYear::where('is_current', true)->first();
-        $hasExistingPayments = false;
         
-        if ($currentYear) {
-            $existingPayments = \App\Models\Payment::where('student_id', $student->id)
-                ->where('school_year_id', $currentYear->id)
-                ->count();
-            $hasExistingPayments = ($existingPayments > 0);
+        // Vérifier si éligible à la réduction
+        if ($this->isEligibleForGlobalDiscount($student, $paymentAmount, $totalRemaining, $versementDate, $hasExistingPayments)) {
+            return 'global_discount';
         }
+        
+        // Cas normal - ni bourse ni réduction
+        return 'normal';
+    }
 
-        // Réduction possible seulement s'il n'y a pas de paiements existants ET pas de bourse
-        if (!$hasExistingPayments && !$info['eligible_for_scholarship']) {
-            if ($student->isOld()) {
-                $info['eligible_for_reduction'] = true;
-                $info['reasons'][] = "Réduction {$this->schoolSettings->reduction_percentage}% - Ancien élève (paiement intégral requis)";
-            }
-
-            if ($student->isNew() && $this->isPaidBeforeDeadline(now())) {
-                $info['eligible_for_reduction'] = true;
-                $info['reasons'][] = "Réduction {$this->schoolSettings->reduction_percentage}% - Paiement intégral avant le {$this->schoolSettings->scholarship_deadline->format('d/m/Y')}";
-            }
-        } else if ($hasExistingPayments) {
-            // Élève a déjà payé partiellement
-            $info['reasons'][] = "Réduction non disponible - Paiements partiels déjà effectués";
-        } else if ($info['eligible_for_scholarship']) {
-            // Élève a une bourse - pas de cumul avec réduction
-            $info['reasons'][] = "Réduction non disponible - Bourse déjà accordée (non cumulable)";
-        }
-
-        return $info;
+    /**
+     * Obtenir le pourcentage de réduction configuré
+     */
+    public function getDiscountPercentage(): float
+    {
+        return $this->schoolSettings->reduction_percentage ?? 0;
     }
 }

@@ -337,7 +337,7 @@ class StudentController extends Controller
             'parent_email' => 'nullable|email|max:255',
             'address' => 'nullable|string|max:500',
             'class_series_id' => 'required|exists:class_series,id',
-            'school_year_id' => 'required|exists:school_years,id',
+            'school_year_id' => 'nullable|exists:school_years,id', // Optionnel lors de la modification
             'is_active' => 'boolean',
             'photo' => 'nullable|image|mimes:jpeg,jpg,png,gif|max:5120' // 5MB max
         ]);
@@ -352,6 +352,11 @@ class StudentController extends Controller
 
         try {
             $updateData = $request->except(['photo']);
+            
+            // Si school_year_id n'est pas fourni, utiliser l'année de l'étudiant existant ou l'année courante
+            if (!isset($updateData['school_year_id']) || empty($updateData['school_year_id'])) {
+                $updateData['school_year_id'] = $student->school_year_id ?: $this->getUserWorkingYear()->id;
+            }
             
             // Combiner nom + prénom pour le champ legacy 'name'
             if (!empty($updateData['last_name']) && !empty($updateData['first_name'])) {

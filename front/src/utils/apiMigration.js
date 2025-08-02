@@ -386,13 +386,22 @@ export const secureApiEndpoints = {
     // === PAYMENTS ===
     payments: {
         getStudentInfo: (studentId) => secureApi.get(`/payments/student/${studentId}/info`),
+        getStudentInfoWithDiscount: (studentId) => secureApi.get(`/payments/student/${studentId}/info-with-discount`),
         getStudentHistory: (studentId) => secureApi.get(`/payments/student/${studentId}/history`),
+        calculateWithDate: (studentId, data) => secureApi.post(`/payments/student/${studentId}/calculate-with-date`, data),
         create: (data) => secureApi.post('/payments', data),
         generateReceipt: (paymentId) => secureApi.get(`/payments/${paymentId}/receipt`),
         getStats: (params = {}) => {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/payments/stats${queryString ? '?' + queryString : ''}`);
         }
+    },
+
+    // === STUDENT RAME (Simplified) ===
+    studentRame: {
+        getStatus: (studentId) => secureApi.get(`/student-rame/student/${studentId}/status`),
+        updateStatus: (studentId, data) => secureApi.post(`/student-rame/student/${studentId}/update`, data),
+        getClassStatus: (classSeriesId) => secureApi.get(`/student-rame/class-series/${classSeriesId}`)
     },
 
     // === SCHOOL SETTINGS ===

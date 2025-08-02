@@ -7,195 +7,74 @@ use App\Models\PaymentDetail;
 use App\Models\Student;
 use App\Models\SchoolYear;
 use App\Models\PaymentTranche;
-use App\Models\ClassPaymentAmount;
-use App\Models\SchoolSetting;
 use App\Services\DiscountCalculatorService;
+use App\Services\PaymentStatusService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use App\Models\SchoolSetting;
 
 class PaymentController extends Controller
 {
-    /**
-     * Obtenir l'année scolaire de travail de l'utilisateur connecté
-     */
+    protected $paymentStatusService;
+    protected $discountCalculatorService;
+
+    public function __construct(PaymentStatusService $paymentStatusService, DiscountCalculatorService $discountCalculatorService)
+    {
+        $this->paymentStatusService = $paymentStatusService;
+        $this->discountCalculatorService = $discountCalculatorService;
+    }
+
     private function getUserWorkingYear()
     {
         $user = Auth::user();
-        
-        // Si l'utilisateur a une année de travail définie, l'utiliser
         if ($user && $user->working_school_year_id) {
             $workingYear = SchoolYear::find($user->working_school_year_id);
             if ($workingYear && $workingYear->is_active) {
                 return $workingYear;
             }
         }
-        
-        // Sinon, utiliser l'année courante par défaut
-        $currentYear = SchoolYear::where('is_current', true)->first();
-        
-        if (!$currentYear) {
-            // Si aucune année courante, prendre la première année active
-            $currentYear = SchoolYear::where('is_active', true)->first();
-        }
-        
-        return $currentYear;
+        return SchoolYear::where('is_current', true)->first() ?? SchoolYear::where('is_active', true)->first();
     }
 
-    /**
-     * Obtenir les informations de paiement d'un étudiant
-     */
     public function getStudentPaymentInfo($studentId)
     {
         try {
             $workingYear = $this->getUserWorkingYear();
-            
             if (!$workingYear) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Aucune année scolaire définie'
-                ], 400);
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
             }
 
-            // Récupérer l'étudiant avec ses relations
-            $student = Student::with([
-                'classSeries.schoolClass',
-                'schoolYear'
-            ])->find($studentId);
-
+            $student = Student::with(['classSeries.schoolClass', 'schoolYear'])->find($studentId);
             if (!$student) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Étudiant non trouvé'
-                ], 404);
+                return response()->json(['success' => false, 'message' => 'Étudiant non trouvé'], 404);
             }
 
-            // Récupérer les tranches de paiement configurées pour la classe
-            $paymentTranches = PaymentTranche::active()
-                ->ordered()
-                ->with(['classPaymentAmounts' => function ($query) use ($student) {
-                    $query->where('class_id', $student->classSeries->schoolClass->id);
-                }])
-                ->get();
+            $paymentStatus = $this->paymentStatusService->getStatusForStudent($student, $workingYear);
 
-            // Récupérer les paiements déjà effectués pour cet étudiant cette année
-            $existingPayments = Payment::forStudent($studentId)
-                ->forYear($workingYear->id)
-                ->with(['paymentDetails.paymentTranche'])
-                ->orderBy('payment_date', 'asc')
-                ->orderBy('created_at', 'asc')
-                ->get();
+            // La réponse inclut maintenant `payment_status` pour la compatibilité frontend
+            $response_data = [
+                'student' => $student,
+                'school_year' => $workingYear,
+                'payment_status' => $paymentStatus->tranche_status, // Montants normaux
+                'total_required' => $paymentStatus->total_required, // Montants normaux affichés
+                'total_paid' => $paymentStatus->total_paid,
+                'total_remaining' => $paymentStatus->total_remaining,
+                'total_scholarship_amount' => $paymentStatus->total_scholarship_amount,
+                'has_scholarships' => $paymentStatus->has_scholarships,
+                'existing_payments' => $paymentStatus->existing_payments,
+                'discount_info' => [
+                    'is_eligible' => $paymentStatus->is_eligible_for_discount,
+                    'deadline' => $paymentStatus->discount_deadline ? $paymentStatus->discount_deadline->format('d/m/Y') : null,
+                    'percentage' => $paymentStatus->discount_percentage,
+                    'amount' => $paymentStatus->discount_amount,
+                    'amount_to_pay_with_discount' => $paymentStatus->amount_to_pay_with_discount,
+                ],
+            ];
 
-            // Calculer le statut de paiement pour chaque tranche
-            $paymentStatus = [];
-            $totalPaid = 0;
-            $totalRequired = 0;
-
-            foreach ($paymentTranches as $tranche) {
-                // Utiliser la nouvelle méthode simplifiée qui gère les montants par défaut et les bourses
-                $requiredAmount = $tranche->getAmountForStudent($student, true, false, true); // Le paramètre isNewStudent n'a plus d'effet
-                if ($requiredAmount <= 0) continue;
-                
-                // La RAME est optionnelle et ne compte pas dans le total obligatoire à payer
-                $isRame = (strtoupper($tranche->name) === 'RAME' || stripos($tranche->name, 'RAME') !== false);
-                if (!$isRame) {
-                    $totalRequired += $requiredAmount;
-                }
-
-                // Calculer le montant déjà payé pour cette tranche
-                // Comme les paiements sont triés par date, on prend le dernier new_total_amount
-                // qui représente le montant cumulé le plus récent pour cette tranche
-                $paidAmount = 0;
-                foreach ($existingPayments as $payment) {
-                    $detail = $payment->paymentDetails->where('payment_tranche_id', $tranche->id)->first();
-                    if ($detail) {
-                        // Chaque new_total_amount est cumulatif, donc on prend toujours le plus récent
-                        $paidAmount = $detail->new_total_amount;
-                        // On ne fait pas break car on veut le plus récent (dernier dans l'ordre chronologique)
-                    }
-                }
-
-                // Seules les tranches non-RAME comptent dans le total payé obligatoire
-                if (!$isRame) {
-                    $totalPaid += $paidAmount;
-                }
-
-                $paymentStatus[] = [
-                    'tranche' => $tranche,
-                    'required_amount' => $requiredAmount,
-                    'paid_amount' => $paidAmount,
-                    'remaining_amount' => max(0, $requiredAmount - $paidAmount),
-                    'is_fully_paid' => $paidAmount >= $requiredAmount,
-                    'is_optional' => $isRame // Marquer la RAME comme optionnelle
-                ];
-            }
-
-            // Obtenir les informations de réduction
-            $discountCalculator = new DiscountCalculatorService();
-            $discountInfo = $discountCalculator->getDiscountInfo($student);
-            
-            // Si l'étudiant est éligible à une réduction, recalculer les montants avec réduction
-            if ($discountInfo['eligible_for_reduction']) {
-                $paymentStatusWithReduction = [];
-                $totalPaidWithReduction = 0;
-                $totalRequiredWithReduction = 0;
-                
-                foreach ($paymentTranches as $tranche) {
-                    // Montant requis avec réduction et bourses appliquées
-                    $requiredAmountWithReduction = $tranche->getAmountForStudent($student, true, true, true);
-                    if ($requiredAmountWithReduction <= 0) continue;
-                    
-                    // La RAME reste optionnelle même avec réduction
-                    $isRame = (strtoupper($tranche->name) === 'RAME' || stripos($tranche->name, 'RAME') !== false);
-                    if (!$isRame) {
-                        $totalRequiredWithReduction += $requiredAmountWithReduction;
-                    }
-
-                    // Le montant payé reste le même (calculé précédemment)
-                    $paidAmount = 0;
-                    foreach ($existingPayments as $payment) {
-                        $detail = $payment->paymentDetails->where('payment_tranche_id', $tranche->id)->first();
-                        if ($detail) {
-                            $paidAmount = $detail->new_total_amount;
-                        }
-                    }
-
-                    // Seules les tranches non-RAME comptent dans le total payé obligatoire
-                    if (!$isRame) {
-                        $totalPaidWithReduction += $paidAmount;
-                    }
-
-                    $paymentStatusWithReduction[] = [
-                        'tranche' => $tranche,
-                        'required_amount' => $requiredAmountWithReduction,
-                        'paid_amount' => $paidAmount,
-                        'remaining_amount' => max(0, $requiredAmountWithReduction - $paidAmount),
-                        'is_fully_paid' => $paidAmount >= $requiredAmountWithReduction,
-                        'is_optional' => $isRame // Marquer la RAME comme optionnelle
-                    ];
-                }
-                
-                // Utiliser les montants avec réduction si l'étudiant y est éligible
-                $paymentStatus = $paymentStatusWithReduction;
-                $totalRequired = $totalRequiredWithReduction;
-                $totalPaid = $totalPaidWithReduction;
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'student' => $student,
-                    'school_year' => $workingYear,
-                    'payment_status' => $paymentStatus,
-                    'total_required' => $totalRequired,
-                    'total_paid' => $totalPaid,
-                    'total_remaining' => max(0, $totalRequired - $totalPaid),
-                    'existing_payments' => $existingPayments,
-                    'discount_info' => $discountInfo
-                ]
-            ]);
+            return response()->json(['success' => true, 'data' => $response_data]);
 
         } catch (\Exception $e) {
             Log::error('Error in PaymentController@getStudentPaymentInfo: ' . $e->getMessage());
@@ -207,118 +86,249 @@ class PaymentController extends Controller
         }
     }
 
-    /**
-     * Créer un nouveau paiement
-     */
+    public function getStudentPaymentHistory($studentId)
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+            if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            $student = Student::find($studentId);
+            if (!$student) {
+                return response()->json(['success' => false, 'message' => 'Étudiant non trouvé'], 404);
+            }
+
+            $payments = Payment::with(['paymentDetails.paymentTranche', 'createdByUser'])
+                ->where('student_id', $studentId)
+                ->where('school_year_id', $workingYear->id)
+                ->orderBy('payment_date', 'desc')
+                ->get();
+
+            // Formater les données pour le frontend
+            $formattedPayments = $payments->map(function ($payment) {
+                return [
+                    'id' => $payment->id,
+                    'total_amount' => $payment->total_amount,
+                    'payment_date' => $payment->payment_date,
+                    'versement_date' => $payment->versement_date,
+                    'validation_date' => $payment->validation_date,
+                    'payment_method' => $payment->payment_method,
+                    'reference_number' => $payment->reference_number,
+                    'receipt_number' => $payment->receipt_number,
+                    'notes' => $payment->notes,
+                    'has_reduction' => $payment->has_reduction,
+                    'reduction_amount' => $payment->reduction_amount,
+                    'discount_reason' => $payment->discount_reason,
+                    'has_scholarship' => $payment->has_scholarship,
+                    'scholarship_amount' => $payment->scholarship_amount,
+                    'is_rame_physical' => $payment->is_rame_physical,
+                    'created_by_user' => $payment->createdByUser ? [
+                        'id' => $payment->createdByUser->id,
+                        'name' => $payment->createdByUser->name
+                    ] : null,
+                    'payment_details' => $payment->paymentDetails->map(function ($detail) {
+                        return [
+                            'id' => $detail->id,
+                            'payment_tranche_id' => $detail->payment_tranche_id,
+                            'amount_allocated' => $detail->amount_allocated,
+                            'previous_amount' => $detail->previous_amount,
+                            'new_total_amount' => $detail->new_total_amount,
+                            'is_fully_paid' => $detail->is_fully_paid,
+                            'was_reduced' => $detail->was_reduced,
+                            'payment_tranche' => $detail->paymentTranche ? [
+                                'id' => $detail->paymentTranche->id,
+                                'name' => $detail->paymentTranche->name,
+                                'description' => $detail->paymentTranche->description,
+                                'order' => $detail->paymentTranche->order
+                            ] : null
+                        ];
+                    })
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $formattedPayments,
+                'message' => 'Historique des paiements récupéré avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in PaymentController@getStudentPaymentHistory: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération de l\'historique des paiements',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'student_id' => 'required|exists:students,id',
             'amount' => 'required|numeric|min:0.01',
-            'payment_method' => 'required|string|in:cash,card,transfer,check,rame_physical',
+            'payment_method' => 'required|string|in:cash,card,transfer,check',
             'reference_number' => 'nullable|string|max:255',
             'notes' => 'nullable|string|max:1000',
-            'payment_date' => 'nullable|date',
-            'is_rame_physical' => 'nullable|boolean'
+            'payment_date' => 'required|date',
+            'versement_date' => 'required|date',
+            'apply_global_discount' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Données invalides',
-                'errors' => $validator->errors()
-            ], 422);
+            return response()->json(['success' => false, 'message' => 'Données invalides', 'errors' => $validator->errors()], 422);
         }
 
         try {
             $workingYear = $this->getUserWorkingYear();
-            
             if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            $student = Student::with('classSeries.schoolClass')->find($request->student_id);
+            if (!$student) {
+                return response()->json(['success' => false, 'message' => 'Étudiant non trouvé'], 404);
+            }
+
+            $paymentStatus = $this->paymentStatusService->getStatusForStudent($student, $workingYear);
+
+            if ($request->amount > $paymentStatus->total_remaining) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Aucune année scolaire définie'
-                ], 400);
+                    'message' => "Le montant saisi (" . number_format($request->amount, 0, ',', ' ') . " FCFA) est supérieur au montant restant (" . number_format($paymentStatus->total_remaining, 0, ',', ' ') . " FCFA)."
+                ], 422);
+            }
+
+            // Déterminer le type de paiement et calculer les réductions/bourses
+            $paymentType = 'normal'; // Par défaut
+            
+            // Si le frontend demande explicitement une réduction globale
+            if ($request->apply_global_discount === true) {
+                \Log::info('Frontend requests global discount');
+                
+                // Vérifier que l'étudiant est bien éligible
+                $isEligible = $this->discountCalculatorService->isEligibleForGlobalDiscount(
+                    $student, 
+                    $request->amount, 
+                    $paymentStatus->total_remaining, 
+                    $request->versement_date, 
+                    $paymentStatus->has_existing_payments
+                );
+                
+                \Log::info('Discount eligibility check', [
+                    'is_eligible' => $isEligible,
+                    'amount' => $request->amount,
+                    'total_remaining' => $paymentStatus->total_remaining,
+                    'versement_date' => $request->versement_date,
+                    'has_existing_payments' => $paymentStatus->has_existing_payments
+                ]);
+                
+                if ($isEligible) {
+                    $paymentType = 'global_discount';
+                }
+            } else {
+                // Sinon, utiliser la logique automatique
+                $paymentType = $this->discountCalculatorService->getPaymentType(
+                    $student, 
+                    $request->amount, 
+                    $paymentStatus->total_remaining, 
+                    $request->versement_date, 
+                    $paymentStatus->has_existing_payments
+                );
+            }
+
+            $discountResult = [];
+            $scholarshipInfo = [];
+            
+            switch ($paymentType) {
+                case 'scholarship':
+                    // Cas avec bourse
+                    $scholarshipInfo = $this->calculateScholarshipInfo($student, $paymentStatus->payment_tranches);
+                    $discountResult = [
+                        'final_amount' => $request->amount,
+                        'has_reduction' => false,
+                        'reduction_amount' => 0,
+                        'discount_reason' => null
+                    ];
+                    break;
+                    
+                case 'global_discount':
+                    // Cas avec réduction globale - le montant frontend est déjà réduit
+                    $discountPercentage = $this->discountCalculatorService->getDiscountPercentage();
+                    $originalAmount = $request->amount / (1 - $discountPercentage / 100); // Recalculer le montant original
+                    $discountAmount = $originalAmount - $request->amount;
+                    
+                    $discountResult = [
+                        'final_amount' => $request->amount, // Utiliser le montant déjà réduit du frontend
+                        'has_reduction' => true,
+                        'reduction_amount' => $discountAmount,
+                        'discount_reason' => "Réduction {$discountPercentage}% - Paiement intégral avant échéance"
+                    ];
+                    $scholarshipInfo = [
+                        'has_scholarship' => false,
+                        'scholarship_amount' => 0
+                    ];
+                    break;
+                    
+                default:
+                    // Cas normal
+                    $discountResult = [
+                        'final_amount' => $request->amount,
+                        'has_reduction' => false,
+                        'reduction_amount' => 0,
+                        'discount_reason' => null
+                    ];
+                    $scholarshipInfo = [
+                        'has_scholarship' => false,
+                        'scholarship_amount' => 0
+                    ];
+                    break;
             }
 
             DB::beginTransaction();
 
-            // Récupérer les informations de l'étudiant
-            $student = Student::with('classSeries.schoolClass')->find($request->student_id);
-            
-            if (!$student) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Étudiant non trouvé'
-                ], 404);
-            }
+            $receiptNumber = Payment::generateReceiptNumber($workingYear, $request->payment_date);
 
-            // Vérifier que le montant ne dépasse pas le solde restant
-            $paymentInfo = $this->getStudentPaymentInfo($request->student_id);
-            if (!$paymentInfo->getData()->success) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Impossible de récupérer les informations de paiement'
-                ], 400);
-            }
-            
-            $totalRemaining = $paymentInfo->getData()->data->total_remaining;
-            $totalRequired = $paymentInfo->getData()->data->total_required;
-            
-            // Déterminer si c'est un paiement complet (TOUTE la scolarité)
-            $isFullPayment = ($request->amount >= $totalRemaining);
-            
-            // Vérifier s'il y a des paiements existants pour cette année
-            $existingPayments = Payment::forStudent($request->student_id)
-                ->forYear($workingYear->id)
-                ->count();
-            $hasExistingPayments = ($existingPayments > 0);
-            
-            // Calculer les réductions applicables avec la nouvelle logique
-            $discountCalculator = new DiscountCalculatorService();
-            $discountResult = $discountCalculator->calculateDiscounts(
-                $student, 
-                $request->amount, 
-                $request->payment_date,
-                $isFullPayment,
-                $totalRequired,
-                $hasExistingPayments
-            );
-            if ($request->amount > $totalRemaining) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Le montant saisi (" . number_format($request->amount, 0, ',', ' ') . " FCFA) est supérieur au montant restant (" . number_format($totalRemaining, 0, ',', ' ') . " FCFA)."
-                ], 422);
-            }
-            
-            // Générer le numéro de reçu
-            $receiptNumber = Payment::generateReceiptNumber($workingYear, 
-                $request->payment_date ? \Carbon\Carbon::parse($request->payment_date) : now());
-
-            // Créer le paiement principal avec les informations de réduction
             $payment = Payment::create([
                 'student_id' => $request->student_id,
                 'school_year_id' => $workingYear->id,
-                'total_amount' => $discountResult['final_amount'], // Montant après réductions
-                'payment_date' => $request->payment_date ?: now()->toDateString(),
-                'payment_method' => $request->payment_method === 'rame_physical' ? 'cash' : $request->payment_method,
+                'total_amount' => $discountResult['final_amount'],
+                'payment_date' => $request->payment_date,
+                'versement_date' => $request->versement_date,
+                'validation_date' => now(),
+                'payment_method' => $request->payment_method,
                 'reference_number' => $request->reference_number,
                 'notes' => $request->notes,
                 'created_by_user_id' => Auth::id(),
                 'receipt_number' => $receiptNumber,
-                'is_rame_physical' => $request->payment_method === 'rame_physical' || $request->is_rame_physical,
-                'has_scholarship' => $discountResult['has_scholarship'],
-                'scholarship_amount' => $discountResult['scholarship_amount'],
+                'is_rame_physical' => false,
+                'has_scholarship' => $scholarshipInfo['has_scholarship'],
+                'scholarship_amount' => $scholarshipInfo['scholarship_amount'],
                 'has_reduction' => $discountResult['has_reduction'],
                 'reduction_amount' => $discountResult['reduction_amount'],
                 'discount_reason' => $discountResult['discount_reason']
             ]);
 
-            // Calculer la répartition du paiement
-            $this->allocatePaymentToTranches($payment, $student, $workingYear);
+            // Debug: Log du type de paiement
+            \Log::info('Payment allocation debug', [
+                'payment_type' => $paymentType,
+                'apply_global_discount' => $request->apply_global_discount,
+                'student_id' => $student->id,
+                'amount' => $request->amount
+            ]);
+
+            // Allouer le paiement selon le type
+            if ($paymentType === 'global_discount') {
+                \Log::info('Using global discount allocation');
+                $this->allocatePaymentToTranchesWithGlobalDiscount($payment, $student, $workingYear, $paymentStatus->payment_tranches);
+            } else {
+                \Log::info('Using normal allocation');
+                $this->allocatePaymentToTranches($payment, $student, $workingYear, $paymentStatus->payment_tranches);
+            }
 
             DB::commit();
 
-            // Recharger le paiement avec ses relations
             $payment->load(['paymentDetails.paymentTranche', 'student', 'schoolYear']);
 
             return response()->json([
@@ -329,7 +339,7 @@ class PaymentController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error in PaymentController@store: ' . $e->getMessage());
+            Log::error('Error in PaymentController@store: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'enregistrement du paiement',
@@ -338,167 +348,391 @@ class PaymentController extends Controller
         }
     }
 
-    /**
-     * Répartir le montant du paiement sur les tranches
-     */
-    private function allocatePaymentToTranches(Payment $payment, Student $student, SchoolYear $workingYear)
+    private function allocatePaymentToTranches(Payment $payment, Student $student, SchoolYear $workingYear, $paymentTranches)
     {
-        $remainingAmount = $payment->total_amount;
+        $remainingAmountToAllocate = $payment->total_amount;
 
-        // Récupérer les tranches de paiement dans l'ordre
-        $paymentTranches = PaymentTranche::active()
-            ->ordered()
-            ->with(['classPaymentAmounts' => function ($query) use ($student) {
-                $query->where('class_id', $student->classSeries->schoolClass->id);
-            }])
-            ->get();
-
-        // Si c'est une RAME physique, prioriser la tranche RAME
-        if ($payment->is_rame_physical) {
-            $rameTranche = $paymentTranches->where('name', 'RAME')->first();
-            if ($rameTranche) {
-                // Réorganiser pour mettre la RAME en premier
-                $paymentTranches = $paymentTranches->reject(function ($tranche) {
-                    return $tranche->name === 'RAME';
-                })->prepend($rameTranche);
-            }
-        }
-
-        // Récupérer les montants déjà payés pour chaque tranche (triés par date)
         $existingPayments = Payment::forStudent($student->id)
             ->forYear($workingYear->id)
-            ->where('id', '!=', $payment->id) // Exclure le paiement actuel
+            ->where('id', '!=', $payment->id)
+            ->where('is_rame_physical', false)
             ->with(['paymentDetails.paymentTranche'])
-            ->orderBy('payment_date', 'asc')
-            ->orderBy('created_at', 'asc')
             ->get();
 
         foreach ($paymentTranches as $tranche) {
-            if ($remainingAmount <= 0) break;
+            if ($remainingAmountToAllocate <= 0) break;
 
-            // Utiliser la nouvelle méthode qui gère les montants par défaut, réductions ET bourses
-            // Si le paiement a une réduction, appliquer la réduction aux montants requis par tranche
-            $requiredAmount = $tranche->getAmountForStudent($student, true, $payment->has_reduction, true);
+            $requiredAmount = $tranche->getAmountForStudent($student, false, $payment->has_reduction, true);
             if ($requiredAmount <= 0) continue;
 
-            // Calculer le montant déjà payé pour cette tranche
-            // Comme les paiements sont triés par date, on prend le dernier new_total_amount
-            // qui représente le montant cumulé le plus récent pour cette tranche
             $previouslyPaid = 0;
             foreach ($existingPayments as $existingPayment) {
                 $detail = $existingPayment->paymentDetails->where('payment_tranche_id', $tranche->id)->first();
                 if ($detail) {
-                    // Chaque new_total_amount est cumulatif, donc on prend le plus récent
                     $previouslyPaid = $detail->new_total_amount;
                 }
             }
 
-            // Calculer combien on peut allouer à cette tranche
             $remainingForTranche = $requiredAmount - $previouslyPaid;
-            if ($remainingForTranche <= 0) continue; // Cette tranche est déjà payée
+            if ($remainingForTranche <= 0) continue;
 
-            $allocatedAmount = min($remainingAmount, $remainingForTranche);
+            $allocatedAmount = min($remainingAmountToAllocate, $remainingForTranche);
             $newTotalAmount = $previouslyPaid + $allocatedAmount;
 
-            // Créer le détail de paiement
-            $paymentDetail = PaymentDetail::create([
+            PaymentDetail::create([
                 'payment_id' => $payment->id,
                 'payment_tranche_id' => $tranche->id,
                 'amount_allocated' => $allocatedAmount,
                 'previous_amount' => $previouslyPaid,
                 'new_total_amount' => $newTotalAmount,
-                'is_fully_paid' => $newTotalAmount >= $requiredAmount
-            ]);
-
-            // Log pour debug
-            Log::info("Payment allocation:", [
-                'payment_id' => $payment->id,
-                'tranche_name' => $tranche->name,
-                'required_amount' => $requiredAmount,
-                'previously_paid' => $previouslyPaid,
-                'allocated_amount' => $allocatedAmount,
-                'new_total_amount' => $newTotalAmount,
                 'is_fully_paid' => $newTotalAmount >= $requiredAmount,
-                'has_reduction' => $payment->has_reduction
+                'required_amount_at_time' => $requiredAmount,
+                'was_reduced' => $payment->has_reduction,
+                'reduction_context' => $payment->has_reduction ? "Réduction appliquée sur le paiement global" : null
             ]);
 
-            $remainingAmount -= $allocatedAmount;
+            $remainingAmountToAllocate -= $allocatedAmount;
         }
     }
 
     /**
-     * Obtenir l'historique des paiements d'un étudiant
+     * Marquer la RAME comme payée physiquement
      */
-    public function getStudentPaymentHistory($studentId)
+    public function payRamePhysically(Request $request, $studentId)
     {
+        $validator = Validator::make($request->all(), [
+            'notes' => 'nullable|string|max:1000',
+            'payment_date' => 'required|date',
+            'versement_date' => 'required|date',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => 'Données invalides', 'errors' => $validator->errors()], 422);
+        }
+
         try {
             $workingYear = $this->getUserWorkingYear();
-            
             if (!$workingYear) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Aucune année scolaire définie'
-                ], 400);
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
             }
 
-            $payments = Payment::forStudent($studentId)
-                ->forYear($workingYear->id)
-                ->with([
-                    'paymentDetails.paymentTranche',
-                    'createdByUser'
-                ])
-                ->orderBy('payment_date', 'desc')
-                ->orderBy('created_at', 'desc')
-                ->get();
+            $student = Student::with('classSeries.schoolClass')->find($studentId);
+            if (!$student) {
+                return response()->json(['success' => false, 'message' => 'Étudiant non trouvé'], 404);
+            }
+
+            // Récupérer la tranche RAME
+            $rameTranche = PaymentTranche::where('name', 'RAME')->first();
+            if (!$rameTranche) {
+                return response()->json(['success' => false, 'message' => 'Tranche RAME non trouvée'], 404);
+            }
+
+            // Vérifier si la RAME n'a pas déjà été payée
+            $existingRamePayment = Payment::where('student_id', $studentId)
+                ->where('school_year_id', $workingYear->id)
+                ->where('is_rame_physical', true)
+                ->first();
+            
+            if ($existingRamePayment) {
+                return response()->json([
+                    'success' => false, 
+                    'message' => 'La RAME a déjà été payée physiquement pour cet étudiant'
+                ], 422);
+            }
+
+            // Vérifier si la RAME n'a pas été payée électroniquement
+            $existingElectronicRame = PaymentDetail::whereHas('payment', function($query) use ($studentId, $workingYear) {
+                $query->where('student_id', $studentId)
+                      ->where('school_year_id', $workingYear->id)
+                      ->where('is_rame_physical', false);
+            })->where('payment_tranche_id', $rameTranche->id)
+              ->where('amount_allocated', '>', 0)
+              ->first();
+
+            if ($existingElectronicRame) {
+                return response()->json([
+                    'success' => false, 
+                    'message' => 'La RAME a déjà été payée électroniquement pour cet étudiant'
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            $receiptNumber = Payment::generateReceiptNumber($workingYear, $request->payment_date);
+
+            // Créer le paiement RAME physique
+            $payment = Payment::create([
+                'student_id' => $studentId,
+                'school_year_id' => $workingYear->id,
+                'total_amount' => $rameTranche->default_amount,
+                'payment_date' => $request->payment_date,
+                'versement_date' => $request->versement_date,
+                'validation_date' => now(),
+                'payment_method' => 'rame_physical',
+                'reference_number' => null,
+                'notes' => $request->notes ?? 'Paiement RAME physique',
+                'created_by_user_id' => Auth::id(),
+                'receipt_number' => $receiptNumber,
+                'is_rame_physical' => true,
+                'has_scholarship' => false,
+                'scholarship_amount' => 0,
+                'has_reduction' => false,
+                'reduction_amount' => 0,
+                'discount_reason' => null
+            ]);
+
+            // Créer le détail de paiement pour la tranche RAME
+            PaymentDetail::create([
+                'payment_id' => $payment->id,
+                'payment_tranche_id' => $rameTranche->id,
+                'amount_allocated' => $rameTranche->default_amount,
+                'previous_amount' => 0,
+                'new_total_amount' => $rameTranche->default_amount,
+                'is_fully_paid' => true,
+                'required_amount_at_time' => $rameTranche->default_amount,
+                'was_reduced' => false,
+                'reduction_context' => null
+            ]);
+
+            DB::commit();
+
+            // Envoyer la notification WhatsApp
+            try {
+                $whatsAppService = new \App\Services\WhatsAppService();
+                $whatsAppService->sendPaymentNotification($payment);
+            } catch (\Exception $e) {
+                Log::warning('Erreur lors de l\'envoi de la notification WhatsApp pour paiement RAME physique', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
-                'data' => $payments
-            ]);
+                'data' => [
+                    'payment' => $payment,
+                    'receipt_number' => $receiptNumber
+                ],
+                'message' => 'RAME payée physiquement avec succès'
+            ], 201);
 
         } catch (\Exception $e) {
-            Log::error('Error in PaymentController@getStudentPaymentHistory: ' . $e->getMessage());
+            DB::rollBack();
+            Log::error('Error in PaymentController@payRamePhysically: ' . $e->getMessage());
+            
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération de l\'historique',
+                'message' => 'Erreur lors de l\'enregistrement du paiement RAME physique',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * Générer un reçu de paiement
+     * Obtenir le statut RAME d'un étudiant
+     */
+    public function getRameStatus($studentId)
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+            if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            $student = Student::find($studentId);
+            if (!$student) {
+                return response()->json(['success' => false, 'message' => 'Étudiant non trouvé'], 404);
+            }
+
+            // Récupérer la tranche RAME
+            $rameTranche = PaymentTranche::where('name', 'RAME')->first();
+            if (!$rameTranche) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'rame_available' => false,
+                        'message' => 'La tranche RAME n\'est pas configurée'
+                    ]
+                ]);
+            }
+
+            // Vérifier si la RAME a été payée physiquement
+            $physicalRamePayment = Payment::where('student_id', $studentId)
+                ->where('school_year_id', $workingYear->id)
+                ->where('is_rame_physical', true)
+                ->first();
+
+            // Vérifier si la RAME a été payée électroniquement
+            $electronicRamePayment = PaymentDetail::whereHas('payment', function($query) use ($studentId, $workingYear) {
+                $query->where('student_id', $studentId)
+                      ->where('school_year_id', $workingYear->id)
+                      ->where('is_rame_physical', false);
+            })->where('payment_tranche_id', $rameTranche->id)
+              ->where('amount_allocated', '>', 0)
+              ->first();
+
+            $status = [
+                'rame_available' => true,
+                'amount' => $rameTranche->default_amount,
+                'is_paid' => false,
+                'payment_type' => null,
+                'can_pay_physically' => false,
+                'can_pay_electronically' => false,
+                'payment_details' => null
+            ];
+
+            if ($physicalRamePayment) {
+                $status['is_paid'] = true;
+                $status['payment_type'] = 'physical';
+                $status['payment_details'] = [
+                    'payment_id' => $physicalRamePayment->id,
+                    'payment_date' => $physicalRamePayment->payment_date,
+                    'receipt_number' => $physicalRamePayment->receipt_number,
+                    'amount' => $physicalRamePayment->total_amount
+                ];
+            } elseif ($electronicRamePayment) {
+                $status['is_paid'] = true;
+                $status['payment_type'] = 'electronic';
+                $status['payment_details'] = [
+                    'payment_id' => $electronicRamePayment->payment_id,
+                    'amount_allocated' => $electronicRamePayment->amount_allocated,
+                    'payment_date' => $electronicRamePayment->payment->payment_date ?? null
+                ];
+            } else {
+                // RAME non payée - les deux options sont disponibles
+                $status['can_pay_physically'] = true;
+                $status['can_pay_electronically'] = true;
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $status
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in PaymentController@getRameStatus: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération du statut RAME',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Calcule les informations de bourse pour un paiement
+     */
+    private function calculateScholarshipInfo(Student $student, $paymentTranches): array
+    {
+        $totalScholarshipAmount = 0;
+        $hasScholarship = false;
+
+        $scholarship = $this->discountCalculatorService->getClassScholarship($student);
+        
+        if ($scholarship && $this->discountCalculatorService->isEligibleForScholarship(now())) {
+            // Le montant de la bourse est directement le montant configuré
+            // Il s'applique à la tranche spécifiée
+            foreach ($paymentTranches as $tranche) {
+                if ($tranche->id == $scholarship->payment_tranche_id) {
+                    $totalScholarshipAmount = $scholarship->amount;
+                    $hasScholarship = true;
+                    break; // Une seule tranche peut être affectée
+                }
+            }
+        }
+
+        return [
+            'has_scholarship' => $hasScholarship,
+            'scholarship_amount' => $totalScholarshipAmount
+        ];
+    }
+
+    /**
+     * Allouer le paiement aux tranches avec réduction globale
+     */
+    private function allocatePaymentToTranchesWithGlobalDiscount(Payment $payment, Student $student, SchoolYear $workingYear, $paymentTranches)
+    {
+        $remainingAmountToAllocate = $payment->total_amount;
+        $schoolSettings = \App\Models\SchoolSetting::getSettings();
+        $discountPercentage = $schoolSettings->reduction_percentage ?? 0;
+
+        $existingPayments = Payment::forStudent($student->id)
+            ->forYear($workingYear->id)
+            ->where('id', '!=', $payment->id)
+            ->where('is_rame_physical', false)
+            ->with(['paymentDetails.paymentTranche'])
+            ->get();
+
+        foreach ($paymentTranches as $tranche) {
+            if ($remainingAmountToAllocate <= 0) break;
+
+            // Calculer les montants normal et réduit
+            $normalAmount = $tranche->getAmountForStudent($student, false, false, false, false);
+            $reducedAmount = $tranche->getAmountForStudent($student, false, false, false, true);
+            
+            if ($reducedAmount <= 0) continue;
+
+            // Calculer ce qui a été payé précédemment sur cette tranche
+            $previouslyPaid = 0;
+            foreach ($existingPayments as $existingPayment) {
+                $detail = $existingPayment->paymentDetails->where('payment_tranche_id', $tranche->id)->first();
+                if ($detail) {
+                    $previouslyPaid += $detail->amount_allocated;
+                }
+            }
+
+            // Ce qui reste à payer sur cette tranche (montant réduit)
+            $amountStillNeeded = max(0, $reducedAmount - $previouslyPaid);
+            $amountToAllocate = min($remainingAmountToAllocate, $amountStillNeeded);
+
+            if ($amountToAllocate > 0) {
+                $newTotalAmount = $previouslyPaid + $amountToAllocate;
+                
+                \App\Models\PaymentDetail::create([
+                    'payment_id' => $payment->id,
+                    'payment_tranche_id' => $tranche->id,
+                    'amount_allocated' => $amountToAllocate,
+                    'previous_amount' => $previouslyPaid,
+                    'new_total_amount' => $newTotalAmount,
+                    'is_fully_paid' => $newTotalAmount >= $reducedAmount,
+                    'required_amount_at_time' => $reducedAmount, // Stocker le montant réduit
+                    'was_reduced' => true,
+                    'reduction_context' => "Réduction globale {$discountPercentage}% appliquée - Normal: " . number_format($normalAmount, 0) . " FCFA"
+                ]);
+
+                $remainingAmountToAllocate -= $amountToAllocate;
+            }
+        }
+    }
+
+    /**
+     * Générer le reçu de paiement en HTML
      */
     public function generateReceipt($paymentId)
     {
         try {
             $payment = Payment::with([
-                'student.classSeries.schoolClass.level.section',
+                'student.classSeries.schoolClass', 
                 'paymentDetails.paymentTranche',
-                'createdByUser',
-                'schoolYear'
-            ])->find($paymentId);
+                'schoolYear',
+                'createdByUser'
+            ])->findOrFail($paymentId);
 
-            if (!$payment) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Paiement non trouvé'
-                ], 404);
-            }
-
+            $schoolSettings = \App\Models\SchoolSetting::getSettings();
+            
             // Générer le HTML du reçu
-            $html = $this->generateReceiptHtml($payment);
+            $receiptHtml = $this->generateReceiptHtml($payment, $schoolSettings);
 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'payment' => $payment,
-                    'html' => $html
+                    'html' => $receiptHtml,
+                    'payment' => $payment
                 ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error in PaymentController@generateReceipt: ' . $e->getMessage());
+            \Log::error('Error generating receipt: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la génération du reçu',
@@ -508,377 +742,199 @@ class PaymentController extends Controller
     }
 
     /**
-     * Générer le HTML du reçu
+     * Générer le HTML du reçu de paiement
      */
-    private function generateReceiptHtml(Payment $payment)
+    private function generateReceiptHtml($payment, $schoolSettings)
     {
         $student = $payment->student;
-        $workingYear = $payment->schoolYear;
+        $schoolClass = $student->classSeries->schoolClass ?? null;
         
-        // Récupérer les paramètres de l'école
-        $schoolSettings = SchoolSetting::getSettings();
+        // Formatage des montants
+        $formatAmount = function($amount) {
+            return number_format($amount, 0, ',', ' ') . ' FCFA';
+        };
 
-        // Récupérer l'historique complet des paiements de l'étudiant pour cette année
-        $allPayments = Payment::forStudent($student->id)
-            ->forYear($workingYear->id)
-            ->with(['paymentDetails.paymentTranche', 'createdByUser'])
-            ->orderBy('payment_date', 'asc')
-            ->orderBy('created_at', 'asc')
-            ->get();
-
-        // Récupérer l'état actuel des paiements par tranche
-        $paymentInfo = $this->getStudentPaymentInfo($student->id);
-        $paymentData = $paymentInfo->getData();
-        
-        if (!$paymentData->success) {
-            $paymentStatus = [];
-            $totals = ['required' => 0, 'paid' => 0, 'remaining' => 0];
-        } else {
-            // Convertir en tableau pour éviter les problèmes d'objet
-            $paymentStatus = json_decode(json_encode($paymentData->data->payment_status), true) ?? [];
-            $totals = [
-                'required' => $paymentData->data->total_required ?? 0,
-                'paid' => $paymentData->data->total_paid ?? 0,
-                'remaining' => $paymentData->data->total_remaining ?? 0
-            ];
+        // Calcul des détails avec bourse ou réduction
+        $benefitText = '';
+        if ($payment->has_scholarship && $payment->scholarship_amount > 0) {
+            $totalValue = $payment->total_amount + $payment->scholarship_amount;
+            $benefitText = "
+                <tr>
+                    <td colspan='2' style='text-align: center; padding: 10px; background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb;'>
+                        <strong>Détail avec bourse :</strong><br>
+                        Montant payé: {$formatAmount($payment->total_amount)} + 
+                        Bourse: {$formatAmount($payment->scholarship_amount)} = 
+                        <strong>Valeur totale: {$formatAmount($totalValue)}</strong>
+                    </td>
+                </tr>
+            ";
+        } elseif ($payment->has_reduction && $payment->reduction_amount > 0) {
+            $totalValue = $payment->total_amount + $payment->reduction_amount;
+            $benefitText = "
+                <tr>
+                    <td colspan='2' style='text-align: center; padding: 10px; background-color: #cff4fc; color: #055160; border: 1px solid #9eeaf9;'>
+                        <strong>Détail avec réduction :</strong><br>
+                        Montant payé: {$formatAmount($payment->total_amount)} + 
+                        Réduction: {$formatAmount($payment->reduction_amount)} = 
+                        <strong>Valeur totale: {$formatAmount($totalValue)}</strong>
+                    </td>
+                </tr>
+            ";
         }
 
-        $html = '
-        <div class="receipt" style="max-width: 800px; margin: 0 auto; font-family: Arial, sans-serif; font-size: 12px;">
-            <div class="receipt-header" style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 15px;">
-                <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-                    <div style="width: 60px; height: 60px; border-radius: 50%; background: #007bff; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; margin-right: 15px;">
-                        LOGO
-                    </div>
-                    <div>
-                        <h1 style="margin: 0; color: #333; font-size: 18px;">COLLÈGE POLYVALENT BILINGUE DE DOUALA</h1>
-                    </div>
-                </div>
-                <p style="margin: 5px 0; color: #333; font-weight: bold; font-size: 14px;">REÇU PENSION/FRAIS DIVERS</p>
+        // HTML du reçu
+        $html = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='utf-8'>
+            <title>Reçu de Paiement - {$payment->receipt_number}</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; }
+                .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+                .school-name { font-size: 24px; font-weight: bold; color: #333; }
+                .receipt-title { font-size: 18px; margin-top: 10px; color: #666; }
+                .receipt-number { font-size: 16px; margin-top: 5px; color: #999; }
+                .content { margin: 20px 0; }
+                .info-table { width: 100%; border-collapse: collapse; }
+                .info-table td { padding: 8px; border: 1px solid #ddd; }
+                .info-table .label { font-weight: bold; background-color: #f8f9fa; width: 30%; }
+                .amount-section { margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 5px; }
+                .amount-large { font-size: 20px; font-weight: bold; color: #28a745; }
+                .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; }
+                .signature-section { margin-top: 50px; display: flex; justify-content: space-between; }
+                .signature-box { width: 45%; text-align: center; border-top: 1px solid #333; padding-top: 10px; }
+            </style>
+        </head>
+        <body>
+            <div class='header'>
+                <div class='school-name'>{$schoolSettings->school_name}</div>
+                <div class='receipt-title'>REÇU DE PAIEMENT</div>
+                <div class='receipt-number'>N° {$payment->receipt_number}</div>
             </div>
-            
-            <div class="receipt-info" style="margin-bottom: 20px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
-                    <div>
-                        <p style="margin: 2px 0;"><strong>Année académique :</strong> ' . $workingYear->name . '</p>
-                        <p style="margin: 2px 0;"><strong>Matricule :</strong> ' . ($student->student_number ?? 'N/A') . '</p>
-                        <p style="margin: 2px 0;"><strong>Nom :</strong> ' . strtoupper($student->last_name) . ' ' . strtoupper($student->first_name) . '</p>
-                        <p style="margin: 2px 0;"><strong>Classe :</strong> ' . strtoupper($student->classSeries->schoolClass->name ?? 'N/A') . '</p>
-                    </div>
-                    <div style="text-align: right;">
-                        <p style="margin: 2px 0;"><strong>Le :</strong> ' . now()->format('d/m/Y H:i:s') . '</p>
-                        <p style="margin: 2px 0;"><strong>Inscription :</strong> ' . number_format($student->getNetRegistrationFee(), 0, ',', ' ') . '</p>
-                        <p style="margin: 2px 0;"><strong>Le :</strong> ' . ($student->created_at ? $student->created_at->format('d/m/Y') : 'N/A') . '</p>
-                        <p style="margin: 2px 0;"><strong>Banque :</strong> ' . strtoupper($payment->payment_method === 'cash' ? 'LOCAL' : ($schoolSettings->bank_name ?: 'C4ED')) . '</p>
-                    </div>
-                </div>
-                <p style="margin: 2px 0;"><strong>Motif du rabais :</strong> ' . ($payment->discount_reason ?: 'Aucun') . '</p>
-            </div>
-            
-            <div class="payment-history" style="margin-bottom: 20px;">
-                <table style="width: 100%; border-collapse: collapse; border: 1px solid #000; font-size: 11px;">
-                    <thead>
-                        <tr style="background-color: #f5f5f5;">
-                            <th style="border: 1px solid #000; padding: 6px; text-align: center;">N° Op</th>
-                            <th style="border: 1px solid #000; padding: 6px; text-align: center;">Banque</th>
-                            <th style="border: 1px solid #000; padding: 6px; text-align: center;">Date validation</th>
-                            <th style="border: 1px solid #000; padding: 6px; text-align: center;">Type paiement</th>
-                            <th style="border: 1px solid #000; padding: 6px; text-align: center;">Montant payé</th>
-                        </tr>
-                    </thead>
-                    <tbody>';
 
-        $opNumber = 2655;
-        foreach ($allPayments as $historyPayment) {
-            foreach ($historyPayment->paymentDetails as $detail) {
-                // Déterminer le libellé de la tranche avec mention RAME physique si applicable
-                $trancheName = strtoupper($detail->paymentTranche->name);
-                if ($historyPayment->is_rame_physical && $detail->paymentTranche->name === 'RAME') {
-                    $trancheName = 'RAME PHYSIQUE';
-                }
-                
-                $html .= '
-                        <tr>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center;">' . $opNumber . '</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center;">' . strtoupper($historyPayment->payment_method === 'cash' ? 'LOCAL' : ($schoolSettings->bank_name ?: 'C4ED')) . '</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center;">' . $historyPayment->payment_date->format('d/m/Y') . '</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center;">' . $trancheName . '</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: right;">' . number_format($detail->amount_allocated, 0, ',', ' ') . '</td>
-                        </tr>';
-                $opNumber++;
-            }
-        }
-
-        $html .= '
-                    </tbody>
+            <div class='content'>
+                <table class='info-table'>
+                    <tr>
+                        <td class='label'>Étudiant</td>
+                        <td>{$student->first_name} {$student->last_name}</td>
+                    </tr>
+                    <tr>
+                        <td class='label'>Classe</td>
+                        <td>" . ($schoolClass ? $schoolClass->name : 'Non défini') . "</td>
+                    </tr>
+                    <tr>
+                        <td class='label'>Date de paiement</td>
+                        <td>" . \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y') . "</td>
+                    </tr>
+                    <tr>
+                        <td class='label'>Méthode de paiement</td>
+                        <td>" . ucfirst($payment->payment_method) . "</td>
+                    </tr>
+                    " . ($payment->reference_number ? "
+                    <tr>
+                        <td class='label'>Référence</td>
+                        <td>{$payment->reference_number}</td>
+                    </tr>
+                    " : "") . "
                 </table>
-            </div>';
 
-        // Ajouter section pour bourses/réductions si applicable
-        if ($payment->has_scholarship || $payment->has_reduction) {
-            $html .= '
-            <div class="discount-section" style="margin-bottom: 20px; background-color: #f8f9fa; padding: 10px; border: 1px solid #000;">
-                <h4 style="margin: 0 0 10px 0; color: #28a745; text-align: center;">BOURSES ET RÉDUCTIONS APPLIQUÉES</h4>';
-                
-            if ($payment->has_scholarship) {
-                $html .= '
-                <p style="margin: 5px 0; color: #28a745; text-align: center;">
-                    <strong>✓ Bourse:</strong> ' . number_format($payment->scholarship_amount, 0, ',', ' ') . ' FCFA
-                </p>';
-            }
-            
-            if ($payment->has_reduction) {
-                $html .= '
-                <p style="margin: 5px 0; color: #28a745; text-align: center;">
-                    <strong>✓ Réduction:</strong> ' . number_format($payment->reduction_amount, 0, ',', ' ') . ' FCFA
-                </p>';
-            }
-            
-            $totalDiscount = $payment->scholarship_amount + $payment->reduction_amount;
-            $html .= '
-                <p style="margin: 10px 0 5px 0; font-weight: bold; text-align: center; color: #333;">
-                    Montant initial: ' . number_format($payment->total_amount + $totalDiscount, 0, ',', ' ') . ' FCFA
-                </p>
-                <p style="margin: 5px 0; font-weight: bold; text-align: center; color: #dc3545;">
-                    Total réduction: ' . number_format($totalDiscount, 0, ',', ' ') . ' FCFA
-                </p>
-                <p style="margin: 5px 0; font-weight: bold; text-align: center; color: #28a745;">
-                    Montant final: ' . number_format($payment->total_amount, 0, ',', ' ') . ' FCFA
-                </p>
-            </div>';
-        }
-
-        $html .= '
-            
-            <div class="payment-status" style="margin-bottom: 20px;">
-                <table style="width: 100%; border-collapse: collapse; border: 1px solid #000; font-size: 11px;">
-                    <thead>
-                        <tr style="background-color: #f5f5f5;">
-                            <th style="border: 1px solid #000; padding: 6px; text-align: center;" rowspan="2">Reste à payer par tranche</th>
-                            <th style="border: 1px solid #000; padding: 6px; text-align: center;">Tranche1</th>
-                            <th style="border: 1px solid #000; padding: 6px; text-align: center;">Tranche2</th>
-                            <th style="border: 1px solid #000; padding: 6px; text-align: center;">Tranche3</th>
-                            <th style="border: 1px solid #000; padding: 6px; text-align: center;">Bourse</th>
-                            <th style="border: 1px solid #000; padding: 6px; text-align: center;">Rabais</th>
-                            <th style="border: 1px solid #000; padding: 6px; text-align: center; font-weight: bold;">Total payé</th>
-                        </tr>
-                        <tr style="background-color: #f5f5f5;">';
-
-        // Dates limites pour chaque tranche (exemple)
-        $trancheDates = [
-            1 => '(4.10.2024)',
-            2 => '(6.11.2024)', 
-            3 => '(4.1.2025)'
-        ];
-
-        foreach ($trancheDates as $num => $date) {
-            $html .= '<th style="border: 1px solid #000; padding: 4px; text-align: center; font-size: 10px;">' . $date . '</th>';
-        }
-        $html .= '<th style="border: 1px solid #000; padding: 4px;"></th><th style="border: 1px solid #000; padding: 4px;"></th><th style="border: 1px solid #000; padding: 4px; font-weight: bold;">' . number_format($totals['paid'], 0, ',', ' ') . '</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center;"><strong>Date limite de paiement</strong></td>';
-
-        // Montants par tranche
-        $trancheAmounts = [];
-        foreach ($paymentStatus as $status) {
-            $trancheAmounts[$status['tranche']['name']] = [
-                'required' => $status['required_amount'],
-                'paid' => $status['paid_amount'],
-                'remaining' => $status['remaining_amount']
-            ];
-        }
-
-        // Afficher les montants pour les 3 premières tranches
-        for ($i = 1; $i <= 3; $i++) {
-            $trancheName = "Tranche $i";
-            $amount = 0;
-            foreach ($trancheAmounts as $name => $data) {
-                if (stripos($name, "tranche $i") !== false || stripos($name, "$i") !== false) {
-                    $amount = $data['required'];
-                    break;
-                }
-            }
-            $html .= '<td style="border: 1px solid #000; padding: 6px; text-align: right;">' . number_format($amount, 0, ',', ' ') . '</td>';
-        }
-
-        $html .= '
-                            <td style="border: 1px solid #000; padding: 6px; text-align: right;">0</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: right;">0</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: right; font-weight: bold; background-color: #e6f3ff;">' . number_format($totals['required'], 0, ',', ' ') . '</td>
-                        </tr>
-                        <tr>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center;"><strong>Montant dû</strong></td>';
-
-        // Montants dus par tranche
-        for ($i = 1; $i <= 3; $i++) {
-            $amount = 0;
-            foreach ($trancheAmounts as $name => $data) {
-                if (stripos($name, "tranche $i") !== false || stripos($name, "$i") !== false) {
-                    $amount = $data['required'];
-                    break;
-                }
-            }
-            $html .= '<td style="border: 1px solid #000; padding: 6px; text-align: right;">' . number_format($amount, 0, ',', ' ') . '</td>';
-        }
-
-        $html .= '
-                            <td style="border: 1px solid #000; padding: 6px; text-align: right;">0</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: right;">0</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: right; font-weight: bold;">Reste à payer total</td>
-                        </tr>
-                        <tr>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center;"><strong>Montant payé</strong></td>';
-
-        // Montants payés par tranche
-        for ($i = 1; $i <= 3; $i++) {
-            $amount = 0;
-            foreach ($trancheAmounts as $name => $data) {
-                if (stripos($name, "tranche $i") !== false || stripos($name, "$i") !== false) {
-                    $amount = $data['paid'];
-                    break;
-                }
-            }
-            $html .= '<td style="border: 1px solid #000; padding: 6px; text-align: right;">' . number_format($amount, 0, ',', ' ') . '</td>';
-        }
-
-        $html .= '
-                            <td style="border: 1px solid #000; padding: 6px; text-align: right;">0</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: right;">0</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: right; font-weight: bold; background-color: #e6ffe6;">' . number_format($totals['remaining'], 0, ',', ' ') . '</td>
-                        </tr>
-                        <tr>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center;"><strong>Reste à payer</strong></td>';
-
-        // Reste à payer par tranche
-        for ($i = 1; $i <= 3; $i++) {
-            $amount = 0;
-            foreach ($trancheAmounts as $name => $data) {
-                if (stripos($name, "tranche $i") !== false || stripos($name, "$i") !== false) {
-                    $amount = $data['remaining'];
-                    break;
-                }
-            }
-            $html .= '<td style="border: 1px solid #000; padding: 6px; text-align: right;">' . number_format($amount, 0, ',', ' ') . '</td>';
-        }
-
-        $html .= '
-                            <td style="border: 1px solid #000; padding: 6px; text-align: right;">0</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: right;">0</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: right; font-weight: bold; background-color: #ffe6e6;">' . number_format($totals['remaining'], 0, ',', ' ') . '</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="receipt-footer" style="margin-top: 30px;">
-                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
-                    <div style="font-size: 10px;">
-                        <p style="margin: 2px 0;"><strong>N.B :</strong> Vos dossiers ne seront transmis qu\'après paiement de la totalité des frais de scolarité sollicités</p>
-                        <p style="margin: 2px 0;">Les frais d\'inscription et d\'étude de dossier ne sont pas remboursables</p>
-                        <p style="margin: 2px 0;">Registration and studying documents fees are not refundable after admission</p>
-                        <p style="margin: 10px 0 2px 0;"><strong>B.P :</strong> 4100</p>
-                        <p style="margin: 2px 0;"><strong>Tél :</strong> 233 43 25 47</p>
-                        <p style="margin: 2px 0;"><strong>Site web :</strong> www.cpdyassa.com</p>
-                        <p style="margin: 2px 0;"><strong>Email :</strong> contact@cpdyassa.com</p>
+                <div class='amount-section'>
+                    <div style='text-align: center;'>
+                        <div>Montant payé</div>
+                        <div class='amount-large'>{$formatAmount($payment->total_amount)}</div>
                     </div>
-                    <div style="text-align: center; position: relative;">
-                        <div style="width: 120px; height: 120px; border: 3px solid #d32f2f; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(211, 47, 47, 0.1); margin: 0 auto 10px;">
-                            <div style="text-align: center; color: #d32f2f; font-weight: bold; font-size: 12px; line-height: 1.2;">
-                                <div>COLLÈGE POLYVALENT</div>
-                                <div>BILINGUE DE DOUALA</div>
-                                <div style="font-size: 10px; margin-top: 5px;">Service Comptabilité</div>
-                            </div>
-                        </div>
-                        <p style="margin: 5px 0; font-size: 11px;"><strong>Validé par :</strong></p>
-                        <p style="margin: 5px 0; font-size: 11px;">' . ($payment->createdByUser->name ?? 'KENGNI') . '</p>
+                </div>
+
+                " . $benefitText . "
+
+                " . ($payment->notes ? "
+                <table class='info-table' style='margin-top: 20px;'>
+                    <tr>
+                        <td class='label'>Notes</td>
+                        <td>{$payment->notes}</td>
+                    </tr>
+                </table>
+                " : "") . "
+
+                <div class='signature-section'>
+                    <div class='signature-box'>
+                        <div>Signature de l'étudiant</div>
+                    </div>
+                    <div class='signature-box'>
+                        <div>Signature du caissier</div>
                     </div>
                 </div>
             </div>
-        </div>';
+
+            <div class='footer'>
+                <p>Ce reçu fait foi de paiement - Généré le " . now()->format('d/m/Y à H:i') . "</p>
+                <p>{$schoolSettings->school_name} - Système de gestion scolaire</p>
+            </div>
+        </body>
+        </html>
+        ";
 
         return $html;
     }
 
     /**
-     * Obtenir les statistiques de paiement (pour les rapports)
+     * Obtenir les informations de paiement avec prévisualisation des réductions
      */
-    public function getPaymentStats(Request $request)
+    public function getStudentPaymentInfoWithDiscount($studentId)
     {
         try {
             $workingYear = $this->getUserWorkingYear();
-            
             if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            $student = Student::with(['classSeries.schoolClass', 'schoolYear'])->find($studentId);
+            if (!$student) {
+                return response()->json(['success' => false, 'message' => 'Étudiant non trouvé'], 404);
+            }
+
+            $paymentStatus = $this->paymentStatusService->getStatusForStudent($student, $workingYear);
+            
+            // Vérifier l'éligibilité aux réductions
+            if (!$paymentStatus->is_eligible_for_discount) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Aucune année scolaire définie'
-                ], 400);
+                    'message' => 'Cet étudiant n\'est pas éligible aux réductions',
+                    'reasons' => [
+                        'has_scholarships' => $paymentStatus->has_scholarships,
+                        'has_existing_payments' => $paymentStatus->has_existing_payments,
+                        'deadline_passed' => $paymentStatus->discount_deadline ? now()->isAfter($paymentStatus->discount_deadline) : false
+                    ]
+                ]);
             }
 
-            $query = Payment::forYear($workingYear->id);
-
-            // Filtrer par période si spécifiée
-            if ($request->start_date && $request->end_date) {
-                $query->betweenDates($request->start_date, $request->end_date);
-            }
-
-            // Filtrer par série si spécifiée
-            if ($request->series_id) {
-                $query->whereHas('student', function ($q) use ($request) {
-                    $q->where('class_series_id', $request->series_id);
-                });
-            }
-
-            $payments = $query->with([
-                'student.classSeries',
-                'paymentDetails.paymentTranche'
-            ])->get();
-
-            $stats = [
-                'total_payments' => $payments->count(),
-                'total_amount' => $payments->sum('total_amount'),
-                'by_method' => $payments->groupBy('payment_method')->map->count(),
-                'by_tranche' => [],
-                'by_date' => $payments->groupBy(function ($payment) {
-                    return $payment->payment_date->format('Y-m-d');
-                })->map(function ($dayPayments) {
-                    return [
-                        'count' => $dayPayments->count(),
-                        'amount' => $dayPayments->sum('total_amount')
-                    ];
-                })
-            ];
-
-            // Statistiques par tranche
-            foreach ($payments as $payment) {
-                foreach ($payment->paymentDetails as $detail) {
-                    $trancheName = $detail->paymentTranche->name;
-                    if (!isset($stats['by_tranche'][$trancheName])) {
-                        $stats['by_tranche'][$trancheName] = [
-                            'count' => 0,
-                            'amount' => 0
-                        ];
-                    }
-                    $stats['by_tranche'][$trancheName]['count']++;
-                    $stats['by_tranche'][$trancheName]['amount'] += $detail->amount_allocated;
-                }
-            }
+            // Obtenir les détails avec réduction
+            $discountDetails = $this->paymentStatusService->getTranchesWithDiscount($student, $workingYear);
 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'payments' => $payments,
-                    'stats' => $stats,
-                    'school_year' => $workingYear
+                    'student' => $student,
+                    'school_year' => $workingYear,
+                    'is_eligible_for_discount' => true,
+                    'discount_percentage' => $discountDetails['discount_percentage'],
+                    'discount_deadline' => $paymentStatus->discount_deadline ? $paymentStatus->discount_deadline->format('d/m/Y') : null,
+                    'normal_totals' => [
+                        'total_required' => $discountDetails['total_normal'],
+                        'total_discount' => $discountDetails['total_discount_amount'],
+                        'total_with_discount' => $discountDetails['total_with_discount']
+                    ],
+                    'tranches_with_discount' => $discountDetails['tranches'],
+                    'payment_amount_required' => $discountDetails['total_with_discount'] // Montant exact à payer
                 ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error in PaymentController@getPaymentStats: ' . $e->getMessage());
+            Log::error('Error in PaymentController@getStudentPaymentInfoWithDiscount: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des statistiques',
+                'message' => 'Erreur lors de la récupération des informations de réduction',
                 'error' => $e->getMessage()
             ], 500);
         }

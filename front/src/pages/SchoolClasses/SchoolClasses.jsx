@@ -444,10 +444,10 @@ const SchoolClasses = () => {
                                                                                     </div>
                                                                                     <div className="text-end">
                                                                                         <div className="fw-bold text-success">
-                                                                                            {payment.amount_new_students?.toLocaleString()} FCFA
+                                                                                            {parseFloat(payment.amount)?.toLocaleString()} FCFA
                                                                                         </div>
                                                                                         <small className="text-muted">
-                                                                                            Ancien: {payment.amount_old_students?.toLocaleString()} FCFA
+                                                                                            {payment.is_required ? 'Obligatoire' : 'Optionnel'}
                                                                                         </small>
                                                                                     </div>
                                                                                 </div>

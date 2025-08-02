@@ -27,6 +27,7 @@ import {
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import { useSchool } from '../../contexts/SchoolContext';
+import RameStatusToggle from '../../components/RameStatusToggle';
 import Swal from 'sweetalert2';
 
 const StudentPayment = () => {
@@ -41,7 +42,9 @@ const StudentPayment = () => {
     const [totals, setTotals] = useState({
         required: 0,
         paid: 0,
-        remaining: 0
+        remaining: 0,
+        scholarship_amount: 0,
+        has_scholarships: false
     });
     
     const [discountInfo, setDiscountInfo] = useState({
@@ -52,6 +55,10 @@ const StudentPayment = () => {
         deadline: null,
         reasons: []
     });
+    
+    // Variable supprimée - logique intégrée dans le modal
+    
+    // Variables supprimées - ancienne logique de réduction
     
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -67,9 +74,15 @@ const StudentPayment = () => {
         reference_number: '',
         notes: '',
         payment_date: new Date().toISOString().split('T')[0],
+        versement_date: new Date().toISOString().split('T')[0],
         is_rame_physical: false,
-        rame_choice: 'none' // Par défaut: ne pas payer la RAME
+        rame_choice: 'none', // Par défaut: ne pas payer la RAME
+        apply_discount: false // Nouvelle option pour appliquer la réduction
     });
+
+    // États pour la gestion de la réduction dans le modal
+    const [modalDiscountInfo, setModalDiscountInfo] = useState(null);
+    const [isCheckingDiscount, setIsCheckingDiscount] = useState(false);
 
     useEffect(() => {
         loadStudentPaymentInfo();
@@ -85,19 +98,45 @@ const StudentPayment = () => {
                 setStudent(response.data.student);
                 setPaymentStatus(response.data.payment_status);
                 setSchoolYear(response.data.school_year);
-                setTotals({
-                    required: response.data.total_required,
+                
+                // Calculer le total des réductions globales appliquées
+                let totalGlobalDiscountAmount = 0;
+                let hasGlobalDiscounts = false;
+                
+                if (response.data.payment_status && Array.isArray(response.data.payment_status)) {
+                    response.data.payment_status.forEach(status => {
+                        if (status.has_global_discount && status.global_discount_amount > 0) {
+                            totalGlobalDiscountAmount += parseFloat(status.global_discount_amount);
+                            hasGlobalDiscounts = true;
+                        }
+                    });
+                }
+                
+                // Gérer les montants (toujours normaux maintenant)
+                const currentTotals = {
+                    required: response.data.total_required, // Montants normaux
                     paid: response.data.total_paid,
-                    remaining: response.data.total_remaining
-                });
-                setDiscountInfo(response.data.discount_info || {
+                    remaining: response.data.total_remaining,
+                    scholarship_amount: response.data.total_scholarship_amount || 0,
+                    has_scholarships: response.data.has_scholarships || false,
+                    global_discount_amount: totalGlobalDiscountAmount,
+                    has_global_discounts: hasGlobalDiscounts
+                };
+                setTotals(currentTotals);
+                
+                // Code simplifié - plus besoin de tracking des réductions existantes
+                
+                setDiscountInfo({
                     eligible_for_scholarship: false,
                     scholarship_amount: 0,
                     eligible_for_reduction: false,
                     reduction_percentage: 0,
                     deadline: null,
-                    reasons: []
+                    reasons: [],
+                    ...(response.data.discount_info || {})
                 });
+
+                // Plus besoin de vérifier l'éligibilité au chargement initial
             } else {
                 setError(response.message);
             }
@@ -121,6 +160,317 @@ const StudentPayment = () => {
         }
     };
 
+    // Réinitialiser le formulaire quand le modal se ferme
+    const handleModalClose = () => {
+        setShowPaymentModal(false);
+        setModalDiscountInfo(null);
+        setPaymentForm(prev => ({
+            ...prev,
+            amount: '',
+            apply_discount: false,
+            versement_date: new Date().toISOString().split('T')[0]
+        }));
+    };
+
+    // Fonction pour payer la RAME physiquement
+    const handlePayRame = async () => {
+        const result = await Swal.fire({
+            title: 'Payer la RAME physiquement',
+            html: `
+                <p>Confirmez-vous que l'étudiant <strong>${student?.first_name} ${student?.last_name}</strong> a apporté sa RAME physiquement ?</p>
+                <div class="mt-3">
+                    <label for="rameNotes" class="form-label">Notes (optionnel):</label>
+                    <textarea id="rameNotes" class="form-control" placeholder="Commentaires sur le paiement RAME..."></textarea>
+                </div>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Oui, marquer comme payé',
+            cancelButtonText: 'Annuler',
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#6c757d',
+            preConfirm: () => {
+                const notes = document.getElementById('rameNotes').value;
+                return { notes };
+            }
+        });
+
+        if (result.isConfirmed) {
+            try {
+                setPaymentLoading(true);
+                const response = await secureApiEndpoints.payments.payRamePhysically(studentId, {
+                    notes: result.value.notes || 'RAME apportée physiquement',
+                    reference_number: 'RAME-PHYS-' + new Date().getTime()
+                });
+
+                if (response.success) {
+                    Swal.fire({
+                        title: 'Succès !',
+                        text: 'RAME marquée comme payée physiquement',
+                        icon: 'success',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+
+                    // Recharger les données
+                    await loadStudentPaymentInfo();
+                    await loadPaymentHistory();
+                } else {
+                    throw new Error(response.message || 'Erreur lors du paiement RAME');
+                }
+            } catch (error) {
+                console.error('Error paying RAME:', error);
+                Swal.fire({
+                    title: 'Erreur',
+                    text: error.message || 'Erreur lors du paiement RAME',
+                    icon: 'error'
+                });
+            } finally {
+                setPaymentLoading(false);
+            }
+        }
+    };
+
+    // Anciennes fonctions supprimées - logique intégrée dans le modal
+
+    // Fonction pour paiement rapide sans modal
+    const handleQuickPayment = async () => {
+        // Calculer le montant avec bourse (conversion en nombres)
+        const amountWithScholarship = Math.max(0, parseFloat(totals.remaining) - parseFloat(totals.scholarship_amount));
+        
+        const result = await Swal.fire({
+            title: 'Paiement Rapide',
+            html: `
+                <div class="text-start">
+                    <p><strong>Étudiant:</strong> ${student?.first_name} ${student?.last_name}</p>
+                    <p><strong>Montant restant:</strong> ${formatAmount(totals.remaining)}</p>
+                    ${totals.has_scholarships ? `
+                        <div class="alert alert-success mb-3">
+                            <strong>🎉 Avec votre bourse:</strong><br>
+                            ${formatAmount(totals.remaining)} - ${formatAmount(totals.scholarship_amount)} = 
+                            <strong>${formatAmount(amountWithScholarship)}</strong>
+                        </div>
+                    ` : ''}
+                    <hr>
+                    <div class="mb-3">
+                        <label for="quickAmount" class="form-label">Montant à payer *</label>
+                        <input type="number" id="quickAmount" class="form-control" 
+                               value="${totals.has_scholarships ? amountWithScholarship : totals.remaining}" 
+                               min="1" max="${totals.remaining}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="quickVersementDate" class="form-label">Date de versement *</label>
+                        <input type="date" id="quickVersementDate" class="form-control" 
+                               value="${new Date().toISOString().split('T')[0]}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="quickMethod" class="form-label">Méthode de paiement *</label>
+                        <select id="quickMethod" class="form-select">
+                            <option value="cash">Espèces</option>
+                            <option value="card">Carte bancaire</option>
+                            <option value="transfer">Virement</option>
+                            <option value="check">Chèque</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="quickReference" class="form-label">Référence (optionnel)</label>
+                        <input type="text" id="quickReference" class="form-control" 
+                               placeholder="Numéro de référence">
+                    </div>
+                    <div class="mb-3">
+                        <label for="quickNotes" class="form-label">Notes (optionnel)</label>
+                        <textarea id="quickNotes" class="form-control" rows="2" 
+                                  placeholder="Commentaires sur le paiement"></textarea>
+                    </div>
+                </div>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '💳 Enregistrer le Paiement',
+            cancelButtonText: 'Annuler',
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#6c757d',
+            width: '500px',
+            preConfirm: () => {
+                const amount = parseFloat(document.getElementById('quickAmount').value);
+                const versementDate = document.getElementById('quickVersementDate').value;
+                const method = document.getElementById('quickMethod').value;
+                const reference = document.getElementById('quickReference').value.trim();
+                const notes = document.getElementById('quickNotes').value.trim();
+
+                if (!amount || amount <= 0) {
+                    Swal.showValidationMessage('Veuillez saisir un montant valide');
+                    return false;
+                }
+
+                if (amount > totals.remaining) {
+                    Swal.showValidationMessage('Le montant ne peut pas dépasser le montant restant');
+                    return false;
+                }
+
+                if (!versementDate) {
+                    Swal.showValidationMessage('Veuillez sélectionner une date de versement');
+                    return false;
+                }
+
+                return {
+                    amount: amount,
+                    payment_method: method,
+                    reference_number: reference || '',
+                    notes: notes || '',
+                    payment_date: new Date().toISOString().split('T')[0],
+                    versement_date: versementDate
+                };
+            }
+        });
+
+        if (result.isConfirmed) {
+            try {
+                setPaymentLoading(true);
+                const response = await secureApiEndpoints.payments.create({
+                    student_id: parseInt(studentId),
+                    ...result.value
+                });
+
+                if (response.success) {
+                    Swal.fire({
+                        title: 'Paiement Enregistré !',
+                        text: `Paiement de ${formatAmount(result.value.amount)} enregistré avec succès`,
+                        icon: 'success',
+                        timer: 3000,
+                        showConfirmButton: false
+                    });
+
+                    // Recharger les données
+                    await loadStudentPaymentInfo();
+                    await loadPaymentHistory();
+                } else {
+                    throw new Error(response.message || 'Erreur lors de l\'enregistrement du paiement');
+                }
+            } catch (error) {
+                console.error('Error in quick payment:', error);
+                Swal.fire({
+                    title: 'Erreur',
+                    text: error.message || 'Erreur lors de l\'enregistrement du paiement',
+                    icon: 'error'
+                });
+            } finally {
+                setPaymentLoading(false);
+            }
+        }
+    };
+
+    // Fonction supprimée - logique maintenant intégrée dans le modal principal
+
+    // Fonction supprimée - logique intégrée dans le modal
+
+    // Fonction pour vérifier l'éligibilité aux réductions dans le modal
+    const checkDiscountEligibilityInModal = async (versementDate) => {
+        if (!studentId || !versementDate) {
+            setModalDiscountInfo(null);
+            return;
+        }
+        
+        setIsCheckingDiscount(true);
+        
+        try {
+            const response = await secureApiEndpoints.payments.getStudentInfoWithDiscount(studentId);
+            
+            if (response.success) {
+                console.log('Discount response data:', response.data);
+                
+                // Vérifier si une date limite existe
+                if (!response.data.discount_deadline) {
+                    console.log('No discount deadline found - should be eligible');
+                    setModalDiscountInfo(response.data);
+                    return;
+                }
+                
+                // Vérifier si la date de versement est dans les délais
+                const selectedDate = new Date(versementDate);
+                
+                // Parser la date française DD/MM/YYYY vers le format ISO
+                const parseFrenchDate = (dateStr) => {
+                    const parts = dateStr.split('/');
+                    if (parts.length === 3) {
+                        // Convertir DD/MM/YYYY vers YYYY-MM-DD
+                        return new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`);
+                    }
+                    return new Date(dateStr); // Fallback
+                };
+                
+                const deadline = parseFrenchDate(response.data.discount_deadline);
+                
+                // Vérifier que les dates sont valides
+                if (isNaN(selectedDate.getTime()) || isNaN(deadline.getTime())) {
+                    console.error('Invalid dates:', {
+                        versementDate,
+                        discount_deadline: response.data.discount_deadline,
+                        selectedDateValid: !isNaN(selectedDate.getTime()),
+                        deadlineValid: !isNaN(deadline.getTime())
+                    });
+                    setModalDiscountInfo({
+                        not_eligible: true,
+                        message: 'Erreur de format de date'
+                    });
+                    return;
+                }
+                
+                console.log('Date comparison:', {
+                    selectedDate: selectedDate.toDateString(),
+                    deadline: deadline.toDateString(),
+                    versementDate: versementDate,
+                    discount_deadline: response.data.discount_deadline,
+                    isValid: selectedDate <= deadline
+                });
+                
+                if (selectedDate <= deadline) {
+                    setModalDiscountInfo(response.data);
+                } else {
+                    setModalDiscountInfo({
+                        ...response.data,
+                        is_date_expired: true,
+                        deadline_message: `Date limite dépassée (${response.data.discount_deadline})`
+                    });
+                }
+            } else {
+                // Étudiant non éligible aux réductions
+                setModalDiscountInfo({
+                    not_eligible: true,
+                    message: response.message,
+                    reasons: response.reasons || []
+                });
+            }
+        } catch (error) {
+            console.error('Error checking discount eligibility in modal:', error);
+            setModalDiscountInfo(null);
+        } finally {
+            setIsCheckingDiscount(false);
+        }
+    };
+
+    // Fonction pour gérer l'activation/désactivation de la réduction dans le modal
+    const handleDiscountToggle = (isChecked) => {
+        setPaymentForm(prev => {
+            const newForm = { ...prev, apply_discount: isChecked };
+            
+            if (isChecked && modalDiscountInfo && !modalDiscountInfo.not_eligible && !modalDiscountInfo.is_date_expired) {
+                // Appliquer le montant avec réduction
+                newForm.amount = modalDiscountInfo.payment_amount_required.toString();
+            } else {
+                // Revenir au montant par défaut (reste à payer)
+                newForm.amount = totals.remaining.toString();
+            }
+            
+            return newForm;
+        });
+    };
+
+    // Fonction pour gérer les changements de montant
+    const handleAmountChange = (newAmount) => {
+        setPaymentForm(prev => ({ ...prev, amount: newAmount }));
+    };
+
     const handlePaymentSubmit = async (e) => {
         e.preventDefault();
         
@@ -135,6 +485,37 @@ const StudentPayment = () => {
             return;
         }
 
+        // NOUVELLE VALIDATION : Vérifier la cohérence entre la case cochée et le montant
+        if (paymentForm.apply_discount && modalDiscountInfo && !modalDiscountInfo.not_eligible && !modalDiscountInfo.is_date_expired) {
+            const expectedAmount = modalDiscountInfo.payment_amount_required;
+            const paymentAmount = parseFloat(paymentForm.amount);
+            
+            if (Math.abs(paymentAmount - expectedAmount) > 0.01) {
+                Swal.fire({
+                    title: 'Montant incorrect pour la réduction',
+                    html: `
+                        <div class="text-left">
+                            <p>Pour appliquer la réduction, le montant doit être exactement :</p>
+                            <p><strong>${formatAmount(expectedAmount)}</strong></p>
+                            <p>Montant actuel : <strong>${formatAmount(paymentAmount)}</strong></p>
+                        </div>
+                    `,
+                    icon: 'warning'
+                });
+                return;
+            }
+        }
+
+        // Validation si réduction cochée mais conditions non remplies
+        if (paymentForm.apply_discount && (!modalDiscountInfo || modalDiscountInfo.not_eligible || modalDiscountInfo.is_date_expired)) {
+            Swal.fire({
+                title: 'Réduction non disponible',
+                text: 'Les conditions pour la réduction ne sont pas remplies. Veuillez décocher l\'option ou modifier la date de versement.',
+                icon: 'warning'
+            });
+            return;
+        }
+
         try {
             setPaymentLoading(true);
             setError('');
@@ -145,7 +526,9 @@ const StudentPayment = () => {
                 payment_method: paymentForm.payment_method,
                 reference_number: paymentForm.reference_number || null,
                 notes: paymentForm.notes || null,
-                payment_date: paymentForm.payment_date
+                payment_date: paymentForm.payment_date,
+                versement_date: paymentForm.versement_date,
+                apply_global_discount: paymentForm.apply_discount // Indiquer au backend d'appliquer la réduction
             };
 
             const response = await secureApiEndpoints.payments.create(paymentData);
@@ -161,9 +544,12 @@ const StudentPayment = () => {
                     reference_number: '',
                     notes: '',
                     payment_date: new Date().toISOString().split('T')[0],
+                    versement_date: new Date().toISOString().split('T')[0],
                     is_rame_physical: false,
-                    rame_choice: 'none'
+                    rame_choice: 'none',
+                    apply_discount: false
                 });
+                setModalDiscountInfo(null);
                 
                 // Recharger les données
                 await loadStudentPaymentInfo();
@@ -313,7 +699,17 @@ const StudentPayment = () => {
                         ) : (
                             <Button 
                                 variant="primary" 
-                                onClick={() => setShowPaymentModal(true)}
+                                onClick={() => {
+                                    setShowPaymentModal(true);
+                                    // Réinitialiser les états du modal
+                                    setModalDiscountInfo(null);
+                                    setPaymentForm(prev => ({
+                                        ...prev,
+                                        amount: '',
+                                        apply_discount: false,
+                                        versement_date: new Date().toISOString().split('T')[0]
+                                    }));
+                                }}
                             >
                                 <CashCoin size={16} className="me-2" />
                                 Nouveau Paiement
@@ -335,40 +731,7 @@ const StudentPayment = () => {
                 </Alert>
             )}
 
-            {/* Discount Information */}
-            {(discountInfo.eligible_for_scholarship || discountInfo.eligible_for_reduction || discountInfo.reasons.length > 0) && (
-                <Row className="mb-4">
-                    <Col>
-                        <Card className="border-success">
-                            <Card.Header className="bg-success text-white">
-                                <h5 className="mb-0">💰 Bourses et Réductions Disponibles</h5>
-                            </Card.Header>
-                            <Card.Body>
-                                {discountInfo.reasons.map((reason, index) => (
-                                    <div key={index} className="d-flex align-items-center mb-2">
-                                        <span className="badge bg-success me-2">✓</span>
-                                        <span>{reason}</span>
-                                    </div>
-                                ))}
-                                
-                                {discountInfo.deadline && (
-                                    <div className="mt-3 p-2 bg-warning bg-opacity-25 rounded">
-                                        <small className="text-warning">
-                                            <strong>⏰ Date limite:</strong> {new Date(discountInfo.deadline).toLocaleDateString('fr-FR')}
-                                        </small>
-                                    </div>
-                                )}
-                                
-                                {(!discountInfo.eligible_for_scholarship && !discountInfo.eligible_for_reduction && discountInfo.reasons.length === 0) && (
-                                    <div className="text-muted">
-                                        <em>Aucune réduction disponible pour cet élève actuellement.</em>
-                                    </div>
-                                )}
-                            </Card.Body>
-                        </Card>
-                    </Col>
-                </Row>
-            )}
+            {/* Interface épurée - pas d'info sur les réductions au chargement initial */}
 
             {/* Summary Cards */}
             <Row className="mb-4">
@@ -385,27 +748,68 @@ const StudentPayment = () => {
                         <Card.Body>
                             <h3 className="text-success">{formatAmount(totals.paid)}</h3>
                             <p className="text-muted mb-0">Total payé</p>
+                            {totals.has_global_discounts && totals.global_discount_amount > 0 && (
+                                <small className="text-info d-block mt-1">
+                                    {formatAmount(totals.paid)} + {formatAmount(totals.global_discount_amount)} = {formatAmount(totals.required)}
+                                </small>
+                            )}
                         </Card.Body>
                     </Card>
                 </Col>
                 <Col md={4}>
                     <Card className="text-center">
                         <Card.Body>
-                            <h3 className={totals.remaining > 0 ? "text-warning" : "text-success"}>
-                                {formatAmount(totals.remaining)}
-                            </h3>
-                            <p className="text-muted mb-0">Reste à payer</p>
+                            {totals.has_scholarships ? (
+                                <>
+                                    <h3 className={Math.max(0, parseFloat(totals.remaining) - parseFloat(totals.scholarship_amount)) > 0 ? "text-warning" : "text-success"}>
+                                        {formatAmount(Math.max(0, parseFloat(totals.remaining) - parseFloat(totals.scholarship_amount)))}
+                                    </h3>
+                                    <p className="text-muted mb-0">Reste à payer</p>
+                                    <small className="text-success">
+                                        (Avec bourse: {formatAmount(totals.scholarship_amount)})
+                                    </small>
+                                </>
+                            ) : (
+                                <>
+                                    <h3 className={totals.remaining > 0 ? "text-warning" : "text-success"}>
+                                        {formatAmount(totals.remaining)}
+                                    </h3>
+                                    <p className="text-muted mb-0">Reste à payer</p>
+                                </>
+                            )}
                         </Card.Body>
                     </Card>
                 </Col>
             </Row>
 
+            {/* Information sur la bourse (si applicable) */}
+            {totals.has_scholarships && totals.remaining > 0 && (
+                <Row className="mb-3">
+                    <Col>
+                        <Alert variant="success" className="text-center">
+                            <i className="bi bi-award me-2"></i>
+                            <strong>Bonne nouvelle !</strong> Vous bénéficiez d'une bourse de {formatAmount(totals.scholarship_amount)}.
+                            <br />
+                            <small>Cette réduction sera automatiquement appliquée lors du paiement.</small>
+                        </Alert>
+                    </Col>
+                </Row>
+            )}
+
             <Row>
                 {/* Payment Status */}
                 <Col md={7}>
                     <Card className="mb-4">
-                        <Card.Header>
+                        <Card.Header className="d-flex justify-content-between align-items-center">
                             <h5 className="mb-0">Statut des Paiements par Tranche</h5>
+                            <Button 
+                                variant="success" 
+                                size="sm"
+                                onClick={() => handleQuickPayment()}
+                                disabled={totals.remaining <= 0}
+                            >
+                                💳 Paiement Rapide
+                            </Button>
                         </Card.Header>
                         <Card.Body>
                             <Table responsive>
@@ -420,21 +824,102 @@ const StudentPayment = () => {
                                 </thead>
                                 <tbody>
                                     {paymentStatus.map((status, index) => (
-                                        <tr key={index} className={status.is_optional ? 'table-secondary' : ''}>
+                                        <tr key={index} className={status.is_physical_only ? 'table-info' : (status.is_optional ? 'table-secondary' : '')}>
                                             <td>
                                                 {status.tranche.name}
-                                                {status.is_optional && <small className="text-muted d-block">(Optionnelle)</small>}
+                                                {status.is_physical_only && (
+                                                    <small className="text-info d-block">
+                                                        <strong>(Paiement physique uniquement)</strong>
+                                                    </small>
+                                                )}
+                                                {status.is_optional && !status.is_physical_only && (
+                                                    <small className="text-muted d-block">(Optionnelle)</small>
+                                                )}
                                             </td>
-                                            <td>{formatAmount(status.required_amount)}</td>
-                                            <td>{formatAmount(status.paid_amount)}</td>
-                                            <td>{formatAmount(status.remaining_amount)}</td>
                                             <td>
-                                                <Badge bg={status.is_fully_paid ? 'success' : 'warning'}>
-                                                    {status.is_fully_paid ? 'Complet' : 'Partiel'}
-                                                </Badge>
-                                                {status.is_optional && !status.is_fully_paid && (
-                                                    
-                                                    <small className="text-muted d-block">Non obligatoire</small>
+                                                {status.is_physical_only ? (
+                                                    <span className="text-info">Physical</span>
+                                                ) : (
+                                                    formatAmount(status.required_amount)
+                                                )}
+                                            </td>
+                                            <td>
+                                                {status.is_physical_only ? (
+                                                    <span className="text-info">Physical</span>
+                                                ) : (
+                                                    <>
+                                                        {formatAmount(status.paid_amount)}
+                                                        {status.has_scholarship && status.scholarship_amount > 0 && (
+                                                            <div className="text-success">
+                                                                <small>
+                                                                    + Bourse: {formatAmount(status.scholarship_amount)}
+                                                                    <br />
+                                                                    = {formatAmount(parseFloat(status.paid_amount) + parseFloat(status.scholarship_amount))}
+                                                                </small>
+                                                            </div>
+                                                        )}
+                                                        {status.has_global_discount && status.global_discount_amount > 0 && (
+                                                            <div className="text-success">
+                                                                <small>
+                                                                    + Réduction: {formatAmount(status.global_discount_amount)} ({status.discount_percentage}%)
+                                                                    <br />
+                                                                    = {formatAmount(parseFloat(status.paid_amount) + parseFloat(status.global_discount_amount))}
+                                                                </small>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </td>
+                                            <td>
+                                                {status.is_physical_only ? (
+                                                    <span className="text-info">Physical</span>
+                                                ) : (
+                                                    <>
+                                                        {status.has_scholarship && status.scholarship_amount > 0 ? (
+                                                            <>
+                                                                {formatAmount(Math.max(0, parseFloat(status.remaining_amount) - parseFloat(status.scholarship_amount)))}
+                                                                {(parseFloat(status.remaining_amount) - parseFloat(status.scholarship_amount)) > 0 && (
+                                                                    <div className="text-success">
+                                                                        <small>
+                                                                            (Avec bourse: {formatAmount(Math.max(0, parseFloat(status.remaining_amount) - parseFloat(status.scholarship_amount)))})
+                                                                        </small>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        ) : (
+                                                            formatAmount(status.remaining_amount)
+                                                        )}
+                                                    </>
+                                                )}
+                                            </td>
+                                            <td>
+                                                {status.is_physical_only ? (
+                                                    <>
+                                                        <Badge bg={status.rame_paid ? 'success' : 'warning'}>
+                                                            {status.rame_paid ? 'Payé' : 'Non payé'}
+                                                        </Badge>
+                                                        {!status.rame_paid && (
+                                                            <Button 
+                                                                variant="outline-primary" 
+                                                                size="sm" 
+                                                                className="ms-2"
+                                                                onClick={() => handlePayRame()}
+                                                            >
+                                                                Payer RAME
+                                                            </Button>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Badge bg={status.is_fully_paid ? 'success' : 'warning'}>
+                                                            {status.is_fully_paid ? 
+                                                                (status.has_scholarship && status.scholarship_amount > 0 ? 'Complet avec bourse' : 'Complet') 
+                                                                : 'Partiel'}
+                                                        </Badge>
+                                                        {status.is_optional && !status.is_fully_paid && (
+                                                            <small className="text-muted d-block">Non obligatoire</small>
+                                                        )}
+                                                    </>
                                                 )}
                                             </td>
                                         </tr>
@@ -447,6 +932,17 @@ const StudentPayment = () => {
 
                 {/* Payment History */}
                 <Col md={5}>
+                    {/* Section RAME en haut de la colonne de droite */}
+                    <div className="mb-3">
+                        <RameStatusToggle 
+                            studentId={studentId}
+                            studentName={student ? `${student.first_name} ${student.last_name}` : 'Étudiant'}
+                            onStatusChange={(newStatus) => {
+                                console.log('Statut RAME mis à jour:', newStatus);
+                            }}
+                        />
+                    </div>
+
                     <Card>
                         <Card.Header>
                             <h5 className="mb-0">Historique des Paiements</h5>
@@ -461,8 +957,29 @@ const StudentPayment = () => {
                                             <div className="d-flex justify-content-between align-items-start">
                                                 <div>
                                                     <strong>{formatAmount(payment.total_amount)}</strong>
+                                                    {payment.has_scholarship && (
+                                                        <div className="text-success mt-1">
+                                                            <small>
+                                                                Montant payé: {formatAmount(payment.total_amount)} + 
+                                                                Bourse appliquée: {formatAmount(payment.scholarship_amount)} = 
+                                                                Valeur totale: {formatAmount(payment.total_amount + payment.scholarship_amount)}
+                                                            </small>
+                                                        </div>
+                                                    )}
+                                                    {payment.has_reduction && payment.reduction_amount > 0 && (
+                                                        <div className="text-info mt-1">
+                                                            <small>
+                                                                Montant payé: {formatAmount(payment.total_amount)} + 
+                                                                Réduction appliquée: {formatAmount(payment.reduction_amount)} = 
+                                                                Valeur totale: {formatAmount(payment.total_amount + payment.reduction_amount)}
+                                                            </small>
+                                                        </div>
+                                                    )}
                                                     {(payment.has_scholarship || payment.has_reduction) && (
-                                                        <span className="badge bg-success ms-2">Réduit</span>
+                                                        <span className={`badge ms-2 ${payment.has_scholarship ? 'bg-success' : 'bg-info'}`}>
+                                                            {payment.has_scholarship && payment.has_reduction ? 'Bourse + Réduction' : 
+                                                             payment.has_scholarship ? 'Avec Bourse' : 'Avec Réduction'}
+                                                        </span>
                                                     )}
                                                     <br />
                                                     <small className="text-muted">
@@ -483,7 +1000,7 @@ const StudentPayment = () => {
                                                                     Bourse: {formatAmount(payment.scholarship_amount)}
                                                                 </div>
                                                             )}
-                                                            {payment.has_reduction && (
+                                                            {payment.has_reduction && payment.reduction_amount > 0 && (
                                                                 <div className="badge bg-info me-1 mb-1">
                                                                     Réduction: {formatAmount(payment.reduction_amount)}
                                                                 </div>
@@ -519,7 +1036,7 @@ const StudentPayment = () => {
             </Row>
 
             {/* Payment Modal */}
-            <Modal show={showPaymentModal} onHide={() => setShowPaymentModal(false)} size="lg">
+            <Modal show={showPaymentModal} onHide={handleModalClose} size="lg">
                 <Modal.Header closeButton>
                     <Modal.Title>Nouveau Paiement</Modal.Title>
                 </Modal.Header>
@@ -535,7 +1052,7 @@ const StudentPayment = () => {
                                         max={totals.remaining}
                                         step="1"
                                         value={paymentForm.amount}
-                                        onChange={(e) => setPaymentForm({...paymentForm, amount: e.target.value})}
+                                        onChange={(e) => handleAmountChange(e.target.value)}
                                         placeholder="Ex: 25000"
                                         required
                                     />
@@ -578,116 +1095,86 @@ const StudentPayment = () => {
                             </Col>
                         </Row>
 
-                        {/* Section spéciale pour la tranche RAME */}
-                        {paymentStatus && paymentStatus.length > 0 && paymentStatus.some(status => {
-                            // Vérification de sécurité pour la structure des données
-                            if (!status || !status.tranche) return false;
-                            
-                            const trancheName = status.tranche.name || '';
-                            const remaining = status.remaining_amount || 0;
-                            
-                            return trancheName && (
-                                trancheName === 'RAME' || 
-                                trancheName.toUpperCase().includes('RAME')
-                            ) && remaining > 0;
-                        }) && (
+
+                        {/* Anciennes sections de réduction supprimées - maintenant intégrées dans la logique de date */}
+
+                        <Row>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Date de versement *</Form.Label>
+                                    <Form.Control
+                                        type="date"
+                                        value={paymentForm.versement_date}
+                                        onChange={(e) => {
+                                            setPaymentForm({...paymentForm, versement_date: e.target.value});
+                                            // Vérifier l'éligibilité aux réductions quand la date change
+                                            checkDiscountEligibilityInModal(e.target.value);
+                                        }}
+                                        required
+                                    />
+                                    <Form.Text className="text-muted">
+                                        Date effective du versement de l'étudiant
+                                    </Form.Text>
+                                </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Date de validation <small className="text-muted">(automatique)</small></Form.Label>
+                                    <Form.Control
+                                        type="date"
+                                        value={paymentForm.payment_date}
+                                        onChange={(e) => setPaymentForm({...paymentForm, payment_date: e.target.value})}
+                                    />
+                                    <Form.Text className="text-muted">
+                                        Date officielle d'enregistrement du paiement dans le système.
+                                    </Form.Text>
+                                </Form.Group>
+                            </Col>
+                        </Row>
+
+                        {/* Section de réduction dynamique basée sur la date de versement */}
+                        {isCheckingDiscount && (
                             <Row className="mb-3">
                                 <Col>
-                                    <Card className="bg-light border-warning">
-                                        <Card.Body className="py-3">
-                                            <h6 className="text-warning mb-3">
-                                                <CashCoin className="me-2" />
-                                                Paiement de la tranche RAME
-                                            </h6>
-                                            <Row>
-                                                <Col md={12}>
-                                                    <Form.Group>
-                                                        <Form.Label className="fw-bold">Options RAME *</Form.Label>
-                                                        <div className="d-flex flex-column gap-2">
-                                                            <Form.Check
-                                                                type="radio"
-                                                                name="rame_choice"
-                                                                id="rame_none"
-                                                                label="Ne pas payer (par défaut)"
-                                                                checked={paymentForm.rame_choice === 'none'}
-                                                                onChange={() => setPaymentForm({
-                                                                    ...paymentForm, 
-                                                                    rame_choice: 'none',
-                                                                    is_rame_physical: false
-                                                                })}
-                                                            />
-                                                            <Form.Check
-                                                                type="radio"
-                                                                name="rame_choice"
-                                                                id="rame_espece"
-                                                                label="Espèce (paiement normal)"
-                                                                checked={paymentForm.rame_choice === 'cash'}
-                                                                onChange={() => setPaymentForm({
-                                                                    ...paymentForm, 
-                                                                    rame_choice: 'cash',
-                                                                    is_rame_physical: false
-                                                                })}
-                                                            />
-                                                            <Form.Check
-                                                                type="radio"
-                                                                name="rame_choice"
-                                                                id="rame_physique"
-                                                                label="Physique (rame apportée)"
-                                                                checked={paymentForm.rame_choice === 'physical'}
-                                                                onChange={() => setPaymentForm({
-                                                                    ...paymentForm, 
-                                                                    rame_choice: 'physical',
-                                                                    is_rame_physical: true
-                                                                })}
-                                                            />
-                                                        </div>
-                                                    </Form.Group>
-                                                </Col>
-                                            </Row>
-                                        </Card.Body>
-                                    </Card>
+                                    <div className="text-center">
+                                        <Spinner animation="border" size="sm" className="me-2" />
+                                        <small className="text-muted">Vérification des réductions disponibles...</small>
+                                    </div>
                                 </Col>
                             </Row>
                         )}
 
-                        {/* Section information réduction pour paiement intégral */}
-                        {totals.remaining > 0 && discountInfo && discountInfo.eligible_for_reduction && (
+                        {modalDiscountInfo && !modalDiscountInfo.not_eligible && !modalDiscountInfo.is_date_expired && (
                             <Row className="mb-3">
                                 <Col>
                                     <Card className="bg-success bg-opacity-10 border-success">
                                         <Card.Body className="py-3">
-                                            <h6 className="text-success mb-2">
-                                                <Badge bg="success" className="me-2">💰</Badge>
-                                                Réduction disponible !
-                                            </h6>
-                                            <p className="mb-2 small">
-                                                <strong>Payez la totalité maintenant et économisez {discountInfo.reduction_percentage || 10}% !</strong>
-                                            </p>
-                                            <div className="d-flex justify-content-between align-items-center">
-                                                <div className="small text-muted">
-                                                    <strong className="text-success">
-                                                        Montants réduits de {discountInfo.reduction_percentage || 10}% déjà appliqués !
-                                                    </strong><br/>
-                                                    Total à payer avec réduction : {formatAmount(totals.remaining)}
+                                            <div className="d-flex align-items-center justify-content-between">
+                                                <div>
+                                                    <h6 className="text-success mb-1">
+                                                        🎉 Réduction de {modalDiscountInfo.discount_percentage}% disponible !
+                                                    </h6>
+                                                    <small className="text-muted">
+                                                        Économisez {formatAmount(modalDiscountInfo.normal_totals.total_discount)} 
+                                                        en payant {formatAmount(modalDiscountInfo.normal_totals.total_with_discount)} 
+                                                        au lieu de {formatAmount(modalDiscountInfo.normal_totals.total_required)}
+                                                    </small>
                                                 </div>
-                                                <Button 
-                                                    variant="success" 
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        // Avec la nouvelle logique, le montant restant affiché est déjà réduit
-                                                        setPaymentForm({
-                                                            ...paymentForm, 
-                                                            amount: totals.remaining.toString()
-                                                        });
-                                                    }}
-                                                >
-                                                    Payer la totalité
-                                                </Button>
+                                                <Form.Check
+                                                    type="checkbox"
+                                                    label="Appliquer la réduction"
+                                                    checked={paymentForm.apply_discount}
+                                                    onChange={(e) => handleDiscountToggle(e.target.checked)}
+                                                    className="text-success"
+                                                />
                                             </div>
-                                            {discountInfo.deadline && (
-                                                <small className="text-warning d-block mt-2">
-                                                    ⏰ Offre valable jusqu'au {new Date(discountInfo.deadline).toLocaleDateString('fr-FR')}
-                                                </small>
+                                            {paymentForm.apply_discount && (
+                                                <div className="mt-2 p-2 bg-success bg-opacity-25 rounded">
+                                                    <small className="text-success">
+                                                        ✅ <strong>Réduction activée :</strong> Le montant sera automatiquement réparti 
+                                                        sur toutes les tranches avec les montants réduits.
+                                                    </small>
+                                                </div>
                                             )}
                                         </Card.Body>
                                     </Card>
@@ -695,17 +1182,40 @@ const StudentPayment = () => {
                             </Row>
                         )}
 
+                        {modalDiscountInfo && modalDiscountInfo.is_date_expired && (
+                            <Row className="mb-3">
+                                <Col>
+                                    <Card className="bg-warning bg-opacity-10 border-warning">
+                                        <Card.Body className="py-3">
+                                            <h6 className="text-warning mb-1">
+                                                ⏰ {modalDiscountInfo.deadline_message}
+                                            </h6>
+                                            <small className="text-muted">
+                                                La réduction de {modalDiscountInfo.discount_percentage}% n'est plus disponible 
+                                                pour cette date de versement.
+                                            </small>
+                                        </Card.Body>
+                                    </Card>
+                                </Col>
+                            </Row>
+                        )}
+
+                        {modalDiscountInfo && modalDiscountInfo.not_eligible && (
+                            <Row className="mb-3">
+                                <Col>
+                                    <Card className="bg-secondary bg-opacity-10 border-secondary">
+                                        <Card.Body className="py-3">
+                                            <h6 className="text-muted mb-1">ℹ️ Réduction non disponible</h6>
+                                            <small className="text-muted">
+                                                {modalDiscountInfo.message}
+                                            </small>
+                                        </Card.Body>
+                                    </Card>
+                                </Col>
+                            </Row>
+                        )}
+
                         <Row>
-                            <Col md={6}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Date du paiement</Form.Label>
-                                    <Form.Control
-                                        type="date"
-                                        value={paymentForm.payment_date}
-                                        onChange={(e) => setPaymentForm({...paymentForm, payment_date: e.target.value})}
-                                    />
-                                </Form.Group>
-                            </Col>
                             <Col md={6}>
                                 <Form.Group className="mb-3">
                                     <Form.Label>Numéro de référence</Form.Label>
@@ -716,6 +1226,9 @@ const StudentPayment = () => {
                                         placeholder="Numéro chèque, virement..."
                                     />
                                 </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                                {/* Empty column for spacing */}
                             </Col>
                         </Row>
 
@@ -735,7 +1248,7 @@ const StudentPayment = () => {
                         </Row>
                     </Modal.Body>
                     <Modal.Footer>
-                        <Button variant="secondary" onClick={() => setShowPaymentModal(false)}>
+                        <Button variant="secondary" onClick={handleModalClose}>
                             Annuler
                         </Button>
                         <Button variant="primary" type="submit" disabled={paymentLoading}>

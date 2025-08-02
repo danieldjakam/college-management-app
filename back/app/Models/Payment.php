@@ -14,6 +14,8 @@ class Payment extends Model
         'school_year_id',
         'total_amount',
         'payment_date',
+        'versement_date',
+        'validation_date',
         'payment_method',
         'reference_number',
         'notes',
@@ -30,6 +32,8 @@ class Payment extends Model
     protected $casts = [
         'total_amount' => 'decimal:2',
         'payment_date' => 'date',
+        'versement_date' => 'date',
+        'validation_date' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'is_rame_physical' => 'boolean',
@@ -76,7 +80,7 @@ class Payment extends Model
      */
     public static function generateReceiptNumber($schoolYear, $date = null)
     {
-        $date = $date ?: now();
+        $date = $date ? \Carbon\Carbon::parse($date) : now();
         $yearSuffix = substr($schoolYear->name, -2); // Ex: "25" pour "2024-2025"
         $datePrefix = $date->format('ymd'); // Ex: "250129" pour 29/01/2025
         
