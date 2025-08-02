@@ -24,6 +24,7 @@ use App\Http\Controllers\TeacherAssignmentController;
 use App\Http\Controllers\MainTeacherController;
 use App\Http\Controllers\NeedController;
 use App\Http\Controllers\SupervisorController;
+use App\Http\Controllers\StudentRameController;
 
 
 // Routes d'authentification
@@ -62,6 +63,7 @@ Route::get('test-school-settings', function () {
         ], 500);
     }
 });
+
 
 // Routes protégées
 Route::middleware('auth:api')->group(function () {
@@ -167,7 +169,9 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les paiements (comptables et admins)
     Route::prefix('payments')->middleware(['role:admin,accountant'])->group(function () {
         Route::get('/student/{studentId}/info', [PaymentController::class, 'getStudentPaymentInfo']);
+        Route::get('/student/{studentId}/info-with-discount', [PaymentController::class, 'getStudentPaymentInfoWithDiscount']);
         Route::get('/student/{studentId}/history', [PaymentController::class, 'getStudentPaymentHistory']);
+        Route::post('/student/{studentId}/calculate-with-date', [PaymentController::class, 'calculatePaymentWithDate']);
         Route::post('/', [PaymentController::class, 'store']);
         Route::get('/{paymentId}/receipt', [PaymentController::class, 'generateReceipt']);
         Route::get('/stats', [PaymentController::class, 'getPaymentStats']);
@@ -324,6 +328,13 @@ Route::middleware('auth:api')->group(function () {
         // Routes pour génération codes QR
         Route::get('/generate-qr/{studentId}', [SupervisorController::class, 'generateStudentQR'])->middleware(['role:admin']);
         Route::get('/generate-all-qrs', [SupervisorController::class, 'generateAllStudentQRs'])->middleware(['role:admin']);
+    });
+
+    // Routes pour la gestion RAME simplifiée
+    Route::prefix('student-rame')->middleware(['role:admin,accountant'])->group(function () {
+        Route::get('/student/{studentId}/status', [StudentRameController::class, 'getRameStatus']);
+        Route::post('/student/{studentId}/update', [StudentRameController::class, 'updateRameStatus']);
+        Route::get('/class-series/{classSeriesId}', [StudentRameController::class, 'getClassRameStatus']);
     });
 
 });

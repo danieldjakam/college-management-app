@@ -15,14 +15,19 @@ class PaymentDetail extends Model
         'amount_allocated',
         'previous_amount',
         'new_total_amount',
-        'is_fully_paid'
+        'is_fully_paid',
+        'required_amount_at_time',
+        'was_reduced',
+        'reduction_context'
     ];
 
     protected $casts = [
         'amount_allocated' => 'decimal:2',
         'previous_amount' => 'decimal:2',
         'new_total_amount' => 'decimal:2',
-        'is_fully_paid' => 'boolean'
+        'required_amount_at_time' => 'decimal:2',
+        'is_fully_paid' => 'boolean',
+        'was_reduced' => 'boolean'
     ];
 
     /**

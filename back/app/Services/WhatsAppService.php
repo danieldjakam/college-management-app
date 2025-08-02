@@ -84,6 +84,58 @@ class WhatsAppService
     }
 
     /**
+     * Envoyer une notification de paiement avec facture aux parents
+     */
+    public function sendPaymentNotification($payment)
+    {
+        if (!$this->isWhatsAppConfigured()) {
+            return false;
+        }
+
+        $student = $payment->student;
+        
+        // Vérifier que l'étudiant a un contact parent
+        if (!$student || !$student->parent_phone) {
+            Log::info('Étudiant sans contact parent pour notification de paiement WhatsApp', [
+                'payment_id' => $payment->id,
+                'student_id' => $student ? $student->id : null
+            ]);
+            return false;
+        }
+
+        $message = $this->formatPaymentMessage($payment);
+        
+        // D'abord envoyer le message texte
+        $textResult = $this->sendMessage($student->parent_phone, $message);
+        
+        // Ensuite générer et envoyer l'image du reçu
+        $imageResult = false;
+        try {
+            $receiptImageUrl = $this->generateReceiptImage($payment);
+            if ($receiptImageUrl) {
+                $imageResult = $this->sendImageMessage($student->parent_phone, $receiptImageUrl, "Reçu de paiement N° {$payment->id}");
+            }
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la génération/envoi de l\'image du reçu', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+        
+        if ($textResult || $imageResult) {
+            Log::info('Notification de paiement WhatsApp envoyée', [
+                'payment_id' => $payment->id,
+                'student_id' => $student->id,
+                'parent_phone' => $student->parent_phone,
+                'text_sent' => $textResult,
+                'image_sent' => $imageResult
+            ]);
+        }
+        
+        return $textResult; // Au minimum le message texte doit passer
+    }
+
+    /**
      * Envoyer une notification d'entrée/sortie aux parents
      */
     public function sendAttendanceNotification(Attendance $attendance)
@@ -116,6 +168,68 @@ class WhatsAppService
         }
         
         return $result;
+    }
+
+    /**
+     * Formater le message de notification de paiement
+     */
+    protected function formatPaymentMessage($payment)
+    {
+        $schoolName = SchoolSetting::getSettings()->school_name ?? 'École';
+        $student = $payment->student;
+        
+        // Informations sur le paiement
+        $paymentAmount = number_format($payment->total_amount, 0, ',', ' ') . ' FCFA';
+        $paymentDate = $payment->payment_date->format('d/m/Y');
+        $paymentTime = $payment->created_at->format('H:i');
+        
+        // Informations sur les réductions si applicable
+        $reductionText = '';
+        if ($payment->has_reduction && $payment->reduction_amount > 0) {
+            $reductionAmount = number_format($payment->reduction_amount, 0, ',', ' ') . ' FCFA';
+            $reductionText = "\n💰 *Réduction appliquée:* {$reductionAmount}";
+        }
+        
+        // Méthode de paiement
+        $paymentMethodText = match($payment->payment_method) {
+            'cash' => '💵 Espèces',
+            'card' => '💳 Carte bancaire',
+            'transfer' => '🏦 Virement',
+            'check' => '📝 Chèque',
+            'rame_physical' => '🎫 RAME (Physique)',
+            default => $payment->payment_method
+        };
+        
+        // Numéro de référence si disponible
+        $referenceText = $payment->reference_number ? 
+            "\n📄 *Référence:* {$payment->reference_number}" : '';
+        
+        return "✅ *PAIEMENT CONFIRMÉ - {$schoolName}*\n\n" .
+               "👤 *Élève:* {$student->full_name}\n" .
+               "📚 *Classe:* " . ($student->classSeries->name ?? 'N/A') . "\n" .
+               "💳 *Méthode:* {$paymentMethodText}\n" .
+               "💰 *Montant payé:* {$paymentAmount}" . $reductionText . "\n" .
+               "📅 *Date:* {$paymentDate} à {$paymentTime}" . $referenceText . "\n\n" .
+               "📄 *Reçu de paiement:* Un reçu détaillé a été généré.\n\n" .
+               "✨ Merci pour votre confiance !\n\n" .
+               "📱 Notification automatique du système de gestion scolaire.";
+    }
+
+    /**
+     * Générer le reçu de paiement (version simplifiée pour WhatsApp)
+     */
+    protected function generatePaymentReceipt($payment)
+    {
+        // Cette méthode pourrait générer un PDF du reçu ou retourner du HTML
+        // Pour l'instant, on retourne les informations essentielles
+        $student = $payment->student;
+        $schoolName = SchoolSetting::getSettings()->school_name ?? 'École';
+        
+        return "REÇU DE PAIEMENT N° {$payment->id}\n" .
+               "École: {$schoolName}\n" .
+               "Élève: {$student->full_name}\n" .
+               "Montant: " . number_format($payment->total_amount, 0, ',', ' ') . " FCFA\n" .
+               "Date: " . $payment->payment_date->format('d/m/Y H:i');
     }
 
     /**
@@ -220,6 +334,273 @@ class WhatsAppService
                    "📅 *Rejeté le:* " . $need->approved_at->format('d/m/Y à H:i') . 
                    $rejectionText . "\n\n" .
                    "💡 N'hésitez pas à contacter l'administration pour plus d'informations ou à soumettre une nouvelle demande si nécessaire.";
+        }
+    }
+
+    /**
+     * Générer une image du reçu de paiement
+     */
+    protected function generateReceiptImage($payment)
+    {
+        try {
+            // Récupérer le HTML du reçu depuis le PaymentController
+            $paymentController = new \App\Http\Controllers\PaymentController();
+            $receiptResponse = $paymentController->generateReceipt($payment->id);
+            $responseData = $receiptResponse->getData();
+            
+            if (!$responseData->success) {
+                Log::error('Impossible de générer le HTML du reçu', ['payment_id' => $payment->id]);
+                return null;
+            }
+            
+            $receiptHtml = $responseData->data->html;
+            
+            // Utiliser wkhtmltoimage ou une alternative pour convertir HTML en image
+            return $this->convertHtmlToImage($receiptHtml, $payment->id);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la génération de l\'image du reçu', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Convertir HTML en image
+     */
+    protected function convertHtmlToImage($html, $paymentId)
+    {
+        try {
+            // Créer un nom de fichier unique
+            $filename = "receipt_payment_{$paymentId}_" . time() . ".png";
+            $imagePath = storage_path("app/public/receipts/{$filename}");
+            
+            // Créer le dossier s'il n'existe pas
+            $receiptDir = storage_path('app/public/receipts');
+            if (!file_exists($receiptDir)) {
+                mkdir($receiptDir, 0755, true);
+            }
+            
+            // Méthode simple avec HTML to Image via navigateur headless (nécessite Chrome/Chromium)
+            // Alternative : utiliser une bibliothèque comme Browsershot ou wkhtmltoimage
+            
+            // Pour une implémentation rapide, créons une image simple avec du texte
+            $this->createSimpleReceiptImage($html, $imagePath, $paymentId);
+            
+            // Retourner l'URL publique
+            // Note: Pour que UltraMsg puisse accéder à l'image, l'URL doit être publiquement accessible
+            // En local, utiliser ngrok ou héberger sur un serveur public
+            $publicUrl = url("storage/receipts/{$filename}");
+            
+            // Alternative : uploader sur un service cloud (à implémenter si nécessaire)
+            // return $this->uploadToCloudService($imagePath, $filename);
+            
+            // Pour les tests locaux, essayons d'uploader sur un service temporaire
+            if (app()->environment('local') && parse_url($publicUrl, PHP_URL_HOST) === 'localhost') {
+                $uploadedUrl = $this->uploadToTempImageService($imagePath);
+                if ($uploadedUrl) {
+                    return $uploadedUrl;
+                }
+            }
+            
+            return $publicUrl;
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la conversion HTML vers image', [
+                'payment_id' => $paymentId,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Créer une image simple du reçu (version basique sans HTML)
+     */
+    protected function createSimpleReceiptImage($html, $imagePath, $paymentId)
+    {
+        // Cette méthode crée une image basique avec GD
+        // Pour une version plus avancée, utilisez Browsershot ou wkhtmltoimage
+        
+        $width = 600;
+        $height = 800;
+        
+        // Créer l'image
+        $image = imagecreate($width, $height);
+        
+        // Définir les couleurs
+        $white = imagecolorallocate($image, 255, 255, 255);
+        $black = imagecolorallocate($image, 0, 0, 0);
+        $blue = imagecolorallocate($image, 0, 102, 204);
+        $gray = imagecolorallocate($image, 128, 128, 128);
+        
+        // Remplir le fond
+        imagefill($image, 0, 0, $white);
+        
+        // Récupérer les données du paiement
+        $payment = \App\Models\Payment::with('student.classSeries.schoolClass', 'paymentDetails.paymentTranche')->find($paymentId);
+        $schoolName = \App\Models\SchoolSetting::getSettings()->school_name ?? 'École';
+        
+        // Ajouter le titre
+        $y = 30;
+        imagestring($image, 5, 150, $y, 'RECU DE PAIEMENT', $blue);
+        $y += 50;
+        
+        // Informations de l'école
+        imagestring($image, 3, 50, $y, $schoolName, $black);
+        $y += 30;
+        
+        // Numéro de reçu
+        imagestring($image, 4, 50, $y, "Recu N° {$payment->id}", $black);
+        $y += 40;
+        
+        // Informations de l'étudiant
+        imagestring($image, 3, 50, $y, "Eleve: {$payment->student->full_name}", $black);
+        $y += 25;
+        imagestring($image, 3, 50, $y, "Classe: " . ($payment->student->classSeries->name ?? 'N/A'), $black);
+        $y += 25;
+        
+        // Informations du paiement
+        $y += 20;
+        imagestring($image, 3, 50, $y, "Montant: " . number_format($payment->total_amount, 0, ',', ' ') . " FCFA", $black);
+        $y += 25;
+        imagestring($image, 3, 50, $y, "Date: " . $payment->payment_date->format('d/m/Y H:i'), $black);
+        $y += 25;
+        imagestring($image, 3, 50, $y, "Methode: " . ucfirst($payment->payment_method), $black);
+        
+        if ($payment->reference_number) {
+            $y += 25;
+            imagestring($image, 3, 50, $y, "Reference: {$payment->reference_number}", $black);
+        }
+        
+        // Détails des tranches payées
+        $y += 40;
+        imagestring($image, 4, 50, $y, "DETAILS DU PAIEMENT:", $blue);
+        $y += 30;
+        
+        foreach ($payment->paymentDetails as $detail) {
+            if ($detail->amount_allocated > 0) {
+                $trancheName = $detail->paymentTranche->name;
+                $amount = number_format($detail->amount_allocated, 0, ',', ' ');
+                imagestring($image, 2, 50, $y, "- {$trancheName}: {$amount} FCFA", $black);
+                $y += 20;
+            }
+        }
+        
+        // Pied de page
+        $y = $height - 80;
+        imagestring($image, 2, 50, $y, "Merci pour votre confiance !", $gray);
+        $y += 20;
+        imagestring($image, 2, 50, $y, "Document genere automatiquement", $gray);
+        
+        // Sauvegarder l'image
+        imagepng($image, $imagePath);
+        imagedestroy($image);
+    }
+
+    /**
+     * Uploader l'image sur un service temporaire accessible publiquement
+     */
+    protected function uploadToTempImageService($imagePath)
+    {
+        try {
+            // Utiliser un service comme imgbb.com, postimages.org, ou similaire
+            // Ici, nous utilisons imgbb.com comme exemple (nécessite une clé API gratuite)
+            
+            // Encoder l'image en base64
+            $imageData = base64_encode(file_get_contents($imagePath));
+            
+            // Utiliser un service d'upload temporaire (exemple avec imgbb)
+            // Vous pouvez créer un compte gratuit sur imgbb.com et obtenir une clé API
+            $apiKey = env('IMGBB_API_KEY', null);
+            
+            if (!$apiKey) {
+                Log::info('Aucune clé API imgbb configurée, utilisation de l\'URL locale');
+                return null;
+            }
+            
+            $response = Http::asForm()->post('https://api.imgbb.com/1/upload', [
+                'key' => $apiKey,
+                'image' => $imageData,
+                'expiration' => 86400 // Expire dans 24h
+            ]);
+            
+            if ($response->successful()) {
+                $responseData = $response->json();
+                if (isset($responseData['data']['url'])) {
+                    Log::info('Image uploadée sur imgbb avec succès', [
+                        'url' => $responseData['data']['url']
+                    ]);
+                    return $responseData['data']['url'];
+                }
+            }
+            
+            Log::warning('Échec upload imgbb', ['response' => $response->body()]);
+            return null;
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de l\'upload sur service temporaire', [
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Envoyer une image via WhatsApp UltraMsg
+     */
+    protected function sendImageMessage($phoneNumber, $imageUrl, $caption = '')
+    {
+        try {
+            $settings = SchoolSetting::getSettings();
+            
+            if (!$settings->whatsapp_api_url || !$settings->whatsapp_instance_id || !$settings->whatsapp_token) {
+                Log::info('Configuration WhatsApp incomplète pour envoi d\'image');
+                return false;
+            }
+
+            // URL pour envoyer des images via UltraMsg
+            $url = "https://api.ultramsg.com/instance{$settings->whatsapp_instance_id}/messages/image";
+            
+            $headers = [
+                'Content-Type' => 'application/x-www-form-urlencoded'
+            ];
+            
+            $params = [
+                'token' => $settings->whatsapp_token,
+                'to' => $this->formatPhoneNumber($phoneNumber),
+                'image' => $imageUrl,
+                'caption' => $caption
+            ];
+
+            $response = Http::withHeaders($headers)->asForm()->post($url, $params);
+
+            if ($response->successful()) {
+                $responseBody = $response->body();
+                Log::info('Image WhatsApp envoyée via UltraMsg', [
+                    'to' => $phoneNumber,
+                    'image_url' => $imageUrl,
+                    'response' => $responseBody
+                ]);
+                return true;
+            } else {
+                Log::error('Erreur HTTP lors de l\'envoi d\'image WhatsApp via UltraMsg', [
+                    'to' => $phoneNumber,
+                    'image_url' => $imageUrl,
+                    'status' => $response->status(),
+                    'response' => $response->body()
+                ]);
+                return false;
+            }
+        } catch (\Exception $e) {
+            Log::error('Exception lors de l\'envoi d\'image WhatsApp via UltraMsg', [
+                'to' => $phoneNumber,
+                'image_url' => $imageUrl,
+                'error' => $e->getMessage()
+            ]);
+            return false;
         }
     }
 

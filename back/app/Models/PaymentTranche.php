@@ -54,7 +54,7 @@ class PaymentTranche extends Model
     /**
      * Obtenir le montant pour un étudiant selon sa classe (simplifié)
      */
-    public function getAmountForStudent($student, $isNewStudent = true, $applyReduction = false, $applyScholarship = false)
+    public function getAmountForStudent($student, $isNewStudent = true, $applyReduction = false, $applyScholarship = false, $applyGlobalDiscount = false)
     {
         $baseAmount = 0;
         
@@ -78,7 +78,8 @@ class PaymentTranche extends Model
         if ($applyReduction) {
             $schoolSettings = \App\Models\SchoolSetting::getSettings();
             $reductionPercentage = $schoolSettings->reduction_percentage ?? 10;
-            $baseAmount = $baseAmount * (100 - $reductionPercentage) / 100;
+            // Arrondir le résultat pour éviter les problèmes de virgule flottante
+            $baseAmount = round($baseAmount * (100 - $reductionPercentage) / 100, 0);
         }
         
         // Appliquer la bourse si elle s'applique à cette tranche
@@ -89,6 +90,20 @@ class PaymentTranche extends Model
             if ($scholarship && $scholarship->payment_tranche_id == $this->id && $discountCalculator->isEligibleForScholarship(now())) {
                 $scholarshipAmount = min($scholarship->amount, $baseAmount);
                 $baseAmount = max(0, $baseAmount - $scholarshipAmount);
+            }
+        }
+        
+        // Appliquer la réduction globale (si applicable ET si pas de bourse)
+        if ($applyGlobalDiscount && !$applyScholarship) {
+            $discountCalculator = new \App\Services\DiscountCalculatorService();
+            // Vérifier que la classe n'a pas de bourse (exclusion mutuelle)
+            if (!$discountCalculator->getClassScholarship($student)) {
+                $schoolSettings = \App\Models\SchoolSetting::getSettings();
+                $discountPercentage = $schoolSettings->reduction_percentage ?? 0;
+                
+                if ($discountPercentage > 0) {
+                    $baseAmount = round($baseAmount * (100 - $discountPercentage) / 100, 0);
+                }
             }
         }
         

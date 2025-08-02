@@ -29,6 +29,7 @@ import Swal from 'sweetalert2';
 const ClassScholarships = () => {
     const [scholarships, setScholarships] = useState([]);
     const [schoolClasses, setSchoolClasses] = useState([]);
+    const [paymentTranches, setPaymentTranches] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -39,6 +40,7 @@ const ClassScholarships = () => {
     
     const [form, setForm] = useState({
         school_class_id: '',
+        payment_tranche_id: '',
         name: '',
         description: '',
         amount: '',
@@ -53,10 +55,11 @@ const ClassScholarships = () => {
         try {
             setLoading(true);
             
-            // Charger les bourses et les classes en parallèle
-            const [scholarshipsResponse, classesResponse] = await Promise.all([
+            // Charger les bourses, classes et tranches de paiement en parallèle
+            const [scholarshipsResponse, classesResponse, tranchesResponse] = await Promise.all([
                 secureApiEndpoints.scholarships.getAll(),
-                secureApiEndpoints.schoolClasses.getAll()
+                secureApiEndpoints.schoolClasses.getAll(),
+                secureApiEndpoints.paymentTranches.getAll()
             ]);
             
             if (scholarshipsResponse.success) {
@@ -65,6 +68,10 @@ const ClassScholarships = () => {
             
             if (classesResponse.success) {
                 setSchoolClasses(classesResponse.data);
+            }
+            
+            if (tranchesResponse.success) {
+                setPaymentTranches(tranchesResponse.data);
             }
             
         } catch (error) {
@@ -80,6 +87,7 @@ const ClassScholarships = () => {
             setEditingScholarship(scholarship);
             setForm({
                 school_class_id: scholarship.school_class_id,
+                payment_tranche_id: scholarship.payment_tranche_id || '',
                 name: scholarship.name,
                 description: scholarship.description || '',
                 amount: scholarship.amount,
@@ -89,6 +97,7 @@ const ClassScholarships = () => {
             setEditingScholarship(null);
             setForm({
                 school_class_id: '',
+                payment_tranche_id: '',
                 name: '',
                 description: '',
                 amount: '',
@@ -105,6 +114,7 @@ const ClassScholarships = () => {
         setEditingScholarship(null);
         setForm({
             school_class_id: '',
+            payment_tranche_id: '',
             name: '',
             description: '',
             amount: '',
@@ -122,7 +132,7 @@ const ClassScholarships = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        if (!form.school_class_id || !form.name || !form.amount) {
+        if (!form.school_class_id || !form.payment_tranche_id || !form.name || !form.amount) {
             setError('Veuillez remplir tous les champs obligatoires');
             return;
         }
@@ -214,6 +224,11 @@ const ClassScholarships = () => {
     const getClassName = (classId) => {
         const schoolClass = schoolClasses.find(c => c.id === classId);
         return schoolClass ? schoolClass.name : 'Classe inconnue';
+    };
+
+    const getTrancheName = (trancheId) => {
+        const tranche = paymentTranches.find(t => t.id === trancheId);
+        return tranche ? tranche.name : 'Tranche inconnue';
     };
 
     if (loading) {
@@ -308,6 +323,7 @@ const ClassScholarships = () => {
                                     <thead>
                                         <tr>
                                             <th>Classe</th>
+                                            <th>Tranche</th>
                                             <th>Nom de la Bourse</th>
                                             <th>Description</th>
                                             <th>Montant</th>
@@ -320,6 +336,11 @@ const ClassScholarships = () => {
                                             <tr key={scholarship.id}>
                                                 <td>
                                                     <strong>{getClassName(scholarship.school_class_id)}</strong>
+                                                </td>
+                                                <td>
+                                                    <Badge bg="info" className="me-1">
+                                                        {getTrancheName(scholarship.payment_tranche_id)}
+                                                    </Badge>
                                                 </td>
                                                 <td>{scholarship.name}</td>
                                                 <td>
@@ -396,6 +417,26 @@ const ClassScholarships = () => {
                             </Col>
                             <Col md={6}>
                                 <Form.Group className="mb-3">
+                                    <Form.Label>Tranche de Paiement *</Form.Label>
+                                    <Form.Select
+                                        value={form.payment_tranche_id}
+                                        onChange={(e) => handleInputChange('payment_tranche_id', e.target.value)}
+                                        required
+                                    >
+                                        <option value="">Sélectionner une tranche</option>
+                                        {paymentTranches.map((tranche) => (
+                                            <option key={tranche.id} value={tranche.id}>
+                                                {tranche.name}
+                                            </option>
+                                        ))}
+                                    </Form.Select>
+                                </Form.Group>
+                            </Col>
+                        </Row>
+
+                        <Row>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
                                     <Form.Label>Nom de la Bourse *</Form.Label>
                                     <Form.Control
                                         type="text"
@@ -406,9 +447,6 @@ const ClassScholarships = () => {
                                     />
                                 </Form.Group>
                             </Col>
-                        </Row>
-
-                        <Row>
                             <Col md={6}>
                                 <Form.Group className="mb-3">
                                     <Form.Label>
@@ -426,6 +464,9 @@ const ClassScholarships = () => {
                                     />
                                 </Form.Group>
                             </Col>
+                        </Row>
+
+                        <Row>
                             <Col md={6}>
                                 <Form.Group className="mb-3">
                                     <Form.Label>Statut</Form.Label>
