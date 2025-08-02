@@ -1234,4 +1234,173 @@ class PaymentController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Obtenir les statistiques de paiement pour le dashboard
+     */
+    public function getPaymentStats()
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+            
+            if (!$workingYear) {
+                // Retourner des stats vides plutôt qu'une erreur
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'overview' => [
+                            'total_students' => 0,
+                            'total_payments' => 0,
+                            'total_amount_collected' => 0,
+                            'monthly_payments' => 0,
+                            'monthly_amount' => 0,
+                            'weekly_payments' => 0,
+                            'weekly_amount' => 0
+                        ],
+                        'reductions' => [
+                            'total_reduction_amount' => 0,
+                            'reduction_count' => 0,
+                            'scholarship_count' => 0
+                        ],
+                        'payment_methods' => [],
+                        'recent_payments' => []
+                    ]
+                ]);
+            }
+
+            // Statistiques globales
+            $totalStudents = Student::where('school_year_id', $workingYear->id)
+                ->where('is_active', true)
+                ->count();
+
+            $totalPayments = Payment::where('school_year_id', $workingYear->id)->count();
+            
+            $totalAmountCollected = Payment::where('school_year_id', $workingYear->id)
+                ->sum('total_amount');
+
+            // Paiements du mois actuel
+            $currentMonth = now()->format('Y-m');
+            $monthlyPayments = Payment::where('school_year_id', $workingYear->id)
+                ->whereRaw("DATE_FORMAT(payment_date, '%Y-%m') = ?", [$currentMonth])
+                ->count();
+
+            $monthlyAmount = Payment::where('school_year_id', $workingYear->id)
+                ->whereRaw("DATE_FORMAT(payment_date, '%Y-%m') = ?", [$currentMonth])
+                ->sum('total_amount');
+
+            // Paiements de la semaine actuelle
+            $weekStart = now()->startOfWeek();
+            $weekEnd = now()->endOfWeek();
+            $weeklyPayments = Payment::where('school_year_id', $workingYear->id)
+                ->whereBetween('payment_date', [$weekStart, $weekEnd])
+                ->count();
+
+            $weeklyAmount = Payment::where('school_year_id', $workingYear->id)
+                ->whereBetween('payment_date', [$weekStart, $weekEnd])
+                ->sum('total_amount');
+
+            // Répartition par méthode de paiement
+            $paymentMethods = Payment::where('school_year_id', $workingYear->id)
+                ->select('payment_method', DB::raw('COUNT(*) as count'), DB::raw('SUM(total_amount) as total'))
+                ->groupBy('payment_method')
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'method' => $item->payment_method,
+                        'count' => $item->count,
+                        'total' => $item->total,
+                        'label' => $this->getPaymentMethodLabel($item->payment_method)
+                    ];
+                });
+
+            // Statistiques des réductions
+            $totalReductions = Payment::where('school_year_id', $workingYear->id)
+                ->where('has_reduction', true)
+                ->sum('reduction_amount');
+
+            $reductionCount = Payment::where('school_year_id', $workingYear->id)
+                ->where('has_reduction', true)
+                ->count();
+
+            // Étudiants avec bourses
+            $scholarshipCount = Student::where('school_year_id', $workingYear->id)
+                ->where('is_active', true)
+                ->whereNotNull('class_scholarship_id')
+                ->count();
+
+            // Paiements récents (5 derniers)
+            $recentPayments = Payment::with(['student.classSeries.schoolClass'])
+                ->where('school_year_id', $workingYear->id)
+                ->orderBy('created_at', 'desc')
+                ->take(5)
+                ->get()
+                ->map(function ($payment) {
+                    $student = $payment->student;
+                    $studentName = $student ? 
+                        ($student->last_name . ' ' . $student->first_name) : 
+                        'N/A';
+                    
+                    $className = 'N/A';
+                    if ($student && $student->classSeries && $student->classSeries->schoolClass) {
+                        $className = $student->classSeries->schoolClass->name;
+                    }
+                    
+                    return [
+                        'id' => $payment->id,
+                        'student_name' => $studentName,
+                        'class' => $className,
+                        'amount' => $payment->total_amount,
+                        'method' => $this->getPaymentMethodLabel($payment->payment_method),
+                        'date' => $payment->payment_date->format('d/m/Y'),
+                        'time' => $payment->created_at->format('H:i')
+                    ];
+                });
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'overview' => [
+                        'total_students' => $totalStudents,
+                        'total_payments' => $totalPayments,
+                        'total_amount_collected' => $totalAmountCollected,
+                        'monthly_payments' => $monthlyPayments,
+                        'monthly_amount' => $monthlyAmount,
+                        'weekly_payments' => $weeklyPayments,
+                        'weekly_amount' => $weeklyAmount
+                    ],
+                    'reductions' => [
+                        'total_reduction_amount' => $totalReductions,
+                        'reduction_count' => $reductionCount,
+                        'scholarship_count' => $scholarshipCount
+                    ],
+                    'payment_methods' => $paymentMethods,
+                    'recent_payments' => $recentPayments
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in PaymentController@getPaymentStats: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des statistiques',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir le libellé d'une méthode de paiement
+     */
+    private function getPaymentMethodLabel($method)
+    {
+        $methods = [
+            'cash' => 'Espèces',
+            'card' => 'Carte bancaire',
+            'transfer' => 'Virement',
+            'check' => 'Chèque',
+            'rame_physical' => 'RAME Physique'
+        ];
+
+        return $methods[$method] ?? ucfirst($method);
+    }
 }

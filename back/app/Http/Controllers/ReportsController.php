@@ -614,6 +614,393 @@ class ReportsController extends Controller
     }
 
     /**
+     * Rapport récapitulatif des encaissements
+     */
+    public function getCollectionSummaryReport(Request $request)
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+            
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            $filterType = $request->get('filterType', 'section');
+            $sectionId = $request->get('sectionId');
+            $classId = $request->get('classId');
+            $seriesId = $request->get('seriesId');
+
+            // Récupérer les classes/séries selon les filtres
+            $classSeriesQuery = ClassSeries::with(['schoolClass.level.section'])
+                ->whereHas('schoolClass', function ($query) use ($workingYear) {
+                    $query->where('school_year_id', $workingYear->id);
+                });
+
+            if (!empty($sectionId)) {
+                $classSeriesQuery->whereHas('schoolClass.level.section', function ($query) use ($sectionId) {
+                    $query->where('id', $sectionId);
+                });
+            }
+
+            if (!empty($classId)) {
+                $classSeriesQuery->whereHas('schoolClass', function ($query) use ($classId) {
+                    $query->where('id', $classId);
+                });
+            }
+
+            if (!empty($seriesId)) {
+                $classSeriesQuery->where('id', $seriesId);
+            }
+
+            $classSeries = $classSeriesQuery->get();
+            $paymentTranches = PaymentTranche::active()->ordered()->get();
+
+            $classesData = [];
+            $globalTotalDue = 0;
+            $globalTotalPaid = 0;
+            $globalTotalRemaining = 0;
+
+            foreach ($classSeries as $series) {
+                $students = Student::where('class_series_id', $series->id)
+                    ->where('school_year_id', $workingYear->id)
+                    ->where('is_active', true)
+                    ->with(['payments.paymentDetails'])
+                    ->get();
+
+                $classTotalDue = 0;
+                $classTotalPaid = 0;
+
+                foreach ($students as $student) {
+                    foreach ($paymentTranches as $tranche) {
+                        try {
+                            $requiredAmount = $tranche->getAmountForStudent($student, true, true, true) ?? 0;
+                        } catch (\Exception $e) {
+                            $requiredAmount = 0;
+                        }
+                        $classTotalDue += $requiredAmount;
+
+                        // Calculer le montant payé
+                        foreach ($student->payments as $payment) {
+                            foreach ($payment->paymentDetails as $detail) {
+                                if ($detail->payment_tranche_id == $tranche->id) {
+                                    $classTotalPaid += $detail->amount_allocated;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                $classTotalRemaining = max(0, $classTotalDue - $classTotalPaid);
+                $collectionRate = $classTotalDue > 0 ? ($classTotalPaid / $classTotalDue) * 100 : 0;
+
+                $classesData[] = [
+                    'class_name' => $series->schoolClass->name,
+                    'series_name' => $series->name,
+                    'student_count' => $students->count(),
+                    'total_due' => $classTotalDue,
+                    'total_paid' => $classTotalPaid,
+                    'total_remaining' => $classTotalRemaining,
+                    'collection_rate' => $collectionRate
+                ];
+
+                $globalTotalDue += $classTotalDue;
+                $globalTotalPaid += $classTotalPaid;
+                $globalTotalRemaining += $classTotalRemaining;
+            }
+
+            $globalCollectionRate = $globalTotalDue > 0 ? ($globalTotalPaid / $globalTotalDue) * 100 : 0;
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'summary' => [
+                        'total_due' => $globalTotalDue,
+                        'total_paid' => $globalTotalPaid,
+                        'total_remaining' => $globalTotalRemaining,
+                        'collection_rate' => $globalCollectionRate
+                    ],
+                    'classes' => $classesData
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in ReportsController@getCollectionSummaryReport: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du rapport',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Rapport des détails de paiements
+     */
+    public function getPaymentDetailsReport(Request $request)
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+            
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            $filterType = $request->get('filterType', 'section');
+            $sectionId = $request->get('sectionId');
+            $classId = $request->get('classId');
+            $seriesId = $request->get('seriesId');
+
+            // Récupérer les paiements selon les filtres
+            $paymentsQuery = Payment::with([
+                'student.classSeries.schoolClass.level.section'
+            ])
+            ->where('school_year_id', $workingYear->id);
+
+            if (!empty($sectionId)) {
+                $paymentsQuery->whereHas('student.classSeries.schoolClass.level.section', function ($query) use ($sectionId) {
+                    $query->where('id', $sectionId);
+                });
+            }
+
+            if (!empty($classId)) {
+                $paymentsQuery->whereHas('student.classSeries.schoolClass', function ($query) use ($classId) {
+                    $query->where('id', $classId);
+                });
+            }
+
+            if (!empty($seriesId)) {
+                $paymentsQuery->whereHas('student', function ($query) use ($seriesId) {
+                    $query->where('class_series_id', $seriesId);
+                });
+            }
+
+            $payments = $paymentsQuery->orderBy('payment_date', 'desc')->get();
+
+            // Grouper par classe/série
+            $classesData = [];
+            $totalAmount = 0;
+
+            foreach ($payments as $payment) {
+                $student = $payment->student;
+                $classSeries = $student->classSeries;
+                $classKey = $classSeries->schoolClass->name . ' - ' . $classSeries->name;
+
+                if (!isset($classesData[$classKey])) {
+                    $classesData[$classKey] = [
+                        'class_name' => $classSeries->schoolClass->name,
+                        'series_name' => $classSeries->name,
+                        'payments' => [],
+                        'total_amount' => 0
+                    ];
+                }
+
+                $paymentData = [
+                    'student_matricule' => $student->matricule,
+                    'student_lastname' => $student->last_name,
+                    'student_firstname' => $student->first_name,
+                    'payment_method' => $payment->payment_method,
+                    'payment_date' => $payment->payment_date,
+                    'amount' => $payment->total_amount
+                ];
+
+                $classesData[$classKey]['payments'][] = $paymentData;
+                $classesData[$classKey]['total_amount'] += $payment->total_amount;
+                $totalAmount += $payment->total_amount;
+            }
+
+            // Convertir en array indexé
+            $classes = array_values($classesData);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'summary' => [
+                        'total_amount' => $totalAmount,
+                        'total_payments' => $payments->count()
+                    ],
+                    'classes' => $classes
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in ReportsController@getPaymentDetailsReport: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du rapport',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Rapport des bourses et rabais
+     */
+    public function getScholarshipsDiscountsReport(Request $request)
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+            
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            $filterType = $request->get('filterType', 'section');
+            $sectionId = $request->get('sectionId');
+            $classId = $request->get('classId');
+            $seriesId = $request->get('seriesId');
+
+            // Récupérer les étudiants avec bourses/rabais
+            $studentsQuery = Student::with([
+                'classSeries.schoolClass.level.section',
+                'classScholarship',
+                'payments.paymentDetails.paymentTranche'
+            ])
+            ->where('school_year_id', $workingYear->id)
+            ->where('is_active', true)
+            ->where(function ($query) {
+                $query->whereNotNull('class_scholarship_id')
+                      ->orWhereExists(function ($subQuery) {
+                          $subQuery->select(DB::raw(1))
+                                   ->from('payments')
+                                   ->whereColumn('payments.student_id', 'students.id')
+                                   ->where('payments.has_reduction', true);
+                      });
+            });
+
+            if (!empty($sectionId)) {
+                $studentsQuery->whereHas('classSeries.schoolClass.level.section', function ($query) use ($sectionId) {
+                    $query->where('id', $sectionId);
+                });
+            }
+
+            if (!empty($classId)) {
+                $studentsQuery->whereHas('classSeries.schoolClass', function ($query) use ($classId) {
+                    $query->where('id', $classId);
+                });
+            }
+
+            if (!empty($seriesId)) {
+                $studentsQuery->where('class_series_id', $seriesId);
+            }
+
+            $students = $studentsQuery->get();
+            $paymentTranches = PaymentTranche::active()->ordered()->get();
+
+            $studentsData = [];
+            $totalScholarships = 0;
+            $totalDiscounts = 0;
+            $classSummary = [];
+
+            foreach ($students as $student) {
+                $classSeries = $student->classSeries;
+                $classKey = $classSeries->schoolClass->name . ' - ' . $classSeries->name;
+
+                // Calculer le montant total de scolarité (sans réductions)
+                $tuitionAmount = 0;
+                foreach ($paymentTranches as $tranche) {
+                    try {
+                        $baseAmount = $tranche->getAmountForStudent($student, true, false, false) ?? 0;
+                        $tuitionAmount += $baseAmount;
+                    } catch (\Exception $e) {
+                        // Ignorer les erreurs
+                    }
+                }
+
+                // Calculer les bourses
+                $scholarshipAmount = 0;
+                $scholarshipReason = '';
+                if ($student->classScholarship) {
+                    $scholarshipReason = $student->classScholarship->reason;
+                    foreach ($paymentTranches as $tranche) {
+                        try {
+                            $baseAmount = $tranche->getAmountForStudent($student, true, false, false) ?? 0;
+                            $withScholarshipAmount = $tranche->getAmountForStudent($student, true, false, true) ?? 0;
+                            $scholarshipAmount += max(0, $baseAmount - $withScholarshipAmount);
+                        } catch (\Exception $e) {
+                            // Ignorer les erreurs
+                        }
+                    }
+                }
+
+                // Calculer les rabais globaux
+                $discountAmount = 0;
+                $discountReason = '';
+                foreach ($student->payments as $payment) {
+                    if ($payment->has_reduction && $payment->reduction_amount > 0) {
+                        $discountAmount += $payment->reduction_amount;
+                        $discountReason = 'Paiement cash avant 15 août';
+                        break; // Une seule raison pour simplifier
+                    }
+                }
+
+                $totalBenefitAmount = $scholarshipAmount + $discountAmount;
+
+                if ($totalBenefitAmount > 0) {
+                    $studentsData[] = [
+                        'class_name' => $classSeries->schoolClass->name,
+                        'student_name' => $student->last_name . ' ' . $student->first_name,
+                        'tuition_amount' => $tuitionAmount,
+                        'scholarship_reason' => $scholarshipReason,
+                        'discount_reason' => $discountReason,
+                        'total_benefit_amount' => $totalBenefitAmount,
+                        'observation' => ''
+                    ];
+
+                    $totalScholarships += $scholarshipAmount;
+                    $totalDiscounts += $discountAmount;
+
+                    // Récapitulatif par classe
+                    if (!isset($classSummary[$classKey])) {
+                        $classSummary[$classKey] = [
+                            'class_name' => $classSeries->schoolClass->name,
+                            'series_name' => $classSeries->name,
+                            'beneficiary_count' => 0,
+                            'total_scholarships' => 0,
+                            'total_discounts' => 0,
+                            'total_benefits' => 0
+                        ];
+                    }
+
+                    $classSummary[$classKey]['beneficiary_count']++;
+                    $classSummary[$classKey]['total_scholarships'] += $scholarshipAmount;
+                    $classSummary[$classKey]['total_discounts'] += $discountAmount;
+                    $classSummary[$classKey]['total_benefits'] += $totalBenefitAmount;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'summary' => [
+                        'total_scholarships' => $totalScholarships,
+                        'total_discounts' => $totalDiscounts,
+                        'beneficiary_count' => count($studentsData)
+                    ],
+                    'students' => $studentsData,
+                    'class_summary' => array_values($classSummary)
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in ReportsController@getScholarshipsDiscountsReport: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du rapport',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Export PDF des rapports
      */
     public function exportPdf(Request $request)

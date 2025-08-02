@@ -14,60 +14,43 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        // Créer un administrateur si il n'existe pas
-        User::firstOrCreate(
-            ['username' => 'admin'],
-            [
-                'name' => 'Administrateur',
-                'email' => 'admin@gsbpl.com',
-                'password' => Hash::make('password123'),
-                'role' => 'admin',
-            ]
-        );
+        $this->createOrUpdateUser('admin', [
+            'name' => 'Administrateur',
+            'email' => 'admin@gsbpl.com',
+            'password' => Hash::make('password123'),
+            'role' => 'admin',
+        ]);
 
-        // Créer un enseignant
-        User::firstOrCreate(
-            ['username' => 'prof.martin'],
-            [
-                'name' => 'Professeur Martin',
-                'email' => 'martin@gsbpl.com',
-                'password' => Hash::make('password123'),
-                'role' => 'teacher',
-            ]
-        );
+        $this->createOrUpdateUser('prof.martin', [
+            'name' => 'Professeur Martin',
+            'email' => 'martin@gsbpl.com',
+            'password' => Hash::make('password123'),
+            'role' => 'teacher',
+        ]);
 
-        // Créer un comptable
-        User::firstOrCreate(
-            ['username' => 'comptable'],
-            [
-                'name' => 'Comptable Dupont',
-                'email' => 'comptable@gsbpl.com',
-                'password' => Hash::make('password123'),
-                'role' => 'accountant',
-            ]
-        );
+        $this->createOrUpdateUser('comptable', [
+            'name' => 'Comptable Dupont',
+            'email' => 'comptable@gsbpl.com',
+            'password' => Hash::make('password123'),
+            'role' => 'accountant',
+        ]);
 
-        // Créer un utilisateur standard
-        User::create([
+        $this->createOrUpdateUser('user.test', [
             'name' => 'Utilisateur Test',
-            'username' => 'user.test',
             'email' => 'user@gsbpl.com',
             'password' => Hash::make('password123'),
             'role' => 'user',
         ]);
 
-        // Créer quelques enseignants supplémentaires
-        User::create([
+        $this->createOrUpdateUser('prof.dubois', [
             'name' => 'Professeur Dubois',
-            'username' => 'prof.dubois',
             'email' => 'dubois@gsbpl.com',
             'password' => Hash::make('password123'),
             'role' => 'teacher',
         ]);
 
-        User::create([
+        $this->createOrUpdateUser('prof.ngomo', [
             'name' => 'Professeur Ngomo',
-            'username' => 'prof.ngomo',
             'email' => 'ngomo@gsbpl.com',
             'password' => Hash::make('password123'),
             'role' => 'teacher',
@@ -80,5 +63,22 @@ class UserSeeder extends Seeder
         echo "Comptable:  username: comptable   | password: password123\n";
         echo "Utilisateur: username: user.test  | password: password123\n";
         echo "==========================================\n";
+    }
+
+    /**
+     * Créer ou mettre à jour un utilisateur (force TOUJOURS la mise à jour du mot de passe)
+     */
+    private function createOrUpdateUser($username, $userData)
+    {
+        // TOUJOURS supprimer et recréer pour garantir un mot de passe fonctionnel
+        $existingUser = User::where('username', $username)->first();
+        if ($existingUser) {
+            $existingUser->delete();
+            echo "🗑️  Ancien utilisateur supprimé: {$username}\n";
+        }
+        
+        // Créer avec un nouveau hash
+        User::create(array_merge(['username' => $username], $userData));
+        echo "✨ Utilisateur créé/recréé: {$username}\n";
     }
 }

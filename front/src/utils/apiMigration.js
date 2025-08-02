@@ -537,6 +537,18 @@ export const secureApiEndpoints = {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/reports/recovery?${queryString}`);
         },
+        getCollectionSummaryReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/collection-summary?${queryString}`);
+        },
+        getPaymentDetailsReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/payment-details?${queryString}`);
+        },
+        getScholarshipsDiscountsReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/scholarships-discounts?${queryString}`);
+        },
         exportPdf: async (params) => {
             const queryString = new URLSearchParams(params).toString();
             const token = authService.getToken();

@@ -121,6 +121,15 @@ const Reports = () => {
                 case 'recovery':
                     response = await secureApiEndpoints.reports.getRecoveryReport(filters);
                     break;
+                case 'collection_summary':
+                    response = await secureApiEndpoints.reports.getCollectionSummaryReport(filters);
+                    break;
+                case 'payment_details':
+                    response = await secureApiEndpoints.reports.getPaymentDetailsReport(filters);
+                    break;
+                case 'scholarships_discounts':
+                    response = await secureApiEndpoints.reports.getScholarshipsDiscountsReport(filters);
+                    break;
                 default:
                     throw new Error('Type de rapport non reconnu');
             }
@@ -562,6 +571,267 @@ const Reports = () => {
         </Card>
     );
 
+    const renderCollectionSummaryReport = () => (
+        <Card>
+            <Card.Header>
+                <h5 className="mb-0">État Récapitulatif des Encaissements</h5>
+                <small className="text-muted">Montant total dû, payé et reste par classe/série</small>
+            </Card.Header>
+            <Card.Body>
+                {reportData ? (
+                    <>
+                        <Row className="mb-4">
+                            <Col md={3}>
+                                <Card className="text-center border-primary">
+                                    <Card.Body>
+                                        <h4 className="text-primary">{formatCurrency(reportData.summary?.total_due || 0)}</h4>
+                                        <p className="text-muted mb-0">Total Dû</p>
+                                    </Card.Body>
+                                </Card>
+                            </Col>
+                            <Col md={3}>
+                                <Card className="text-center border-success">
+                                    <Card.Body>
+                                        <h4 className="text-success">{formatCurrency(reportData.summary?.total_paid || 0)}</h4>
+                                        <p className="text-muted mb-0">Total Payé</p>
+                                    </Card.Body>
+                                </Card>
+                            </Col>
+                            <Col md={3}>
+                                <Card className="text-center border-warning">
+                                    <Card.Body>
+                                        <h4 className="text-warning">{formatCurrency(reportData.summary?.total_remaining || 0)}</h4>
+                                        <p className="text-muted mb-0">Total Reste</p>
+                                    </Card.Body>
+                                </Card>
+                            </Col>
+                            <Col md={3}>
+                                <Card className="text-center border-info">
+                                    <Card.Body>
+                                        <h4 className="text-info">{reportData.summary?.collection_rate?.toFixed(1) || 0}%</h4>
+                                        <p className="text-muted mb-0">Taux Encaissement</p>
+                                    </Card.Body>
+                                </Card>
+                            </Col>
+                        </Row>
+
+                        <Table responsive striped size="sm">
+                            <thead className="table-dark">
+                                <tr>
+                                    <th>Classe</th>
+                                    <th>Série</th>
+                                    <th>Nombre Élèves</th>
+                                    <th>Montant Total Dû</th>
+                                    <th>Montant Payé</th>
+                                    <th>Montant Reste</th>
+                                    <th>Taux (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {reportData.classes?.map((classData, index) => (
+                                    <tr key={index}>
+                                        <td><strong>{classData.class_name}</strong></td>
+                                        <td>{classData.series_name}</td>
+                                        <td><Badge bg="info">{classData.student_count}</Badge></td>
+                                        <td>{formatCurrency(classData.total_due)}</td>
+                                        <td className="text-success">{formatCurrency(classData.total_paid)}</td>
+                                        <td className="text-danger">{formatCurrency(classData.total_remaining)}</td>
+                                        <td>
+                                            <Badge bg={classData.collection_rate >= 80 ? 'success' : classData.collection_rate >= 50 ? 'warning' : 'danger'}>
+                                                {classData.collection_rate?.toFixed(1)}%
+                                            </Badge>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </Table>
+                    </>
+                ) : (
+                    <p className="text-muted text-center">Générez un rapport pour voir les données</p>
+                )}
+            </Card.Body>
+        </Card>
+    );
+
+    const renderPaymentDetailsReport = () => (
+        <Card>
+            <Card.Header>
+                <h5 className="mb-0">Détail du Paiement des Frais de Scolarité</h5>
+                <small className="text-muted">Versements de chaque élève par classe et série</small>
+            </Card.Header>
+            <Card.Body>
+                {reportData ? (
+                    <>
+                        <div className="mb-3">
+                            <Badge bg="info">Total des versements: {reportData.payments?.length || 0}</Badge>
+                            <Badge bg="success" className="ms-2">Montant total: {formatCurrency(reportData.summary?.total_amount || 0)}</Badge>
+                        </div>
+
+                        {/* Grouper par classe */}
+                        {reportData.classes?.map((classGroup, classIndex) => (
+                            <div key={classIndex} className="mb-4">
+                                <h6 className="bg-light p-2 rounded">
+                                    <Building className="me-2" />
+                                    {classGroup.class_name} - {classGroup.series_name}
+                                    <Badge bg="secondary" className="ms-2">{classGroup.payments?.length || 0} versements</Badge>
+                                </h6>
+                                
+                                <Table responsive striped size="sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Matricule</th>
+                                            <th>Nom</th>
+                                            <th>Prénom</th>
+                                            <th>Type Paiement</th>
+                                            <th>Date</th>
+                                            <th>Montant</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {classGroup.payments?.map((payment, paymentIndex) => (
+                                            <tr key={paymentIndex}>
+                                                <td><code>{payment.student_matricule}</code></td>
+                                                <td><strong>{payment.student_lastname}</strong></td>
+                                                <td>{payment.student_firstname}</td>
+                                                <td>
+                                                    <Badge bg="primary" size="sm">
+                                                        {payment.payment_method === 'cash' ? 'ESP' : 
+                                                         payment.payment_method === 'card' ? 'CB' :
+                                                         payment.payment_method === 'transfer' ? 'VIR' :
+                                                         payment.payment_method === 'check' ? 'CHQ' :
+                                                         payment.payment_method}
+                                                    </Badge>
+                                                </td>
+                                                <td>{new Date(payment.payment_date).toLocaleDateString('fr-FR')}</td>
+                                                <td className="text-success"><strong>{formatCurrency(payment.amount)}</strong></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </Table>
+                                
+                                <div className="text-end mb-3">
+                                    <strong>Sous-total: {formatCurrency(classGroup.total_amount)}</strong>
+                                </div>
+                            </div>
+                        ))}
+                    </>
+                ) : (
+                    <p className="text-muted text-center">Générez un rapport pour voir les données</p>
+                )}
+            </Card.Body>
+        </Card>
+    );
+
+    const renderScholarshipsDiscountsReport = () => (
+        <Card>
+            <Card.Header>
+                <h5 className="mb-0">États Bourses et Rabais</h5>
+                <small className="text-muted">Toutes les bourses/rabais attribués par élève, classe et série</small>
+            </Card.Header>
+            <Card.Body>
+                {reportData ? (
+                    <>
+                        <Row className="mb-4">
+                            <Col md={4}>
+                                <Card className="text-center border-info">
+                                    <Card.Body>
+                                        <h4 className="text-info">{formatCurrency(reportData.summary?.total_scholarships || 0)}</h4>
+                                        <p className="text-muted mb-0">Total Bourses</p>
+                                    </Card.Body>
+                                </Card>
+                            </Col>
+                            <Col md={4}>
+                                <Card className="text-center border-warning">
+                                    <Card.Body>
+                                        <h4 className="text-warning">{formatCurrency(reportData.summary?.total_discounts || 0)}</h4>
+                                        <p className="text-muted mb-0">Total Rabais</p>
+                                    </Card.Body>
+                                </Card>
+                            </Col>
+                            <Col md={4}>
+                                <Card className="text-center border-success">
+                                    <Card.Body>
+                                        <h4 className="text-success">{reportData.summary?.beneficiary_count || 0}</h4>
+                                        <p className="text-muted mb-0">Bénéficiaires</p>
+                                    </Card.Body>
+                                </Card>
+                            </Col>
+                        </Row>
+
+                        <Table responsive striped size="sm">
+                            <thead className="table-dark">
+                                <tr>
+                                    <th>Classe</th>
+                                    <th>Nom & Prénoms de l'Élève</th>
+                                    <th>Montant Scolarité</th>
+                                    <th>Motif Rabais/Bourse</th>
+                                    <th>Montant Rabais</th>
+                                    <th>Obs</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {reportData.students?.map((student, index) => (
+                                    <tr key={index}>
+                                        <td><strong>{student.class_name}</strong></td>
+                                        <td>{student.student_name}</td>
+                                        <td>{formatCurrency(student.tuition_amount)}</td>
+                                        <td>
+                                            {student.scholarship_reason && (
+                                                <Badge bg="info" className="me-1">Bourse: {student.scholarship_reason}</Badge>
+                                            )}
+                                            {student.discount_reason && (
+                                                <Badge bg="warning">Rabais: {student.discount_reason}</Badge>
+                                            )}
+                                        </td>
+                                        <td className="text-success">
+                                            <strong>{formatCurrency(student.total_benefit_amount)}</strong>
+                                        </td>
+                                        <td>
+                                            {student.observation && (
+                                                <small className="text-muted">{student.observation}</small>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </Table>
+
+                        {/* Récapitulatif par classe */}
+                        <div className="mt-4">
+                            <h6>Récapitulatif par Classe</h6>
+                            <Table responsive size="sm">
+                                <thead className="table-light">
+                                    <tr>
+                                        <th>Classe</th>
+                                        <th>Série</th>
+                                        <th>Nombre Bénéficiaires</th>
+                                        <th>Total Bourses</th>
+                                        <th>Total Rabais</th>
+                                        <th>Total Avantages</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {reportData.class_summary?.map((classSummary, index) => (
+                                        <tr key={index}>
+                                            <td><strong>{classSummary.class_name}</strong></td>
+                                            <td>{classSummary.series_name}</td>
+                                            <td><Badge bg="info">{classSummary.beneficiary_count}</Badge></td>
+                                            <td className="text-info">{formatCurrency(classSummary.total_scholarships)}</td>
+                                            <td className="text-warning">{formatCurrency(classSummary.total_discounts)}</td>
+                                            <td className="text-success"><strong>{formatCurrency(classSummary.total_benefits)}</strong></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </Table>
+                        </div>
+                    </>
+                ) : (
+                    <p className="text-muted text-center">Générez un rapport pour voir les données</p>
+                )}
+            </Card.Body>
+        </Card>
+    );
+
     return (
         <Container fluid className="py-4">
             <Row className="mb-4">
@@ -612,6 +882,24 @@ const Reports = () => {
                                     Recouvrement
                                 </Nav.Link>
                             </Nav.Item>
+                            <Nav.Item>
+                                <Nav.Link eventKey="collection_summary">
+                                    <FileEarmarkText className="me-2" />
+                                    Récap. Encaissements
+                                </Nav.Link>
+                            </Nav.Item>
+                            <Nav.Item>
+                                <Nav.Link eventKey="payment_details">
+                                    <CashCoin className="me-2" />
+                                    Détails Paiements
+                                </Nav.Link>
+                            </Nav.Item>
+                            <Nav.Item>
+                                <Nav.Link eventKey="scholarships_discounts">
+                                    <Building className="me-2" />
+                                    Bourses & Rabais
+                                </Nav.Link>
+                            </Nav.Item>
                         </Nav>
 
                         <Tab.Content>
@@ -626,6 +914,15 @@ const Reports = () => {
                             </Tab.Pane>
                             <Tab.Pane eventKey="recovery">
                                 {renderRecoveryReport()}
+                            </Tab.Pane>
+                            <Tab.Pane eventKey="collection_summary">
+                                {renderCollectionSummaryReport()}
+                            </Tab.Pane>
+                            <Tab.Pane eventKey="payment_details">
+                                {renderPaymentDetailsReport()}
+                            </Tab.Pane>
+                            <Tab.Pane eventKey="scholarships_discounts">
+                                {renderScholarshipsDiscountsReport()}
                             </Tab.Pane>
                         </Tab.Content>
                     </Col>
