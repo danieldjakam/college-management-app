@@ -8,6 +8,7 @@ import {
   XCircleFill, PersonCheck, Building
 } from 'react-bootstrap-icons';
 import { useAuth } from '../../hooks/useAuth';
+import { host } from '../../utils/fetch';
 
 const SupervisorAssignments = () => {
   const [supervisors, setSupervisors] = useState([]);
@@ -48,7 +49,7 @@ const SupervisorAssignments = () => {
   const loadSupervisors = async () => {
     try {
       // Le token est déjà disponible depuis useAuth
-      const response = await fetch('http://localhost:4000/api/user-management', {
+      const response = await fetch(`${host}/api/user-management`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -68,7 +69,7 @@ const SupervisorAssignments = () => {
   const loadClasses = async () => {
     try {
       // Le token est déjà disponible depuis useAuth
-      const response = await fetch('http://localhost:4000/api/school-classes', {
+      const response = await fetch(host+'/api/school-classes', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -87,7 +88,7 @@ const SupervisorAssignments = () => {
   const loadSchoolYears = async () => {
     try {
       // Le token est déjà disponible depuis useAuth
-      const response = await fetch('http://localhost:4000/api/school-years', {
+      const response = await fetch(host+'/api/school-years', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -111,7 +112,7 @@ const SupervisorAssignments = () => {
   const loadAssignments = async () => {
     try {
       // Le token est déjà disponible depuis useAuth
-      const response = await fetch('http://localhost:4000/api/supervisors/all-assignments', {
+      const response = await fetch(host+'/api/supervisors/all-assignments', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -139,7 +140,7 @@ const SupervisorAssignments = () => {
     try {
       setIsLoading(true);
       // Le token est déjà disponible depuis useAuth
-      const response = await fetch('http://localhost:4000/api/supervisors/assign-to-class', {
+      const response = await fetch(host+'/api/supervisors/assign-to-class', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -180,7 +181,7 @@ const SupervisorAssignments = () => {
 
     try {
       // Le token est déjà disponible depuis useAuth
-      const response = await fetch(`http://localhost:4000/api/supervisors/assignments/${assignmentId}`, {
+      const response = await fetch(`${host}/api/supervisors/assignments/${assignmentId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

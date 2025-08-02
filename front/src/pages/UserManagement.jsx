@@ -50,7 +50,7 @@ const UserManagement = () => {
         email: '',
         contact: '',
         photo: '',
-        role: 'comptable',
+        role: 'accountant',
         is_active: true,
         generate_password: true
     });
@@ -217,7 +217,7 @@ const UserManagement = () => {
                 email: '',
                 contact: '',
                 photo: '',
-                role: 'comptable',
+                role: 'accountant',
                 is_active: true,
                 generate_password: true
             });
@@ -466,7 +466,7 @@ const UserManagement = () => {
                         </Col>
                         <Col md={6}>
                             <Form.Group className="mb-3">
-                                <Form.Label>Photo *</Form.Label>
+                                <Form.Label>Photo</Form.Label>
                                 <div className="d-flex align-items-center gap-3">
                                     <Button 
                                         variant={formData.photo ? "outline-success" : "outline-primary"}
@@ -495,7 +495,7 @@ const UserManagement = () => {
                                 </div>
                                 {!formData.photo && (
                                     <Form.Text className="text-muted">
-                                        Prenez une photo avec la caméra ou sélectionnez un fichier
+                                        Optionnel - Prenez une photo avec la caméra ou sélectionnez un fichier
                                     </Form.Text>
                                 )}
                             </Form.Group>
@@ -513,7 +513,7 @@ const UserManagement = () => {
                                     disabled={modalMode === 'view'}
                                 >
                                     <option value="surveillant_general">Surveillant Général</option>
-                                    <option value="comptable">Comptable</option>
+                                    <option value="accountant">Comptable</option>
                                     <option value="secretaire">Secrétaire</option>
                                 </Form.Select>
                             </Form.Group>

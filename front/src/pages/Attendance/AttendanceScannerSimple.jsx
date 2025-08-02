@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, Button, Alert, Container, Row, Col, Table, Badge, Spinner, Form } from 'react-bootstrap';
 import { QrCodeScan, CheckCircleFill, XCircleFill, Calendar, Clock, PersonFill, Printer } from 'react-bootstrap-icons';
 import { useAuth } from '../../hooks/useAuth';
+import { host } from '../../utils/fetch';
 
 const AttendanceScannerSimple = () => {
   const [isScanning, setIsScanning] = useState(false);
@@ -43,7 +44,7 @@ const AttendanceScannerSimple = () => {
       // Tentative d'appel API réel
       if (user && token) {
         try {
-          const response = await fetch(`http://localhost:4000/api/supervisors/daily-attendance?supervisor_id=${user.id}`, {
+          const response = await fetch(`${host}/api/supervisors/daily-attendance?supervisor_id=${user.id}`, {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
@@ -144,7 +145,7 @@ const AttendanceScannerSimple = () => {
         // Tentative d'enregistrement réel via API
         if (user && token) {
           try {
-            const response = await fetch('http://localhost:4000/api/supervisors/scan-qr', {
+            const response = await fetch(`${host}/api/supervisors/scan-qr`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${token}`,

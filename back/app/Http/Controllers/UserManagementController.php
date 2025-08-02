@@ -65,8 +65,8 @@ class UserManagementController extends Controller
                 'name' => 'required|string|max:255',
                 'email' => 'required|email|unique:users,email',
                 'contact' => 'required|string|max:20',
-                'photo' => 'required|string|max:500',
-                'role' => 'required|in:surveillant_general,comptable,secretaire',
+                'photo' => 'nullable|string|max:500',
+                'role' => 'required|in:surveillant_general,comptable,secretaire,accountant',
                 'generate_password' => 'boolean'
             ]);
 
@@ -149,7 +149,7 @@ class UserManagementController extends Controller
                 'email' => 'required|email|unique:users,email,' . $id,
                 'contact' => 'required|string|max:20',
                 'photo' => 'nullable|string|max:500', // Nullable en update
-                'role' => 'required|in:surveillant_general,comptable,secretaire',
+                'role' => 'required|in:surveillant_general,comptable,secretaire,accountant',
                 'is_active' => 'boolean'
             ]);
 

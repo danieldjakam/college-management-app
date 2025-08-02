@@ -8,6 +8,7 @@ import {
     Clipboard2PlusFill,
     ClipboardCheckFill,
     QrCodeScan,
+    Calendar,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -59,6 +60,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         {
           title: "Gestion Académique",
           items: [
+            { name: "Années Scolaires", href: "/school-years", icon: <Calendar /> },
             { name: "Sections", href: "/sections", icon: <HospitalFill /> },
             { name: "Niveaux", href: "/levels", icon: <BookFill /> },
             {

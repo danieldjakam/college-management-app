@@ -10,6 +10,7 @@ import {
   PersonXFill
 } from 'react-bootstrap-icons';
 import { useAuth } from '../../hooks/useAuth';
+import { host } from '../../utils/fetch';
 
 const AttendanceReports = () => {
   const [attendances, setAttendances] = useState([]);
@@ -89,7 +90,7 @@ const AttendanceReports = () => {
       console.log('🔑 Token:', token ? 'présent' : 'absent');
       
       // Le token est déjà disponible depuis useAuth
-      const response = await fetch(`http://localhost:4000/api/supervisors/${user.id}/assignments`, {
+      const response = await fetch(`${host}/api/supervisors/${user.id}/assignments`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -139,7 +140,7 @@ const AttendanceReports = () => {
         console.log('🏫 Filtre classe:', filters.classId);
       }
 
-      const url = `http://localhost:4000/api/supervisors/attendance-range?${params}`;
+      const url = `${host}/api/supervisors/attendance-range?${params}`;
       console.log('🌐 URL requête:', url);
 
       const response = await fetch(url, {
@@ -277,7 +278,7 @@ const AttendanceReports = () => {
       setIsMarkingAbsent(true);
       console.log('🔄 Marquage des absents pour classe:', filters.classId, 'date:', filters.startDate);
 
-      const response = await fetch('http://localhost:4000/api/supervisors/mark-absent-students', {
+      const response = await fetch(`${host}/api/supervisors/mark-absent-students`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

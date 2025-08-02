@@ -9,6 +9,7 @@ import {
   FileEarmarkText, CalendarRange
 } from 'react-bootstrap-icons';
 import { useAuth } from '../../hooks/useAuth';
+import { host } from '../../utils/fetch';
 
 const AttendanceReportsSimple = () => {
   const [attendances, setAttendances] = useState([]);
@@ -98,7 +99,7 @@ const AttendanceReportsSimple = () => {
         end_date: filters.endDate
       });
 
-      const response = await fetch(`http://localhost:4000/api/supervisors/attendance-range?${params}`, {
+      const response = await fetch(`${host}/api/supervisors/attendance-range?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

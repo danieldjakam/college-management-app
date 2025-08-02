@@ -128,15 +128,9 @@ const PhotoCapture = ({ show, onHide, onPhotoSelected }) => {
             const formData = new FormData();
             formData.append('photo', photoFile);
             
-            const response = await fetch('http://localhost:4000/api/upload-photo', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-                },
-                body: formData
-            });
-            
-            const result = await response.json();
+            // Utiliser le service d'API sécurisé depuis apiMigration
+            const { secureApiEndpoints } = await import('../utils/apiMigration');
+            const result = await secureApiEndpoints.userManagement.uploadPhoto(formData);
             
             if (result.success) {
                 onPhotoSelected(result.data.url);

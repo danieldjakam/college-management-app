@@ -90,6 +90,12 @@ const authReducer = (state, action) => {
                 refreshTokenTimeout: null
             };
 
+        case 'UPDATE_USER':
+            return {
+                ...state,
+                user: action.payload
+            };
+
         default:
             return state;
     }
@@ -242,6 +248,11 @@ export const AuthProvider = ({ children }) => {
         dispatch({ type: 'CLEAR_ERROR' });
     };
 
+    // Fonction pour mettre à jour l'utilisateur
+    const updateUser = (userData) => {
+        dispatch({ type: 'UPDATE_USER', payload: userData });
+    };
+
     // Vérification de l'authentification au chargement
     useEffect(() => {
         const initializeAuth = async () => {
@@ -327,6 +338,7 @@ export const AuthProvider = ({ children }) => {
         logout,
         refreshToken,
         getCurrentUser,
+        updateUser,
         hasRole,
         hasAnyRole,
         clearError

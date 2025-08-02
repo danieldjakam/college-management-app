@@ -580,11 +580,24 @@ export const secureApiEndpoints = {
         resetPassword: (id) => secureApi.post(`/user-management/${id}/reset-password`),
         toggleStatus: (id) => secureApi.post(`/user-management/${id}/toggle-status`),
         delete: (id) => secureApi.delete(`/user-management/${id}`),
-        uploadPhoto: (formData) => secureApi.makeRequest('/upload-photo', {
-            method: 'POST',
-            headers: {}, // Pas de Content-Type pour FormData
-            body: formData
-        })
+        uploadPhoto: (formData) => {
+            const token = authService.getToken();
+            return fetch(`${secureApi.baseURL}/upload-photo`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                    // Ne pas définir Content-Type pour FormData
+                },
+                body: formData
+            }).then(async response => {
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP Error ${response.status}`);
+                }
+                return response.json();
+            });
+        }
     },
 
     // === SUPERVISORS & ATTENDANCE ===
@@ -609,6 +622,17 @@ export const secureApiEndpoints = {
         // Génération QR codes
         generateStudentQR: (studentId) => secureApi.get(`/supervisors/generate-qr/${studentId}`),
         generateAllQRs: () => secureApi.get('/supervisors/generate-all-qrs')
+    },
+
+    // === SCHOOL YEARS ===
+    schoolYears: {
+        getAll: () => secureApi.get('/school-years'),
+        getActive: () => secureApi.get('/school-years/active'),
+        getUserWorkingYear: () => secureApi.get('/school-years/user-working-year'),
+        setUserWorkingYear: (yearId) => secureApi.post('/school-years/set-user-working-year', { school_year_id: yearId }),
+        create: (data) => secureApi.post('/school-years', data),
+        update: (id, data) => secureApi.put(`/school-years/${id}`, data),
+        setCurrent: (id) => secureApi.post(`/school-years/${id}/set-current`)
     }
 };
 
