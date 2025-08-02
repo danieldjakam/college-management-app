@@ -773,10 +773,9 @@ class PaymentController extends Controller
             return number_format($amount, 0, ',', ' ');
         };
 
-        // Obtenir le statut récapitulatif des paiements de l'étudiant
-        $paymentStatusService = new \App\Services\PaymentStatusService();
+        // Obtenir le statut récapitulatif des paiements AU MOMENT de ce paiement
         $workingYear = $payment->schoolYear;
-        $paymentStatus = $paymentStatusService->getStatusForStudent($student, $workingYear);
+        $paymentStatus = $this->getPaymentStatusAtTime($student, $payment);
 
         // Générer le tableau des détails de paiement
         $paymentDetailsRows = '';
@@ -785,7 +784,7 @@ class PaymentController extends Controller
             $trancheName = $detail->paymentTranche->name;
             $bankName = $schoolSettings->bank_name ?? 'N/A';
             $validationDate = \Carbon\Carbon::parse($payment->versement_date)->format('d/m/Y');
-            $paymentType = $this->getPaymentTypeLabel($payment);
+            $paymentType = $trancheName; // Afficher la tranche affectée
             $amount = $formatAmount($detail->amount_allocated);
             
             $paymentDetailsRows .= "
@@ -978,7 +977,7 @@ class PaymentController extends Controller
                         <th>N° Op</th>
                         <th>Banque</th>
                         <th>Date validation</th>
-                        <th>Type paiement</th>
+                        <th>Tranche affectée</th>
                         <th>Montant payé</th>
                     </tr>
                 </thead>
@@ -1035,6 +1034,111 @@ class PaymentController extends Controller
         return $html;
     }
     
+    /**
+     * Obtenir le statut des paiements AU MOMENT d'un paiement spécifique
+     */
+    private function getPaymentStatusAtTime($student, $specificPayment)
+    {
+        $workingYear = $specificPayment->schoolYear;
+        
+        // Récupérer toutes les tranches
+        $paymentTranches = \App\Models\PaymentTranche::active()
+            ->ordered()
+            ->with(['classPaymentAmounts' => function ($query) use ($student) {
+                if ($student->classSeries && $student->classSeries->schoolClass) {
+                    $query->where('class_id', $student->classSeries->schoolClass->id);
+                }
+            }])
+            ->get();
+
+        // Récupérer tous les paiements JUSQU'À et Y COMPRIS ce paiement spécifique
+        $paymentsUpToThis = \App\Models\Payment::forStudent($student->id)
+            ->forYear($workingYear->id)
+            ->where('is_rame_physical', false)
+            ->where('created_at', '<=', $specificPayment->created_at)
+            ->with(['paymentDetails.paymentTranche'])
+            ->orderBy('payment_date', 'asc')
+            ->get();
+
+        // Calculer les montants payés par tranche jusqu'à ce moment
+        $paidPerTranche = [];
+        $discountPerTranche = [];
+        foreach ($paymentsUpToThis as $payment) {
+            foreach ($payment->paymentDetails as $detail) {
+                if (!isset($paidPerTranche[$detail->payment_tranche_id])) {
+                    $paidPerTranche[$detail->payment_tranche_id] = 0;
+                    $discountPerTranche[$detail->payment_tranche_id] = [
+                        'has_discount' => false,
+                        'discount_amount' => 0
+                    ];
+                }
+                $paidPerTranche[$detail->payment_tranche_id] += $detail->amount_allocated;
+                
+                // Vérifier si ce détail a une réduction globale
+                if ($detail->was_reduced && strpos($detail->reduction_context, 'Réduction globale') !== false) {
+                    $schoolSettings = \App\Models\SchoolSetting::getSettings();
+                    $discountPercentage = $schoolSettings->reduction_percentage ?? 0;
+                    
+                    $reducedAmount = $detail->required_amount_at_time;
+                    $normalAmount = round($reducedAmount / (1 - $discountPercentage / 100), 0);
+                    $discountAmount = $normalAmount - $reducedAmount;
+                    
+                    $discountPerTranche[$detail->payment_tranche_id] = [
+                        'has_discount' => true,
+                        'discount_amount' => $discountAmount
+                    ];
+                }
+            }
+        }
+
+        // Récupérer les informations de bourse (elles sont statiques par classe)
+        $discountCalculator = new \App\Services\DiscountCalculatorService();
+        $scholarship = $discountCalculator->getClassScholarship($student);
+
+        // Construire le statut des tranches au moment du paiement
+        $trancheStatus = [];
+        foreach ($paymentTranches as $tranche) {
+            $requiredAmount = $tranche->getAmountForStudent($student, false, false, false);
+            if ($requiredAmount <= 0) continue;
+
+            $paidAmount = $paidPerTranche[$tranche->id] ?? 0;
+            $remainingAmount = max(0, $requiredAmount - $paidAmount);
+
+            // Vérifier si cette tranche bénéficie d'une bourse
+            $scholarshipAmount = 0;
+            $hasScholarship = false;
+            $globalDiscountAmount = 0;
+            $hasGlobalDiscount = false;
+            
+            if ($scholarship && $scholarship->payment_tranche_id == $tranche->id) {
+                $scholarshipAmount = $scholarship->amount;
+                $hasScholarship = true;
+            } else {
+                $discountInfo = $discountPerTranche[$tranche->id] ?? ['has_discount' => false, 'discount_amount' => 0];
+                if ($discountInfo['has_discount']) {
+                    $hasGlobalDiscount = true;
+                    $globalDiscountAmount = $discountInfo['discount_amount'];
+                }
+            }
+
+            $trancheStatus[] = [
+                'tranche' => $tranche,
+                'required_amount' => $requiredAmount,
+                'paid_amount' => $paidAmount,
+                'remaining_amount' => $remainingAmount,
+                'has_scholarship' => $hasScholarship,
+                'scholarship_amount' => $scholarshipAmount,
+                'has_global_discount' => $hasGlobalDiscount,
+                'global_discount_amount' => $globalDiscountAmount,
+            ];
+        }
+
+        // Retourner un objet similaire à PaymentStatusService
+        return (object) [
+            'tranche_status' => $trancheStatus
+        ];
+    }
+
     /**
      * Obtenir le libellé du type de paiement
      */
