@@ -238,6 +238,42 @@ const StudentPayment = () => {
         // Calculer le montant avec bourse (conversion en nombres)
         const amountWithScholarship = Math.max(0, parseFloat(totals.remaining) - parseFloat(totals.scholarship_amount));
         
+        // Vérifier l'éligibilité aux réductions pour le paiement rapide
+        let quickDiscountInfo = null;
+        let amountWithDiscount = totals.remaining;
+        
+        try {
+            // Utiliser la même logique que le modal normal
+            const discountResponse = await secureApiEndpoints.payments.getStudentInfoWithDiscount(studentId);
+            
+            if (discountResponse.success && discountResponse.data.discount_deadline && !totals.has_scholarships) {
+                const deadlineDate = new Date(discountResponse.data.discount_deadline);
+                const versementDate = new Date(); // Date actuelle pour paiement rapide
+                
+                if (versementDate <= deadlineDate) {
+                    // Calculer le montant avec réduction
+                    const totalRequired = discountResponse.data.total_required;
+                    const totalPaid = discountResponse.data.total_paid;
+                    const discountPercentage = discountResponse.data.discount_percentage;
+                    const discountAmount = (totalRequired - totalPaid) * (discountPercentage / 100);
+                    
+                    quickDiscountInfo = {
+                        discount_percentage: discountPercentage,
+                        discount_amount: discountAmount,
+                        deadline: discountResponse.data.discount_deadline,
+                        normal_totals: {
+                            total_required: totalRequired,
+                            total_paid: totalPaid
+                        }
+                    };
+                    
+                    amountWithDiscount = (totalRequired - totalPaid) - discountAmount;
+                }
+            }
+        } catch (error) {
+            console.log('Erreur lors de la vérification de l\'éligibilité aux réductions pour paiement rapide:', error);
+        }
+        
         const result = await Swal.fire({
             title: 'Paiement Rapide',
             html: `
@@ -250,14 +286,31 @@ const StudentPayment = () => {
                             ${formatAmount(totals.remaining)} - ${formatAmount(totals.scholarship_amount)} = 
                             <strong>${formatAmount(amountWithScholarship)}</strong>
                         </div>
+                    ` : quickDiscountInfo ? `
+                        <div class="alert alert-info mb-3">
+                            <strong>💰 Réduction disponible (${quickDiscountInfo.discount_percentage}%):</strong><br>
+                            ${formatAmount(totals.remaining)} - ${formatAmount(quickDiscountInfo.discount_amount)} = 
+                            <strong>${formatAmount(amountWithDiscount)}</strong>
+                            <br><small>Paiement intégral avant le ${new Date(quickDiscountInfo.deadline).toLocaleDateString('fr-FR')}</small>
+                        </div>
                     ` : ''}
                     <hr>
                     <div class="mb-3">
                         <label for="quickAmount" class="form-label">Montant à payer *</label>
                         <input type="number" id="quickAmount" class="form-control" 
-                               value="${totals.has_scholarships ? amountWithScholarship : totals.remaining}" 
+                               value="${totals.has_scholarships ? amountWithScholarship : (quickDiscountInfo ? amountWithDiscount : totals.remaining)}" 
                                min="1" max="${totals.remaining}">
                     </div>
+                    ${quickDiscountInfo ? `
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="quickApplyDiscount" checked>
+                                <label class="form-check-label" for="quickApplyDiscount">
+                                    Appliquer la réduction de ${quickDiscountInfo.discount_percentage}%
+                                </label>
+                            </div>
+                        </div>
+                    ` : ''}
                     <div class="mb-3">
                         <label for="quickVersementDate" class="form-label">Date de versement *</label>
                         <input type="date" id="quickVersementDate" class="form-control" 
@@ -291,12 +344,29 @@ const StudentPayment = () => {
             confirmButtonColor: '#28a745',
             cancelButtonColor: '#6c757d',
             width: '500px',
+            didOpen: () => {
+                // Gestionnaire pour la checkbox de réduction
+                const discountCheckbox = document.getElementById('quickApplyDiscount');
+                const amountInput = document.getElementById('quickAmount');
+                
+                if (discountCheckbox && amountInput && quickDiscountInfo) {
+                    discountCheckbox.addEventListener('change', () => {
+                        if (discountCheckbox.checked) {
+                            amountInput.value = amountWithDiscount;
+                        } else {
+                            amountInput.value = totals.remaining;
+                        }
+                    });
+                }
+            },
             preConfirm: () => {
                 const amount = parseFloat(document.getElementById('quickAmount').value);
                 const versementDate = document.getElementById('quickVersementDate').value;
                 const method = document.getElementById('quickMethod').value;
                 const reference = document.getElementById('quickReference').value.trim();
                 const notes = document.getElementById('quickNotes').value.trim();
+                const applyDiscountCheckbox = document.getElementById('quickApplyDiscount');
+                const applyDiscount = applyDiscountCheckbox ? applyDiscountCheckbox.checked : false;
 
                 if (!amount || amount <= 0) {
                     Swal.showValidationMessage('Veuillez saisir un montant valide');
@@ -319,7 +389,8 @@ const StudentPayment = () => {
                     reference_number: reference || '',
                     notes: notes || '',
                     payment_date: new Date().toISOString().split('T')[0],
-                    versement_date: versementDate
+                    versement_date: versementDate,
+                    apply_global_discount: applyDiscount
                 };
             }
         });
@@ -761,12 +832,12 @@ const StudentPayment = () => {
                         <Card.Body>
                             {totals.has_scholarships ? (
                                 <>
-                                    <h3 className={Math.max(0, parseFloat(totals.remaining) - parseFloat(totals.scholarship_amount)) > 0 ? "text-warning" : "text-success"}>
-                                        {formatAmount(Math.max(0, parseFloat(totals.remaining) - parseFloat(totals.scholarship_amount)))}
+                                    <h3 className={totals.remaining > 0 ? "text-warning" : "text-success"}>
+                                        {formatAmount(totals.remaining)}
                                     </h3>
                                     <p className="text-muted mb-0">Reste à payer</p>
                                     <small className="text-success">
-                                        (Avec bourse: {formatAmount(totals.scholarship_amount)})
+                                        (Avec bourse de {formatAmount(totals.scholarship_amount)} déjà appliquée)
                                     </small>
                                 </>
                             ) : (
@@ -802,14 +873,14 @@ const StudentPayment = () => {
                     <Card className="mb-4">
                         <Card.Header className="d-flex justify-content-between align-items-center">
                             <h5 className="mb-0">Statut des Paiements par Tranche</h5>
-                            <Button 
+                            {/* <Button 
                                 variant="success" 
                                 size="sm"
                                 onClick={() => handleQuickPayment()}
                                 disabled={totals.remaining <= 0}
                             >
                                 💳 Paiement Rapide
-                            </Button>
+                            </Button> */}
                         </Card.Header>
                         <Card.Body>
                             <Table responsive>
@@ -840,7 +911,16 @@ const StudentPayment = () => {
                                                 {status.is_physical_only ? (
                                                     <span className="text-info">Physical</span>
                                                 ) : (
-                                                    formatAmount(status.required_amount)
+                                                    <>
+                                                        {formatAmount(status.required_amount)}
+                                                        {status.has_global_discount && status.global_discount_amount > 0 && (
+                                                            <div className="text-success">
+                                                                <small>
+                                                                    Avec réduction ({status.discount_percentage}%): {formatAmount(parseFloat(status.required_amount) - parseFloat(status.global_discount_amount))}
+                                                                </small>
+                                                            </div>
+                                                        )}
+                                                    </>
                                                 )}
                                             </td>
                                             <td>
@@ -882,6 +962,17 @@ const StudentPayment = () => {
                                                                     <div className="text-success">
                                                                         <small>
                                                                             (Avec bourse: {formatAmount(Math.max(0, parseFloat(status.remaining_amount) - parseFloat(status.scholarship_amount)))})
+                                                                        </small>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        ) : status.has_global_discount && status.global_discount_amount > 0 ? (
+                                                            <>
+                                                                {formatAmount(Math.max(0, parseFloat(status.remaining_amount) - parseFloat(status.global_discount_amount)))}
+                                                                {(parseFloat(status.remaining_amount) - parseFloat(status.global_discount_amount)) > 0 && (
+                                                                    <div className="text-success">
+                                                                        <small>
+                                                                            (Avec réduction: {formatAmount(Math.max(0, parseFloat(status.remaining_amount) - parseFloat(status.global_discount_amount)))})
                                                                         </small>
                                                                     </div>
                                                                 )}

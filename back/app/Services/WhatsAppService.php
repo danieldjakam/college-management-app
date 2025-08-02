@@ -343,8 +343,8 @@ class WhatsAppService
     protected function generateReceiptImage($payment)
     {
         try {
-            // Récupérer le HTML du reçu depuis le PaymentController
-            $paymentController = new \App\Http\Controllers\PaymentController();
+            // Récupérer le HTML du reçu depuis le PaymentController via l'injection de dépendances
+            $paymentController = app()->make(\App\Http\Controllers\PaymentController::class);
             $receiptResponse = $paymentController->generateReceipt($payment->id);
             $responseData = $receiptResponse->getData();
             
