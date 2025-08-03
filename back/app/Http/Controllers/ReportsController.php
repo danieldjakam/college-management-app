@@ -8,6 +8,7 @@ use App\Models\PaymentDetail;
 use App\Models\PaymentTranche;
 use App\Models\SchoolClass;
 use App\Models\ClassSeries;
+use App\Models\ClassScholarship;
 use App\Models\Section;
 use App\Models\SchoolYear;
 use Illuminate\Http\Request;
@@ -101,8 +102,8 @@ class ReportsController extends Controller
 
                 foreach ($paymentTranches as $tranche) {
                     try {
-                        // Montant requis pour cette tranche (avec bourses et réductions)
-                        $requiredAmount = $tranche->getAmountForStudent($student, true, true, true) ?? 0;
+                        // Montant requis pour cette tranche (avec bourses OU réductions, jamais les deux)
+                        $requiredAmount = $tranche->getAmountForStudent($student, true, false, true, true) ?? 0;
                     } catch (\Exception $e) {
                         Log::warning("Erreur getAmountForStudent pour {$student->id}, tranche {$tranche->id}: " . $e->getMessage());
                         $requiredAmount = 0;
@@ -256,7 +257,10 @@ class ReportsController extends Controller
             // Récupérer seulement les tranches liées aux classes des étudiants
             $classIds = $students->pluck('classSeries.schoolClass.id')->unique();
             $paymentTranches = PaymentTranche::active()
-                ->whereIn('class_id', $classIds)
+                ->with('classPaymentAmounts')
+                ->whereHas('classPaymentAmounts', function ($query) use ($classIds) {
+                    $query->whereIn('class_id', $classIds);
+                })
                 ->ordered()
                 ->get();
 
@@ -267,12 +271,14 @@ class ReportsController extends Controller
                 $tranchesDetails = [];
                 
                 // Filtrer les tranches pour cette classe spécifique
-                $studentTranches = $paymentTranches->where('class_id', $student->classSeries->school_class_id);
+                $studentTranches = $paymentTranches->filter(function ($tranche) use ($student) {
+                    return $tranche->classPaymentAmounts->where('class_id', $student->classSeries->class_id)->isNotEmpty();
+                });
                 
                 foreach ($studentTranches as $tranche) {
                     try {
-                        // Montant requis pour cette tranche (avec bourses et réductions)  
-                        $requiredAmount = $tranche->getAmountForStudent($student, true, true, true) ?? 0;
+                        // Montant requis pour cette tranche (avec bourses OU réductions, jamais les deux)  
+                        $requiredAmount = $tranche->getAmountForStudent($student, true, false, true, true) ?? 0;
                     } catch (\Exception $e) {
                         Log::warning("Erreur getAmountForStudent pour {$student->id}, tranche {$tranche->id}: " . $e->getMessage());
                         $requiredAmount = 0;
@@ -364,10 +370,13 @@ class ReportsController extends Controller
                 ], 404);
             }
 
-            // Récupérer tous les étudiants avec leurs paiements RAME
+            // Récupérer tous les étudiants avec leurs informations RAME
             $studentsQuery = Student::with([
                 'classSeries.schoolClass.level.section',
-                'payments.paymentDetails.paymentTranche'
+                'payments.paymentDetails.paymentTranche',
+                'rameStatus' => function ($query) use ($workingYear) {
+                    $query->where('school_year_id', $workingYear->id);
+                }
             ])
             ->where('school_year_id', $workingYear->id)
             ->where('is_active', true);
@@ -394,23 +403,37 @@ class ReportsController extends Controller
             $rameStudentsData = [];
             foreach ($students as $student) {
                 try {
-                    $rameAmount = $rameTranche->getAmountForStudent($student, true, true, true) ?? 0; // Avec bourses et réductions
+                    $rameAmount = $rameTranche->getAmountForStudent($student, true, false, true, true) ?? 0; // Avec bourses OU réductions
                 } catch (\Exception $e) {
                     Log::warning("Erreur getAmountForStudent RAME pour {$student->id}: " . $e->getMessage());
                     $rameAmount = 0;
                 }
-                $ramePaid = 0;
+                
+                $rameQuantity = 0; // 0 = pas payé, 1 = payé
                 $rameType = 'unpaid'; // unpaid, cash, physical
                 $paymentDate = null;
+                $rameStatus = $student->rameStatus; // Relation vers student_rame_status
 
-                // Vérifier les paiements RAME
-                foreach ($student->payments as $payment) {
-                    foreach ($payment->paymentDetails as $detail) {
-                        if ($detail->payment_tranche_id == $rameTranche->id) {
-                            $ramePaid += $detail->amount_allocated;
-                            $rameType = $payment->is_rame_physical ? 'physical' : 'cash';
-                            $paymentDate = $payment->payment_date;
+                // Vérifier d'abord le statut RAME physique dans student_rame_status
+                if ($rameStatus && $rameStatus->has_brought_rame) {
+                    $rameType = 'physical';
+                    $rameQuantity = 1; // Quantité = 1 si RAME physique apportée
+                    $paymentDate = $rameStatus->marked_date;
+                } else {
+                    // Sinon, vérifier les paiements RAME électroniques
+                    $ramePaidAmount = 0;
+                    foreach ($student->payments as $payment) {
+                        foreach ($payment->paymentDetails as $detail) {
+                            if ($detail->payment_tranche_id == $rameTranche->id) {
+                                $ramePaidAmount += $detail->amount_allocated;
+                                $rameType = 'cash';
+                                $paymentDate = $payment->payment_date;
+                            }
                         }
+                    }
+                    // Si montant payé >= montant requis, alors quantité = 1
+                    if ($ramePaidAmount >= $rameAmount) {
+                        $rameQuantity = 1;
                     }
                 }
 
@@ -426,10 +449,13 @@ class ReportsController extends Controller
                     ],
                     'rame_details' => [
                         'required_amount' => $rameAmount,
-                        'paid_amount' => $ramePaid,
+                        'quantity' => $rameQuantity, // 0 ou 1
                         'payment_type' => $rameType, // unpaid, cash, physical
-                        'payment_status' => $ramePaid >= $rameAmount ? 'paid' : 'unpaid',
-                        'payment_date' => $paymentDate
+                        'payment_status' => $rameQuantity == 1 ? 'paid' : 'unpaid',
+                        'payment_date' => $paymentDate,
+                        'has_brought_rame' => $rameStatus ? $rameStatus->has_brought_rame : false,
+                        'marked_date' => $rameStatus ? $rameStatus->marked_date : null,
+                        'notes' => $rameStatus ? $rameStatus->notes : null
                     ]
                 ];
             }
@@ -450,7 +476,8 @@ class ReportsController extends Controller
                     return $item['rame_details']['payment_status'] === 'unpaid'; 
                 })),
                 'total_amount_expected' => array_sum(array_column(array_column($rameStudentsData, 'rame_details'), 'required_amount')),
-                'total_amount_collected' => array_sum(array_column(array_column($rameStudentsData, 'rame_details'), 'paid_amount'))
+                'total_quantity_expected' => count($rameStudentsData), // Quantité totale attendue = nombre d'étudiants
+                'total_quantity_received' => array_sum(array_column(array_column($rameStudentsData, 'rame_details'), 'quantity'))
             ];
 
             return response()->json([
@@ -519,8 +546,8 @@ class ReportsController extends Controller
             foreach ($students as $student) {
                 foreach ($paymentTranches as $tranche) {
                     try {
-                        // Montant attendu avec bourses et réductions
-                        $expectedAmount = $tranche->getAmountForStudent($student, true, true, true) ?? 0;
+                        // Montant attendu avec bourses OU réductions
+                        $expectedAmount = $tranche->getAmountForStudent($student, true, false, true, true) ?? 0;
                     } catch (\Exception $e) {
                         Log::warning("Erreur getAmountForStudent recovery pour {$student->id}, tranche {$tranche->id}: " . $e->getMessage());
                         $expectedAmount = 0;
@@ -676,7 +703,7 @@ class ReportsController extends Controller
                 foreach ($students as $student) {
                     foreach ($paymentTranches as $tranche) {
                         try {
-                            $requiredAmount = $tranche->getAmountForStudent($student, true, true, true) ?? 0;
+                            $requiredAmount = $tranche->getAmountForStudent($student, true, false, true, true) ?? 0;
                         } catch (\Exception $e) {
                             $requiredAmount = 0;
                         }
@@ -858,23 +885,14 @@ class ReportsController extends Controller
             $classId = $request->get('classId');
             $seriesId = $request->get('seriesId');
 
-            // Récupérer les étudiants avec bourses/rabais
+            // Récupérer tous les étudiants actifs (les bourses seront déterminées via leurs classes)
             $studentsQuery = Student::with([
                 'classSeries.schoolClass.level.section',
-                'classScholarship',
+                'classSeries.schoolClass', // Pour accéder aux bourses de classe
                 'payments.paymentDetails.paymentTranche'
             ])
             ->where('school_year_id', $workingYear->id)
-            ->where('is_active', true)
-            ->where(function ($query) {
-                $query->whereNotNull('class_scholarship_id')
-                      ->orWhereExists(function ($subQuery) {
-                          $subQuery->select(DB::raw(1))
-                                   ->from('payments')
-                                   ->whereColumn('payments.student_id', 'students.id')
-                                   ->where('payments.has_reduction', true);
-                      });
-            });
+            ->where('is_active', true);
 
             if (!empty($sectionId)) {
                 $studentsQuery->whereHas('classSeries.schoolClass.level.section', function ($query) use ($sectionId) {
@@ -893,7 +911,16 @@ class ReportsController extends Controller
             }
 
             $students = $studentsQuery->get();
-            $paymentTranches = PaymentTranche::active()->ordered()->get();
+            
+            // Récupérer les tranches de paiement pour les classes des étudiants
+            $classIds = $students->pluck('classSeries.schoolClass.id')->unique();
+            $paymentTranches = PaymentTranche::active()
+                ->with('classPaymentAmounts')
+                ->whereHas('classPaymentAmounts', function ($query) use ($classIds) {
+                    $query->whereIn('class_id', $classIds);
+                })
+                ->ordered()
+                ->get();
 
             $studentsData = [];
             $totalScholarships = 0;
@@ -915,33 +942,48 @@ class ReportsController extends Controller
                     }
                 }
 
-                // Calculer les bourses
+                // Calculer les bourses basées sur la classe de l'étudiant
                 $scholarshipAmount = 0;
                 $scholarshipReason = '';
-                if ($student->classScholarship) {
-                    $scholarshipReason = $student->classScholarship->reason;
-                    foreach ($paymentTranches as $tranche) {
-                        try {
-                            $baseAmount = $tranche->getAmountForStudent($student, true, false, false) ?? 0;
-                            $withScholarshipAmount = $tranche->getAmountForStudent($student, true, false, true) ?? 0;
-                            $scholarshipAmount += max(0, $baseAmount - $withScholarshipAmount);
-                        } catch (\Exception $e) {
-                            // Ignorer les erreurs
+                
+                // Récupérer les bourses de classe pour cette classe
+                $classScholarships = ClassScholarship::where('school_class_id', $classSeries->class_id)
+                    ->where('is_active', true)
+                    ->get();
+                
+                if ($classScholarships->isNotEmpty()) {
+                    foreach ($classScholarships as $scholarship) {
+                        $scholarshipReason = $scholarship->name . ' - ' . $scholarship->description;
+                        foreach ($paymentTranches as $tranche) {
+                            // Vérifier si cette bourse s'applique à cette tranche
+                            if ($scholarship->payment_tranche_id == $tranche->id) {
+                                try {
+                                    $baseAmount = $tranche->getAmountForStudent($student, true, false, false) ?? 0;
+                                    $scholarshipAmount += min($scholarship->amount, $baseAmount);
+                                } catch (\Exception $e) {
+                                    // Ignorer les erreurs
+                                }
+                            }
                         }
                     }
                 }
 
-                // Calculer les rabais globaux
+                // Calculer les rabais globaux - EXCLUSIFS avec les bourses
                 $discountAmount = 0;
                 $discountReason = '';
-                foreach ($student->payments as $payment) {
-                    if ($payment->has_reduction && $payment->reduction_amount > 0) {
-                        $discountAmount += $payment->reduction_amount;
-                        $discountReason = 'Paiement cash avant 15 août';
-                        break; // Une seule raison pour simplifier
+                
+                // Si l'étudiant a une bourse, il ne peut pas avoir de réduction
+                if ($scholarshipAmount == 0) {
+                    foreach ($student->payments as $payment) {
+                        if ($payment->has_reduction && $payment->reduction_amount > 0) {
+                            $discountAmount += $payment->reduction_amount;
+                            $discountReason = 'Paiement cash avant 15 août';
+                            break; // Une seule raison pour simplifier
+                        }
                     }
                 }
 
+                // Les bourses et réductions sont mutuellement exclusives
                 $totalBenefitAmount = $scholarshipAmount + $discountAmount;
 
                 if ($totalBenefitAmount > 0) {
@@ -1451,7 +1493,7 @@ class ReportsController extends Controller
 
             // Appliquer les filtres
             if ($filters['class_id']) {
-                $seriesQuery->where('school_class_id', $filters['class_id']);
+                $seriesQuery->where('class_id', $filters['class_id']);
             }
 
             if ($filters['level_id']) {

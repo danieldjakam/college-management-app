@@ -203,9 +203,20 @@ class PaymentController extends Controller
             // Déterminer le type de paiement et calculer les réductions/bourses
             $paymentType = 'normal'; // Par défaut
             
+            // Vérification de sécurité : un étudiant ne peut pas avoir à la fois une bourse ET une réduction
+            $hasScholarship = $this->discountCalculatorService->getClassScholarship($student) !== null;
+            
             // Si le frontend demande explicitement une réduction globale
             if ($request->apply_global_discount === true) {
                 \Log::info('Frontend requests global discount');
+                
+                // SÉCURITÉ : Refuser si l'étudiant a une bourse
+                if ($hasScholarship) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Cet étudiant bénéficie déjà d\'une bourse de classe. Les bourses et réductions ne sont pas cumulables.'
+                    ], 422);
+                }
                 
                 // Vérifier que l'étudiant est bien éligible
                 $isEligible = $this->discountCalculatorService->isEligibleForGlobalDiscount(
@@ -1361,14 +1372,16 @@ class PaymentController extends Controller
                 ->where('has_reduction', true)
                 ->count();
 
-            // Étudiants avec bourses
+            // Étudiants avec bourses - compter via les classes qui ont des bourses actives
             $scholarshipCount = Student::where('school_year_id', $workingYear->id)
                 ->where('is_active', true)
-                ->whereNotNull('class_scholarship_id')
+                ->whereHas('classSeries.schoolClass.classScholarships', function ($query) {
+                    $query->where('is_active', true);
+                })
                 ->count();
 
             // Paiements récents (5 derniers)
-            $recentPayments = Payment::with(['student.classSeries.schoolClass'])
+            $recentPayments = Payment::with(['student.classSeries.schoolClass', 'paymentDetails.paymentTranche'])
                 ->where('school_year_id', $workingYear->id)
                 ->orderBy('created_at', 'desc')
                 ->take(5)
@@ -1381,17 +1394,31 @@ class PaymentController extends Controller
                     
                     $className = 'N/A';
                     if ($student && $student->classSeries && $student->classSeries->schoolClass) {
-                        $className = $student->classSeries->schoolClass->name;
+                        $className = $student->classSeries->schoolClass->name . ' - ' . $student->classSeries->name;
                     }
                     
                     return [
                         'id' => $payment->id,
+                        'receipt_number' => $payment->receipt_number,
                         'student_name' => $studentName,
                         'class' => $className,
                         'amount' => $payment->total_amount,
                         'method' => $this->getPaymentMethodLabel($payment->payment_method),
+                        'payment_method' => $payment->payment_method,
+                        'is_rame_physical' => $payment->is_rame_physical,
+                        'payment_date' => $payment->payment_date->format('Y-m-d'),
                         'date' => $payment->payment_date->format('d/m/Y'),
-                        'time' => $payment->created_at->format('H:i')
+                        'time' => $payment->created_at->format('H:i'),
+                        'payment_details' => $payment->paymentDetails->map(function ($detail) {
+                            return [
+                                'id' => $detail->id,
+                                'amount_allocated' => $detail->amount_allocated,
+                                'payment_tranche' => [
+                                    'id' => $detail->paymentTranche->id,
+                                    'name' => $detail->paymentTranche->name
+                                ]
+                            ];
+                        })
                     ];
                 });
 

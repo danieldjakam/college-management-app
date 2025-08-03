@@ -102,6 +102,14 @@ class Student extends Model
     }
 
     /**
+     * Relation avec le statut RAME
+     */
+    public function rameStatus()
+    {
+        return $this->hasOne(StudentRameStatus::class);
+    }
+
+    /**
      * Scope pour les étudiants actifs
      */
     public function scopeActive($query)

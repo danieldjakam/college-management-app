@@ -82,28 +82,28 @@ class PaymentTranche extends Model
             $baseAmount = round($baseAmount * (100 - $reductionPercentage) / 100, 0);
         }
         
-        // Appliquer la bourse si elle s'applique à cette tranche
-        if ($applyScholarship) {
-            $discountCalculator = new \App\Services\DiscountCalculatorService();
-            $scholarship = $discountCalculator->getClassScholarship($student);
-            
-            if ($scholarship && $scholarship->payment_tranche_id == $this->id && $discountCalculator->isEligibleForScholarship(now())) {
+        // RÈGLE MÉTIER : Bourses et réductions sont mutuellement exclusives
+        $discountCalculator = new \App\Services\DiscountCalculatorService();
+        $scholarship = $discountCalculator->getClassScholarship($student);
+        $hasScholarship = $scholarship !== null;
+        $scholarshipApplied = false;
+        
+        // Appliquer la bourse si elle s'applique à cette tranche (PRIORITÉ)
+        if ($applyScholarship && $hasScholarship) {
+            if ($scholarship->payment_tranche_id == $this->id && $discountCalculator->isEligibleForScholarship(now())) {
                 $scholarshipAmount = min($scholarship->amount, $baseAmount);
                 $baseAmount = max(0, $baseAmount - $scholarshipAmount);
+                $scholarshipApplied = true;
             }
         }
         
-        // Appliquer la réduction globale (si applicable ET si pas de bourse)
-        if ($applyGlobalDiscount && !$applyScholarship) {
-            $discountCalculator = new \App\Services\DiscountCalculatorService();
-            // Vérifier que la classe n'a pas de bourse (exclusion mutuelle)
-            if (!$discountCalculator->getClassScholarship($student)) {
-                $schoolSettings = \App\Models\SchoolSetting::getSettings();
-                $discountPercentage = $schoolSettings->reduction_percentage ?? 0;
-                
-                if ($discountPercentage > 0) {
-                    $baseAmount = round($baseAmount * (100 - $discountPercentage) / 100, 0);
-                }
+        // Appliquer la réduction globale SEULEMENT si aucune bourse n'a été appliquée
+        if ($applyGlobalDiscount && !$scholarshipApplied && !$hasScholarship) {
+            $schoolSettings = \App\Models\SchoolSetting::getSettings();
+            $discountPercentage = $schoolSettings->reduction_percentage ?? 0;
+            
+            if ($discountPercentage > 0) {
+                $baseAmount = round($baseAmount * (100 - $discountPercentage) / 100, 0);
             }
         }
         

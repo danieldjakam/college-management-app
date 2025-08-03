@@ -55,6 +55,14 @@ class SchoolClass extends Model
     }
 
     /**
+     * Relation avec les bourses de classe
+     */
+    public function classScholarships()
+    {
+        return $this->hasMany(ClassScholarship::class, 'school_class_id');
+    }
+
+    /**
      * Scope pour les classes actives
      */
     public function scopeActive($query)

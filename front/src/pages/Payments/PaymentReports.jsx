@@ -91,8 +91,8 @@ const PaymentReports = () => {
             const response = await secureApiEndpoints.payments.getStats(queryFilters);
             
             if (response.success) {
-                setPayments(response.data.payments);
-                setStats(response.data.stats);
+                setPayments(response.data.recent_payments || []);
+                setStats(response.data);
                 setSchoolYear(response.data.school_year);
             } else {
                 setError(response.message);
@@ -200,14 +200,14 @@ const PaymentReports = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            ${payments.map(payment => `
+                            ${(payments || []).map(payment => `
                                 <tr>
-                                    <td>${new Date(payment.payment_date).toLocaleDateString('fr-FR')}</td>
-                                    <td>${payment.receipt_number}</td>
-                                    <td>${payment.student.last_name} ${payment.student.first_name}</td>
-                                    <td>${payment.student.class_series?.school_class?.name || 'N/A'} - ${payment.student.class_series?.name || 'N/A'}</td>
-                                    <td class="text-right">${parseInt(payment.total_amount).toLocaleString()} FCFA</td>
-                                    <td>${getPaymentMethodLabel(payment.payment_method, payment.is_rame_physical)}</td>
+                                    <td>${payment.date || 'N/A'}</td>
+                                    <td>${payment.receipt_number || 'N/A'}</td>
+                                    <td>${payment.student_name || 'N/A'}</td>
+                                    <td>${payment.class || 'N/A'}</td>
+                                    <td class="text-right">${parseInt(payment.amount || 0).toLocaleString()} FCFA</td>
+                                    <td>${payment.method || 'N/A'}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -349,7 +349,7 @@ const PaymentReports = () => {
                                         <Search size={16} />
                                     )}
                                 </Button>
-                                {payments.length > 0 && (
+                                {payments && payments.length > 0 && (
                                     <Button variant="success" onClick={handleExportPdf}>
                                         <Printer size={16} />
                                     </Button>
@@ -409,7 +409,7 @@ const PaymentReports = () => {
             <Card>
                 <Card.Header className="d-flex justify-content-between align-items-center">
                     <h5 className="mb-0">Détail des Paiements</h5>
-                    {payments.length > 0 && (
+                    {payments && payments.length > 0 && (
                         <Badge bg="info">{payments.length} paiement(s)</Badge>
                     )}
                 </Card.Header>
@@ -420,7 +420,7 @@ const PaymentReports = () => {
                                 <span className="visually-hidden">Chargement...</span>
                             </Spinner>
                         </div>
-                    ) : payments.length === 0 ? (
+                    ) : !payments || payments.length === 0 ? (
                         <p className="text-muted text-center py-4">
                             Aucun paiement trouvé pour les critères sélectionnés
                         </p>
@@ -438,21 +438,20 @@ const PaymentReports = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {payments.map(payment => (
+                                {(payments || []).map(payment => (
                                     <tr key={payment.id}>
                                         <td>{formatDate(payment.payment_date)}</td>
                                         <td>
-                                            <code>{payment.receipt_number}</code>
+                                            <code>{payment.receipt_number || 'N/A'}</code>
                                         </td>
                                         <td>
-                                            {payment.student.last_name} {payment.student.first_name}
+                                            {payment.student_name || 'N/A'}
                                         </td>
                                         <td>
-                                            {payment.student.class_series?.school_class?.name || 'N/A'} - 
-                                            {payment.student.class_series?.name || 'N/A'}
+                                            {payment.class || 'N/A'}
                                         </td>
                                         <td className="text-end">
-                                            <strong>{formatAmount(payment.total_amount)}</strong>
+                                            <strong>{formatAmount(payment.amount)}</strong>
                                         </td>
                                         <td>
                                             <Badge bg={payment.is_rame_physical ? "info" : "secondary"}>
@@ -464,7 +463,7 @@ const PaymentReports = () => {
                                                 <Badge key={detail.id} bg="primary" className="me-1 mb-1">
                                                     {detail.payment_tranche.name}: {formatAmount(detail.amount_allocated)}
                                                 </Badge>
-                                            ))}
+                                            )) || <span className="text-muted">-</span>}
                                         </td>
                                     </tr>
                                 ))}
