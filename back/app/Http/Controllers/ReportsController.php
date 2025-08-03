@@ -1062,6 +1062,9 @@ class ReportsController extends Controller
                 case 'rame':
                     $response = $this->getRameReport($request);
                     break;
+                case 'scholarships_discounts':
+                    $response = $this->getScholarshipsDiscountsReport($request);
+                    break;
                 case 'recovery':
                     $response = $this->getRecoveryReport($request);
                     break;
@@ -1163,6 +1166,7 @@ class ReportsController extends Controller
             'insolvable' => 'Rapport État Insolvable',
             'payments' => 'Rapport État des Paiements',
             'rame' => 'Rapport État des RAME',
+            'scholarships_discounts' => 'Rapport États Bourses et Rabais',
             'recovery' => 'Rapport de Recouvrement'
         ];
         
@@ -1274,6 +1278,8 @@ class ReportsController extends Controller
                 return $this->generatePaymentsContent($reportData);
             case 'rame':
                 return $this->generateRameContent($reportData);
+            case 'scholarships_discounts':
+                return $this->generateScholarshipsDiscountsContent($reportData);
             case 'recovery':
                 return $this->generateRecoveryContent($reportData);
             default:
@@ -1389,7 +1395,7 @@ class ReportsController extends Controller
                     <th>Étudiant</th>
                     <th>Classe/Série</th>
                     <th class='text-right'>Montant RAME</th>
-                    <th class='text-right'>Montant Payé</th>
+                    <th class='text-center'>Quantité</th>
                     <th class='text-center'>Type</th>
                     <th class='text-center'>Statut</th>
                     <th class='text-center'>Date Paiement</th>
@@ -1409,7 +1415,7 @@ class ReportsController extends Controller
                 <td>{$studentData['student']['full_name']}</td>
                 <td>{$studentData['student']['class_series']}</td>
                 <td class='text-right'>" . number_format($studentData['rame_details']['required_amount'], 0, ',', ' ') . " FCFA</td>
-                <td class='text-right'>" . number_format($studentData['rame_details']['paid_amount'], 0, ',', ' ') . " FCFA</td>
+                <td class='text-center'>" . ($studentData['rame_details']['quantity'] ?? 0) . "</td>
                 <td class='text-center'>{$type}</td>
                 <td class='text-center'>{$status}</td>
                 <td class='text-center'>{$paymentDate}</td>
@@ -1417,6 +1423,91 @@ class ReportsController extends Controller
         }
         
         $html .= "</tbody></table>";
+
+        return $html;
+    }
+
+    /**
+     * Générer le contenu du rapport bourses et rabais
+     */
+    private function generateScholarshipsDiscountsContent($reportData)
+    {
+        $summary = $reportData['summary'];
+        $html = "<div class='summary'>";
+        $html .= "<h3>Résumé</h3>";
+        $html .= "<p><strong>Total bénéficiaires:</strong> {$summary['beneficiary_count']}</p>";
+        $html .= "<p><strong>Total bourses:</strong> " . number_format($summary['total_scholarships'], 0, ',', ' ') . " FCFA</p>";
+        $html .= "<p><strong>Total rabais:</strong> " . number_format($summary['total_discounts'], 0, ',', ' ') . " FCFA</p>";
+        $html .= "<p><strong>Total avantages:</strong> " . number_format($summary['total_scholarships'] + $summary['total_discounts'], 0, ',', ' ') . " FCFA</p>";
+        $html .= "</div>";
+
+        // Tableau des bénéficiaires
+        $html .= "<h3>Liste des Bénéficiaires</h3>";
+        $html .= "<table>
+            <thead>
+                <tr>
+                    <th>Classe</th>
+                    <th>Nom & Prénoms</th>
+                    <th class='text-right'>Montant Scolarité</th>
+                    <th>Type d'Avantage</th>
+                    <th class='text-right'>Montant Avantage</th>
+                    <th class='text-center'>Économie (%)</th>
+                </tr>
+            </thead>
+            <tbody>";
+
+        foreach ($reportData['students'] as $student) {
+            $savingsPercentage = $student['tuition_amount'] > 0 ? 
+                (($student['total_benefit_amount'] / $student['tuition_amount']) * 100) : 0;
+            
+            $advantageType = '';
+            if ($student['scholarship_reason']) {
+                $advantageType .= "Bourse: " . $student['scholarship_reason'];
+            }
+            if ($student['discount_reason']) {
+                if ($advantageType) $advantageType .= " | ";
+                $advantageType .= "Rabais: " . $student['discount_reason'];
+            }
+
+            $html .= "<tr>
+                <td>{$student['class_name']}</td>
+                <td><strong>{$student['student_name']}</strong></td>
+                <td class='text-right'>" . number_format($student['tuition_amount'], 0, ',', ' ') . " FCFA</td>
+                <td>{$advantageType}</td>
+                <td class='text-right'><strong>" . number_format($student['total_benefit_amount'], 0, ',', ' ') . " FCFA</strong></td>
+                <td class='text-center'>" . number_format($savingsPercentage, 1) . "%</td>
+            </tr>";
+        }
+
+        $html .= "</tbody></table>";
+
+        // Récapitulatif par classe
+        if (isset($reportData['class_summary']) && !empty($reportData['class_summary'])) {
+            $html .= "<h3>Récapitulatif par Classe</h3>";
+            $html .= "<table>
+                <thead>
+                    <tr>
+                        <th>Classe - Série</th>
+                        <th class='text-center'>Bénéficiaires</th>
+                        <th class='text-right'>Total Bourses</th>
+                        <th class='text-right'>Total Rabais</th>
+                        <th class='text-right'>Total Avantages</th>
+                    </tr>
+                </thead>
+                <tbody>";
+
+            foreach ($reportData['class_summary'] as $classData) {
+                $html .= "<tr>
+                    <td><strong>{$classData['class_name']}</strong> - {$classData['series_name']}</td>
+                    <td class='text-center'>{$classData['beneficiary_count']}</td>
+                    <td class='text-right'>" . number_format($classData['total_scholarships'], 0, ',', ' ') . " FCFA</td>
+                    <td class='text-right'>" . number_format($classData['total_discounts'], 0, ',', ' ') . " FCFA</td>
+                    <td class='text-right'><strong>" . number_format($classData['total_benefits'], 0, ',', ' ') . " FCFA</strong></td>
+                </tr>";
+            }
+
+            $html .= "</tbody></table>";
+        }
 
         return $html;
     }
