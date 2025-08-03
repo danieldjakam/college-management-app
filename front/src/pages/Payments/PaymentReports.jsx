@@ -9,7 +9,9 @@ import {
     Table,
     Alert,
     Spinner,
-    Badge
+    Badge,
+    Nav,
+    Tab
 } from 'react-bootstrap';
 import {
     Download,
@@ -17,9 +19,11 @@ import {
     Calendar,
     BarChart,
     FileText,
-    Printer
+    Printer,
+    Building
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
+import SeriesCollectionSummary from '../Reports/SeriesCollectionSummary';
 
 const PaymentReports = () => {
     const [payments, setPayments] = useState([]);
@@ -268,6 +272,31 @@ const PaymentReports = () => {
                 </Col>
             </Row>
 
+            {/* Tabs */}
+            <Tab.Container defaultActiveKey="series-summary">
+                <Nav variant="pills" className="mb-4">
+                    <Nav.Item>
+                        <Nav.Link eventKey="series-summary">
+                            <Building className="me-2" size={16} />
+                            Récap par Série
+                        </Nav.Link>
+                    </Nav.Item>
+                    <Nav.Item>
+                        <Nav.Link eventKey="detailed-payments">
+                            <FileText className="me-2" size={16} />
+                            Paiements Détaillés
+                        </Nav.Link>
+                    </Nav.Item>
+                </Nav>
+
+                <Tab.Content>
+                    <Tab.Pane eventKey="series-summary">
+                        <SeriesCollectionSummary />
+                    </Tab.Pane>
+                    
+                    <Tab.Pane eventKey="detailed-payments">
+                        {/* Contenu existant des paiements détaillés */}
+
             {/* Filters */}
             <Card className="mb-4">
                 <Card.Header>
@@ -481,6 +510,9 @@ const PaymentReports = () => {
                     </Card.Body>
                 </Card>
             )}
+                    </Tab.Pane>
+                </Tab.Content>
+            </Tab.Container>
         </Container>
     );
 };

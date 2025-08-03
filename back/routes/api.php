@@ -207,6 +207,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/collection-summary', [ReportsController::class, 'getCollectionSummaryReport']);
         Route::get('/payment-details', [ReportsController::class, 'getPaymentDetailsReport']);
         Route::get('/scholarships-discounts', [ReportsController::class, 'getScholarshipsDiscountsReport']);
+        Route::get('/series-collection-summary', [ReportsController::class, 'getSeriesCollectionSummary']);
         Route::get('/export-pdf', [ReportsController::class, 'exportPdf']);
     });
 

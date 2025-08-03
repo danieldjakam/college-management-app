@@ -549,6 +549,10 @@ export const secureApiEndpoints = {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/reports/scholarships-discounts?${queryString}`);
         },
+        getSeriesCollectionSummary: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/series-collection-summary?${queryString}`);
+        },
         exportPdf: async (params) => {
             const queryString = new URLSearchParams(params).toString();
             const token = authService.getToken();

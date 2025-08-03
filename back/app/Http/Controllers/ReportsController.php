@@ -1424,6 +1424,163 @@ class ReportsController extends Controller
     }
 
     /**
+     * Récapitulatif d'encaissement par série
+     */
+    public function getSeriesCollectionSummary(Request $request)
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+            if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            // Récupérer les filtres
+            $filters = [
+                'class_id' => $request->input('class_id'),
+                'level_id' => $request->input('level_id')
+            ];
+
+            // Récupérer toutes les tranches actives
+            $paymentTranches = PaymentTranche::active()->ordered()->get();
+
+            // Construire la requête pour les séries avec filtres
+            $seriesQuery = ClassSeries::with(['schoolClass.level', 'students' => function($query) use ($workingYear) {
+                $query->where('school_year_id', $workingYear->id)
+                      ->where('is_active', true);
+            }]);
+
+            // Appliquer les filtres
+            if ($filters['class_id']) {
+                $seriesQuery->where('school_class_id', $filters['class_id']);
+            }
+
+            if ($filters['level_id']) {
+                $seriesQuery->whereHas('schoolClass', function($query) use ($filters) {
+                    $query->where('level_id', $filters['level_id']);
+                });
+            }
+
+            $allSeries = $seriesQuery->get();
+
+            $seriesSummary = [];
+
+            foreach ($allSeries as $series) {
+                $seriesData = [
+                    'series_id' => $series->id,
+                    'series_name' => $series->name,
+                    'class_name' => $series->schoolClass->name,
+                    'full_name' => $series->schoolClass->name . ' - ' . $series->name,
+                    'student_count' => $series->students->count(),
+                    'total_collected' => 0,
+                    'tranches' => []
+                ];
+
+                // Pour chaque tranche, calculer les montants collectés
+                foreach ($paymentTranches as $tranche) {
+                    $trancheAmount = PaymentDetail::whereHas('payment', function($query) use ($workingYear) {
+                        $query->where('school_year_id', $workingYear->id)
+                              ->where('is_rame_physical', false);
+                    })->whereHas('payment.student', function($query) use ($series) {
+                        $query->where('class_series_id', $series->id);
+                    })->where('payment_tranche_id', $tranche->id)
+                      ->sum('amount_allocated');
+
+                    $seriesData['tranches'][$tranche->name] = [
+                        'tranche_id' => $tranche->id,
+                        'tranche_name' => $tranche->name,
+                        'amount_collected' => $trancheAmount
+                    ];
+
+                    $seriesData['total_collected'] += $trancheAmount;
+                }
+
+                // Ajouter les paiements RAME physiques séparément
+                $ramePhysicalAmount = Payment::where('school_year_id', $workingYear->id)
+                    ->where('is_rame_physical', true)
+                    ->whereHas('student', function($query) use ($series) {
+                        $query->where('class_series_id', $series->id);
+                    })->sum('total_amount');
+
+                if ($ramePhysicalAmount > 0) {
+                    $seriesData['tranches']['RAME Physique'] = [
+                        'tranche_id' => 'rame_physical',
+                        'tranche_name' => 'RAME Physique',
+                        'amount_collected' => $ramePhysicalAmount
+                    ];
+                    $seriesData['total_collected'] += $ramePhysicalAmount;
+                }
+
+                $seriesSummary[] = $seriesData;
+            }
+
+            // Trier par montant total collecté (décroissant)
+            usort($seriesSummary, function($a, $b) {
+                return $b['total_collected'] <=> $a['total_collected'];
+            });
+
+            // Calculer les totaux généraux
+            $totalCollected = array_sum(array_column($seriesSummary, 'total_collected'));
+            $totalStudents = array_sum(array_column($seriesSummary, 'student_count'));
+
+            // Totaux par tranche
+            $trancheGrandTotals = [];
+            foreach ($paymentTranches as $tranche) {
+                $trancheGrandTotals[$tranche->name] = 0;
+            }
+            $trancheGrandTotals['RAME Physique'] = 0;
+
+            foreach ($seriesSummary as $series) {
+                foreach ($series['tranches'] as $trancheName => $trancheData) {
+                    $trancheGrandTotals[$trancheName] += $trancheData['amount_collected'];
+                }
+            }
+
+            // Récupérer les données pour les filtres
+            $allClasses = SchoolClass::with('level')->orderBy('level_id')->orderBy('name')->get();
+            $allLevels = \App\Models\Level::orderBy('name')->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'school_year' => $workingYear,
+                    'series_summary' => $seriesSummary,
+                    'grand_totals' => [
+                        'total_collected' => $totalCollected,
+                        'total_students' => $totalStudents,
+                        'total_series' => count($seriesSummary),
+                        'by_tranche' => $trancheGrandTotals
+                    ],
+                    'payment_tranches' => $paymentTranches->pluck('name')->toArray(),
+                    'filters_data' => [
+                        'classes' => $allClasses->map(function($class) {
+                            return [
+                                'id' => $class->id,
+                                'name' => $class->name,
+                                'level_id' => $class->level_id,
+                                'level_name' => $class->level ? $class->level->name : 'N/A'
+                            ];
+                        }),
+                        'levels' => $allLevels->map(function($level) {
+                            return [
+                                'id' => $level->id,
+                                'name' => $level->name
+                            ];
+                        })
+                    ]
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in ReportsController@getSeriesCollectionSummary: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du rapport',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Obtenir le libellé du mode de paiement
      */
     private function getPaymentMethodLabel($method, $isRamePhysical = false)
