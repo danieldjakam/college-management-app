@@ -62,7 +62,7 @@ import AttendanceScanner from "./pages/Attendance/AttendanceScanner";
 import AttendanceReports from "./pages/Attendance/AttendanceReports";
 
 // Supervisor Management
-import SupervisorAssignments from "./pages/SupervisorManagement/SupervisorAssignments";
+import SupervisorStatus from "./pages/SupervisorManagement/SupervisorStatus";
 
 
 // Components
@@ -262,7 +262,7 @@ const AppContent = () => {
                 path="/supervisor-assignments"
                 element={
                   <AdminRoute>
-                    <SupervisorAssignments />
+                    <SupervisorStatus />
                   </AdminRoute>
                 }
               />

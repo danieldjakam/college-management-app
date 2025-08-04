@@ -611,6 +611,7 @@ export const secureApiEndpoints = {
         getAllAssignments: () => secureApi.get('/supervisors/all-assignments'),
         deleteAssignment: (assignmentId) => secureApi.delete(`/supervisors/assignments/${assignmentId}`),
         getSupervisorAssignments: (supervisorId) => secureApi.get(`/supervisors/${supervisorId}/assignments`),
+        getAvailableClasses: (supervisorId) => secureApi.get(`/supervisors/${supervisorId}/available-classes`),
         
         // Scanner QR et présences
         scanQR: (data) => secureApi.post('/supervisors/scan-qr', data),
@@ -622,6 +623,13 @@ export const secureApiEndpoints = {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/supervisors/attendance-range${queryString ? '?' + queryString : ''}`);
         },
+        getEntryExitStats: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/supervisors/entry-exit-stats${queryString ? '?' + queryString : ''}`);
+        },
+        getStudentCurrentStatus: (data) => secureApi.post('/supervisors/student-status', data),
+        markAbsentStudents: (data) => secureApi.post('/supervisors/mark-absent-students', data),
+        markAllAbsentStudents: (data) => secureApi.post('/supervisors/mark-all-absent-students', data),
         
         // Génération QR codes
         generateStudentQR: (studentId) => secureApi.get(`/supervisors/generate-qr/${studentId}`),

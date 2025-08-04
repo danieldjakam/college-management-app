@@ -35,6 +35,13 @@ class UserSeeder extends Seeder
             'role' => 'accountant',
         ]);
 
+        $this->createOrUpdateUser('surveillant', [
+            'name' => 'Surveillant Général',
+            'email' => 'surveillant@gsbpl.com',
+            'password' => Hash::make('password123'),
+            'role' => 'surveillant_general',
+        ]);
+
         $this->createOrUpdateUser('user.test', [
             'name' => 'Utilisateur Test',
             'email' => 'user@gsbpl.com',
@@ -58,10 +65,11 @@ class UserSeeder extends Seeder
 
         echo "✅ Utilisateurs créés avec succès !\n";
         echo "==========================================\n";
-        echo "Admin:      username: admin       | password: password123\n";
-        echo "Enseignant: username: prof.martin | password: password123\n";
-        echo "Comptable:  username: comptable   | password: password123\n";
-        echo "Utilisateur: username: user.test  | password: password123\n";
+        echo "Admin:            username: admin       | password: password123\n";
+        echo "Surveillant Gén.: username: surveillant | password: password123\n";
+        echo "Enseignant:       username: prof.martin | password: password123\n";
+        echo "Comptable:        username: comptable   | password: password123\n";
+        echo "Utilisateur:      username: user.test   | password: password123\n";
         echo "==========================================\n";
     }
 
