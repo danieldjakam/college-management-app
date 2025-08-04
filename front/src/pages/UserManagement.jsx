@@ -75,6 +75,19 @@ const UserManagement = () => {
         accountant: 'success'
     };
 
+    const getFieldLabel = (fieldName) => {
+        const fieldLabels = {
+            name: 'Nom complet',
+            email: 'Adresse e-mail',
+            contact: 'Numéro de téléphone',
+            role: 'Rôle',
+            photo: 'Photo',
+            password: 'Mot de passe',
+            username: 'Nom d\'utilisateur'
+        };
+        return fieldLabels[fieldName] || fieldName;
+    };
+
     useEffect(() => {
         loadData();
     }, []);
@@ -242,8 +255,61 @@ const UserManagement = () => {
         setError('');
     };
 
+    const validateForm = () => {
+        const errors = {};
+        
+        if (!formData.name.trim()) {
+            errors.name = 'Le nom complet est obligatoire';
+        } else if (formData.name.length > 255) {
+            errors.name = 'Le nom ne peut pas dépasser 255 caractères';
+        }
+        
+        if (!formData.email.trim()) {
+            errors.email = 'L\'adresse e-mail est obligatoire';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+            errors.email = 'L\'adresse e-mail doit être valide';
+        }
+        
+        if (!formData.contact.trim()) {
+            errors.contact = 'Le numéro de téléphone est obligatoire';
+        } else if (formData.contact.length > 20) {
+            errors.contact = 'Le numéro de téléphone ne peut pas dépasser 20 caractères';
+        }
+        
+        if (!formData.role) {
+            errors.role = 'Le rôle est obligatoire';
+        }
+        
+        return errors;
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        // Validation côté client
+        const validationErrors = validateForm();
+        if (Object.keys(validationErrors).length > 0) {
+            const errorMessages = Object.entries(validationErrors).map(([field, message]) => {
+                const fieldLabel = getFieldLabel(field);
+                return `<strong>${fieldLabel}:</strong> ${message}`;
+            }).join('<br>');
+            
+            await Swal.fire({
+                title: 'Erreurs de validation',
+                html: `
+                    <div class="text-left">
+                        <p>Veuillez corriger les erreurs suivantes :</p>
+                        <div class="alert alert-danger mt-3" style="text-align: left;">
+                            ${errorMessages}
+                        </div>
+                    </div>
+                `,
+                icon: 'error',
+                confirmButtonText: 'Corriger'
+            });
+            return;
+        }
+        
         setLoading(true);
         
         try {
@@ -277,11 +343,101 @@ const UserManagement = () => {
                 handleCloseModal();
                 await loadData();
             } else {
-                setError(response.message || 'Erreur lors de la sauvegarde');
+                // Gérer les erreurs de validation détaillées
+                if (response.errors && Object.keys(response.errors).length > 0) {
+                    const errorMessages = Object.entries(response.errors).map(([field, messages]) => {
+                        const fieldLabel = getFieldLabel(field);
+                        const message = Array.isArray(messages) ? messages[0] : messages;
+                        return `<strong>${fieldLabel}:</strong> ${message}`;
+                    }).join('<br>');
+                    
+                    await Swal.fire({
+                        title: 'Erreurs de validation',
+                        html: `
+                            <div class="text-left">
+                                <p>Veuillez corriger les erreurs suivantes :</p>
+                                <div class="alert alert-danger mt-3" style="text-align: left;">
+                                    ${errorMessages}
+                                </div>
+                            </div>
+                        `,
+                        icon: 'error',
+                        confirmButtonText: 'Corriger'
+                    });
+                } else {
+                    // Pas d'erreurs de validation spécifiques, afficher le message d'erreur général
+                    await Swal.fire({
+                        title: 'Erreur',
+                        text: response.message || 'Erreur lors de la sauvegarde',
+                        icon: 'error',
+                        confirmButtonText: 'Fermer'
+                    });
+                }
+                
+                // Ne pas utiliser setError ici car on affiche déjà avec SweetAlert2
             }
         } catch (error) {
-            setError('Erreur lors de la sauvegarde');
             console.error('Error saving user:', error);
+            
+            // Gérer les différents types d'erreurs
+            let errorMessage = 'Erreur lors de la sauvegarde';
+            let errorDetails = '';
+            
+            if (error.response) {
+                // Erreur de réponse du serveur
+                const { status, data } = error.response;
+                
+                if (status === 422 && data.errors && Object.keys(data.errors).length > 0) {
+                    // Erreurs de validation Laravel
+                    const errorMessages = Object.entries(data.errors).map(([field, messages]) => {
+                        const fieldLabel = getFieldLabel(field);
+                        const message = Array.isArray(messages) ? messages[0] : messages;
+                        return `<strong>${fieldLabel}:</strong> ${message}`;
+                    }).join('<br>');
+                    
+                    await Swal.fire({
+                        title: 'Erreurs de validation',
+                        html: `
+                            <div class="text-left">
+                                <p>Veuillez corriger les erreurs suivantes :</p>
+                                <div class="alert alert-danger mt-3" style="text-align: left;">
+                                    ${errorMessages}
+                                </div>
+                            </div>
+                        `,
+                        icon: 'error',
+                        confirmButtonText: 'Corriger'
+                    });
+                    return; // Ne pas afficher l'erreur générale
+                } else if (status === 409) {
+                    errorMessage = 'Conflit de données';
+                    errorDetails = data.message || 'Un utilisateur avec ces informations existe déjà.';
+                } else if (status === 500) {
+                    errorMessage = 'Erreur serveur';
+                    errorDetails = 'Une erreur interne s\'est produite. Veuillez réessayer plus tard.';
+                } else {
+                    errorMessage = data.message || `Erreur ${status}`;
+                    errorDetails = data.error || 'Une erreur inattendue s\'est produite.';
+                }
+            } else if (error.request) {
+                // Erreur de réseau
+                errorMessage = 'Erreur de connexion';
+                errorDetails = 'Impossible de joindre le serveur. Vérifiez votre connexion internet.';
+            } else {
+                // Autre erreur
+                errorMessage = 'Erreur inattendue';
+                errorDetails = error.message || 'Une erreur inattendue s\'est produite.';
+            }
+            
+            // Afficher l'erreur avec SweetAlert2 pour plus de visibilité
+            await Swal.fire({
+                title: errorMessage,
+                text: errorDetails,
+                icon: 'error',
+                confirmButtonText: 'Fermer'
+            });
+            
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }

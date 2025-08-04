@@ -101,7 +101,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> },
             { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
             { name: 'Utilisateurs', href: '/user-management', icon: <People/> },
-            { name: 'Affectations Surveillants', href: '/supervisor-assignments', icon: <PersonCircle/> },
+            { name: 'Surveillants Généraux', href: '/supervisor-assignments', icon: <PersonCircle/> },
             { name: "Profil", href: "/profile", icon: <PersonCircle /> },
             { name: "Paramètres", href: "/settings", icon: <GearFill /> },
           ],

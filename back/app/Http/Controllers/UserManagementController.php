@@ -68,13 +68,27 @@ class UserManagementController extends Controller
                 'photo' => 'nullable|string|max:500',
                 'role' => 'required|in:surveillant_general,comptable,secretaire,accountant',
                 'generate_password' => 'boolean'
+            ], [
+                'name.required' => 'Le nom complet est obligatoire.',
+                'name.max' => 'Le nom ne peut pas dépasser 255 caractères.',
+                'email.required' => 'L\'adresse e-mail est obligatoire.',
+                'email.email' => 'L\'adresse e-mail doit être valide.',
+                'email.unique' => 'Cette adresse e-mail est déjà utilisée par un autre utilisateur.',
+                'contact.required' => 'Le numéro de téléphone est obligatoire.',
+                'contact.max' => 'Le numéro de téléphone ne peut pas dépasser 20 caractères.',
+                'role.required' => 'Le rôle est obligatoire.',
+                'role.in' => 'Le rôle sélectionné n\'est pas valide.'
             ]);
 
             if ($validator->fails()) {
+                // Construire un message d'erreur plus informatif basé sur les erreurs
+                $errors = $validator->errors();
+                $firstError = $errors->first();
+                
                 return response()->json([
                     'success' => false,
-                    'message' => 'Données invalides',
-                    'errors' => $validator->errors()
+                    'message' => $firstError, // Utiliser la première erreur comme message principal
+                    'errors' => $errors
                 ], 422);
             }
 
@@ -151,13 +165,27 @@ class UserManagementController extends Controller
                 'photo' => 'nullable|string|max:500', // Nullable en update
                 'role' => 'required|in:surveillant_general,comptable,secretaire,accountant',
                 'is_active' => 'boolean'
+            ], [
+                'name.required' => 'Le nom complet est obligatoire.',
+                'name.max' => 'Le nom ne peut pas dépasser 255 caractères.',
+                'email.required' => 'L\'adresse e-mail est obligatoire.',
+                'email.email' => 'L\'adresse e-mail doit être valide.',
+                'email.unique' => 'Cette adresse e-mail est déjà utilisée par un autre utilisateur.',
+                'contact.required' => 'Le numéro de téléphone est obligatoire.',
+                'contact.max' => 'Le numéro de téléphone ne peut pas dépasser 20 caractères.',
+                'role.required' => 'Le rôle est obligatoire.',
+                'role.in' => 'Le rôle sélectionné n\'est pas valide.'
             ]);
 
             if ($validator->fails()) {
+                // Construire un message d'erreur plus informatif basé sur les erreurs
+                $errors = $validator->errors();
+                $firstError = $errors->first();
+                
                 return response()->json([
                     'success' => false,
-                    'message' => 'Données invalides',
-                    'errors' => $validator->errors()
+                    'message' => $firstError, // Utiliser la première erreur comme message principal
+                    'errors' => $errors
                 ], 422);
             }
 

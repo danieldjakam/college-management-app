@@ -674,10 +674,10 @@ const AttendanceReports = () => {
               <Printer className="me-2" />
               Imprimer
             </Button>
-            <Button variant="outline-success" onClick={exportToPDF}>
+            {/* <Button variant="outline-success" onClick={exportToPDF}>
               <Download className="me-2" />
               Exporter PDF
-            </Button>
+            </Button> */}
           </ButtonGroup>
         </Col>
       </Row>
