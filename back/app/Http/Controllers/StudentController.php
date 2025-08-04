@@ -396,6 +396,10 @@ class StudentController extends Controller
      */
     public function updateWithPhoto(Request $request, Student $student)
     {
+        // Debug: logger les données reçues
+        \Log::info('Student update with photo request data:', $request->all());
+        \Log::info('Student update with photo files:', $request->allFiles());
+
         $validator = Validator::make($request->all(), [
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -407,12 +411,13 @@ class StudentController extends Controller
             'parent_email' => 'nullable|email|max:255',
             'address' => 'nullable|string|max:500',
             'class_series_id' => 'required|exists:class_series,id',
-            'school_year_id' => 'required|exists:school_years,id',
+            'school_year_id' => 'nullable|exists:school_years,id', // Make nullable for update
             'is_active' => 'nullable|boolean',
             'photo' => 'nullable|image|mimes:jpeg,jpg,png,gif|max:5120' // 5MB max
         ]);
 
         if ($validator->fails()) {
+            \Log::error('Student update with photo validation failed:', $validator->errors()->toArray());
             return response()->json([
                 'success' => false,
                 'message' => 'Données invalides',
@@ -422,6 +427,14 @@ class StudentController extends Controller
 
         try {
             $updateData = $request->except(['photo']);
+            
+            // Si school_year_id n'est pas fourni, utiliser l'année de travail de l'utilisateur
+            if (empty($updateData['school_year_id'])) {
+                $workingYear = $this->getUserWorkingYear();
+                if ($workingYear) {
+                    $updateData['school_year_id'] = $workingYear->id;
+                }
+            }
             
             // Combiner nom + prénom pour le champ legacy 'name'
             if (!empty($updateData['last_name']) && !empty($updateData['first_name'])) {

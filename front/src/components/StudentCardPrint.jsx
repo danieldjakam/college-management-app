@@ -9,11 +9,79 @@ const StudentCardPrint = ({ student, schoolYear, show, onHide, onPrintSuccess })
     const [printing, setPrinting] = useState(false);
     const { schoolSettings } = useSchool();
 
+    const convertImageToBase64 = async (imageSrc) => {
+        return new Promise((resolve, reject) => {
+            if (!imageSrc) {
+                resolve('');
+                return;
+            }
+
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                try {
+                    const dataURL = canvas.toDataURL('image/png');
+                    resolve(dataURL);
+                } catch (error) {
+                    console.error('Error converting image to base64:', error);
+                    resolve('');
+                }
+            };
+            
+            img.onerror = function() {
+                console.error('Error loading image:', imageSrc);
+                resolve('');
+            };
+            
+            img.src = imageSrc;
+        });
+    };
+
+    const getStudentPhotoUrl = (student) => {
+        if (student.photo_url) return student.photo_url;
+        if (student.photo) {
+            if (student.photo.startsWith('http')) return student.photo;
+            const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+            return `${baseUrl}/storage/${student.photo}`;
+        }
+        // Retourner l'image par défaut en utilisant un chemin absolu
+        return `${window.location.origin}/static/media/1.png`;
+    };
+
     const handlePrint = async () => {
         if (!student) return;
 
         try {
             setPrinting(true);
+
+            // Convertir les images en base64 pour l'impression
+            const studentPhotoUrl = getStudentPhotoUrl(student);
+            const logoUrl = schoolSettings?.logo_url;
+            
+            console.log('Preparing images for print:', {
+                studentPhotoUrl,
+                logoUrl,
+                studentId: student.id
+            });
+            
+            const [studentPhotoBase64, logoBase64] = await Promise.all([
+                convertImageToBase64(studentPhotoUrl),
+                convertImageToBase64(logoUrl)
+            ]);
+            
+            console.log('Images converted to base64:', {
+                hasStudentPhoto: !!studentPhotoBase64,
+                hasLogo: !!logoBase64,
+                studentPhotoLength: studentPhotoBase64?.length || 0,
+                logoLength: logoBase64?.length || 0
+            });
 
             // Créer une nouvelle fenêtre pour l'impression
             const printWindow = window.open('', '_blank', 'width=800,height=600');
@@ -136,10 +204,10 @@ const StudentCardPrint = ({ student, schoolYear, show, onHide, onPrintSuccess })
                         
                         .qr-code {
                             position: absolute;
-                            bottom: 4px;
+                            bottom: 20px;
                             right: 4px;
-                            width: 25px;
-                            height: 25px;
+                            width: 40px;
+                            height: 40px;
                         }
                         
                         .qr-image {
@@ -160,7 +228,7 @@ const StudentCardPrint = ({ student, schoolYear, show, onHide, onPrintSuccess })
                         .copyright {
                             position: absolute;
                             bottom: 1px;
-                            right: 30px;
+                            right: 60px;
                             font-size: 5px;
                             color: #aaa;
                         }
@@ -217,14 +285,14 @@ const StudentCardPrint = ({ student, schoolYear, show, onHide, onPrintSuccess })
                                     <div class="card-title">CARTE D'IDENTITÉ SCOLAIRE</div>
                                 </div>
                                 <div class="logo-section">
-                                    <div style="width: 18px; height: 18px; background: #ddd; border-radius: 2px;"></div>
+                                    ${logoBase64 ? `<img src="${logoBase64}" alt="Logo" class="logo" />` : '<div style="width: 18px; height: 18px; background: #ddd; border-radius: 2px;"></div>'}
                                 </div>
                             </div>
                         </div>
                         
                         <div class="card-body">
                             <img 
-                                src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDUiIHZpZXdCb3g9IjAgMCA0MCA0NSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQ1IiBmaWxsPSIjZjBmMGYwIiBzdHJva2U9IiNkZGQiLz4KPHN2ZyB4PSI1IiB5PSI1IiB3aWR0aD0iMzAiIGhlaWdodD0iMzUiIHZpZXdCb3g9IjAgMCAzMCAzNSIgZmlsbD0ibm9uZSI+CjxjaXJjbGUgY3g9IjE1IiBjeT0iMTAiIHI9IjUiIGZpbGw9IiM5OTkiLz4KPHBhdGggZD0iTTUgMzBDNSAyNSAxMCAyMCAxNSAyMEMyMCAyMCAyNSAyNSAyNSAzMFYzNUg1VjMwWiIgZmlsbD0iIzk5OSIvPgo8L3N2Zz4KPC9zdmc+"
+                                src="${studentPhotoBase64 || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDUiIHZpZXdCb3g9IjAgMCA0MCA0NSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQ1IiBmaWxsPSIjZjBmMGYwIiBzdHJva2U9IiNkZGQiLz4KPHN2ZyB4PSI1IiB5PSI1IiB3aWR0aD0iMzAiIGhlaWdodD0iMzUiIHZpZXdCb3g9IjAgMCAzMCAzNSIgZmlsbD0ibm9uZSI+CjxjaXJjbGUgY3g9IjE1IiBjeT0iMTAiIHI9IjUiIGZpbGw9IiM5OTkiLz4KPHBhdGggZD0iTTUgMzBDNSAyNSAxMCAyMCAxNSAyMEMyMCAyMCAyNSAyNSAyNSAzMFYzNUg1VjMwWiIgZmlsbD0iIzk5OSIvPgo8L3N2Zz4KPC9zdmc+'}"
                                 alt="Photo étudiant"
                                 class="photo"
                             />
@@ -248,30 +316,37 @@ const StudentCardPrint = ({ student, schoolYear, show, onHide, onPrintSuccess })
                                 </div>
                                 
                                 <div class="info-line">
+                                    <strong>Matricule :</strong> ${student.matricule || `${new Date().getFullYear().toString().slice(-2)}${student.id.toString().padStart(4, '0')}AB`}
+                                </div>
+                                
+                                <div class="info-line">
                                     <strong>Sexe :</strong> ${student.gender === 'male' ? 'M' : student.gender === 'female' ? 'F' : 'M'}
                                     <strong style="margin-left: 15px;">Classe :</strong> ${student.class_series?.name || student.current_class || ''}
                                 </div>
                                 
+                                
                                 <div class="info-line">
-                                    <strong>Contact:</strong> ${student.phone || '***********'}
+                                    <strong>Parent/Tuteur :</strong> ${student.parent_name || ''}
+                                </div>
+                                <div class="info-line">
+                                    <strong>Contact:</strong> ${student.parent_phone || '***********'}
+                                </div>
+                                
+                                <div class="info-line">
+                                    <strong>Prénom :</strong> ${student.first_name || ''}
                                 </div>
                             </div>
                             
                             <div class="qr-code">
                                 <img 
-                                    src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(`Student: ${student.first_name} ${student.last_name}, ID: ${student.id}`)}"
+                                    src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`STUDENT_ID_${student.id}`)}&margin=1"
                                     alt="QR Code"
                                     class="qr-image"
                                 />
                             </div>
                         </div>
-                        
-                        <div class="matricule">
-                            MAT. : ${student.matricule || `${new Date().getFullYear().toString().slice(-2)}${student.id.toString().padStart(4, '0')}AB`}
-                        </div>
-                        
                         <div class="copyright">
-                            SYSTÈME PAO / PROTECTED BY GANALIS SCHOOL / ${new Date().getFullYear()} ALL RIGHTS RESERVED
+                            Generated by Djephix (www.djephix.com) © / ${new Date().getFullYear()} ALL RIGHTS RESERVED
                         </div>
                     </div>
                     

@@ -460,7 +460,28 @@ const SeriesStudents = () => {
             }
         } catch (error) {
             console.error('Error saving student:', error);
-            setError(`Erreur lors de ${selectedStudent ? 'la modification' : 'la création'} de l'élève`);
+            console.error('Error details:', error.message);
+            
+            // Essayer d'extraire le message d'erreur détaillé
+            let errorMessage = `Erreur lors de ${selectedStudent ? 'la modification' : 'la création'} de l'élève`;
+            
+            if (error.message) {
+                // Si c'est une erreur de validation avec détails
+                try {
+                    const errorData = JSON.parse(error.message);
+                    if (errorData.errors) {
+                        const validationErrors = Object.entries(errorData.errors)
+                            .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
+                            .join('\n');
+                        errorMessage += `\n\nDétails:\n${validationErrors}`;
+                    }
+                } catch (parseError) {
+                    // Si ce n'est pas du JSON, utiliser le message tel quel
+                    errorMessage += `\n\nDétails: ${error.message}`;
+                }
+            }
+            
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
