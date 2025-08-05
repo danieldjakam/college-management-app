@@ -14,6 +14,7 @@ use App\Http\Controllers\SchoolYearController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\SchoolSettingsController;
 use App\Http\Controllers\ClassScholarshipController;
+use App\Http\Controllers\StudentScholarshipController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\PhotoUploadController;
@@ -120,6 +121,7 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les élèves
     Route::prefix('students')->middleware(['role:admin,accountant'])->group(function () {
         Route::get('/class-series/{seriesId}', [StudentController::class, 'getByClassSeries']);
+        Route::get('/class/{classId}', [StudentController::class, 'getByClass']);
         Route::post('/', [StudentController::class, 'store']);
         Route::put('/{student}', [StudentController::class, 'update']);
         Route::patch('/{student}/status', [StudentController::class, 'updateStatus']);
@@ -196,6 +198,16 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/{id}', [ClassScholarshipController::class, 'update']);
         Route::delete('/{id}', [ClassScholarshipController::class, 'destroy']);
         Route::get('/class/{classId}', [ClassScholarshipController::class, 'getByClass']);
+    });
+
+    // Routes pour les bourses individuelles (admin et comptables)
+    Route::prefix('student-scholarships')->middleware(['role:admin,accountant'])->group(function () {
+        Route::get('/student/{studentId}', [StudentScholarshipController::class, 'getStudentScholarships']);
+        Route::post('/assign', [StudentScholarshipController::class, 'assignScholarship']);
+        Route::post('/bulk-assign', [StudentScholarshipController::class, 'bulkAssignScholarship']);
+        Route::delete('/{scholarshipId}', [StudentScholarshipController::class, 'removeScholarship']);
+        Route::get('/available-for-class/{classId}', [StudentScholarshipController::class, 'getAvailableScholarshipsForClass']);
+        Route::get('/eligible-students/{classScholarshipId}', [StudentScholarshipController::class, 'getEligibleStudents']);
     });
 
     // Routes pour les rapports (comptables et admins)

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Student;
 use App\Models\SchoolYear;
 use App\Models\ClassSeries;
+use App\Models\SchoolClass;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -221,6 +222,65 @@ class StudentController extends Controller
             ]);
         } catch (\Exception $e) {
             \Log::error('Error in getByClassSeries: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des élèves',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir tous les élèves d'une classe (toutes séries confondues)
+     */
+    public function getByClass($classId)
+    {
+        try {
+            // Récupérer l'année scolaire de travail de l'utilisateur
+            $workingYear = $this->getUserWorkingYear();
+            
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            // Récupérer les élèves via les séries de classe
+            $studentsQuery = Student::with(['schoolYear', 'classSeries'])
+                ->whereHas('classSeries', function($query) use ($classId) {
+                    $query->where('class_id', $classId);
+                })
+                ->where('is_active', true)
+                ->where('school_year_id', $workingYear->id);
+            
+            $students = $studentsQuery
+                ->orderBy('order', 'asc')
+                ->orderByRaw('COALESCE(last_name, name) ASC')
+                ->orderByRaw('COALESCE(first_name, subname) ASC')
+                ->get();
+
+            // Récupérer les informations de la classe
+            $schoolClass = SchoolClass::with(['level.section'])->find($classId);
+            
+            if (!$schoolClass) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Classe non trouvée'
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $students,
+                'meta' => [
+                    'school_class' => $schoolClass,
+                    'school_year' => $workingYear,
+                    'total' => $students->count()
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error in getByClass: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération des élèves',

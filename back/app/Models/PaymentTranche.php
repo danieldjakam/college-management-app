@@ -84,26 +84,30 @@ class PaymentTranche extends Model
         
         // RÈGLE MÉTIER : Bourses et réductions sont mutuellement exclusives
         $discountCalculator = new \App\Services\DiscountCalculatorService();
-        $scholarship = $discountCalculator->getClassScholarship($student);
-        $hasScholarship = $scholarship !== null;
         $scholarshipApplied = false;
         
-        // Appliquer la bourse si elle s'applique à cette tranche (PRIORITÉ)
-        if ($applyScholarship && $hasScholarship) {
-            if ($scholarship->payment_tranche_id == $this->id && $discountCalculator->isEligibleForScholarship(now())) {
-                $scholarshipAmount = min($scholarship->amount, $baseAmount);
+        // Appliquer la bourse individuelle si elle s'applique à cette tranche (PRIORITÉ)
+        if ($applyScholarship) {
+            $studentScholarship = $discountCalculator->getStudentScholarshipForTranche($student, $this->id);
+            if ($studentScholarship && $studentScholarship->classScholarship) {
+                $scholarshipAmount = min($studentScholarship->classScholarship->amount, $baseAmount);
                 $baseAmount = max(0, $baseAmount - $scholarshipAmount);
                 $scholarshipApplied = true;
             }
         }
         
-        // Appliquer la réduction globale SEULEMENT si aucune bourse n'a été appliquée
-        if ($applyGlobalDiscount && !$scholarshipApplied && !$hasScholarship) {
-            $schoolSettings = \App\Models\SchoolSetting::getSettings();
-            $discountPercentage = $schoolSettings->reduction_percentage ?? 0;
+        // Appliquer la réduction globale SEULEMENT si aucune bourse n'a été appliquée ET que l'étudiant n'a pas de bourses disponibles pour cette tranche
+        if ($applyGlobalDiscount && !$scholarshipApplied) {
+            // Vérifier si l'étudiant a une bourse disponible pour cette tranche spécifique
+            $hasAvailableScholarshipForThisTranche = $discountCalculator->getStudentScholarshipForTranche($student, $this->id) !== null;
             
-            if ($discountPercentage > 0) {
-                $baseAmount = round($baseAmount * (100 - $discountPercentage) / 100, 0);
+            if (!$hasAvailableScholarshipForThisTranche) {
+                $schoolSettings = \App\Models\SchoolSetting::getSettings();
+                $discountPercentage = $schoolSettings->reduction_percentage ?? 0;
+                
+                if ($discountPercentage > 0) {
+                    $baseAmount = round($baseAmount * (100 - $discountPercentage) / 100, 0);
+                }
             }
         }
         

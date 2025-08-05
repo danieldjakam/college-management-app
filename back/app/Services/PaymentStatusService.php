@@ -7,6 +7,7 @@ use App\Models\SchoolYear;
 use App\Models\PaymentTranche;
 use App\Models\SchoolSetting;
 use App\Models\Payment;
+use App\Models\StudentScholarship;
 use Carbon\Carbon;
 
 class PaymentStatusService
@@ -129,9 +130,13 @@ class PaymentStatusService
             }
         }
 
-        // Récupérer les informations de bourse et réduction
+        // Récupérer les informations de bourses individuelles (disponibles ET utilisées) et réduction
         $discountCalculator = new \App\Services\DiscountCalculatorService();
-        $scholarship = $discountCalculator->getClassScholarship($student);
+        $allScholarships = $student->scholarships()->with('classScholarship')->get(); // Toutes les bourses, pas seulement disponibles
+        $scholarshipsByTranche = [];
+        foreach ($allScholarships as $scholarship) {
+            $scholarshipsByTranche[$scholarship->payment_tranche_id] = $scholarship;
+        }
 
         foreach ($paymentTranches as $tranche) {
             $requiredAmount = $tranche->getAmountForStudent($student, false, false, false); // Montants NORMAUX
@@ -140,19 +145,30 @@ class PaymentStatusService
             $paidAmount = $paidPerTranche[$tranche->id] ?? 0;
             $remainingAmount = max(0, $requiredAmount - $paidAmount);
 
-            // Vérifier si cette tranche bénéficie d'une bourse
+            // Vérifier si cette tranche bénéficie d'une bourse individuelle
             $scholarshipAmount = 0;
             $hasScholarship = false;
             $globalDiscountAmount = 0;
             $hasGlobalDiscount = false;
             
-            if ($scholarship && $scholarship->payment_tranche_id == $tranche->id && $discountCalculator->isEligibleForScholarship(now())) {
-                // Cas avec bourse
-                $scholarshipAmount = $scholarship->amount;
-                $hasScholarship = true;
-                
-                // Pour le statut, considérer qu'une tranche est "complète" si: montant payé + bourse >= montant normal
-                $isFullyPaid = ($paidAmount + $scholarshipAmount) >= $requiredAmount;
+            if (isset($scholarshipsByTranche[$tranche->id])) {
+                // Cas avec bourse individuelle
+                $studentScholarship = $scholarshipsByTranche[$tranche->id];
+                if ($studentScholarship->classScholarship) {
+                    $scholarshipAmount = $studentScholarship->classScholarship->amount;
+                    $hasScholarship = true;
+                    
+                    // Si la bourse a été utilisée, le montant requis était réduit
+                    if ($studentScholarship->is_used) {
+                        $effectiveRequiredAmount = max(0, $requiredAmount - $scholarshipAmount);
+                        $isFullyPaid = $paidAmount >= $effectiveRequiredAmount;
+                    } else {
+                        // Si la bourse n'est pas encore utilisée, vérifier le total potentiel
+                        $isFullyPaid = ($paidAmount + $scholarshipAmount) >= $requiredAmount;
+                    }
+                } else {
+                    $isFullyPaid = $paidAmount >= $requiredAmount;
+                }
             } else {
                 // Cas normal - utiliser les informations de réduction stockées
                 $discountInfo = $discountPerTranche[$tranche->id] ?? ['has_discount' => false, 'discount_amount' => 0];
@@ -206,16 +222,12 @@ class PaymentStatusService
     {
         $totalScholarshipAmount = 0;
         
-        $discountCalculator = new \App\Services\DiscountCalculatorService();
-        $scholarship = $discountCalculator->getClassScholarship($student);
+        // Utiliser toutes les bourses individuelles (disponibles ET utilisées)
+        $allScholarships = $student->scholarships()->with('classScholarship')->get();
         
-        if ($scholarship && $discountCalculator->isEligibleForScholarship(now())) {
-            // La bourse s'applique à une tranche spécifique
-            foreach ($paymentTranches as $tranche) {
-                if ($tranche->id == $scholarship->payment_tranche_id) {
-                    $totalScholarshipAmount = $scholarship->amount;
-                    break;
-                }
+        foreach ($allScholarships as $scholarship) {
+            if ($scholarship->classScholarship) {
+                $totalScholarshipAmount += $scholarship->classScholarship->amount;
             }
         }
         

@@ -110,6 +110,30 @@ class Student extends Model
     }
 
     /**
+     * Relation avec les bourses individuelles
+     */
+    public function scholarships()
+    {
+        return $this->hasMany(StudentScholarship::class);
+    }
+
+    /**
+     * Relation avec les bourses non utilisées
+     */
+    public function availableScholarships()
+    {
+        return $this->hasMany(StudentScholarship::class)->unused();
+    }
+
+    /**
+     * Relation avec les bourses utilisées
+     */
+    public function usedScholarships()
+    {
+        return $this->hasMany(StudentScholarship::class)->used();
+    }
+
+    /**
      * Scope pour les étudiants actifs
      */
     public function scopeActive($query)
@@ -185,5 +209,39 @@ class Student extends Model
     public function getNetRegistrationFee()
     {
         return $this->registration_fee ?? 30000; // Montant standard, les bourses sont appliquées aux tranches
+    }
+
+    /**
+     * Vérifier si l'étudiant a une bourse disponible pour une tranche donnée
+     */
+    public function hasAvailableScholarshipForTranche($trancheId): bool
+    {
+        return $this->availableScholarships()
+            ->where('payment_tranche_id', $trancheId)
+            ->exists();
+    }
+
+    /**
+     * Obtenir la bourse disponible pour une tranche donnée
+     */
+    public function getAvailableScholarshipForTranche($trancheId)
+    {
+        return $this->availableScholarships()
+            ->where('payment_tranche_id', $trancheId)
+            ->with('classScholarship')
+            ->first();
+    }
+
+    /**
+     * Obtenir le montant total des bourses disponibles
+     */
+    public function getTotalAvailableScholarshipAmount(): float
+    {
+        return $this->availableScholarships()
+            ->with('classScholarship')
+            ->get()
+            ->sum(function ($scholarship) {
+                return $scholarship->classScholarship ? $scholarship->classScholarship->amount : 0;
+            });
     }
 }

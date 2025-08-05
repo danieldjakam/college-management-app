@@ -7,6 +7,7 @@ use App\Models\PaymentDetail;
 use App\Models\Student;
 use App\Models\SchoolYear;
 use App\Models\PaymentTranche;
+use App\Models\StudentScholarship;
 use App\Services\DiscountCalculatorService;
 use App\Services\PaymentStatusService;
 use Illuminate\Http\Request;
@@ -204,17 +205,17 @@ class PaymentController extends Controller
             $paymentType = 'normal'; // Par défaut
 
             // Vérification de sécurité : un étudiant ne peut pas avoir à la fois une bourse ET une réduction
-            $hasScholarship = $this->discountCalculatorService->getClassScholarship($student) !== null;
+            $hasIndividualScholarships = $this->discountCalculatorService->hasStudentScholarships($student);
 
             // Si le frontend demande explicitement une réduction globale
             if ($request->apply_global_discount === true) {
                 \Log::info('Frontend requests global discount');
 
-                // SÉCURITÉ : Refuser si l'étudiant a une bourse
-                if ($hasScholarship) {
+                // SÉCURITÉ : Refuser si l'étudiant a des bourses individuelles
+                if ($hasIndividualScholarships) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Cet étudiant bénéficie déjà d\'une bourse de classe. Les bourses et réductions ne sont pas cumulables.'
+                        'message' => 'Cet étudiant bénéficie déjà de bourses individuelles. Les bourses et réductions ne sont pas cumulables.'
                     ], 422);
                 }
 
@@ -253,9 +254,9 @@ class PaymentController extends Controller
             $scholarshipInfo = [];
 
             switch ($paymentType) {
-                case 'scholarship':
-                    // Cas avec bourse
-                    $scholarshipInfo = $this->calculateScholarshipInfo($student, $paymentStatus->payment_tranches);
+                case 'individual_scholarship':
+                    // Cas avec bourses individuelles
+                    $scholarshipInfo = $this->calculateIndividualScholarshipInfo($student, $paymentStatus->payment_tranches);
                     $discountResult = [
                         'final_amount' => $request->amount,
                         'has_reduction' => false,
@@ -329,14 +330,9 @@ class PaymentController extends Controller
                 'amount' => $request->amount
             ]);
 
-            // Allouer le paiement selon le type
-            if ($paymentType === 'global_discount') {
-                \Log::info('Using global discount allocation');
-                $this->allocatePaymentToTranchesWithGlobalDiscount($payment, $student, $workingYear, $paymentStatus->payment_tranches);
-            } else {
-                \Log::info('Using normal allocation');
-                $this->allocatePaymentToTranches($payment, $student, $workingYear, $paymentStatus->payment_tranches);
-            }
+            // Allouer le paiement selon le type - utiliser une méthode unifiée
+            \Log::info("Using allocation for payment type: {$paymentType}");
+            $this->allocatePaymentToTranchesUnified($payment, $student, $workingYear, $paymentStatus->payment_tranches, $paymentType);
 
             DB::commit();
 
@@ -651,6 +647,35 @@ class PaymentController extends Controller
 
     /**
      * Calcule les informations de bourse pour un paiement
+     */
+    /**
+     * Calculer les informations de bourses individuelles pour un étudiant
+     */
+    private function calculateIndividualScholarshipInfo(Student $student, $paymentTranches): array
+    {
+        $totalScholarshipAmount = 0;
+        $hasScholarship = false;
+
+        // Récupérer toutes les bourses disponibles de l'étudiant
+        $studentScholarships = $this->discountCalculatorService->getStudentScholarships($student);
+
+        if ($studentScholarships->isNotEmpty()) {
+            $hasScholarship = true;
+            foreach ($studentScholarships as $scholarship) {
+                if ($scholarship->classScholarship) {
+                    $totalScholarshipAmount += $scholarship->classScholarship->amount;
+                }
+            }
+        }
+
+        return [
+            'has_scholarship' => $hasScholarship,
+            'scholarship_amount' => $totalScholarshipAmount
+        ];
+    }
+
+    /**
+     * Ancienne méthode maintenue pour compatibilité
      */
     private function calculateScholarshipInfo(Student $student, $paymentTranches): array
     {
@@ -1484,5 +1509,125 @@ class PaymentController extends Controller
         ];
 
         return $methods[$method] ?? ucfirst($method);
+    }
+
+    /**
+     * Allouer un paiement aux tranches en utilisant les bourses individuelles
+     */
+    private function allocatePaymentToTranchesWithIndividualScholarships(Payment $payment, Student $student, SchoolYear $workingYear, $paymentTranches)
+    {
+        $remainingAmountToAllocate = $payment->total_amount;
+
+        $existingPayments = Payment::forStudent($student->id)
+            ->forYear($workingYear->id)
+            ->where('id', '!=', $payment->id)
+            ->where('is_rame_physical', false)
+            ->with(['paymentDetails.paymentTranche'])
+            ->get();
+
+        // Récupérer les bourses disponibles de l'étudiant
+        $availableScholarships = $student->availableScholarships()->with(['classScholarship', 'paymentTranche'])->get();
+        $scholarshipsByTranche = [];
+        foreach ($availableScholarships as $scholarship) {
+            $scholarshipsByTranche[$scholarship->payment_tranche_id] = $scholarship;
+        }
+
+        foreach ($paymentTranches as $tranche) {
+            if ($remainingAmountToAllocate <= 0) break;
+
+            // Vérifier si cette tranche a une bourse
+            $studentScholarship = $scholarshipsByTranche[$tranche->id] ?? null;
+            $scholarshipAmount = 0;
+            if ($studentScholarship && $studentScholarship->classScholarship) {
+                $scholarshipAmount = $studentScholarship->classScholarship->amount;
+            }
+
+            // Calculer le montant requis après application de la bourse
+            $baseAmount = $tranche->getAmountForStudent($student, false, false, true);
+            $requiredAmount = max(0, $baseAmount - $scholarshipAmount);
+            
+            if ($requiredAmount <= 0) {
+                // Si la bourse couvre entièrement cette tranche, créer quand même un détail pour traçabilité
+                if ($scholarshipAmount > 0) {
+                    PaymentDetail::create([
+                        'payment_id' => $payment->id,
+                        'payment_tranche_id' => $tranche->id,
+                        'amount_allocated' => 0,
+                        'previous_amount' => 0,
+                        'new_total_amount' => 0,
+                        'is_fully_paid' => true,
+                        'required_amount_at_time' => $baseAmount,
+                        'was_reduced' => false,
+                        'reduction_context' => "Bourse individuelle: {$studentScholarship->classScholarship->name} - {$scholarshipAmount} FCFA"
+                    ]);
+
+                    // Marquer la bourse comme utilisée
+                    $studentScholarship->markAsUsed($scholarshipAmount);
+                }
+                continue;
+            }
+
+            // Calculer le montant déjà payé pour cette tranche
+            $previouslyPaid = 0;
+            foreach ($existingPayments as $existingPayment) {
+                $detail = $existingPayment->paymentDetails->where('payment_tranche_id', $tranche->id)->first();
+                if ($detail) {
+                    $previouslyPaid = $detail->new_total_amount;
+                }
+            }
+
+            $remainingForTranche = $requiredAmount - $previouslyPaid;
+            if ($remainingForTranche <= 0) continue;
+
+            $allocatedAmount = min($remainingAmountToAllocate, $remainingForTranche);
+            $newTotalAmount = $previouslyPaid + $allocatedAmount;
+
+            $reductionContext = null;
+            if ($scholarshipAmount > 0) {
+                $reductionContext = "Bourse individuelle: {$studentScholarship->classScholarship->name} - {$scholarshipAmount} FCFA";
+            }
+
+            PaymentDetail::create([
+                'payment_id' => $payment->id,
+                'payment_tranche_id' => $tranche->id,
+                'amount_allocated' => $allocatedAmount,
+                'previous_amount' => $previouslyPaid,
+                'new_total_amount' => $newTotalAmount,
+                'is_fully_paid' => $newTotalAmount >= $requiredAmount,
+                'required_amount_at_time' => $requiredAmount,
+                'was_reduced' => $scholarshipAmount > 0,
+                'reduction_context' => $reductionContext
+            ]);
+
+            // Marquer la bourse comme utilisée
+            if ($studentScholarship && $scholarshipAmount > 0) {
+                $studentScholarship->markAsUsed($scholarshipAmount);
+            }
+
+            $remainingAmountToAllocate -= $allocatedAmount;
+        }
+
+        // S'il reste du montant à allouer après avoir traité toutes les tranches
+        if ($remainingAmountToAllocate > 0) {
+            \Log::warning("Montant restant après allocation: {$remainingAmountToAllocate} FCFA pour le paiement {$payment->id}");
+        }
+    }
+
+    /**
+     * Méthode unifiée d'allocation qui gère tous les types de paiement
+     */
+    private function allocatePaymentToTranchesUnified(Payment $payment, Student $student, SchoolYear $workingYear, $paymentTranches, string $paymentType)
+    {
+        switch ($paymentType) {
+            case 'global_discount':
+                $this->allocatePaymentToTranchesWithGlobalDiscount($payment, $student, $workingYear, $paymentTranches);
+                break;
+            case 'individual_scholarship':
+                $this->allocatePaymentToTranchesWithIndividualScholarships($payment, $student, $workingYear, $paymentTranches);
+                break;
+            default:
+                $this->allocatePaymentToTranches($payment, $student, $workingYear, $paymentTranches);
+                break;
+        }
     }
 }

@@ -447,6 +447,16 @@ export const secureApiEndpoints = {
         delete: (id) => secureApi.delete(`/class-scholarships/${id}`)
     },
 
+    // === STUDENT SCHOLARSHIPS ===
+    studentScholarships: {
+        getStudentScholarships: (studentId) => secureApi.get(`/student-scholarships/student/${studentId}`),
+        assignScholarship: (data) => secureApi.post('/student-scholarships/assign', data),
+        bulkAssignScholarship: (data) => secureApi.post('/student-scholarships/bulk-assign', data),
+        removeScholarship: (scholarshipId) => secureApi.delete(`/student-scholarships/${scholarshipId}`),
+        getAvailableScholarshipsForClass: (classId) => secureApi.get(`/student-scholarships/available-for-class/${classId}`),
+        getEligibleStudents: (classScholarshipId) => secureApi.get(`/student-scholarships/eligible-students/${classScholarshipId}`)
+    },
+
     // === SERIES SUBJECTS ===
     seriesSubjects: {
         getAll: (params = {}) => {

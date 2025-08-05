@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Container, Row, Col, Card, Nav } from 'react-bootstrap';
-import { GearFill, Building, Award, Calendar, FileEarmarkText } from 'react-bootstrap-icons';
+import { GearFill, Building, Award, Calendar, FileEarmarkText, PersonCheck } from 'react-bootstrap-icons';
 import SchoolSettings from './Settings/SchoolSettings';
 import ClassScholarships from './Settings/ClassScholarships';
+import StudentScholarshipManagement from './Settings/StudentScholarshipManagement';
 
 function Settings() {
     const [activeTab, setActiveTab] = useState('school-settings');
@@ -19,6 +20,12 @@ function Settings() {
             title: 'Bourses par Classe',
             icon: <Award size={16} className="me-2" />,
             component: <ClassScholarships />
+        },
+        {
+            key: 'student-scholarships',
+            title: 'Attribution des Bourses',
+            icon: <PersonCheck size={16} className="me-2" />,
+            component: <StudentScholarshipManagement />
         }
     ];
 

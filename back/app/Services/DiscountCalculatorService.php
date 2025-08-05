@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Student;
 use App\Models\SchoolSetting;
 use App\Models\ClassScholarship;
+use App\Models\StudentScholarship;
 use Carbon\Carbon;
 
 class DiscountCalculatorService
@@ -18,7 +19,7 @@ class DiscountCalculatorService
 
     /**
      * Détermine si un paiement est éligible à une réduction globale.
-     * RÈGLE: Pas de réduction si la classe a une bourse.
+     * RÈGLE: Pas de réduction si l'étudiant a des bourses individuelles.
      *
      * @param Student $student L'étudiant
      * @param float $amountToPay Le montant que l'utilisateur essaie de payer.
@@ -37,8 +38,8 @@ class DiscountCalculatorService
             return false;
         }
 
-        // Condition 2: La classe ne doit PAS avoir de bourse (exclusion mutuelle)
-        if ($this->getClassScholarship($student)) {
+        // Condition 2: L'étudiant ne doit PAS avoir de bourses individuelles (exclusion mutuelle)
+        if ($this->hasStudentScholarships($student)) {
             return false;
         }
 
@@ -125,7 +126,8 @@ class DiscountCalculatorService
     }
 
     /**
-     * Récupère la bourse applicable pour la classe d'un étudiant
+     * Récupère la bourse applicable pour la classe d'un étudiant (méthode dépréciée)
+     * Maintenue pour compatibilité - les bourses sont maintenant individuelles
      *
      * @param Student $student
      * @return ClassScholarship|null
@@ -139,6 +141,40 @@ class DiscountCalculatorService
         return ClassScholarship::active()
             ->where('school_class_id', $student->classSeries->schoolClass->id)
             ->first();
+    }
+
+    /**
+     * Vérifier si l'étudiant a des bourses individuelles assignées
+     *
+     * @param Student $student
+     * @return bool
+     */
+    public function hasStudentScholarships(Student $student): bool
+    {
+        return $student->scholarships()->exists();
+    }
+
+    /**
+     * Récupère les bourses disponibles pour un étudiant
+     *
+     * @param Student $student
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function getStudentScholarships(Student $student)
+    {
+        return $student->availableScholarships()->with(['classScholarship', 'paymentTranche'])->get();
+    }
+
+    /**
+     * Récupère la bourse disponible pour une tranche spécifique
+     *
+     * @param Student $student
+     * @param int $trancheId
+     * @return StudentScholarship|null
+     */
+    public function getStudentScholarshipForTranche(Student $student, int $trancheId): ?StudentScholarship
+    {
+        return $student->getAvailableScholarshipForTranche($trancheId);
     }
 
     /**
@@ -201,9 +237,9 @@ class DiscountCalculatorService
      */
     public function getPaymentType($student, float $paymentAmount, float $totalRemaining, $versementDate, bool $hasExistingPayments): string
     {
-        // Vérifier si a une bourse
-        if ($this->getClassScholarship($student)) {
-            return 'scholarship';
+        // Vérifier si a des bourses individuelles DISPONIBLES (non utilisées)
+        if ($this->hasAvailableStudentScholarships($student)) {
+            return 'individual_scholarship';
         }
         
         // Vérifier si éligible à la réduction
@@ -213,6 +249,47 @@ class DiscountCalculatorService
         
         // Cas normal - ni bourse ni réduction
         return 'normal';
+    }
+
+    /**
+     * Vérifier si l'étudiant a des bourses individuelles disponibles (non utilisées)
+     *
+     * @param Student $student
+     * @return bool
+     */
+    public function hasAvailableStudentScholarships(Student $student): bool
+    {
+        return $student->availableScholarships()->exists();
+    }
+
+    /**
+     * Calculer l'impact d'une bourse individuelle sur un paiement
+     *
+     * @param StudentScholarship $scholarship
+     * @param float $trancheAmount
+     * @return array
+     */
+    public function calculateScholarshipImpact(StudentScholarship $scholarship, float $trancheAmount): array
+    {
+        if (!$scholarship->classScholarship) {
+            return [
+                'has_scholarship' => false,
+                'scholarship_amount' => 0,
+                'final_amount' => $trancheAmount,
+                'scholarship_name' => null
+            ];
+        }
+
+        $scholarshipAmount = $scholarship->classScholarship->amount;
+        $finalAmount = max(0, $trancheAmount - $scholarshipAmount);
+
+        return [
+            'has_scholarship' => true,
+            'scholarship_amount' => $scholarshipAmount,
+            'final_amount' => $finalAmount,
+            'scholarship_name' => $scholarship->classScholarship->name,
+            'scholarship_description' => $scholarship->classScholarship->description
+        ];
     }
 
     /**
