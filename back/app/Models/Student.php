@@ -25,6 +25,7 @@ class Student extends Model
         'student_number',
         'order',
         'is_active',
+        'has_scholarship_enabled',
         // Anciens champs pour compatibilité
         'name',
         'subname',
@@ -45,7 +46,8 @@ class Student extends Model
         'date_of_birth' => 'date',
         'birthday' => 'date',
         'is_new' => 'boolean',
-        'is_active' => 'boolean'
+        'is_active' => 'boolean',
+        'has_scholarship_enabled' => 'boolean'
     ];
 
     /**

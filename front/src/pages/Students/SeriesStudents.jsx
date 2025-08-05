@@ -177,6 +177,20 @@ const SortableStudent = ({ student, handleEdit, handleDelete, handlePrintCard, h
                 </div>
             </td>
             <td>
+                <div className="text-center">
+                    {student.has_scholarship_enabled ? (
+                        <span className="badge bg-success bg-opacity-25 text-success">
+                            <CashCoin size={12} className="me-1" />
+                            Activée
+                        </span>
+                    ) : (
+                        <span className="badge bg-secondary bg-opacity-25 text-muted">
+                            Désactivée
+                        </span>
+                    )}
+                </div>
+            </td>
+            <td>
                 <StudentActionsDropdown
                     student={student}
                     onPrintCard={handlePrintCard}
@@ -243,6 +257,7 @@ const SeriesStudents = () => {
         address: '',
         class_series_id: seriesId,
         student_status: 'new',
+        has_scholarship_enabled: false,
     });
     
     // Photo states
@@ -559,6 +574,7 @@ const SeriesStudents = () => {
             address: student.address || '',
             class_series_id: seriesId,
             student_status: student.student_status || 'new',
+            has_scholarship_enabled: student.has_scholarship_enabled || false,
             // school_year_id géré automatiquement par le backend
         });
         
@@ -1093,6 +1109,7 @@ const SeriesStudents = () => {
             address: '',
             class_series_id: seriesId,
             student_status: 'new',
+            has_scholarship_enabled: false,
             // school_year_id géré automatiquement par le backend
         });
         setSelectedStudent(null);
@@ -1378,6 +1395,22 @@ const SeriesStudents = () => {
                                                         </small>
                                                     </div>
                                                 )}
+                                                
+                                                {/* Indicateur de bourse */}
+                                                <div className="d-flex align-items-center">
+                                                    <CashCoin size={14} className="text-muted me-2 flex-shrink-0" />
+                                                    <small>
+                                                        {student.has_scholarship_enabled ? (
+                                                            <span className="badge bg-success bg-opacity-25 text-success">
+                                                                Bourse activée
+                                                            </span>
+                                                        ) : (
+                                                            <span className="badge bg-secondary bg-opacity-25 text-muted">
+                                                                Bourse désactivée
+                                                            </span>
+                                                        )}
+                                                    </small>
+                                                </div>
                                             </div>
                                             
                                             <div className="d-flex justify-content-end mt-auto">
@@ -1417,6 +1450,7 @@ const SeriesStudents = () => {
                                                     <th>Statut</th>
                                                     <th>Parent</th>
                                                     <th>Contact</th>
+                                                    <th>Bourse</th>
                                                     <th>Actions</th>
                                                 </tr>
                                             </thead>
@@ -1706,6 +1740,25 @@ const SeriesStudents = () => {
                                             value={formData.address}
                                             onChange={(e) => setFormData({...formData, address: e.target.value})}
                                         />
+                                    </div>
+                                    
+                                    <div className="mb-3">
+                                        <div className="form-check">
+                                            <input
+                                                className="form-check-input"
+                                                type="checkbox"
+                                                id="scholarshipEnabled"
+                                                checked={formData.has_scholarship_enabled}
+                                                onChange={(e) => setFormData({...formData, has_scholarship_enabled: e.target.checked})}
+                                            />
+                                            <label className="form-check-label" htmlFor="scholarshipEnabled">
+                                                <strong>Activer les bourses pour cet élève</strong>
+                                                <br />
+                                                <small className="text-muted">
+                                                    Si coché, l'élève pourra bénéficier des bourses configurées pour sa classe lors des paiements
+                                                </small>
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="modal-footer">

@@ -126,12 +126,18 @@ class DiscountCalculatorService
 
     /**
      * Récupère la bourse applicable pour la classe d'un étudiant
+     * NOUVELLE LOGIQUE: Vérifier que l'étudiant a activé les bourses
      *
      * @param Student $student
      * @return ClassScholarship|null
      */
     public function getClassScholarship(Student $student): ?ClassScholarship
     {
+        // Vérifier d'abord si l'étudiant a activé les bourses
+        if (!$student->has_scholarship_enabled) {
+            return null;
+        }
+
         if (!$student->classSeries || !$student->classSeries->schoolClass) {
             return null;
         }

@@ -6,7 +6,11 @@ import {
     Search,
     Grid,
     List,
-    InfoCircle
+    InfoCircle,
+    Building,
+    ChevronDown,
+    ChevronRight,
+    Eye
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 
@@ -15,11 +19,12 @@ const AccountantClasses = () => {
     
     const [classes, setClasses] = useState([]);
     const [groupedClasses, setGroupedClasses] = useState({});
+    const [expandedClasses, setExpandedClasses] = useState({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [viewMode, setViewMode] = useState('grid');
+    const [viewMode, setViewMode] = useState('grouped');
     const [stats, setStats] = useState({
         total_students: 0,
         total_classes: 0,
@@ -37,8 +42,24 @@ const AccountantClasses = () => {
             const response = await secureApiEndpoints.accountant.getClasses();
             
             if (response.success) {
-                setClasses(response.data.classes);
-                setGroupedClasses(response.data.grouped_classes);
+                const classes = response.data?.classes || response.data || [];
+                const groupedClasses = response.data?.grouped_classes || {};
+                
+                setClasses(classes);
+                setGroupedClasses(groupedClasses);
+                
+                // Si pas de données groupées, créer un groupement simple
+                if (Object.keys(groupedClasses).length === 0 && classes.length > 0) {
+                    const simpleGrouped = classes.reduce((acc, classe) => {
+                        const groupKey = `${classe.level?.section?.name || 'Section inconnue'} - ${classe.level?.name || 'Niveau inconnu'}`;
+                        if (!acc[groupKey]) {
+                            acc[groupKey] = [];
+                        }
+                        acc[groupKey].push(classe);
+                        return acc;
+                    }, {});
+                    setGroupedClasses(simpleGrouped);
+                }
             } else {
                 setError(response.message || 'Erreur lors du chargement des classes');
             }
@@ -61,12 +82,60 @@ const AccountantClasses = () => {
         }
     };
 
+    // Fonction pour gérer l'expansion des classes
+    const toggleClassExpansion = (classId) => {
+        setExpandedClasses(prev => ({
+            ...prev,
+            [classId]: !prev[classId]
+        }));
+    };
+
     // Filtrer les classes selon la recherche
     const filteredClasses = classes.filter(classe =>
         classe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         classe.level?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         classe.level?.section?.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    // Filtrer les classes groupées selon la recherche
+    const filteredGroupedClasses = Object.keys(groupedClasses).reduce((acc, sectionKey) => {
+        const sectionData = groupedClasses[sectionKey];
+        
+        // Si sectionData est un objet avec des niveaux
+        if (sectionData && typeof sectionData === 'object' && !Array.isArray(sectionData)) {
+            const filteredSection = {};
+            
+            Object.keys(sectionData).forEach(levelKey => {
+                const levelClasses = Array.isArray(sectionData[levelKey]) ? sectionData[levelKey] : [];
+                const filteredLevelClasses = levelClasses.filter(classe =>
+                    classe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    classe.level?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    classe.level?.section?.name.toLowerCase().includes(searchTerm.toLowerCase())
+                );
+                
+                if (filteredLevelClasses.length > 0) {
+                    filteredSection[levelKey] = filteredLevelClasses;
+                }
+            });
+            
+            if (Object.keys(filteredSection).length > 0) {
+                acc[sectionKey] = filteredSection;
+            }
+        }
+        // Si sectionData est directement un array (fallback)
+        else if (Array.isArray(sectionData)) {
+            const filteredGroupClasses = sectionData.filter(classe =>
+                classe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                classe.level?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                classe.level?.section?.name.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+            if (filteredGroupClasses.length > 0) {
+                acc[sectionKey] = filteredGroupClasses;
+            }
+        }
+        
+        return acc;
+    }, {});
 
     if (loading && classes.length === 0) {
         return (
@@ -198,6 +267,14 @@ const AccountantClasses = () => {
                                     <div className="btn-group w-100" role="group">
                                         <button
                                             type="button"
+                                            className={`btn ${viewMode === 'grouped' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                                            onClick={() => setViewMode('grouped')}
+                                        >
+                                            <Building size={16} className="me-1" />
+                                            Groupé
+                                        </button>
+                                        <button
+                                            type="button"
                                             className={`btn ${viewMode === 'grid' ? 'btn-primary' : 'btn-outline-secondary'}`}
                                             onClick={() => setViewMode('grid')}
                                         >
@@ -220,8 +297,232 @@ const AccountantClasses = () => {
                 </div>
             </div>
 
-            {/* Classes Grid */}
-            {viewMode === 'grid' ? (
+            {/* Classes Display */}
+            {viewMode === 'grouped' ? (
+                // Vue groupée par sections et classes
+                <div className="row">
+                    <div className="col-12">
+                        {Object.keys(filteredGroupedClasses).length === 0 ? (
+                            <div className="card">
+                                <div className="card-body text-center py-5">
+                                    <HouseHeartFill size={48} className="text-muted mb-3" />
+                                    <h5 className="text-muted">Aucune classe trouvée</h5>
+                                    <p className="text-muted">
+                                        {searchTerm 
+                                            ? 'Aucune classe ne correspond à vos critères de recherche.'
+                                            : 'Aucune classe disponible pour le moment.'
+                                        }
+                                    </p>
+                                    {!searchTerm && Object.keys(groupedClasses).length === 0 && classes.length === 0 && (
+                                        <div className="mt-3">
+                                            <small className="text-muted">
+                                                Vérifiez que des classes ont été créées dans l'administration.
+                                            </small>
+                                        </div>
+                                    )}
+                                    {!searchTerm && Object.keys(groupedClasses).length === 0 && classes.length > 0 && (
+                                        <div className="mt-3">
+                                            <button 
+                                                className="btn btn-sm btn-outline-primary"
+                                                onClick={() => setViewMode('grid')}
+                                            >
+                                                Voir en mode grille
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="accordion" id="classesAccordion">
+                                {Object.entries(filteredGroupedClasses).map(([sectionKey, sectionData], sectionIndex) => (
+                                    <div key={sectionKey} className="card mb-3">
+                                        <div className="card-header bg-primary text-white">
+                                            <h5 className="mb-0 d-flex align-items-center">
+                                                <Building size={18} className="me-2" />
+                                                {sectionKey}
+                                                <span className="badge bg-light text-dark ms-2">
+                                                    {typeof sectionData === 'object' && !Array.isArray(sectionData) 
+                                                        ? Object.values(sectionData).reduce((total, levelClasses) => total + (Array.isArray(levelClasses) ? levelClasses.length : 0), 0)
+                                                        : Array.isArray(sectionData) ? sectionData.length : 0
+                                                    } classe{(typeof sectionData === 'object' && !Array.isArray(sectionData) 
+                                                        ? Object.values(sectionData).reduce((total, levelClasses) => total + (Array.isArray(levelClasses) ? levelClasses.length : 0), 0)
+                                                        : Array.isArray(sectionData) ? sectionData.length : 0
+                                                    ) > 1 ? 's' : ''}
+                                                </span>
+                                            </h5>
+                                        </div>
+                                        <div className="card-body p-0">
+                                            {typeof sectionData === 'object' && !Array.isArray(sectionData) ? (
+                                                // Structure hiérarchique : Section > Niveau > Classes
+                                                Object.entries(sectionData).map(([levelKey, levelClasses]) => {
+                                                    const levelClassesArray = Array.isArray(levelClasses) ? levelClasses : [];
+                                                    return (
+                                                        <div key={levelKey} className="border-bottom">
+                                                            <div className="bg-light p-3">
+                                                                <h6 className="mb-0 text-secondary">
+                                                                    <Grid size={16} className="me-2" />
+                                                                    {levelKey}
+                                                                    <span className="badge bg-secondary ms-2">
+                                                                        {levelClassesArray.length} classe{levelClassesArray.length > 1 ? 's' : ''}
+                                                                    </span>
+                                                                </h6>
+                                                            </div>
+                                                            {levelClassesArray.map((classItem) => (
+                                                <div key={classItem.id} className="border-bottom">
+                                                    {/* En-tête de la classe */}
+                                                    <div 
+                                                        className="p-3 d-flex justify-content-between align-items-center cursor-pointer"
+                                                        onClick={() => toggleClassExpansion(classItem.id)}
+                                                        style={{ cursor: 'pointer' }}
+                                                    >
+                                                        <div className="d-flex align-items-center">
+                                                            {expandedClasses[classItem.id] ? 
+                                                                <ChevronDown size={16} className="me-2 text-muted" /> :
+                                                                <ChevronRight size={16} className="me-2 text-muted" />
+                                                            }
+                                                            <div>
+                                                                <h6 className="mb-1">{classItem.name}</h6>
+                                                                <small className="text-muted">
+                                                                    {classItem.series_count || 0} série{(classItem.series_count || 0) > 1 ? 's' : ''} • {classItem.total_students || 0} élève{(classItem.total_students || 0) > 1 ? 's' : ''}
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                        <div className="d-flex gap-2">
+                                                            <Link
+                                                                to={`/class-comp/${classItem.id}`}
+                                                                className="btn btn-sm btn-outline-primary"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                title="Voir les séries"
+                                                            >
+                                                                <Eye size={14} />
+                                                            </Link>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Détails de la classe (séries) */}
+                                                    {expandedClasses[classItem.id] && (
+                                                        <div className="px-3 pb-3">
+                                                            <div className="row">
+                                                                <div className="col-12">
+                                                                    <h6 className="text-primary mb-3">
+                                                                        <PeopleFill size={16} className="me-2" />
+                                                                        Séries
+                                                                    </h6>
+                                                                    {classItem.series && classItem.series.length > 0 ? (
+                                                                        <div className="list-group list-group-flush">
+                                                                            {classItem.series.map((serie) => (
+                                                                                <div key={serie.id} className="list-group-item border-0 px-0 py-2">
+                                                                                    <div className="d-flex justify-content-between align-items-center">
+                                                                                        <div>
+                                                                                            <span className="fw-medium">{serie.name}</span>
+                                                                                            <small className="text-muted ms-2">
+                                                                                                {serie.students_count || 0} élève{(serie.students_count || 0) > 1 ? 's' : ''}
+                                                                                            </small>
+                                                                                        </div>
+                                                                                        <Link
+                                                                                            to={`/students/series/${serie.id}`}
+                                                                                            className="btn btn-sm btn-outline-success"
+                                                                                        >
+                                                                                            Voir élèves
+                                                                                        </Link>
+                                                                                    </div>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <p className="text-muted">Aucune série configurée</p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    );
+                                                })
+                                            ) : (
+                                                // Structure simple : Section > Classes directement
+                                                Array.isArray(sectionData) ? sectionData.map((classItem) => (
+                                                    <div key={classItem.id} className="border-bottom">
+                                                        {/* En-tête de la classe */}
+                                                        <div 
+                                                            className="p-3 d-flex justify-content-between align-items-center cursor-pointer"
+                                                            onClick={() => toggleClassExpansion(classItem.id)}
+                                                            style={{ cursor: 'pointer' }}
+                                                        >
+                                                            <div className="d-flex align-items-center">
+                                                                {expandedClasses[classItem.id] ? 
+                                                                    <ChevronDown size={16} className="me-2 text-muted" /> :
+                                                                    <ChevronRight size={16} className="me-2 text-muted" />
+                                                                }
+                                                                <div>
+                                                                    <h6 className="mb-1">{classItem.name}</h6>
+                                                                    <small className="text-muted">
+                                                                        {classItem.series_count || 0} série{(classItem.series_count || 0) > 1 ? 's' : ''} • {classItem.total_students || 0} élève{(classItem.total_students || 0) > 1 ? 's' : ''}
+                                                                    </small>
+                                                                </div>
+                                                            </div>
+                                                            <div className="d-flex gap-2">
+                                                                <Link
+                                                                    to={`/class-comp/${classItem.id}`}
+                                                                    className="btn btn-sm btn-outline-primary"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    title="Voir les séries"
+                                                                >
+                                                                    <Eye size={14} />
+                                                                </Link>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Détails de la classe (séries) */}
+                                                        {expandedClasses[classItem.id] && (
+                                                            <div className="px-3 pb-3">
+                                                                <div className="row">
+                                                                    <div className="col-12">
+                                                                        <h6 className="text-primary mb-3">
+                                                                            <PeopleFill size={16} className="me-2" />
+                                                                            Séries
+                                                                        </h6>
+                                                                        {classItem.series && classItem.series.length > 0 ? (
+                                                                            <div className="list-group list-group-flush">
+                                                                                {classItem.series.map((serie) => (
+                                                                                    <div key={serie.id} className="list-group-item border-0 px-0 py-2">
+                                                                                        <div className="d-flex justify-content-between align-items-center">
+                                                                                            <div>
+                                                                                                <span className="fw-medium">{serie.name}</span>
+                                                                                                <small className="text-muted ms-2">
+                                                                                                    {serie.students_count || 0} élève{(serie.students_count || 0) > 1 ? 's' : ''}
+                                                                                                </small>
+                                                                                            </div>
+                                                                                            <Link
+                                                                                                to={`/students/series/${serie.id}`}
+                                                                                                className="btn btn-sm btn-outline-success"
+                                                                                            >
+                                                                                                Voir élèves
+                                                                                            </Link>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <p className="text-muted">Aucune série configurée</p>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )) : null
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            ) : viewMode === 'grid' ? (
                 <div className="row">
                     {filteredClasses.length === 0 ? (
                         <div className="col-12">
