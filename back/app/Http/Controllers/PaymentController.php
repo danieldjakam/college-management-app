@@ -202,14 +202,14 @@ class PaymentController extends Controller
 
             // Déterminer le type de paiement et calculer les réductions/bourses
             $paymentType = 'normal'; // Par défaut
-            
+
             // Vérification de sécurité : un étudiant ne peut pas avoir à la fois une bourse ET une réduction
             $hasScholarship = $this->discountCalculatorService->getClassScholarship($student) !== null;
-            
+
             // Si le frontend demande explicitement une réduction globale
             if ($request->apply_global_discount === true) {
                 \Log::info('Frontend requests global discount');
-                
+
                 // SÉCURITÉ : Refuser si l'étudiant a une bourse
                 if ($hasScholarship) {
                     return response()->json([
@@ -217,16 +217,16 @@ class PaymentController extends Controller
                         'message' => 'Cet étudiant bénéficie déjà d\'une bourse de classe. Les bourses et réductions ne sont pas cumulables.'
                     ], 422);
                 }
-                
+
                 // Vérifier que l'étudiant est bien éligible
                 $isEligible = $this->discountCalculatorService->isEligibleForGlobalDiscount(
-                    $student, 
-                    $request->amount, 
-                    $paymentStatus->total_remaining, 
-                    $request->versement_date, 
+                    $student,
+                    $request->amount,
+                    $paymentStatus->total_remaining,
+                    $request->versement_date,
                     $paymentStatus->has_existing_payments
                 );
-                
+
                 \Log::info('Discount eligibility check', [
                     'is_eligible' => $isEligible,
                     'amount' => $request->amount,
@@ -234,24 +234,24 @@ class PaymentController extends Controller
                     'versement_date' => $request->versement_date,
                     'has_existing_payments' => $paymentStatus->has_existing_payments
                 ]);
-                
+
                 if ($isEligible) {
                     $paymentType = 'global_discount';
                 }
             } else {
                 // Sinon, utiliser la logique automatique
                 $paymentType = $this->discountCalculatorService->getPaymentType(
-                    $student, 
-                    $request->amount, 
-                    $paymentStatus->total_remaining, 
-                    $request->versement_date, 
+                    $student,
+                    $request->amount,
+                    $paymentStatus->total_remaining,
+                    $request->versement_date,
                     $paymentStatus->has_existing_payments
                 );
             }
 
             $discountResult = [];
             $scholarshipInfo = [];
-            
+
             switch ($paymentType) {
                 case 'scholarship':
                     // Cas avec bourse
@@ -263,13 +263,13 @@ class PaymentController extends Controller
                         'discount_reason' => null
                     ];
                     break;
-                    
+
                 case 'global_discount':
                     // Cas avec réduction globale - le montant frontend est déjà réduit
                     $discountPercentage = $this->discountCalculatorService->getDiscountPercentage();
                     $originalAmount = $request->amount / (1 - $discountPercentage / 100); // Recalculer le montant original
                     $discountAmount = $originalAmount - $request->amount;
-                    
+
                     $discountResult = [
                         'final_amount' => $request->amount, // Utiliser le montant déjà réduit du frontend
                         'has_reduction' => true,
@@ -281,7 +281,7 @@ class PaymentController extends Controller
                         'scholarship_amount' => 0
                     ];
                     break;
-                    
+
                 default:
                     // Cas normal
                     $discountResult = [
@@ -299,7 +299,7 @@ class PaymentController extends Controller
 
             DB::beginTransaction();
 
-            $receiptNumber = Payment::generateReceiptNumber($workingYear, $request->payment_date);
+            $receiptNumber = Payment::generateReceiptNumber($workingYear, $request->payment_date, rand(1, 9999));
 
             $payment = Payment::create([
                 'student_id' => $request->student_id,
@@ -346,7 +346,7 @@ class PaymentController extends Controller
             try {
                 $whatsAppService = new \App\Services\WhatsAppService();
                 $whatsAppService->sendPaymentNotification($payment);
-                
+
                 \Log::info('Notification de paiement WhatsApp envoyée', [
                     'payment_id' => $payment->id,
                     'student_id' => $payment->student_id,
@@ -462,10 +462,10 @@ class PaymentController extends Controller
                 ->where('school_year_id', $workingYear->id)
                 ->where('is_rame_physical', true)
                 ->first();
-            
+
             if ($existingRamePayment) {
                 return response()->json([
-                    'success' => false, 
+                    'success' => false,
                     'message' => 'La RAME a déjà été payée physiquement pour cet étudiant'
                 ], 422);
             }
@@ -481,7 +481,7 @@ class PaymentController extends Controller
 
             if ($existingElectronicRame) {
                 return response()->json([
-                    'success' => false, 
+                    'success' => false,
                     'message' => 'La RAME a déjà été payée électroniquement pour cet étudiant'
                 ], 422);
             }
@@ -549,7 +549,7 @@ class PaymentController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error in PaymentController@payRamePhysically: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'enregistrement du paiement RAME physique',
@@ -658,7 +658,7 @@ class PaymentController extends Controller
         $hasScholarship = false;
 
         $scholarship = $this->discountCalculatorService->getClassScholarship($student);
-        
+
         if ($scholarship && $this->discountCalculatorService->isEligibleForScholarship(now())) {
             // Le montant de la bourse est directement le montant configuré
             // Il s'applique à la tranche spécifiée
@@ -699,7 +699,7 @@ class PaymentController extends Controller
             // Calculer les montants normal et réduit
             $normalAmount = $tranche->getAmountForStudent($student, false, false, false, false);
             $reducedAmount = $tranche->getAmountForStudent($student, false, false, false, true);
-            
+
             if ($reducedAmount <= 0) continue;
 
             // Calculer ce qui a été payé précédemment sur cette tranche
@@ -717,7 +717,7 @@ class PaymentController extends Controller
 
             if ($amountToAllocate > 0) {
                 $newTotalAmount = $previouslyPaid + $amountToAllocate;
-                
+
                 \App\Models\PaymentDetail::create([
                     'payment_id' => $payment->id,
                     'payment_tranche_id' => $tranche->id,
@@ -742,14 +742,14 @@ class PaymentController extends Controller
     {
         try {
             $payment = Payment::with([
-                'student.classSeries.schoolClass', 
+                'student.classSeries.schoolClass',
                 'paymentDetails.paymentTranche',
                 'schoolYear',
                 'createdByUser'
             ])->findOrFail($paymentId);
 
             $schoolSettings = \App\Models\SchoolSetting::getSettings();
-            
+
             // Générer le HTML du reçu
             $receiptHtml = $this->generateReceiptHtml($payment, $schoolSettings);
 
@@ -778,7 +778,7 @@ class PaymentController extends Controller
     {
         $student = $payment->student;
         $schoolClass = $student->classSeries->schoolClass ?? null;
-        
+
         // Formatage des montants
         $formatAmount = function($amount) {
             return number_format($amount, 0, ',', ' ');
@@ -794,7 +794,7 @@ class PaymentController extends Controller
         // Générer le tableau des détails de paiement
         $paymentDetailsRows = '';
         $operationNumber = 1;
-        
+
         // Ajouter TOUJOURS la ligne RAME en premier
         $rameValidationDate = \Carbon\Carbon::parse($payment->versement_date)->format('d/m/Y');
         if ($hasRamePaid['paid']) {
@@ -804,7 +804,7 @@ class PaymentController extends Controller
             $rameBankName = 'N/A';
             $rameAmount = '0';
         }
-        
+
         $paymentDetailsRows .= "
             <tr>
                 <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$operationNumber}</td>
@@ -823,7 +823,7 @@ class PaymentController extends Controller
             $paymentType = $trancheName; // Afficher la tranche affectée
             $bankName = $schoolSettings->bank_name ?? 'N/A';
             $amount = $formatAmount($detail->amount_allocated);
-            
+
             $paymentDetailsRows .= "
                 <tr>
                     <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$operationNumber}</td>
@@ -843,16 +843,16 @@ class PaymentController extends Controller
         $totalDiscount = 0;
         $totalScholarship = 0;
         $totalRemaining = 0;
-        
+
         foreach ($paymentStatus->tranche_status as $tranche) {
             $trancheRequired = $tranche['required_amount'];
             $tranchePaid = $tranche['paid_amount'];
             $trancheRemaining = $tranche['remaining_amount'];
-            
+
             // Montants de réduction et bourse
             $discountAmount = $tranche['has_global_discount'] ? $tranche['global_discount_amount'] : 0;
             $scholarshipAmount = $tranche['has_scholarship'] ? $tranche['scholarship_amount'] : 0;
-            
+
             // Calculer le reste effectif après bourses/réductions
             $effectiveRemaining = $trancheRemaining;
             if ($scholarshipAmount > 0) {
@@ -860,7 +860,7 @@ class PaymentController extends Controller
             } elseif ($discountAmount > 0) {
                 $effectiveRemaining = max(0, $trancheRemaining - $discountAmount);
             }
-            
+
             // Déterminer le statut de paiement de la tranche
             $trancheStatus = '';
             if ($effectiveRemaining <= 0) {
@@ -868,7 +868,7 @@ class PaymentController extends Controller
             } else {
                 $trancheStatus = "<span style='color: #dc3545; font-weight: bold;'>NON PAYÉ</span>";
             }
-            
+
             $recapRows .= "
                 <tr>
                     <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$tranche['tranche']->name}</td>
@@ -880,7 +880,7 @@ class PaymentController extends Controller
                     <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$trancheStatus}</td>
                 </tr>
             ";
-            
+
             $totalRequired += $trancheRequired;
             $totalPaid += $tranchePaid;
             $totalDiscount += $discountAmount;
@@ -918,15 +918,15 @@ class PaymentController extends Controller
             <meta charset='utf-8'>
             <title>Reçu de Paiement - {$payment->receipt_number}</title>
             <style>
-                body { 
-                    font-family: Arial, sans-serif; 
-                    margin: 20px; 
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
                     font-size: 12px;
                     line-height: 1.2;
                 }
-                .header { 
-                    text-align: center; 
-                    margin-bottom: 20px; 
+                .header {
+                    text-align: center;
+                    margin-bottom: 20px;
                     position: relative;
                 }
                 .logo {
@@ -937,17 +937,17 @@ class PaymentController extends Controller
                     height: 60px;
                     object-fit: contain;
                 }
-                .school-name { 
-                    font-size: 16px; 
-                    font-weight: bold; 
+                .school-name {
+                    font-size: 16px;
+                    font-weight: bold;
                     margin-bottom: 5px;
                 }
                 .academic-year {
                     font-size: 12px;
                     margin-bottom: 10px;
                 }
-                .receipt-title { 
-                    font-size: 14px; 
+                .receipt-title {
+                    font-size: 14px;
                     font-weight: bold;
                     text-decoration: underline;
                     margin: 15px 0;
@@ -1013,7 +1013,7 @@ class PaymentController extends Controller
             <div class='date-time'>
                 Le " . now()->format('d/m/Y H:i:s') . "
             </div>
-            
+
             <div class='header'>
                 " . ($schoolSettings->school_logo ? "<img src='" . url('storage/' . $schoolSettings->school_logo) . "' alt='Logo école' class='logo'>" : "") . "
                 <div class='school-name'>{$schoolSettings->school_name}</div>
@@ -1093,14 +1093,14 @@ class PaymentController extends Controller
 
         return $html;
     }
-    
+
     /**
      * Obtenir le statut des paiements AU MOMENT d'un paiement spécifique
      */
     private function getPaymentStatusAtTime($student, $specificPayment)
     {
         $workingYear = $specificPayment->schoolYear;
-        
+
         // Récupérer toutes les tranches
         $paymentTranches = \App\Models\PaymentTranche::active()
             ->ordered()
@@ -1133,16 +1133,16 @@ class PaymentController extends Controller
                     ];
                 }
                 $paidPerTranche[$detail->payment_tranche_id] += $detail->amount_allocated;
-                
+
                 // Vérifier si ce détail a une réduction globale
                 if ($detail->was_reduced && strpos($detail->reduction_context, 'Réduction globale') !== false) {
                     $schoolSettings = \App\Models\SchoolSetting::getSettings();
                     $discountPercentage = $schoolSettings->reduction_percentage ?? 0;
-                    
+
                     $reducedAmount = $detail->required_amount_at_time;
                     $normalAmount = round($reducedAmount / (1 - $discountPercentage / 100), 0);
                     $discountAmount = $normalAmount - $reducedAmount;
-                    
+
                     $discountPerTranche[$detail->payment_tranche_id] = [
                         'has_discount' => true,
                         'discount_amount' => $discountAmount
@@ -1169,7 +1169,7 @@ class PaymentController extends Controller
             $hasScholarship = false;
             $globalDiscountAmount = 0;
             $hasGlobalDiscount = false;
-            
+
             if ($scholarship && $scholarship->payment_tranche_id == $tranche->id) {
                 $scholarshipAmount = $scholarship->amount;
                 $hasScholarship = true;
@@ -1207,7 +1207,7 @@ class PaymentController extends Controller
         if ($payment->is_rame_physical) {
             return 'RAME';
         }
-        
+
         $method = strtoupper($payment->payment_method);
         switch ($method) {
             case 'CASH':
@@ -1240,7 +1240,7 @@ class PaymentController extends Controller
             }
 
             $paymentStatus = $this->paymentStatusService->getStatusForStudent($student, $workingYear);
-            
+
             // Vérifier l'éligibilité aux réductions
             if (!$paymentStatus->is_eligible_for_discount) {
                 return response()->json([
@@ -1292,7 +1292,7 @@ class PaymentController extends Controller
     {
         try {
             $workingYear = $this->getUserWorkingYear();
-            
+
             if (!$workingYear) {
                 // Retourner des stats vides plutôt qu'une erreur
                 return response()->json([
@@ -1324,7 +1324,7 @@ class PaymentController extends Controller
                 ->count();
 
             $totalPayments = Payment::where('school_year_id', $workingYear->id)->count();
-            
+
             $totalAmountCollected = Payment::where('school_year_id', $workingYear->id)
                 ->sum('total_amount');
 
@@ -1388,15 +1388,15 @@ class PaymentController extends Controller
                 ->get()
                 ->map(function ($payment) {
                     $student = $payment->student;
-                    $studentName = $student ? 
-                        ($student->last_name . ' ' . $student->first_name) : 
+                    $studentName = $student ?
+                        ($student->last_name . ' ' . $student->first_name) :
                         'N/A';
-                    
+
                     $className = 'N/A';
                     if ($student && $student->classSeries && $student->classSeries->schoolClass) {
                         $className = $student->classSeries->schoolClass->name . ' - ' . $student->classSeries->name;
                     }
-                    
+
                     return [
                         'id' => $payment->id,
                         'receipt_number' => $payment->receipt_number,
