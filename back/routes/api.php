@@ -233,6 +233,11 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/quick', [App\Http\Controllers\SearchController::class, 'quickSearch']);
     });
 
+    // Routes pour les statistiques
+    Route::prefix('stats')->group(function () {
+        Route::get('/global', [App\Http\Controllers\StatsController::class, 'getGlobalStats']);
+    });
+
     // Routes pour les matières
     Route::prefix('subjects')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)

@@ -362,6 +362,11 @@ export const secureApiEndpoints = {
         quick: (query) => secureApi.get(`/search/quick?query=${encodeURIComponent(query)}`)
     },
 
+    // === STATISTICS ===
+    stats: {
+        getGlobal: () => secureApi.get('/stats/global')
+    },
+
     // === ACCOUNTANT ===
     accountant: {
         dashboard: () => secureApi.get('/accountant/dashboard'),
