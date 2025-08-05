@@ -227,6 +227,12 @@ Route::middleware('auth:api')->group(function () {
     // Routes d'upload de photos
     Route::post('upload-photo', [PhotoUploadController::class, 'upload']);
 
+    // Routes de recherche globale
+    Route::prefix('search')->group(function () {
+        Route::get('/', [App\Http\Controllers\SearchController::class, 'globalSearch']);
+        Route::get('/quick', [App\Http\Controllers\SearchController::class, 'quickSearch']);
+    });
+
     // Routes pour les matières
     Route::prefix('subjects')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)

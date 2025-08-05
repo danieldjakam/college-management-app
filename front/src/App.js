@@ -64,6 +64,9 @@ import AttendanceReports from "./pages/Attendance/AttendanceReports";
 // Supervisor Management
 import SupervisorStatus from "./pages/SupervisorManagement/SupervisorStatus";
 
+// Search
+import Search from "./pages/Search";
+
 
 // Components
 import Sidebar from "./components/Sidebar";
@@ -171,6 +174,15 @@ const AppContent = () => {
                 element={
                   <ProtectedRoute>
                     <MyNeeds />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/search"
+                element={
+                  <ProtectedRoute>
+                    <Search />
                   </ProtectedRoute>
                 }
               />

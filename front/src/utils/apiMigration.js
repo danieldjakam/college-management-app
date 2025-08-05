@@ -358,9 +358,8 @@ export const secureApiEndpoints = {
 
     // === SEARCH ===
     search: {
-        global: (query) => secureApi.get(`/search?q=${encodeURIComponent(query)}`),
-        students: (query) => secureApi.get(`/search/students?q=${encodeURIComponent(query)}`),
-        teachers: (query) => secureApi.get(`/search/teachers?q=${encodeURIComponent(query)}`)
+        global: (query, limit = 20) => secureApi.get(`/search?query=${encodeURIComponent(query)}&limit=${limit}`),
+        quick: (query) => secureApi.get(`/search/quick?query=${encodeURIComponent(query)}`)
     },
 
     // === ACCOUNTANT ===
