@@ -673,10 +673,14 @@ const StudentPayment = () => {
 
     const printReceipt = () => {
         const printWindow = window.open('', '_blank');
+        // Extraire le numéro de reçu depuis le HTML pour un titre unique
+        const receiptNumberMatch = receiptHtml.match(/Reçu N° :\s*([^<]+)/);
+        const receiptNumber = receiptNumberMatch ? receiptNumberMatch[1].trim() : new Date().toISOString().slice(0,19).replace(/[-:]/g, '').replace('T', '_');
+        
         printWindow.document.write(`
             <html>
                 <head>
-                    <title>Reçu de Paiement</title>
+                    <title>Reçu_${receiptNumber}</title>
                     <style>
                         body { font-family: Arial, sans-serif; margin: 20px; }
                         @media print { 

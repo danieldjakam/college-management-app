@@ -84,10 +84,13 @@ class Payment extends Model
         $yearSuffix = substr($schoolYear->name, -2); // Ex: "25" pour "2024-2025"
         $datePrefix = $date->format('ymd'); // Ex: "250129" pour 29/01/2025
         
-        // Compter les paiements du jour
-        $dailyCount = self::whereDate('payment_date', $date->toDateString())->count() + 1;
+        // Générer un numéro unique avec microsecondes pour éviter les doublons
+        $microtime = (int) (microtime(true) * 1000000); // Microsecondes depuis epoch
+        $uniqueSuffix = substr($microtime, -6); // Prendre les 6 derniers chiffres
         
-        return "REC{$yearSuffix}{$datePrefix}" . str_pad($dailyCount, 3, '0', STR_PAD_LEFT);
+        // Format : REC + Année(2) + Date(6) + Microtime(6)
+        // Ex: REC25250129123456
+        return "REC{$yearSuffix}{$datePrefix}{$uniqueSuffix}";
     }
 
     /**

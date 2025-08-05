@@ -162,23 +162,34 @@ class Student extends Model
     }
 
     /**
-     * Générer un numéro d'élève unique
+     * Générer un numéro d'élève unique selon le format: 25A00001
+     * Format: [Année][A][Numéro séquentiel sur 5 chiffres]
      */
     public static function generateStudentNumber($year, $seriesId)
     {
-        $yearPrefix = date('Y', strtotime($year));
-        $lastStudent = self::where('student_number', 'like', $yearPrefix . '%')
+        // Extraire les 2 derniers chiffres de l'année
+        $currentYear = date('Y');
+        $yearSuffix = substr($currentYear, -2); // Ex: "25" pour 2025
+        
+        // Format du préfixe: AnA (ex: 25A)
+        $prefix = $yearSuffix . 'A';
+        
+        // Chercher le dernier numéro avec ce préfixe
+        $lastStudent = self::where('student_number', 'like', $prefix . '%')
                           ->orderBy('student_number', 'desc')
                           ->first();
         
         if ($lastStudent) {
-            $lastNumber = intval(substr($lastStudent->student_number, -4));
+            // Extraire le numéro séquentiel (les 5 derniers chiffres)
+            $lastNumber = intval(substr($lastStudent->student_number, -5));
             $newNumber = $lastNumber + 1;
         } else {
+            // Premier élève, commencer par 1
             $newNumber = 1;
         }
         
-        return $yearPrefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+        // Format final: 25A00001
+        return $prefix . str_pad($newNumber, 5, '0', STR_PAD_LEFT);
     }
 
     /**

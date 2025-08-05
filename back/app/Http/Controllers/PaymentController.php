@@ -757,7 +757,8 @@ class PaymentController extends Controller
                 'success' => true,
                 'data' => [
                     'html' => $receiptHtml,
-                    'payment' => $payment
+                    'payment' => $payment,
+                    'filename' => "Recu_{$payment->receipt_number}.pdf"
                 ]
             ]);
 
@@ -1023,9 +1024,10 @@ class PaymentController extends Controller
 
             <div class='student-info'>
                 <div><strong>Matricule :</strong> " . ($student->student_number ?? 'N/A') . "</div>
-                <div><strong>Nom :</strong> {$student->last_name} {$student->first_name} <span class='float-right'><strong>Prénom :</strong></span></div>
+                <div><strong>Nom :</strong> {$student->last_name} <span class='float-right'><strong>Prénom : </strong>{$student->first_name}</span></div>
                 <div><strong>Classe :</strong> " . ($schoolClass ? $schoolClass->name : 'Non défini') . "</div>
-                <div><strong>Inscription :</strong> " . $formatAmount($paymentStatus->tranche_status[0]['required_amount'] ?? 0) . " <span style='margin-left: 50px;'>Le " . \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y') . "</span> <span class='float-right'><strong>Banque :</strong> " . ($schoolSettings->bank_name ?? 'N/A') . "</span></div>
+                <div><strong>Inscription :</strong> " . $formatAmount($paymentStatus->tranche_status[0]['required_amount'] ?? 0) . " <span class='float-right'><strong>Banque :</strong> " . ($schoolSettings->bank_name ?? 'N/A') . "</span></div>
+                <div><strong>Date de validation :</strong> " . \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y') . " <span class='float-right'><strong>Reçu N° :</strong> {$payment->receipt_number}</span></div>
                 " . ($benefitInfo ? "<div><strong>Motif ou rabais :</strong> {$benefitInfo}</div>" : "") . "
             </div>
 
@@ -1035,7 +1037,7 @@ class PaymentController extends Controller
                     <tr>
                         <th>N° Op</th>
                         <th>Banque</th>
-                        <th>Date validation</th>
+                        <th>Date de versement</th>
                         <th>Tranche affectée</th>
                         <th>Montant payé</th>
                     </tr>
