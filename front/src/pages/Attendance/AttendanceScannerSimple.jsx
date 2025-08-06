@@ -1,18 +1,37 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Card, Button, Alert, Container, Row, Col, Table, Badge, Spinner, Form } from 'react-bootstrap';
-import { QrCodeScan, CheckCircleFill, XCircleFill, Calendar, Clock, PersonFill, Printer } from 'react-bootstrap-icons';
-import { useAuth } from '../../hooks/useAuth';
-import { host } from '../../utils/fetch';
+import { useEffect, useState } from "react";
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Col,
+  Container,
+  Form,
+  Row,
+  Spinner,
+  Table,
+} from "react-bootstrap";
+import {
+  Calendar,
+  CheckCircleFill,
+  Clock,
+  PersonFill,
+  Printer,
+  QrCodeScan,
+  XCircleFill,
+} from "react-bootstrap-icons";
+import { useAuth } from "../../hooks/useAuth";
+import { host } from "../../utils/fetch";
 
 const AttendanceScannerSimple = () => {
   const [isScanning, setIsScanning] = useState(false);
-  const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState('');
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("");
   const [todayAttendances, setTodayAttendances] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [scannerError, setScannerError] = useState('');
-  const [manualStudentId, setManualStudentId] = useState('');
-  
+  const [scannerError, setScannerError] = useState("");
+  const [manualStudentId, setManualStudentId] = useState("");
+
   const { user, token } = useAuth();
 
   useEffect(() => {
@@ -22,34 +41,37 @@ const AttendanceScannerSimple = () => {
   const loadTodayAttendances = async () => {
     try {
       setIsLoading(true);
-      
+
       // Données de démonstration pour les présences du jour
       const mockAttendances = [
         {
           id: 1,
-          student: { full_name: 'Jean Dupont' },
-          school_class: { name: 'CP' },
-          scanned_at: '08:15:00',
-          is_present: true
+          student: { full_name: "Jean Dupont" },
+          school_class: { name: "CP" },
+          scanned_at: "08:15:00",
+          is_present: true,
         },
         {
           id: 2,
-          student: { full_name: 'Marie Martin' },
-          school_class: { name: 'CP' },
-          scanned_at: '08:20:00',
-          is_present: true
-        }
+          student: { full_name: "Marie Martin" },
+          school_class: { name: "CP" },
+          scanned_at: "08:20:00",
+          is_present: true,
+        },
       ];
 
       // Tentative d'appel API réel
       if (user && token) {
         try {
-          const response = await fetch(`${host}/api/supervisors/daily-attendance?supervisor_id=${user.id}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
+          const response = await fetch(
+            `${host}/api/supervisors/daily-attendance?supervisor_id=${user.id}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
             }
-          });
+          );
 
           if (response.ok) {
             const data = await response.json();
@@ -59,14 +81,14 @@ const AttendanceScannerSimple = () => {
             }
           }
         } catch (error) {
-          console.log('API non disponible, utilisation des données de test');
+          console.log("API non disponible, utilisation des données de test");
         }
       }
 
       // Fallback vers les données mock
       setTodayAttendances(mockAttendances);
     } catch (error) {
-      console.error('Erreur lors du chargement des présences:', error);
+      console.error("Erreur lors du chargement des présences:", error);
       setTodayAttendances([]);
     } finally {
       setIsLoading(false);
@@ -75,123 +97,134 @@ const AttendanceScannerSimple = () => {
 
   const startScanner = async () => {
     try {
-      setScannerError('');
+      setScannerError("");
       setIsScanning(true);
-      setMessage('Scanner QR activé. En mode démo, utilisez le champ de saisie manuelle ci-dessous.');
-      setMessageType('info');
+      setMessage(
+        "Scanner QR activé. En mode démo, utilisez le champ de saisie manuelle ci-dessous."
+      );
+      setMessageType("info");
     } catch (error) {
-      console.error('Erreur lors du démarrage du scanner:', error);
-      setScannerError('Impossible d\'accéder à la caméra. Utilisez la saisie manuelle.');
+      console.error("Erreur lors du démarrage du scanner:", error);
+      setScannerError(
+        "Impossible d'accéder à la caméra. Utilisez la saisie manuelle."
+      );
       setIsScanning(false);
     }
   };
 
   const stopScanner = () => {
     setIsScanning(false);
-    setMessage('');
+    setMessage("");
   };
 
   const handleManualScan = () => {
     if (!manualStudentId.trim()) {
-      setMessage('❌ Veuillez entrer un ID d\'élève');
-      setMessageType('danger');
+      setMessage("❌ Veuillez entrer un ID d'élève");
+      setMessageType("danger");
       return;
     }
-    
+
     handleScanResult(manualStudentId.trim());
-    setManualStudentId('');
+    setManualStudentId("");
   };
 
   const handleScanResult = async (qrCode) => {
     try {
       setIsLoading(true);
-      
+
       // Simulation des noms d'élèves basée sur l'ID
       const studentNames = {
-        '1': 'Jean Dupont',
-        '2': 'Marie Martin', 
-        '3': 'Pierre Durand',
-        '4': 'Sophie Lefebvre',
-        '5': 'Thomas Moreau',
-        '123': 'Alice Bernard',
-        '456': 'Lucas Petit'
+        1: "Jean Dupont",
+        2: "Marie Martin",
+        3: "Pierre Durand",
+        4: "Sophie Lefebvre",
+        5: "Thomas Moreau",
+        123: "Alice Bernard",
+        456: "Lucas Petit",
       };
 
-      const studentId = qrCode.replace('STUDENT_ID_', '');
+      const studentId = qrCode.replace("STUDENT_ID_", "");
       const studentName = studentNames[studentId] || `Élève ${studentId}`;
-      
+
       // Vérifier si déjà présent
-      const alreadyPresent = todayAttendances.some(att => 
-        att.student.full_name === studentName
+      const alreadyPresent = todayAttendances.some(
+        (att) => att.student.full_name === studentName
       );
 
       if (alreadyPresent) {
-        setMessage(`❌ ${studentName} est déjà marqué(e) présent(e) aujourd'hui`);
-        setMessageType('danger');
+        setMessage(
+          `❌ ${studentName} est déjà marqué(e) présent(e) aujourd'hui`
+        );
+        setMessageType("danger");
       } else {
         // Ajouter à la liste des présents
         const newAttendance = {
           id: todayAttendances.length + 1,
           student: { full_name: studentName },
-          school_class: { name: 'CP' },
-          scanned_at: new Date().toTimeString().split(' ')[0],
-          is_present: true
+          school_class: { name: "CP" },
+          scanned_at: new Date().toTimeString().split(" ")[0],
+          is_present: true,
         };
 
-        setTodayAttendances(prev => [...prev, newAttendance]);
-        setMessage(`✅ ${studentName} marqué(e) présent(e) à ${newAttendance.scanned_at.substring(0, 5)}`);
-        setMessageType('success');
+        setTodayAttendances((prev) => [...prev, newAttendance]);
+        setMessage(
+          `✅ ${studentName} marqué(e) présent(e) à ${newAttendance.scanned_at.substring(
+            0,
+            5
+          )}`
+        );
+        setMessageType("success");
 
         // Tentative d'enregistrement réel via API
         if (user && token) {
           try {
             const response = await fetch(`${host}/api/supervisors/scan-qr`, {
-              method: 'POST',
+              method: "POST",
               headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
               },
               body: JSON.stringify({
                 student_qr_code: qrCode,
-                supervisor_id: user.id
-              })
+                supervisor_id: user.id,
+              }),
             });
 
             if (response.ok) {
               const data = await response.json();
               if (data.success) {
-                console.log('Présence enregistrée dans la base de données');
+                console.log("Présence enregistrée dans la base de données");
               }
             }
           } catch (error) {
-            console.log('Enregistrement local seulement (API non disponible)');
+            console.log("Enregistrement local seulement (API non disponible)");
           }
         }
       }
     } catch (error) {
-      setMessage('❌ Erreur lors de l\'enregistrement de la présence');
-      setMessageType('danger');
-      console.error('Erreur scan:', error);
+      setMessage("❌ Erreur lors de l'enregistrement de la présence");
+      setMessageType("danger");
+      console.error("Erreur scan:", error);
     } finally {
       setIsLoading(false);
-      
+
       // Auto-clear message after 5 seconds
       setTimeout(() => {
-        setMessage('');
-        setMessageType('');
+        setMessage("");
+        setMessageType("");
       }, 5000);
     }
   };
 
   const formatTime = (timeString) => {
-    if (!timeString) return '';
+    if (!timeString) return "";
     return timeString.substring(0, 5); // HH:MM format
   };
 
   const printDailyList = () => {
-    const printWindow = window.open('', '_blank');
-    const today = new Date().toLocaleDateString('fr-FR');
-    
+    const printWindow = window.open("", "_blank");
+    const today = new Date().toLocaleDateString("fr-FR");
+
     const printContent = `
       <!DOCTYPE html>
       <html>
@@ -210,10 +243,10 @@ const AttendanceScannerSimple = () => {
         </head>
         <body>
           <div class="header">
-            <h1>Groupe Scolaire Bilingue Privé La Semence</h1>
+            <h1>COLLEGE POLYVALENT BILINGUE DE DOUALA</h1>
             <h2>Liste de Présences du Jour</h2>
             <p><strong>Date:</strong> ${today}</p>
-            <p><strong>Surveillant:</strong> ${user?.name || 'N/A'}</p>
+            <p><strong>Surveillant:</strong> ${user?.name || "N/A"}</p>
             <p><strong>Total présents:</strong> ${todayAttendances.length}</p>
           </div>
 
@@ -228,25 +261,33 @@ const AttendanceScannerSimple = () => {
               </tr>
             </thead>
             <tbody>
-              ${todayAttendances.map((attendance, index) => `
+              ${todayAttendances
+                .map(
+                  (attendance, index) => `
                 <tr>
                   <td>${index + 1}</td>
-                  <td><strong>${attendance.student?.full_name || 'N/A'}</strong></td>
-                  <td>${attendance.school_class?.name || 'N/A'}</td>
+                  <td><strong>${
+                    attendance.student?.full_name || "N/A"
+                  }</strong></td>
+                  <td>${attendance.school_class?.name || "N/A"}</td>
                   <td>${formatTime(attendance.scanned_at)}</td>
                   <td class="present">✓ Présent</td>
                 </tr>
-              `).join('')}
+              `
+                )
+                .join("")}
             </tbody>
           </table>
 
           <div class="footer">
-            <p>Document généré automatiquement - ${new Date().toLocaleString('fr-FR')}</p>
+            <p>Document généré automatiquement - ${new Date().toLocaleString(
+              "fr-FR"
+            )}</p>
           </div>
         </body>
       </html>
     `;
-    
+
     printWindow.document.write(printContent);
     printWindow.document.close();
     printWindow.focus();
@@ -283,7 +324,7 @@ const AttendanceScannerSimple = () => {
                   {scannerError}
                 </Alert>
               )}
-              
+
               {message && (
                 <Alert variant={messageType} className="mb-3">
                   {message}
@@ -292,8 +333,8 @@ const AttendanceScannerSimple = () => {
 
               <div className="text-center mb-3">
                 {!isScanning ? (
-                  <Button 
-                    variant="primary" 
+                  <Button
+                    variant="primary"
                     size="lg"
                     onClick={startScanner}
                     disabled={isLoading}
@@ -311,11 +352,7 @@ const AttendanceScannerSimple = () => {
                     )}
                   </Button>
                 ) : (
-                  <Button 
-                    variant="danger" 
-                    size="lg"
-                    onClick={stopScanner}
-                  >
+                  <Button variant="danger" size="lg" onClick={stopScanner}>
                     <XCircleFill className="me-2" />
                     Arrêter le Scanner
                   </Button>
@@ -328,7 +365,12 @@ const AttendanceScannerSimple = () => {
                   <h6 className="mb-0">Saisie Manuelle (Mode Démo)</h6>
                 </Card.Header>
                 <Card.Body>
-                  <Form onSubmit={(e) => { e.preventDefault(); handleManualScan(); }}>
+                  <Form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleManualScan();
+                    }}
+                  >
                     <Form.Group className="mb-3">
                       <Form.Label>ID Élève ou Code QR</Form.Label>
                       <Form.Control
@@ -341,7 +383,11 @@ const AttendanceScannerSimple = () => {
                         IDs de test disponibles : 1, 2, 3, 4, 5, 123, 456
                       </Form.Text>
                     </Form.Group>
-                    <Button type="submit" variant="success" disabled={isLoading}>
+                    <Button
+                      type="submit"
+                      variant="success"
+                      disabled={isLoading}
+                    >
                       <PersonFill className="me-2" />
                       Marquer Présent
                     </Button>
@@ -350,17 +396,17 @@ const AttendanceScannerSimple = () => {
               </Card>
 
               {/* Demo QR Display */}
-              <div 
+              <div
                 style={{
-                  width: '100%',
-                  height: '200px',
-                  border: '2px dashed #dee2e6',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: '#f8f9fa',
-                  marginTop: '15px'
+                  width: "100%",
+                  height: "200px",
+                  border: "2px dashed #dee2e6",
+                  borderRadius: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "#f8f9fa",
+                  marginTop: "15px",
                 }}
               >
                 <div className="text-center text-muted">
@@ -386,8 +432,8 @@ const AttendanceScannerSimple = () => {
                   </Badge>
                 </h5>
                 {todayAttendances.length > 0 && (
-                  <Button 
-                    variant="outline-primary" 
+                  <Button
+                    variant="outline-primary"
                     size="sm"
                     onClick={printDailyList}
                   >
@@ -404,7 +450,7 @@ const AttendanceScannerSimple = () => {
                   <p className="mt-2 text-muted">Chargement...</p>
                 </div>
               ) : todayAttendances.length > 0 ? (
-                <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                <div style={{ maxHeight: "400px", overflowY: "auto" }}>
                   <Table striped hover size="sm">
                     <thead>
                       <tr>
@@ -417,14 +463,16 @@ const AttendanceScannerSimple = () => {
                     <tbody>
                       {todayAttendances.map((attendance, index) => (
                         <tr key={index}>
-                          <td>{attendance.student?.full_name || 'N/A'}</td>
-                          <td>{attendance.school_class?.name || 'N/A'}</td>
+                          <td>{attendance.student?.full_name || "N/A"}</td>
+                          <td>{attendance.school_class?.name || "N/A"}</td>
                           <td>
                             <Clock size={14} className="me-1" />
                             {formatTime(attendance.scanned_at)}
                           </td>
                           <td>
-                            <Badge bg={attendance.is_present ? 'success' : 'danger'}>
+                            <Badge
+                              bg={attendance.is_present ? "success" : "danger"}
+                            >
                               {attendance.is_present ? (
                                 <>
                                   <CheckCircleFill size={12} className="me-1" />
@@ -446,7 +494,9 @@ const AttendanceScannerSimple = () => {
               ) : (
                 <div className="text-center py-4 text-muted">
                   <Calendar size={48} />
-                  <p className="mt-2 mb-0">Aucune présence enregistrée aujourd'hui</p>
+                  <p className="mt-2 mb-0">
+                    Aucune présence enregistrée aujourd'hui
+                  </p>
                   <small>Utilisez le scanner ou la saisie manuelle</small>
                 </div>
               )}
@@ -464,11 +514,22 @@ const AttendanceScannerSimple = () => {
             </Card.Header>
             <Card.Body>
               <ol className="mb-0">
-                <li>Cliquez sur "Démarrer le Scanner" pour activer le mode scan</li>
-                <li>Utilisez la saisie manuelle pour tester avec les IDs : 1, 2, 3, 4, 5, 123, 456</li>
+                <li>
+                  Cliquez sur "Démarrer le Scanner" pour activer le mode scan
+                </li>
+                <li>
+                  Utilisez la saisie manuelle pour tester avec les IDs : 1, 2,
+                  3, 4, 5, 123, 456
+                </li>
                 <li>Le système vérifie automatiquement les doublons</li>
-                <li>Les présences sont affichées en temps réel dans le panneau de droite</li>
-                <li>En production, le scanner QR fonctionnera avec les badges physiques</li>
+                <li>
+                  Les présences sont affichées en temps réel dans le panneau de
+                  droite
+                </li>
+                <li>
+                  En production, le scanner QR fonctionnera avec les badges
+                  physiques
+                </li>
               </ol>
             </Card.Body>
           </Card>

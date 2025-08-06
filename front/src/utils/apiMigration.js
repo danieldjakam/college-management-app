@@ -553,6 +553,10 @@ export const secureApiEndpoints = {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/reports/scholarships-discounts?${queryString}`);
         },
+        getCollectionDetailsReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/collection-details?${queryString}`);
+        },
         getSeriesCollectionSummary: (params = {}) => {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/reports/series-collection-summary?${queryString}`);

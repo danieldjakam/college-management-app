@@ -25,20 +25,20 @@ class ReportsController extends Controller
     private function getUserWorkingYear()
     {
         $user = Auth::user();
-        
+
         if ($user && $user->working_school_year_id) {
             $workingYear = SchoolYear::find($user->working_school_year_id);
             if ($workingYear && $workingYear->is_active) {
                 return $workingYear;
             }
         }
-        
+
         $currentYear = SchoolYear::where('is_current', true)->first();
-        
+
         if (!$currentYear) {
             $currentYear = SchoolYear::where('is_active', true)->first();
         }
-        
+
         return $currentYear;
     }
 
@@ -48,9 +48,9 @@ class ReportsController extends Controller
     public function getInsolvableReport(Request $request)
     {
         try {
-            
+
             $workingYear = $this->getUserWorkingYear();
-            
+
             if (!$workingYear) {
                 return response()->json([
                     'success' => false,
@@ -68,8 +68,8 @@ class ReportsController extends Controller
                 'classSeries.schoolClass.level.section',
                 'payments.paymentDetails.paymentTranche'
             ])
-            ->where('school_year_id', $workingYear->id)
-            ->where('is_active', true);
+                ->where('school_year_id', $workingYear->id)
+                ->where('is_active', true);
 
             // Appliquer les filtres
             if (!empty($sectionId)) {
@@ -108,7 +108,7 @@ class ReportsController extends Controller
                         Log::warning("Erreur getAmountForStudent pour {$student->id}, tranche {$tranche->id}: " . $e->getMessage());
                         $requiredAmount = 0;
                     }
-                    
+
                     // Montant payé pour cette tranche
                     $paidAmount = 0;
                     foreach ($student->payments as $payment) {
@@ -120,7 +120,7 @@ class ReportsController extends Controller
                     }
 
                     $remainingAmount = max(0, $requiredAmount - $paidAmount);
-                    
+
                     if ($remainingAmount > 0) {
                         $hasIncompletePayments = true;
                         $incompletesTranches[] = [
@@ -143,8 +143,8 @@ class ReportsController extends Controller
                             'first_name' => $student->first_name ?? '',
                             'last_name' => $student->last_name ?? '',
                             'full_name' => ($student->last_name ?? '') . ' ' . ($student->first_name ?? ''),
-                            'class_series' => ($student->classSeries && $student->classSeries->schoolClass) 
-                                ? $student->classSeries->schoolClass->name . ' - ' . $student->classSeries->name 
+                            'class_series' => ($student->classSeries && $student->classSeries->schoolClass)
+                                ? $student->classSeries->schoolClass->name . ' - ' . $student->classSeries->name
                                 : 'Non défini'
                         ],
                         'total_required' => $studentTotalRequired,
@@ -162,7 +162,6 @@ class ReportsController extends Controller
                     'total_insolvable_students' => count($insolvableStudents)
                 ]
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error in ReportsController@getInsolvableReport: ' . $e->getMessage());
             return response()->json([
@@ -214,7 +213,7 @@ class ReportsController extends Controller
     {
         try {
             $workingYear = $this->getUserWorkingYear();
-            
+
             if (!$workingYear) {
                 return response()->json([
                     'success' => false,
@@ -232,8 +231,8 @@ class ReportsController extends Controller
                 'classSeries.schoolClass.level.section',
                 'payments.paymentDetails.paymentTranche'
             ])
-            ->where('school_year_id', $workingYear->id)
-            ->where('is_active', true);
+                ->where('school_year_id', $workingYear->id)
+                ->where('is_active', true);
 
             // Appliquer les filtres
             if (!empty($sectionId)) {
@@ -253,7 +252,7 @@ class ReportsController extends Controller
             }
 
             $students = $studentsQuery->get();
-            
+
             // Récupérer seulement les tranches liées aux classes des étudiants
             $classIds = $students->pluck('classSeries.schoolClass.id')->unique();
             $paymentTranches = PaymentTranche::active()
@@ -266,24 +265,24 @@ class ReportsController extends Controller
 
             // Créer les détails pour tous les élèves
             $studentsData = [];
-            
+
             foreach ($students as $student) {
                 $tranchesDetails = [];
-                
+
                 // Filtrer les tranches pour cette classe spécifique
                 $studentTranches = $paymentTranches->filter(function ($tranche) use ($student) {
                     return $tranche->classPaymentAmounts->where('class_id', $student->classSeries->class_id)->isNotEmpty();
                 });
-                
+
                 foreach ($studentTranches as $tranche) {
                     try {
-                        // Montant requis pour cette tranche (avec bourses OU réductions, jamais les deux)  
+                        // Montant requis pour cette tranche (avec bourses OU réductions, jamais les deux)
                         $requiredAmount = $tranche->getAmountForStudent($student, true, false, true, true) ?? 0;
                     } catch (\Exception $e) {
                         Log::warning("Erreur getAmountForStudent pour {$student->id}, tranche {$tranche->id}: " . $e->getMessage());
                         $requiredAmount = 0;
                     }
-                    
+
                     // Montant payé pour cette tranche
                     $paidAmount = 0;
                     foreach ($student->payments as $payment) {
@@ -309,8 +308,8 @@ class ReportsController extends Controller
                         'first_name' => $student->first_name ?? '',
                         'last_name' => $student->last_name ?? '',
                         'full_name' => ($student->last_name ?? '') . ' ' . ($student->first_name ?? ''),
-                        'class_series' => ($student->classSeries && $student->classSeries->schoolClass) 
-                            ? $student->classSeries->schoolClass->name . ' - ' . $student->classSeries->name 
+                        'class_series' => ($student->classSeries && $student->classSeries->schoolClass)
+                            ? $student->classSeries->schoolClass->name . ' - ' . $student->classSeries->name
                             : 'Non défini'
                     ],
                     'tranches_details' => $tranchesDetails
@@ -324,7 +323,6 @@ class ReportsController extends Controller
                     'total_students' => count($studentsData)
                 ]
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error in ReportsController@getPaymentsReport: ' . $e->getMessage());
             return response()->json([
@@ -342,7 +340,7 @@ class ReportsController extends Controller
     {
         try {
             $workingYear = $this->getUserWorkingYear();
-            
+
             if (!$workingYear) {
                 return response()->json([
                     'success' => false,
@@ -359,7 +357,7 @@ class ReportsController extends Controller
             $rameTranche = PaymentTranche::active()
                 ->where(function ($query) {
                     $query->where('name', 'RAME')
-                          ->orWhere('name', 'like', '%RAME%');
+                        ->orWhere('name', 'like', '%RAME%');
                 })
                 ->first();
 
@@ -378,8 +376,8 @@ class ReportsController extends Controller
                     $query->where('school_year_id', $workingYear->id);
                 }
             ])
-            ->where('school_year_id', $workingYear->id)
-            ->where('is_active', true);
+                ->where('school_year_id', $workingYear->id)
+                ->where('is_active', true);
 
             // Appliquer les filtres
             if (!empty($sectionId)) {
@@ -408,7 +406,7 @@ class ReportsController extends Controller
                     Log::warning("Erreur getAmountForStudent RAME pour {$student->id}: " . $e->getMessage());
                     $rameAmount = 0;
                 }
-                
+
                 $rameQuantity = 0; // 0 = pas payé, 1 = payé
                 $rameType = 'unpaid'; // unpaid, cash, physical
                 $paymentDate = null;
@@ -443,8 +441,8 @@ class ReportsController extends Controller
                         'first_name' => $student->first_name ?? '',
                         'last_name' => $student->last_name ?? '',
                         'full_name' => ($student->last_name ?? '') . ' ' . ($student->first_name ?? ''),
-                        'class_series' => ($student->classSeries && $student->classSeries->schoolClass) 
-                            ? $student->classSeries->schoolClass->name . ' - ' . $student->classSeries->name 
+                        'class_series' => ($student->classSeries && $student->classSeries->schoolClass)
+                            ? $student->classSeries->schoolClass->name . ' - ' . $student->classSeries->name
                             : 'Non défini'
                     ],
                     'rame_details' => [
@@ -463,17 +461,17 @@ class ReportsController extends Controller
             // Calculer les statistiques générales
             $summary = [
                 'total_students' => count($rameStudentsData),
-                'paid_count' => count(array_filter($rameStudentsData, function ($item) { 
-                    return $item['rame_details']['payment_status'] === 'paid'; 
+                'paid_count' => count(array_filter($rameStudentsData, function ($item) {
+                    return $item['rame_details']['payment_status'] === 'paid';
                 })),
-                'physical_count' => count(array_filter($rameStudentsData, function ($item) { 
-                    return $item['rame_details']['payment_type'] === 'physical'; 
+                'physical_count' => count(array_filter($rameStudentsData, function ($item) {
+                    return $item['rame_details']['payment_type'] === 'physical';
                 })),
-                'cash_count' => count(array_filter($rameStudentsData, function ($item) { 
-                    return $item['rame_details']['payment_type'] === 'cash'; 
+                'cash_count' => count(array_filter($rameStudentsData, function ($item) {
+                    return $item['rame_details']['payment_type'] === 'cash';
                 })),
-                'unpaid_count' => count(array_filter($rameStudentsData, function ($item) { 
-                    return $item['rame_details']['payment_status'] === 'unpaid'; 
+                'unpaid_count' => count(array_filter($rameStudentsData, function ($item) {
+                    return $item['rame_details']['payment_status'] === 'unpaid';
                 })),
                 'total_amount_expected' => array_sum(array_column(array_column($rameStudentsData, 'rame_details'), 'required_amount')),
                 'total_quantity_expected' => count($rameStudentsData), // Quantité totale attendue = nombre d'étudiants
@@ -487,7 +485,6 @@ class ReportsController extends Controller
                     'summary' => $summary
                 ]
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error in ReportsController@getRameReport: ' . $e->getMessage());
             return response()->json([
@@ -505,7 +502,7 @@ class ReportsController extends Controller
     {
         try {
             $workingYear = $this->getUserWorkingYear();
-            
+
             if (!$workingYear) {
                 return response()->json([
                     'success' => false,
@@ -520,7 +517,7 @@ class ReportsController extends Controller
             $paymentTranches = PaymentTranche::active()
                 ->where(function ($query) {
                     $query->where('name', '!=', 'RAME')
-                          ->where('name', 'not like', '%RAME%');
+                        ->where('name', 'not like', '%RAME%');
                 })
                 ->ordered()
                 ->get();
@@ -530,12 +527,12 @@ class ReportsController extends Controller
                 'classSeries.schoolClass',
                 'payments' => function ($query) use ($workingYear, $startDate, $endDate) {
                     $query->where('school_year_id', $workingYear->id)
-                          ->whereBetween('payment_date', [$startDate, $endDate]);
+                        ->whereBetween('payment_date', [$startDate, $endDate]);
                 }
             ])
-            ->where('school_year_id', $workingYear->id)
-            ->where('is_active', true)
-            ->get();
+                ->where('school_year_id', $workingYear->id)
+                ->where('is_active', true)
+                ->get();
 
             // Calculer les totaux globaux
             $totalExpected = 0;
@@ -565,7 +562,7 @@ class ReportsController extends Controller
                         $scholarshipAmount = 0;
                         $reductionAmount = 0;
                     }
-                    
+
                     $totalScholarships += $scholarshipAmount;
                     $totalReductions += $reductionAmount;
                 }
@@ -592,7 +589,7 @@ class ReportsController extends Controller
             while ($currentDate->lte($endDateCarbon)) {
                 $monthStart = $currentDate->copy()->startOfMonth();
                 $monthEnd = $currentDate->copy()->endOfMonth();
-                
+
                 if ($monthEnd->gt($endDateCarbon)) {
                     $monthEnd = $endDateCarbon;
                 }
@@ -629,7 +626,6 @@ class ReportsController extends Controller
                     'periods' => $periods
                 ]
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error in ReportsController@getRecoveryReport: ' . $e->getMessage());
             return response()->json([
@@ -647,7 +643,7 @@ class ReportsController extends Controller
     {
         try {
             $workingYear = $this->getUserWorkingYear();
-            
+
             if (!$workingYear) {
                 return response()->json([
                     'success' => false,
@@ -752,7 +748,6 @@ class ReportsController extends Controller
                     'classes' => $classesData
                 ]
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error in ReportsController@getCollectionSummaryReport: ' . $e->getMessage());
             return response()->json([
@@ -770,7 +765,7 @@ class ReportsController extends Controller
     {
         try {
             $workingYear = $this->getUserWorkingYear();
-            
+
             if (!$workingYear) {
                 return response()->json([
                     'success' => false,
@@ -787,7 +782,7 @@ class ReportsController extends Controller
             $paymentsQuery = Payment::with([
                 'student.classSeries.schoolClass.level.section'
             ])
-            ->where('school_year_id', $workingYear->id);
+                ->where('school_year_id', $workingYear->id);
 
             if (!empty($sectionId)) {
                 $paymentsQuery->whereHas('student.classSeries.schoolClass.level.section', function ($query) use ($sectionId) {
@@ -854,7 +849,6 @@ class ReportsController extends Controller
                     'classes' => $classes
                 ]
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error in ReportsController@getPaymentDetailsReport: ' . $e->getMessage());
             return response()->json([
@@ -872,7 +866,7 @@ class ReportsController extends Controller
     {
         try {
             $workingYear = $this->getUserWorkingYear();
-            
+
             if (!$workingYear) {
                 return response()->json([
                     'success' => false,
@@ -891,8 +885,8 @@ class ReportsController extends Controller
                 'classSeries.schoolClass', // Pour accéder aux bourses de classe
                 'payments.paymentDetails.paymentTranche'
             ])
-            ->where('school_year_id', $workingYear->id)
-            ->where('is_active', true);
+                ->where('school_year_id', $workingYear->id)
+                ->where('is_active', true);
 
             if (!empty($sectionId)) {
                 $studentsQuery->whereHas('classSeries.schoolClass.level.section', function ($query) use ($sectionId) {
@@ -911,7 +905,7 @@ class ReportsController extends Controller
             }
 
             $students = $studentsQuery->get();
-            
+
             // Récupérer les tranches de paiement pour les classes des étudiants
             $classIds = $students->pluck('classSeries.schoolClass.id')->unique();
             $paymentTranches = PaymentTranche::active()
@@ -945,12 +939,12 @@ class ReportsController extends Controller
                 // Calculer les bourses basées sur la classe de l'étudiant
                 $scholarshipAmount = 0;
                 $scholarshipReason = '';
-                
+
                 // Récupérer les bourses de classe pour cette classe
                 $classScholarships = ClassScholarship::where('school_class_id', $classSeries->class_id)
                     ->where('is_active', true)
                     ->get();
-                
+
                 if ($classScholarships->isNotEmpty()) {
                     foreach ($classScholarships as $scholarship) {
                         $scholarshipReason = $scholarship->name . ' - ' . $scholarship->description;
@@ -971,7 +965,7 @@ class ReportsController extends Controller
                 // Calculer les rabais globaux - EXCLUSIFS avec les bourses
                 $discountAmount = 0;
                 $discountReason = '';
-                
+
                 // Si l'étudiant a une bourse, il ne peut pas avoir de réduction
                 if ($scholarshipAmount == 0) {
                     foreach ($student->payments as $payment) {
@@ -1031,7 +1025,6 @@ class ReportsController extends Controller
                     'class_summary' => array_values($classSummary)
                 ]
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error in ReportsController@getScholarshipsDiscountsReport: ' . $e->getMessage());
             return response()->json([
@@ -1049,7 +1042,7 @@ class ReportsController extends Controller
     {
         try {
             $reportType = $request->get('report_type', 'insolvable');
-            
+
             // Générer les données du rapport selon le type
             $reportData = null;
             switch ($reportType) {
@@ -1068,6 +1061,9 @@ class ReportsController extends Controller
                 case 'recovery':
                     $response = $this->getRecoveryReport($request);
                     break;
+                case 'collection_details':
+                    $response = $this->getCollectionDetailsReport($request);
+                    break;
                 default:
                     return response()->json([
                         'success' => false,
@@ -1076,7 +1072,7 @@ class ReportsController extends Controller
             }
 
             $responseData = $response->getData(true);
-            
+
             if (!$responseData['success']) {
                 return response()->json([
                     'success' => false,
@@ -1085,21 +1081,20 @@ class ReportsController extends Controller
             }
 
             $reportData = $responseData['data'];
-            
+
             // Générer le HTML pour le PDF
             $html = $this->generateReportHtml($reportType, $reportData, $request);
-            
+
             // Retourner le HTML optimisé pour impression/PDF (comme dans StudentController)
             $printOptimizedHtml = $this->generatePdfFromHtml($html);
-            
+
             $filename = "rapport_{$reportType}_" . date('Y-m-d_H-i-s') . ".pdf";
-            
+
             // Retourner le HTML formaté que le navigateur peut imprimer en PDF
             return response($printOptimizedHtml, 200, [
                 'Content-Type' => 'text/html',
                 'Content-Disposition' => 'inline; filename="' . $filename . '"'
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error in ReportsController@exportPdf: ' . $e->getMessage());
             return response()->json([
@@ -1117,38 +1112,38 @@ class ReportsController extends Controller
     {
         // Approche simple et robuste : retourner directement le HTML formaté pour impression
         // Le navigateur peut ensuite imprimer en PDF si nécessaire
-        
+
         // Ajouter des styles optimisés pour l'impression/PDF
         $printOptimizedHtml = str_replace(
             '<style>',
             '<style>
-                @page { 
-                    size: A4; 
-                    margin: 10mm; 
+                @page {
+                    size: A4;
+                    margin: 10mm;
                 }
-                body { 
-                    font-family: Arial, sans-serif; 
-                    font-size: 10pt; 
+                body {
+                    font-family: Arial, sans-serif;
+                    font-size: 10pt;
                     line-height: 1.3;
                     margin: 0;
                     padding: 0;
                 }
                 .no-print { display: none !important; }
-                table { 
-                    page-break-inside: avoid; 
+                table {
+                    page-break-inside: avoid;
                     width: 100%;
                     font-size: 9pt;
                 }
-                thead { 
-                    display: table-header-group; 
+                thead {
+                    display: table-header-group;
                 }
-                tr { 
-                    page-break-inside: avoid; 
+                tr {
+                    page-break-inside: avoid;
                 }
             ',
             $html
         );
-        
+
         // Retourner le HTML optimisé - le navigateur se chargera de la conversion PDF
         return $printOptimizedHtml;
     }
@@ -1159,9 +1154,9 @@ class ReportsController extends Controller
     private function generateReportHtml($reportType, $reportData, $request)
     {
         $workingYear = $this->getUserWorkingYear();
-        $schoolName = "Groupe Scolaire Bilingue Privé La Semence";
+        $schoolName = "COLLEGE POLYVALENT DE DOUALA";
         $currentDate = now()->format('d/m/Y H:i');
-        
+
         $titles = [
             'insolvable' => 'Rapport État Insolvable',
             'payments' => 'Rapport État des Paiements',
@@ -1169,9 +1164,9 @@ class ReportsController extends Controller
             'scholarships_discounts' => 'Rapport États Bourses et Rabais',
             'recovery' => 'Rapport de Recouvrement'
         ];
-        
+
         $title = $titles[$reportType] ?? 'Rapport';
-        
+
         $html = "
         <!DOCTYPE html>
         <html>
@@ -1179,43 +1174,43 @@ class ReportsController extends Controller
             <meta charset='UTF-8'>
             <title>{$title}</title>
             <style>
-                body { 
-                    font-family: Arial, sans-serif; 
-                    font-size: 12px; 
+                body {
+                    font-family: Arial, sans-serif;
+                    font-size: 12px;
                     margin: 20px;
                 }
-                .header { 
-                    text-align: center; 
-                    margin-bottom: 30px; 
+                .header {
+                    text-align: center;
+                    margin-bottom: 30px;
                     border-bottom: 2px solid #333;
                     padding-bottom: 15px;
                 }
-                .school-name { 
-                    font-size: 18px; 
-                    font-weight: bold; 
+                .school-name {
+                    font-size: 18px;
+                    font-weight: bold;
                     color: #2c5aa0;
                 }
-                .report-title { 
-                    font-size: 16px; 
-                    font-weight: bold; 
-                    margin: 10px 0; 
+                .report-title {
+                    font-size: 16px;
+                    font-weight: bold;
+                    margin: 10px 0;
                 }
-                .meta-info { 
-                    font-size: 10px; 
+                .meta-info {
+                    font-size: 10px;
                     color: #666;
                 }
-                table { 
-                    width: 100%; 
-                    border-collapse: collapse; 
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
                     margin: 15px 0;
                 }
-                th, td { 
-                    border: 1px solid #ddd; 
-                    padding: 8px; 
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
                     text-align: left;
                 }
-                th { 
-                    background-color: #f2f2f2; 
+                th {
+                    background-color: #f2f2f2;
                     font-weight: bold;
                 }
                 .group-header {
@@ -1247,22 +1242,22 @@ class ReportsController extends Controller
                 <div class='school-name'>{$schoolName}</div>
                 <div class='report-title'>{$title}</div>
                 <div class='meta-info'>
-                    Année scolaire: {$workingYear->name} | 
+                    Année scolaire: {$workingYear->name} |
                     Généré le: {$currentDate}
                 </div>
             </div>
         ";
-        
+
         // Générer le contenu selon le type de rapport
         $html .= $this->generateReportContent($reportType, $reportData);
-        
+
         $html .= "
             <div class='footer'>
                 Document généré automatiquement - {$schoolName}
             </div>
         </body>
         </html>";
-        
+
         return $html;
     }
 
@@ -1280,6 +1275,8 @@ class ReportsController extends Controller
                 return $this->generateRameContent($reportData);
             case 'scholarships_discounts':
                 return $this->generateScholarshipsDiscountsContent($reportData);
+            case 'collection_details':
+                return $this->generateCollectionDetailsContent($reportData);
             case 'recovery':
                 return $this->generateRecoveryContent($reportData);
             default:
@@ -1309,7 +1306,7 @@ class ReportsController extends Controller
                 </tr>
             </thead>
             <tbody>";
-        
+
         foreach ($reportData['students'] as $studentData) {
             $incompleteTranches = '';
             if (isset($studentData['incomplete_tranches'])) {
@@ -1317,7 +1314,7 @@ class ReportsController extends Controller
                     $incompleteTranches .= $tranche['tranche_name'] . ': ' . number_format($tranche['paid_amount'], 0, ',', ' ') . '/' . number_format($tranche['required_amount'], 0, ',', ' ') . ' FCFA<br>';
                 }
             }
-            
+
             $html .= "<tr>
                 <td>{$studentData['student']['full_name']}</td>
                 <td>{$studentData['student']['class_series']}</td>
@@ -1327,7 +1324,7 @@ class ReportsController extends Controller
                 <td>{$incompleteTranches}</td>
             </tr>";
         }
-        
+
         $html .= "</tbody></table>";
 
         return $html;
@@ -1356,7 +1353,7 @@ class ReportsController extends Controller
                     </tr>
                 </thead>
                 <tbody>";
-            
+
             foreach ($studentData['tranches_details'] as $tranche) {
                 $status = $tranche['status'] === 'complete' ? 'Complet' : 'Incomplet';
                 $html .= "<tr>
@@ -1367,7 +1364,7 @@ class ReportsController extends Controller
                     <td class='text-center'>{$status}</td>
                 </tr>";
             }
-            
+
             $html .= "</tbody></table>";
         }
 
@@ -1402,15 +1399,14 @@ class ReportsController extends Controller
                 </tr>
             </thead>
             <tbody>";
-        
+
         foreach ($reportData['students'] as $studentData) {
-            $type = $studentData['rame_details']['payment_type'] === 'physical' ? 'Physique' : 
-                   ($studentData['rame_details']['payment_type'] === 'cash' ? 'Espèces' : 'Non payé');
+            $type = $studentData['rame_details']['payment_type'] === 'physical' ? 'Physique' : ($studentData['rame_details']['payment_type'] === 'cash' ? 'Espèces' : 'Non payé');
             $status = $studentData['rame_details']['payment_status'] === 'paid' ? 'Payé' : 'En attente';
-            $paymentDate = isset($studentData['rame_details']['payment_date']) && $studentData['rame_details']['payment_date'] 
-                          ? date('d/m/Y', strtotime($studentData['rame_details']['payment_date'])) 
-                          : '-';
-            
+            $paymentDate = isset($studentData['rame_details']['payment_date']) && $studentData['rame_details']['payment_date']
+                ? date('d/m/Y', strtotime($studentData['rame_details']['payment_date']))
+                : '-';
+
             $html .= "<tr>
                 <td>{$studentData['student']['full_name']}</td>
                 <td>{$studentData['student']['class_series']}</td>
@@ -1421,7 +1417,7 @@ class ReportsController extends Controller
                 <td class='text-center'>{$paymentDate}</td>
             </tr>";
         }
-        
+
         $html .= "</tbody></table>";
 
         return $html;
@@ -1457,9 +1453,9 @@ class ReportsController extends Controller
             <tbody>";
 
         foreach ($reportData['students'] as $student) {
-            $savingsPercentage = $student['tuition_amount'] > 0 ? 
+            $savingsPercentage = $student['tuition_amount'] > 0 ?
                 (($student['total_benefit_amount'] / $student['tuition_amount']) * 100) : 0;
-            
+
             $advantageType = '';
             if ($student['scholarship_reason']) {
                 $advantageType .= "Bourse: " . $student['scholarship_reason'];
@@ -1539,7 +1535,7 @@ class ReportsController extends Controller
                     </tr>
                 </thead>
                 <tbody>";
-            
+
             foreach ($reportData['periods'] as $period) {
                 $html .= "<tr>
                     <td>{$period['period_name']}</td>
@@ -1549,7 +1545,7 @@ class ReportsController extends Controller
                     <td class='text-right'>" . number_format($period['rate'], 1) . "%</td>
                 </tr>";
             }
-            
+
             $html .= "</tbody></table>";
         }
 
@@ -1577,9 +1573,9 @@ class ReportsController extends Controller
             $paymentTranches = PaymentTranche::active()->ordered()->get();
 
             // Construire la requête pour les séries avec filtres
-            $seriesQuery = ClassSeries::with(['schoolClass.level', 'students' => function($query) use ($workingYear) {
+            $seriesQuery = ClassSeries::with(['schoolClass.level', 'students' => function ($query) use ($workingYear) {
                 $query->where('school_year_id', $workingYear->id)
-                      ->where('is_active', true);
+                    ->where('is_active', true);
             }]);
 
             // Appliquer les filtres
@@ -1588,7 +1584,7 @@ class ReportsController extends Controller
             }
 
             if ($filters['level_id']) {
-                $seriesQuery->whereHas('schoolClass', function($query) use ($filters) {
+                $seriesQuery->whereHas('schoolClass', function ($query) use ($filters) {
                     $query->where('level_id', $filters['level_id']);
                 });
             }
@@ -1610,13 +1606,13 @@ class ReportsController extends Controller
 
                 // Pour chaque tranche, calculer les montants collectés
                 foreach ($paymentTranches as $tranche) {
-                    $trancheAmount = PaymentDetail::whereHas('payment', function($query) use ($workingYear) {
+                    $trancheAmount = PaymentDetail::whereHas('payment', function ($query) use ($workingYear) {
                         $query->where('school_year_id', $workingYear->id)
-                              ->where('is_rame_physical', false);
-                    })->whereHas('payment.student', function($query) use ($series) {
+                            ->where('is_rame_physical', false);
+                    })->whereHas('payment.student', function ($query) use ($series) {
                         $query->where('class_series_id', $series->id);
                     })->where('payment_tranche_id', $tranche->id)
-                      ->sum('amount_allocated');
+                        ->sum('amount_allocated');
 
                     $seriesData['tranches'][$tranche->name] = [
                         'tranche_id' => $tranche->id,
@@ -1630,7 +1626,7 @@ class ReportsController extends Controller
                 // Ajouter les paiements RAME physiques séparément
                 $ramePhysicalAmount = Payment::where('school_year_id', $workingYear->id)
                     ->where('is_rame_physical', true)
-                    ->whereHas('student', function($query) use ($series) {
+                    ->whereHas('student', function ($query) use ($series) {
                         $query->where('class_series_id', $series->id);
                     })->sum('total_amount');
 
@@ -1647,7 +1643,7 @@ class ReportsController extends Controller
             }
 
             // Trier par montant total collecté (décroissant)
-            usort($seriesSummary, function($a, $b) {
+            usort($seriesSummary, function ($a, $b) {
                 return $b['total_collected'] <=> $a['total_collected'];
             });
 
@@ -1685,7 +1681,7 @@ class ReportsController extends Controller
                     ],
                     'payment_tranches' => $paymentTranches->pluck('name')->toArray(),
                     'filters_data' => [
-                        'classes' => $allClasses->map(function($class) {
+                        'classes' => $allClasses->map(function ($class) {
                             return [
                                 'id' => $class->id,
                                 'name' => $class->name,
@@ -1693,7 +1689,7 @@ class ReportsController extends Controller
                                 'level_name' => $class->level ? $class->level->name : 'N/A'
                             ];
                         }),
-                        'levels' => $allLevels->map(function($level) {
+                        'levels' => $allLevels->map(function ($level) {
                             return [
                                 'id' => $level->id,
                                 'name' => $level->name
@@ -1702,7 +1698,6 @@ class ReportsController extends Controller
                     ]
                 ]
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error in ReportsController@getSeriesCollectionSummary: ' . $e->getMessage());
             return response()->json([
@@ -1721,14 +1716,393 @@ class ReportsController extends Controller
         if ($isRamePhysical) {
             return 'RAME Physique';
         }
-        
+
         $methods = [
             'cash' => 'Espèces',
             'card' => 'Carte bancaire',
             'transfer' => 'Virement',
             'check' => 'Chèque'
         ];
-        
+
         return $methods[$method] ?? $method;
+    }
+
+    /**
+     * Rapport détaillé des encaissements
+     * Liste tous les encaissements reçus par élève avec possibilité de filtrer par date
+     */
+    public function getCollectionDetailsReport(Request $request)
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            // Récupérer les filtres
+            $filterType = $request->get('filterType', 'section');
+            $sectionId = $request->get('sectionId');
+            $classId = $request->get('classId');
+            $seriesId = $request->get('seriesId');
+            $startDate = $request->get('startDate');
+            $endDate = $request->get('endDate');
+
+            // Si pas de dates spécifiées, prendre l'année scolaire complète
+            if (!$startDate) {
+                $startDate = $workingYear->start_date;
+            }
+            if (!$endDate) {
+                $endDate = $workingYear->end_date ?: now()->toDateString();
+            }
+
+            // Construire la requête des paiements
+            $paymentsQuery = Payment::with([
+                'student.classSeries.schoolClass.level.section',
+                'paymentDetails.paymentTranche',
+                'createdByUser' // Ajouter la relation avec l'utilisateur validateur
+            ])
+                ->where('school_year_id', $workingYear->id)
+                ->whereBetween('payment_date', [$startDate, $endDate]);
+
+            // Appliquer les filtres
+            if (!empty($sectionId)) {
+                $paymentsQuery->whereHas('student.classSeries.schoolClass.level.section', function ($query) use ($sectionId) {
+                    $query->where('id', $sectionId);
+                });
+            }
+
+            if (!empty($classId)) {
+                $paymentsQuery->whereHas('student.classSeries.schoolClass', function ($query) use ($classId) {
+                    $query->where('id', $classId);
+                });
+            }
+
+            if (!empty($seriesId)) {
+                $paymentsQuery->whereHas('student', function ($query) use ($seriesId) {
+                    $query->where('class_series_id', $seriesId);
+                });
+            }
+
+            // Récupérer les paiements ordonnés par date décroissante
+            $payments = $paymentsQuery->orderBy('payment_date', 'desc')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            // Préparer les données pour le frontend
+            $collectionsData = [];
+            $totalAmount = 0;
+            $totalPayments = 0;
+
+            // Statistiques par méthode de paiement
+            $paymentMethods = [];
+            // Statistiques par tranche
+            $paymentTranches = [];
+            // Statistiques par mois
+            $monthlyStats = [];
+
+            foreach ($payments as $payment) {
+                $student = $payment->student;
+                $classSeries = $student->classSeries;
+
+                // Détails des tranches payées
+                $tranchesDetails = [];
+                foreach ($payment->paymentDetails as $detail) {
+                    $trancheName = $detail->paymentTranche ? $detail->paymentTranche->name : 'N/A';
+                    $tranchesDetails[] = [
+                        'tranche_name' => $trancheName,
+                        'amount' => $detail->amount_allocated
+                    ];
+
+                    // Statistiques par tranche
+                    if (!isset($paymentTranches[$trancheName])) {
+                        $paymentTranches[$trancheName] = [
+                            'count' => 0,
+                            'total' => 0
+                        ];
+                    }
+                    $paymentTranches[$trancheName]['count']++;
+                    $paymentTranches[$trancheName]['total'] += $detail->amount_allocated;
+                }
+
+                // Méthode de paiement avec gestion RAME physique
+                $paymentMethod = $payment->is_rame_physical ? 'rame_physical' : $payment->payment_method;
+                $paymentMethodLabel = $this->getPaymentMethodLabel($payment->payment_method, $payment->is_rame_physical);
+
+                // Statistiques par méthode
+                if (!isset($paymentMethods[$paymentMethod])) {
+                    $paymentMethods[$paymentMethod] = [
+                        'label' => $paymentMethodLabel,
+                        'count' => 0,
+                        'total' => 0
+                    ];
+                }
+                $paymentMethods[$paymentMethod]['count']++;
+                $paymentMethods[$paymentMethod]['total'] += $payment->total_amount;
+
+                // Statistiques mensuelles
+                $monthKey = Carbon::parse($payment->payment_date)->format('Y-m');
+                if (!isset($monthlyStats[$monthKey])) {
+                    $monthlyStats[$monthKey] = [
+                        'month' => Carbon::parse($payment->payment_date)->format('M Y'),
+                        'count' => 0,
+                        'total' => 0
+                    ];
+                }
+                $monthlyStats[$monthKey]['count']++;
+                $monthlyStats[$monthKey]['total'] += $payment->total_amount;
+
+                $collectionsData[] = [
+                    'payment_id' => $payment->id,
+                    'payment_date' => $payment->payment_date,
+                    'payment_time' => $payment->created_at ? $payment->created_at->format('H:i') : '',
+                    'receipt_number' => $payment->receipt_number,
+                    'student' => [
+                        'id' => $student->id,
+                        'matricule' => $student->matricule,
+                        'first_name' => $student->first_name,
+                        'last_name' => $student->last_name,
+                        'full_name' => ($student->last_name ?? '') . ' ' . ($student->first_name ?? ''),
+                        'class_name' => $classSeries && $classSeries->schoolClass ?
+                            $classSeries->schoolClass->name : 'Non défini',
+                        'class_series' => $classSeries && $classSeries->schoolClass ?
+                            $classSeries->schoolClass->name . ' - ' . $classSeries->name :
+                            'Non défini'
+                    ],
+                    'amount' => $payment->total_amount,
+                    'payment_method' => $paymentMethod,
+                    'payment_method_label' => $paymentMethodLabel,
+                    'is_rame_physical' => $payment->is_rame_physical,
+                    'has_reduction' => $payment->has_reduction,
+                    'reduction_amount' => $payment->reduction_amount ?? 0,
+                    'tranches_details' => $tranchesDetails,
+                    'notes' => $payment->notes,
+                    'validated_at' => $payment->validated_at,
+                    'validator_name' => $payment->createdByUser ?
+                        ($payment->createdByUser->first_name . ' ' . $payment->createdByUser->last_name) : 'Système'
+                ];
+
+                $totalAmount += $payment->total_amount;
+                $totalPayments++;
+            }
+
+            // Trier les statistiques mensuelles
+            ksort($monthlyStats);
+
+            // Récupérer les paramètres de l'école
+            $schoolSettings = \App\Models\SchoolSetting::first();
+
+            // Ajouter l'URL du logo si disponible
+            if ($schoolSettings && $schoolSettings->school_logo) {
+                $schoolSettings->logo_url = url(\Illuminate\Support\Facades\Storage::url($schoolSettings->school_logo));
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'collections' => $collectionsData,
+                    'school_year' => $workingYear,
+                    'school_settings' => $schoolSettings,
+                    'summary' => [
+                        'total_collections' => $totalPayments,
+                        'total_amount' => $totalAmount,
+                        'period_start' => $startDate,
+                        'period_end' => $endDate,
+                        'average_amount' => $totalPayments > 0 ? $totalAmount / $totalPayments : 0,
+                        'deposit_location' => 'BANQ' // Lieu de dépôt fixe comme demandé
+                    ],
+                    'statistics' => [
+                        'by_payment_method' => array_values($paymentMethods),
+                        'by_payment_tranche' => array_map(function ($key, $value) {
+                            return array_merge(['tranche_name' => $key], $value);
+                        }, array_keys($paymentTranches), $paymentTranches),
+                        'by_month' => array_values($monthlyStats)
+                    ]
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in ReportsController@getCollectionDetailsReport: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du rapport',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Générer le contenu du rapport détail des encaissements
+     */
+    private function generateCollectionDetailsContent($reportData)
+    {
+        $summary = $reportData['summary'];
+        $schoolSettings = $reportData['school_settings'] ?? null;
+        $schoolYear = $reportData['school_year'] ?? null;
+
+        // En-tête avec logo et informations demandées
+        $html = "<div class='header text-center' style='margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px;'>";
+
+        // Conteneur pour le logo et le titre
+        $html .= "<div style='display: flex; align-items: center; justify-content: center; margin-bottom: 20px;'>";
+
+        // Logo si disponible
+        if ($schoolSettings && isset($schoolSettings['school_logo']) && $schoolSettings['school_logo']) {
+            // Construire l'URL complète du logo
+            $logoUrl = url(\Illuminate\Support\Facades\Storage::url($schoolSettings['school_logo']));
+            $html .= "<div style='margin-right: 20px;'>";
+            $html .= "<img src='{$logoUrl}' alt='Logo de l'école' style='height: 80px; width: auto; object-fit: contain;' />";
+            $html .= "</div>";
+        }
+
+        // Titres
+        $html .= "<div>";
+        $html .= "<h2 style='margin: 0; font-size: 24px; font-weight: bold;'>" . ($schoolSettings['school_name'] ?? 'COLLEGE POLYVALENT BILINGUE DE DOUALA') . "</h2>";
+        $html .= "<h3 style='margin: 5px 0 0 0; color: #0066cc; font-size: 20px;'>DÉTAIL DES ENCAISSEMENTS</h3>";
+        $html .= "</div>";
+        $html .= "</div>";
+
+        // Informations administratives dans un tableau à 2 colonnes
+        $html .= "<table style='width: 100%; margin: 20px 0; border: none;'>";
+        $html .= "<tr>";
+        $html .= "<td style='width: 50%; text-align: left; padding: 5px; border: none;'><strong>Année Académique :</strong> " . ($schoolYear['name'] ?? 'N/A') . "</td>";
+        $html .= "<td style='width: 50%; text-align: right; padding: 5px; border: none;'><strong>Lieu de Dépôt :</strong> " . ($summary['deposit_location'] ?? 'BANQ') . "</td>";
+        $html .= "</tr>";
+        $html .= "<tr>";
+        $html .= "<td style='text-align: left; padding: 5px; border: none;'><strong>Période :</strong> Du " . date('d/m/Y', strtotime($summary['period_start'])) . " au " . date('d/m/Y', strtotime($summary['period_end'])) . "</td>";
+        $html .= "<td style='text-align: right; padding: 5px; border: none;'><strong>Nombre d'encaissements :</strong> {$summary['total_collections']} | <strong>Montant total :</strong> " . number_format($summary['total_amount'], 0, ',', ' ') . " FCFA</td>";
+        $html .= "</tr>";
+        $html .= "</table>";
+
+        $html .= "</div>";
+
+        // Tableau principal selon les spécifications demandées
+        $html .= "<table style='width: 100%; border-collapse: collapse; margin: 20px 0;'>
+            <thead>
+                <tr style='background-color: #f5f5f5;'>
+                    <th style='border: 1px solid #ddd; padding: 8px;'>Matricule</th>
+                    <th style='border: 1px solid #ddd; padding: 8px;'>Nom</th>
+                    <th style='border: 1px solid #ddd; padding: 8px;'>Prénom</th>
+                    <th style='border: 1px solid #ddd; padding: 8px;'>Classe</th>
+                    <th style='border: 1px solid #ddd; padding: 8px;'>Date de Versement</th>
+                    <th style='border: 1px solid #ddd; padding: 8px;'>Date de Validation</th>
+                    <th style='border: 1px solid #ddd; padding: 8px; text-align: right;'>Montant</th>
+                    <th style='border: 1px solid #ddd; padding: 8px;'>Nom du Comptable</th>
+                </tr>
+            </thead>
+            <tbody>";
+
+        foreach ($reportData['collections'] as $collection) {
+            $html .= "<tr>
+                <td style='border: 1px solid #ddd; padding: 8px;'>" . ($collection['student']['matricule'] ?? 'N/A') . "</td>
+                <td style='border: 1px solid #ddd; padding: 8px;'><strong>" . ($collection['student']['last_name'] ?? 'N/A') . "</strong></td>
+                <td style='border: 1px solid #ddd; padding: 8px;'><strong>" . ($collection['student']['first_name'] ?? 'N/A') . "</strong></td>
+                <td style='border: 1px solid #ddd; padding: 8px;'>" . ($collection['student']['class_name'] ?? 'N/A') . "</td>
+                <td style='border: 1px solid #ddd; padding: 8px;'>" . date('d/m/Y', strtotime($collection['payment_date'])) . "<br />
+                    <small style='color: #666;'>" . ($collection['payment_time'] ?? '') . "</small></td>
+                <td style='border: 1px solid #ddd; padding: 8px;'>" .
+                ($collection['validated_at'] ? date('d/m/Y', strtotime($collection['validated_at'])) : '<span style="color: orange;">En attente</span>') .
+                "</td>
+                <td style='border: 1px solid #ddd; padding: 8px; text-align: right;'><strong style='color: green;'>" .
+                number_format($collection['amount'], 0, ',', ' ') . " FCFA</strong>";
+
+            if ($collection['has_reduction']) {
+                $html .= "<br /><small style='color: blue;'>(Rabais: -" . number_format($collection['reduction_amount'], 0, ',', ' ') . " FCFA)</small>";
+            }
+
+            $html .= "</td>
+                <td style='border: 1px solid #ddd; padding: 8px;'><strong style='color: #0066cc;'>" .
+                ($collection['validator_name'] ?? 'Système') . "</strong><br />
+                    <small style='color: #666;'>Reçu N°: " . ($collection['receipt_number'] ?? 'N/A') . "</small>
+                </td>
+            </tr>";
+        }
+
+        $html .= "</tbody></table>";
+
+        // Statistiques par méthode de paiement
+        if (isset($reportData['statistics']['by_payment_method']) && !empty($reportData['statistics']['by_payment_method'])) {
+            $html .= "<h3>Statistiques par Méthode de Paiement</h3>";
+            $html .= "<table>
+                <thead>
+                    <tr>
+                        <th>Méthode</th>
+                        <th class='text-center'>Nombre</th>
+                        <th class='text-right'>Montant</th>
+                        <th class='text-right'>Pourcentage</th>
+                    </tr>
+                </thead>
+                <tbody>";
+
+            foreach ($reportData['statistics']['by_payment_method'] as $method) {
+                $percentage = ($summary['total_amount'] > 0) ? ($method['total'] / $summary['total_amount']) * 100 : 0;
+                $html .= "<tr>
+                    <td>" . $method['label'] . "</td>
+                    <td class='text-center'>" . $method['count'] . "</td>
+                    <td class='text-right'>" . number_format($method['total'], 0, ',', ' ') . " FCFA</td>
+                    <td class='text-right'>" . number_format($percentage, 1) . "%</td>
+                </tr>";
+            }
+
+            $html .= "</tbody></table>";
+        }
+
+        // Statistiques par tranche
+        if (isset($reportData['statistics']['by_payment_tranche']) && !empty($reportData['statistics']['by_payment_tranche'])) {
+            $html .= "<h3>Statistiques par Tranche de Paiement</h3>";
+            $html .= "<table>
+                <thead>
+                    <tr>
+                        <th>Tranche</th>
+                        <th class='text-center'>Nombre</th>
+                        <th class='text-right'>Montant</th>
+                        <th class='text-right'>Pourcentage</th>
+                    </tr>
+                </thead>
+                <tbody>";
+
+            foreach ($reportData['statistics']['by_payment_tranche'] as $tranche) {
+                $percentage = ($summary['total_amount'] > 0) ? ($tranche['total'] / $summary['total_amount']) * 100 : 0;
+                $html .= "<tr>
+                    <td>" . $tranche['tranche_name'] . "</td>
+                    <td class='text-center'>" . $tranche['count'] . "</td>
+                    <td class='text-right'>" . number_format($tranche['total'], 0, ',', ' ') . " FCFA</td>
+                    <td class='text-right'>" . number_format($percentage, 1) . "%</td>
+                </tr>";
+            }
+
+            $html .= "</tbody></table>";
+        }
+
+        // Évolution mensuelle si disponible
+        if (isset($reportData['statistics']['by_month']) && !empty($reportData['statistics']['by_month'])) {
+            $html .= "<h3>Évolution Mensuelle</h3>";
+            $html .= "<table>
+                <thead>
+                    <tr>
+                        <th>Mois</th>
+                        <th class='text-center'>Nombre</th>
+                        <th class='text-right'>Montant</th>
+                        <th class='text-right'>Pourcentage</th>
+                    </tr>
+                </thead>
+                <tbody>";
+
+            foreach ($reportData['statistics']['by_month'] as $month) {
+                $percentage = ($summary['total_amount'] > 0) ? ($month['total'] / $summary['total_amount']) * 100 : 0;
+                $html .= "<tr>
+                    <td>" . $month['month'] . "</td>
+                    <td class='text-center'>" . $month['count'] . "</td>
+                    <td class='text-right'>" . number_format($month['total'], 0, ',', ' ') . " FCFA</td>
+                    <td class='text-right'>" . number_format($percentage, 1) . "%</td>
+                </tr>";
+            }
+
+            $html .= "</tbody></table>";
+        }
+
+        return $html;
     }
 }

@@ -1,16 +1,35 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Container, Row, Col, Card, Form, Button, Table, Badge, 
-  Alert, Spinner, InputGroup, Dropdown, ButtonGroup 
-} from 'react-bootstrap';
-import { 
-  Calendar, Search, Filter, Download, Printer, 
-  CheckCircleFill, XCircleFill, People, Clock,
-  FileEarmarkText, CalendarRange, ArrowRightCircle, ArrowLeftCircle,
-  PersonXFill
-} from 'react-bootstrap-icons';
-import { useAuth } from '../../hooks/useAuth';
-import { host } from '../../utils/fetch';
+import { useEffect, useState } from "react";
+import {
+  Alert,
+  Badge,
+  Button,
+  ButtonGroup,
+  Card,
+  Col,
+  Container,
+  Form,
+  InputGroup,
+  Row,
+  Spinner,
+  Table,
+} from "react-bootstrap";
+import {
+  ArrowLeftCircle,
+  ArrowRightCircle,
+  Calendar,
+  CalendarRange,
+  CheckCircleFill,
+  Clock,
+  FileEarmarkText,
+  Filter,
+  People,
+  PersonXFill,
+  Printer,
+  Search,
+  XCircleFill,
+} from "react-bootstrap-icons";
+import { useAuth } from "../../hooks/useAuth";
+import { host } from "../../utils/fetch";
 
 const AttendanceReports = () => {
   const [attendances, setAttendances] = useState([]);
@@ -18,16 +37,16 @@ const AttendanceReports = () => {
   const [classes, setClasses] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isMarkingAbsent, setIsMarkingAbsent] = useState(false);
-  const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState('');
-  
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("");
+
   const [filters, setFilters] = useState({
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
-    classId: '',
-    status: 'all', // all, present, absent
-    eventType: 'all', // all, entry, exit
-    searchTerm: ''
+    startDate: new Date().toISOString().split("T")[0],
+    endDate: new Date().toISOString().split("T")[0],
+    classId: "",
+    status: "all", // all, present, absent
+    eventType: "all", // all, entry, exit
+    searchTerm: "",
   });
 
   const [summary, setSummary] = useState({
@@ -36,46 +55,46 @@ const AttendanceReports = () => {
     exitCount: 0,
     presentCount: 0,
     absentCount: 0,
-    presentPercentage: 0
+    presentPercentage: 0,
   });
 
   const { user, token } = useAuth();
 
   useEffect(() => {
-    console.log('🚀 AttendanceReports monté');
-    console.log('👤 User:', user);
-    console.log('🔑 Token présent:', !!token);
-    console.log('📊 User role:', user?.role);
-    
+    console.log("🚀 AttendanceReports monté");
+    console.log("👤 User:", user);
+    console.log("🔑 Token présent:", !!token);
+    console.log("📊 User role:", user?.role);
+
     if (!user || !token) {
-      setMessage('Utilisateur non connecté ou token manquant');
-      setMessageType('danger');
+      setMessage("Utilisateur non connecté ou token manquant");
+      setMessageType("danger");
       return;
     }
-    
-    if (user.role !== 'surveillant_general' && user.role !== 'admin') {
-      setMessage('Accès refusé: rôle insuffisant');
-      setMessageType('danger');
+
+    if (user.role !== "surveillant_general" && user.role !== "admin") {
+      setMessage("Accès refusé: rôle insuffisant");
+      setMessageType("danger");
       return;
     }
-    
+
     loadSupervisorClasses();
   }, [user, token]);
 
   useEffect(() => {
-    console.log('🔄 Effect loadAttendances déclenché');
-    console.log('📅 Dates:', filters.startDate, 'à', filters.endDate);
-    console.log('🏫 Classe ID:', filters.classId);
-    
+    console.log("🔄 Effect loadAttendances déclenché");
+    console.log("📅 Dates:", filters.startDate, "à", filters.endDate);
+    console.log("🏫 Classe ID:", filters.classId);
+
     if (filters.startDate && filters.endDate && user && token) {
-      console.log('▶️ Déclenchement loadAttendances');
+      console.log("▶️ Déclenchement loadAttendances");
       loadAttendances();
     } else {
-      console.log('⏸️ Conditions non remplies:', {
+      console.log("⏸️ Conditions non remplies:", {
         startDate: !!filters.startDate,
-        endDate: !!filters.endDate, 
+        endDate: !!filters.endDate,
         user: !!user,
-        token: !!token
+        token: !!token,
       });
     }
   }, [filters.startDate, filters.endDate, filters.classId, user, token]);
@@ -86,94 +105,106 @@ const AttendanceReports = () => {
 
   const loadSupervisorClasses = async () => {
     try {
-      console.log('🔍 Chargement des classes pour superviseur:', user.id);
-      console.log('🔑 Token:', token ? 'présent' : 'absent');
-      
-      // Le token est déjà disponible depuis useAuth
-      const response = await fetch(`${host}/api/supervisors/${user.id}/assignments`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      console.log("🔍 Chargement des classes pour superviseur:", user.id);
+      console.log("🔑 Token:", token ? "présent" : "absent");
 
-      console.log('📡 Response status:', response.status);
+      // Le token est déjà disponible depuis useAuth
+      const response = await fetch(
+        `${host}/api/supervisors/${user.id}/assignments`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      console.log("📡 Response status:", response.status);
       const data = await response.json();
-      console.log('📊 Response data:', data);
-      
+      console.log("📊 Response data:", data);
+
       if (data.success) {
-        console.log('✅ Classes trouvées:', data.data?.length || 0);
+        console.log("✅ Classes trouvées:", data.data?.length || 0);
         setClasses(data.data || []);
-        setMessage(`${data.data?.length || 0} classe(s) assignée(s) trouvée(s)`);
-        setMessageType('success');
+        setMessage(
+          `${data.data?.length || 0} classe(s) assignée(s) trouvée(s)`
+        );
+        setMessageType("success");
       } else {
-        console.log('❌ Échec chargement classes:', data.message);
-        setMessage(data.message || 'Erreur lors du chargement des classes');
-        setMessageType('warning');
+        console.log("❌ Échec chargement classes:", data.message);
+        setMessage(data.message || "Erreur lors du chargement des classes");
+        setMessageType("warning");
       }
     } catch (error) {
-      console.error('🚨 Erreur lors du chargement des classes:', error);
-      setMessage('Erreur réseau lors du chargement des classes');
-      setMessageType('danger');
+      console.error("🚨 Erreur lors du chargement des classes:", error);
+      setMessage("Erreur réseau lors du chargement des classes");
+      setMessageType("danger");
     }
   };
 
   const loadAttendances = async () => {
     if (!filters.startDate || !filters.endDate) {
-      console.log('⚠️ Dates manquantes:', filters.startDate, filters.endDate);
+      console.log("⚠️ Dates manquantes:", filters.startDate, filters.endDate);
       return;
     }
 
     try {
       setIsLoading(true);
-      console.log('📅 Chargement attendance:', filters.startDate, 'à', filters.endDate);
-      
+      console.log(
+        "📅 Chargement attendance:",
+        filters.startDate,
+        "à",
+        filters.endDate
+      );
+
       // Le token est déjà disponible depuis useAuth
       const params = new URLSearchParams({
         supervisor_id: user.id,
         start_date: filters.startDate,
-        end_date: filters.endDate
+        end_date: filters.endDate,
       });
 
       if (filters.classId) {
-        params.append('class_id', filters.classId);
-        console.log('🏫 Filtre classe:', filters.classId);
+        params.append("class_id", filters.classId);
+        console.log("🏫 Filtre classe:", filters.classId);
       }
 
       const url = `${host}/api/supervisors/attendance-range?${params}`;
-      console.log('🌐 URL requête:', url);
+      console.log("🌐 URL requête:", url);
 
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       });
 
-      console.log('📡 Attendance response status:', response.status);
+      console.log("📡 Attendance response status:", response.status);
       const data = await response.json();
-      console.log('📊 Attendance data:', data);
-      
+      console.log("📊 Attendance data:", data);
+
       if (data.success) {
         const attendanceCount = data.data?.attendances?.length || 0;
-        console.log('✅ Attendances trouvées:', attendanceCount);
+        console.log("✅ Attendances trouvées:", attendanceCount);
         setAttendances(data.data.attendances || []);
         if (attendanceCount === 0) {
-          setMessage('Aucune donnée de présence trouvée pour cette période');
-          setMessageType('info');
+          setMessage("Aucune donnée de présence trouvée pour cette période");
+          setMessageType("info");
         } else {
-          setMessage(`${attendanceCount} enregistrement(s) de présence trouvé(s)`);
-          setMessageType('success');
+          setMessage(
+            `${attendanceCount} enregistrement(s) de présence trouvé(s)`
+          );
+          setMessageType("success");
         }
       } else {
-        console.log('❌ Échec chargement attendance:', data.message);
-        setMessage(data.message || 'Erreur lors du chargement');
-        setMessageType('danger');
+        console.log("❌ Échec chargement attendance:", data.message);
+        setMessage(data.message || "Erreur lors du chargement");
+        setMessageType("danger");
       }
     } catch (error) {
-      console.error('🚨 Erreur attendance:', error);
-      setMessage('Erreur lors du chargement des présences');
-      setMessageType('danger');
+      console.error("🚨 Erreur attendance:", error);
+      setMessage("Erreur lors du chargement des présences");
+      setMessageType("danger");
     } finally {
       setIsLoading(false);
     }
@@ -183,25 +214,26 @@ const AttendanceReports = () => {
     let filtered = [...attendances];
 
     // Filter by status
-    if (filters.status === 'present') {
-      filtered = filtered.filter(att => att.is_present);
-    } else if (filters.status === 'absent') {
-      filtered = filtered.filter(att => !att.is_present);
+    if (filters.status === "present") {
+      filtered = filtered.filter((att) => att.is_present);
+    } else if (filters.status === "absent") {
+      filtered = filtered.filter((att) => !att.is_present);
     }
 
     // Filter by event type
-    if (filters.eventType === 'entry') {
-      filtered = filtered.filter(att => att.event_type === 'entry');
-    } else if (filters.eventType === 'exit') {
-      filtered = filtered.filter(att => att.event_type === 'exit');
+    if (filters.eventType === "entry") {
+      filtered = filtered.filter((att) => att.event_type === "entry");
+    } else if (filters.eventType === "exit") {
+      filtered = filtered.filter((att) => att.event_type === "exit");
     }
 
     // Filter by search term
     if (filters.searchTerm) {
       const searchLower = filters.searchTerm.toLowerCase();
-      filtered = filtered.filter(att => 
-        att.student?.full_name?.toLowerCase().includes(searchLower) ||
-        att.school_class?.name?.toLowerCase().includes(searchLower)
+      filtered = filtered.filter(
+        (att) =>
+          att.student?.full_name?.toLowerCase().includes(searchLower) ||
+          att.school_class?.name?.toLowerCase().includes(searchLower)
       );
     }
 
@@ -209,11 +241,16 @@ const AttendanceReports = () => {
 
     // Calculate summary
     const totalRecords = attendances.length;
-    const entryCount = attendances.filter(att => att.event_type === 'entry').length;
-    const exitCount = attendances.filter(att => att.event_type === 'exit').length;
-    const presentCount = attendances.filter(att => att.is_present).length;
+    const entryCount = attendances.filter(
+      (att) => att.event_type === "entry"
+    ).length;
+    const exitCount = attendances.filter(
+      (att) => att.event_type === "exit"
+    ).length;
+    const presentCount = attendances.filter((att) => att.is_present).length;
     const absentCount = totalRecords - presentCount;
-    const presentPercentage = totalRecords > 0 ? ((presentCount / totalRecords) * 100).toFixed(1) : 0;
+    const presentPercentage =
+      totalRecords > 0 ? ((presentCount / totalRecords) * 100).toFixed(1) : 0;
 
     setSummary({
       totalRecords,
@@ -221,105 +258,115 @@ const AttendanceReports = () => {
       exitCount,
       presentCount,
       absentCount,
-      presentPercentage
+      presentPercentage,
     });
   };
 
   const handleFilterChange = (field, value) => {
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
   const resetFilters = () => {
     setFilters({
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date().toISOString().split('T')[0],
-      classId: '',
-      status: 'all',
-      eventType: 'all',
-      searchTerm: ''
+      startDate: new Date().toISOString().split("T")[0],
+      endDate: new Date().toISOString().split("T")[0],
+      classId: "",
+      status: "all",
+      eventType: "all",
+      searchTerm: "",
     });
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('fr-FR');
+    return new Date(dateString).toLocaleDateString("fr-FR");
   };
 
   const formatTime = (timeString) => {
-    if (!timeString) return '';
-    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('fr-FR', {
-      hour: '2-digit',
-      minute: '2-digit'
+    if (!timeString) return "";
+    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   const exportToPDF = () => {
     // TODO: Implement PDF export
-    setMessage('Fonction d\'export PDF en cours de développement');
-    setMessageType('info');
+    setMessage("Fonction d'export PDF en cours de développement");
+    setMessageType("info");
   };
 
   const markAbsentStudents = async () => {
     if (!filters.classId) {
-      setMessage('Veuillez sélectionner une classe pour marquer les absents');
-      setMessageType('warning');
+      setMessage("Veuillez sélectionner une classe pour marquer les absents");
+      setMessageType("warning");
       return;
     }
 
     const confirmAction = window.confirm(
-      `Êtes-vous sûr de vouloir marquer tous les élèves non présents comme absents pour le ${new Date(filters.startDate).toLocaleDateString('fr-FR')} ?`
+      `Êtes-vous sûr de vouloir marquer tous les élèves non présents comme absents pour le ${new Date(
+        filters.startDate
+      ).toLocaleDateString("fr-FR")} ?`
     );
 
     if (!confirmAction) return;
 
     try {
       setIsMarkingAbsent(true);
-      console.log('🔄 Marquage des absents pour classe:', filters.classId, 'date:', filters.startDate);
+      console.log(
+        "🔄 Marquage des absents pour classe:",
+        filters.classId,
+        "date:",
+        filters.startDate
+      );
 
-      const response = await fetch(`${host}/api/supervisors/mark-absent-students`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          supervisor_id: user.id,
-          school_class_id: filters.classId,
-          attendance_date: filters.startDate
-        })
-      });
+      const response = await fetch(
+        `${host}/api/supervisors/mark-absent-students`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            supervisor_id: user.id,
+            school_class_id: filters.classId,
+            attendance_date: filters.startDate,
+          }),
+        }
+      );
 
       const data = await response.json();
-      console.log('📊 Résultat marquage absents:', data);
+      console.log("📊 Résultat marquage absents:", data);
 
       if (data.success) {
         setMessage(data.message);
-        setMessageType('success');
-        
+        setMessageType("success");
+
         // Recharger les données d'attendance
         loadAttendances();
-        
+
         // Afficher les statistiques
         if (data.data) {
           setTimeout(() => {
             setMessage(
               `✅ ${data.message}\n` +
-              `📊 Total étudiants: ${data.data.total_students}\n` +
-              `✅ Présents: ${data.data.present_students}\n` +
-              `❌ Absents marqués: ${data.data.absent_students_marked}`
+                `📊 Total étudiants: ${data.data.total_students}\n` +
+                `✅ Présents: ${data.data.present_students}\n` +
+                `❌ Absents marqués: ${data.data.absent_students_marked}`
             );
           }, 1000);
         }
       } else {
-        setMessage(data.message || 'Erreur lors du marquage des absents');
-        setMessageType('danger');
+        setMessage(data.message || "Erreur lors du marquage des absents");
+        setMessageType("danger");
       }
     } catch (error) {
-      console.error('🚨 Erreur marquage absents:', error);
-      setMessage('Erreur réseau lors du marquage des absents');
-      setMessageType('danger');
+      console.error("🚨 Erreur marquage absents:", error);
+      setMessage("Erreur réseau lors du marquage des absents");
+      setMessageType("danger");
     } finally {
       setIsMarkingAbsent(false);
     }
@@ -327,9 +374,9 @@ const AttendanceReports = () => {
 
   const printReport = () => {
     // Create a new window with printable content
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open("", "_blank");
     const printContent = generatePrintableReport();
-    
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
@@ -358,7 +405,7 @@ const AttendanceReports = () => {
         </body>
       </html>
     `);
-    
+
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => {
@@ -371,11 +418,15 @@ const AttendanceReports = () => {
     const now = new Date();
     return `
       <div class="header">
-        <h1>Groupe Scolaire Bilingue Privé La Semence</h1>
+        <h1>COLLEGE POLYVALENT BILINGUE DE DOUALA</h1>
         <h2>Rapport de Présences</h2>
-        <p><strong>Période:</strong> ${formatDate(filters.startDate)} - ${formatDate(filters.endDate)}</p>
-        <p><strong>Surveillant:</strong> ${user?.name || 'N/A'}</p>
-        <p><strong>Généré le:</strong> ${now.toLocaleDateString('fr-FR')} à ${now.toLocaleTimeString('fr-FR')}</p>
+        <p><strong>Période:</strong> ${formatDate(
+          filters.startDate
+        )} - ${formatDate(filters.endDate)}</p>
+        <p><strong>Surveillant:</strong> ${user?.name || "N/A"}</p>
+        <p><strong>Généré le:</strong> ${now.toLocaleDateString(
+          "fr-FR"
+        )} à ${now.toLocaleTimeString("fr-FR")}</p>
       </div>
 
       <div class="summary">
@@ -384,15 +435,21 @@ const AttendanceReports = () => {
           <div>Total Enregistrements</div>
         </div>
         <div class="summary-item">
-          <div class="summary-number" style="color: #28a745">${summary.presentCount}</div>
+          <div class="summary-number" style="color: #28a745">${
+            summary.presentCount
+          }</div>
           <div>Présents</div>
         </div>
         <div class="summary-item">
-          <div class="summary-number" style="color: #dc3545">${summary.absentCount}</div>
+          <div class="summary-number" style="color: #dc3545">${
+            summary.absentCount
+          }</div>
           <div>Absents</div>
         </div>
         <div class="summary-item">
-          <div class="summary-number" style="color: #17a2b8">${summary.presentPercentage}%</div>
+          <div class="summary-number" style="color: #17a2b8">${
+            summary.presentPercentage
+          }%</div>
           <div>Taux de Présence</div>
         </div>
       </div>
@@ -409,18 +466,24 @@ const AttendanceReports = () => {
           </tr>
         </thead>
         <tbody>
-          ${filteredAttendances.map(attendance => `
+          ${filteredAttendances
+            .map(
+              (attendance) => `
             <tr>
               <td>${formatDate(attendance.attendance_date)}</td>
-              <td><strong>${attendance.student?.full_name || 'N/A'}</strong></td>
-              <td>${attendance.school_class?.name || 'N/A'}</td>
+              <td><strong>${
+                attendance.student?.full_name || "N/A"
+              }</strong></td>
+              <td>${attendance.school_class?.name || "N/A"}</td>
               <td>${formatTime(attendance.scanned_at)}</td>
-              <td class="${attendance.is_present ? 'present' : 'absent'}">
-                ${attendance.is_present ? '✓ Présent' : '✗ Absent'}
+              <td class="${attendance.is_present ? "present" : "absent"}">
+                ${attendance.is_present ? "✓ Présent" : "✗ Absent"}
               </td>
-              <td>${attendance.supervisor?.name || user?.name || 'N/A'}</td>
+              <td>${attendance.supervisor?.name || user?.name || "N/A"}</td>
             </tr>
-          `).join('')}
+          `
+            )
+            .join("")}
         </tbody>
       </table>
 
@@ -447,17 +510,21 @@ const AttendanceReports = () => {
         <Col>
           {!user || !token ? (
             <Alert variant="danger">
-              <strong>⚠️ Problème d'authentification</strong><br/>
+              <strong>⚠️ Problème d'authentification</strong>
+              <br />
               Veuillez vous reconnecter avec un compte surveillant général.
             </Alert>
-          ) : user.role !== 'surveillant_general' && user.role !== 'admin' ? (
+          ) : user.role !== "surveillant_general" && user.role !== "admin" ? (
             <Alert variant="warning">
-              <strong>🚫 Accès refusé</strong><br/>
-              Cette page est réservée aux surveillants généraux et administrateurs.
+              <strong>🚫 Accès refusé</strong>
+              <br />
+              Cette page est réservée aux surveillants généraux et
+              administrateurs.
             </Alert>
           ) : (
             <Alert variant="info">
-              <strong>👤 Connecté en tant que:</strong> {user.name} ({user.role})<br/>
+              <strong>👤 Connecté en tant que:</strong> {user.name} ({user.role}
+              )<br />
               <strong>📊 Classes assignées:</strong> {classes.length} classe(s)
             </Alert>
           )}
@@ -468,7 +535,11 @@ const AttendanceReports = () => {
       {message && (
         <Row className="mb-3">
           <Col>
-            <Alert variant={messageType} onClose={() => setMessage('')} dismissible>
+            <Alert
+              variant={messageType}
+              onClose={() => setMessage("")}
+              dismissible
+            >
               {message}
             </Alert>
           </Col>
@@ -493,7 +564,9 @@ const AttendanceReports = () => {
                     <Form.Control
                       type="date"
                       value={filters.startDate}
-                      onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                      onChange={(e) =>
+                        handleFilterChange("startDate", e.target.value)
+                      }
                     />
                   </Form.Group>
                 </Col>
@@ -503,7 +576,9 @@ const AttendanceReports = () => {
                     <Form.Control
                       type="date"
                       value={filters.endDate}
-                      onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                      onChange={(e) =>
+                        handleFilterChange("endDate", e.target.value)
+                      }
                     />
                   </Form.Group>
                 </Col>
@@ -512,11 +587,16 @@ const AttendanceReports = () => {
                     <Form.Label>Classe</Form.Label>
                     <Form.Select
                       value={filters.classId}
-                      onChange={(e) => handleFilterChange('classId', e.target.value)}
+                      onChange={(e) =>
+                        handleFilterChange("classId", e.target.value)
+                      }
                     >
                       <option value="">Toutes les classes</option>
-                      {classes.map(assignment => (
-                        <option key={assignment.id} value={assignment.school_class_id}>
+                      {classes.map((assignment) => (
+                        <option
+                          key={assignment.id}
+                          value={assignment.school_class_id}
+                        >
                           {assignment.school_class?.name}
                         </option>
                       ))}
@@ -528,7 +608,9 @@ const AttendanceReports = () => {
                     <Form.Label>Statut</Form.Label>
                     <Form.Select
                       value={filters.status}
-                      onChange={(e) => handleFilterChange('status', e.target.value)}
+                      onChange={(e) =>
+                        handleFilterChange("status", e.target.value)
+                      }
                     >
                       <option value="all">Tous</option>
                       <option value="present">Présents seulement</option>
@@ -543,7 +625,9 @@ const AttendanceReports = () => {
                     <Form.Label>Type d'événement</Form.Label>
                     <Form.Select
                       value={filters.eventType}
-                      onChange={(e) => handleFilterChange('eventType', e.target.value)}
+                      onChange={(e) =>
+                        handleFilterChange("eventType", e.target.value)
+                      }
                     >
                       <option value="all">Tous les événements</option>
                       <option value="entry">Entrées seulement</option>
@@ -562,13 +646,19 @@ const AttendanceReports = () => {
                         type="text"
                         placeholder="Nom de l'élève..."
                         value={filters.searchTerm}
-                        onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+                        onChange={(e) =>
+                          handleFilterChange("searchTerm", e.target.value)
+                        }
                       />
                     </InputGroup>
                   </Form.Group>
                 </Col>
                 <Col md={4} className="d-flex align-items-end">
-                  <Button variant="outline-secondary" onClick={resetFilters} className="mb-3">
+                  <Button
+                    variant="outline-secondary"
+                    onClick={resetFilters}
+                    className="mb-3"
+                  >
                     Réinitialiser
                   </Button>
                 </Col>
@@ -642,8 +732,8 @@ const AttendanceReports = () => {
           {/* Bouton marquer absents */}
           <div>
             {filters.classId && (
-              <Button 
-                variant="warning" 
+              <Button
+                variant="warning"
                 onClick={markAbsentStudents}
                 disabled={isMarkingAbsent || !filters.classId}
               >
@@ -720,18 +810,29 @@ const AttendanceReports = () => {
                         <tr key={index}>
                           <td>{formatDate(attendance.attendance_date)}</td>
                           <td>
-                            <strong>{attendance.student?.full_name || 'N/A'}</strong>
+                            <strong>
+                              {attendance.student?.full_name || "N/A"}
+                            </strong>
                           </td>
                           <td>
                             <Badge bg="light" text="dark">
-                              {attendance.school_class?.name || 'N/A'}
+                              {attendance.school_class?.name || "N/A"}
                             </Badge>
                           </td>
                           <td>
-                            <Badge bg={attendance.event_type === 'entry' ? 'success' : 'danger'}>
-                              {attendance.event_type === 'entry' ? (
+                            <Badge
+                              bg={
+                                attendance.event_type === "entry"
+                                  ? "success"
+                                  : "danger"
+                              }
+                            >
+                              {attendance.event_type === "entry" ? (
                                 <>
-                                  <ArrowRightCircle size={12} className="me-1" />
+                                  <ArrowRightCircle
+                                    size={12}
+                                    className="me-1"
+                                  />
                                   Entrée
                                 </>
                               ) : (
@@ -747,7 +848,9 @@ const AttendanceReports = () => {
                             {formatTime(attendance.scanned_at)}
                           </td>
                           <td>
-                            <Badge bg={attendance.is_present ? 'success' : 'danger'}>
+                            <Badge
+                              bg={attendance.is_present ? "success" : "danger"}
+                            >
                               {attendance.is_present ? (
                                 <>
                                   <CheckCircleFill size={12} className="me-1" />
@@ -763,7 +866,7 @@ const AttendanceReports = () => {
                           </td>
                           <td>
                             <small className="text-muted">
-                              {attendance.supervisor?.name || 'N/A'}
+                              {attendance.supervisor?.name || "N/A"}
                             </small>
                           </td>
                         </tr>
@@ -775,10 +878,9 @@ const AttendanceReports = () => {
                 <div className="text-center py-4 text-muted">
                   <Calendar size={48} />
                   <p className="mt-2 mb-0">
-                    {attendances.length === 0 
-                      ? 'Aucune donnée de présence pour la période sélectionnée'
-                      : 'Aucun résultat ne correspond aux filtres appliqués'
-                    }
+                    {attendances.length === 0
+                      ? "Aucune donnée de présence pour la période sélectionnée"
+                      : "Aucun résultat ne correspond aux filtres appliqués"}
                   </p>
                 </div>
               )}

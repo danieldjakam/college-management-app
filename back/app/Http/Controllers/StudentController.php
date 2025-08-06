@@ -19,7 +19,7 @@ class StudentController extends Controller
     private function getUserWorkingYear()
     {
         $user = Auth::user();
-        
+
         // Si l'utilisateur a une année de travail définie, l'utiliser
         if ($user && $user->working_school_year_id) {
             $workingYear = SchoolYear::find($user->working_school_year_id);
@@ -27,15 +27,15 @@ class StudentController extends Controller
                 return $workingYear;
             }
         }
-        
+
         // Sinon, utiliser l'année courante par défaut
         $currentYear = SchoolYear::where('is_current', true)->first();
-        
+
         if (!$currentYear) {
             // Si aucune année courante, prendre la première année active
             $currentYear = SchoolYear::where('is_active', true)->first();
         }
-        
+
         return $currentYear;
     }
 
@@ -57,11 +57,11 @@ class StudentController extends Controller
                 $extension = $photo->getClientOriginalExtension() ?: 'jpg';
                 $filename = 'student_' . $studentNumber . '_' . time() . '.' . $extension;
                 $uploadPath = 'students/photos';
-                
+
                 if (!Storage::disk('public')->exists($uploadPath)) {
                     Storage::disk('public')->makeDirectory($uploadPath);
                 }
-                
+
                 $path = $photo->storeAs($uploadPath, $filename, 'public');
                 return $path;
             }
@@ -92,7 +92,7 @@ class StudentController extends Controller
             // Redimensionner et optimiser l'image
             $imageData = file_get_contents($photo->getRealPath());
             $image = imagecreatefromstring($imageData);
-            
+
             if (!$image) {
                 \Log::error('Photo upload failed: Could not create image from string');
                 // Fallback: stocker l'image sans redimensionnement
@@ -100,56 +100,55 @@ class StudentController extends Controller
                 return $path;
             }
 
-        // Obtenir les dimensions originales
-        $originalWidth = imagesx($image);
-        $originalHeight = imagesy($image);
+            // Obtenir les dimensions originales
+            $originalWidth = imagesx($image);
+            $originalHeight = imagesy($image);
 
-        // Calculer les nouvelles dimensions (max 300x300 en gardant les proportions)
-        $maxSize = 300;
-        if ($originalWidth > $originalHeight) {
-            $newWidth = $maxSize;
-            $newHeight = intval(($originalHeight * $maxSize) / $originalWidth);
-        } else {
-            $newHeight = $maxSize;
-            $newWidth = intval(($originalWidth * $maxSize) / $originalHeight);
-        }
+            // Calculer les nouvelles dimensions (max 300x300 en gardant les proportions)
+            $maxSize = 300;
+            if ($originalWidth > $originalHeight) {
+                $newWidth = $maxSize;
+                $newHeight = intval(($originalHeight * $maxSize) / $originalWidth);
+            } else {
+                $newHeight = $maxSize;
+                $newWidth = intval(($originalWidth * $maxSize) / $originalHeight);
+            }
 
-        // Créer la nouvelle image redimensionnée
-        $resizedImage = imagecreatetruecolor($newWidth, $newHeight);
-        
-        // Préserver la transparence pour PNG et GIF
-        if ($photo->getMimeType() === 'image/png' || $photo->getMimeType() === 'image/gif') {
-            imagealphablending($resizedImage, false);
-            imagesavealpha($resizedImage, true);
-            $transparent = imagecolorallocatealpha($resizedImage, 255, 255, 255, 127);
-            imagefilledrectangle($resizedImage, 0, 0, $newWidth, $newHeight, $transparent);
-        }
+            // Créer la nouvelle image redimensionnée
+            $resizedImage = imagecreatetruecolor($newWidth, $newHeight);
 
-        // Redimensionner
-        imagecopyresampled($resizedImage, $image, 0, 0, 0, 0, $newWidth, $newHeight, $originalWidth, $originalHeight);
+            // Préserver la transparence pour PNG et GIF
+            if ($photo->getMimeType() === 'image/png' || $photo->getMimeType() === 'image/gif') {
+                imagealphablending($resizedImage, false);
+                imagesavealpha($resizedImage, true);
+                $transparent = imagecolorallocatealpha($resizedImage, 255, 255, 255, 127);
+                imagefilledrectangle($resizedImage, 0, 0, $newWidth, $newHeight, $transparent);
+            }
 
-        // Sauvegarder dans le storage
-        $fullPath = storage_path('app/public/' . $uploadPath . '/' . $filename);
-        
-        // Sauvegarder selon le type
-        switch ($photo->getMimeType()) {
-            case 'image/png':
-                imagepng($resizedImage, $fullPath, 8);
-                break;
-            case 'image/gif':
-                imagegif($resizedImage, $fullPath);
-                break;
-            default:
-                imagejpeg($resizedImage, $fullPath, 85);
-                break;
-        }
+            // Redimensionner
+            imagecopyresampled($resizedImage, $image, 0, 0, 0, 0, $newWidth, $newHeight, $originalWidth, $originalHeight);
+
+            // Sauvegarder dans le storage
+            $fullPath = storage_path('app/public/' . $uploadPath . '/' . $filename);
+
+            // Sauvegarder selon le type
+            switch ($photo->getMimeType()) {
+                case 'image/png':
+                    imagepng($resizedImage, $fullPath, 8);
+                    break;
+                case 'image/gif':
+                    imagegif($resizedImage, $fullPath);
+                    break;
+                default:
+                    imagejpeg($resizedImage, $fullPath, 85);
+                    break;
+            }
 
             // Libérer la mémoire
             imagedestroy($image);
             imagedestroy($resizedImage);
 
             return $uploadPath . '/' . $filename;
-            
         } catch (\Exception $e) {
             \Log::error('Photo upload failed with exception: ' . $e->getMessage());
             // Si le traitement échoue, essayer de stocker l'image sans redimensionnement
@@ -157,11 +156,11 @@ class StudentController extends Controller
                 $extension = $photo->getClientOriginalExtension() ?: 'jpg';
                 $filename = 'student_' . $studentNumber . '_' . time() . '.' . $extension;
                 $uploadPath = 'students/photos';
-                
+
                 if (!Storage::disk('public')->exists($uploadPath)) {
                     Storage::disk('public')->makeDirectory($uploadPath);
                 }
-                
+
                 $path = $photo->storeAs($uploadPath, $filename, 'public');
                 \Log::info('Photo stored without processing: ' . $path);
                 return $path;
@@ -180,7 +179,7 @@ class StudentController extends Controller
         try {
             // Récupérer l'année scolaire de travail de l'utilisateur
             $workingYear = $this->getUserWorkingYear();
-            
+
             if (!$workingYear) {
                 return response()->json([
                     'success' => false,
@@ -193,7 +192,7 @@ class StudentController extends Controller
                 ->where('class_series_id', $seriesId)
                 ->where('is_active', true)
                 ->where('school_year_id', $workingYear->id);
-            
+
             $students = $studentsQuery
                 ->orderBy('order', 'asc')
                 ->orderByRaw('COALESCE(last_name, name) ASC')
@@ -202,7 +201,7 @@ class StudentController extends Controller
 
             // Récupérer les informations de la série
             $series = ClassSeries::with(['schoolClass.level.section'])->find($seriesId);
-            
+
             if (!$series) {
                 return response()->json([
                     'success' => false,
@@ -240,7 +239,7 @@ class StudentController extends Controller
 
         // Obtenir l'année de travail de l'utilisateur
         $workingYear = $this->getUserWorkingYear();
-        
+
         if (!$workingYear) {
             return response()->json([
                 'success' => false,
@@ -275,7 +274,7 @@ class StudentController extends Controller
 
             // Générer le numéro d'élève pour l'année de travail
             $studentNumber = Student::generateStudentNumber(
-                $workingYear->start_date, 
+                $workingYear->start_date,
                 $request->class_series_id
             );
 
@@ -289,7 +288,7 @@ class StudentController extends Controller
             $studentData['school_year_id'] = $workingYear->id;
             $studentData['order'] = $maxOrder + 1; // Ajouter à la fin par défaut
             $studentData['is_active'] = true;
-            
+
             // Combiner nom + prénom pour le champ legacy 'name'
             if (!empty($studentData['last_name']) && !empty($studentData['first_name'])) {
                 $studentData['name'] = $studentData['last_name'] . ' ' . $studentData['first_name'];
@@ -352,28 +351,28 @@ class StudentController extends Controller
 
         try {
             $updateData = $request->except(['photo']);
-            
+
             // Si school_year_id n'est pas fourni, utiliser l'année de l'étudiant existant ou l'année courante
             if (!isset($updateData['school_year_id']) || empty($updateData['school_year_id'])) {
                 $updateData['school_year_id'] = $student->school_year_id ?: $this->getUserWorkingYear()->id;
             }
-            
+
             // Combiner nom + prénom pour le champ legacy 'name'
             if (!empty($updateData['last_name']) && !empty($updateData['first_name'])) {
                 $updateData['name'] = $updateData['last_name'] . ' ' . $updateData['first_name'];
             }
-            
+
             // Gérer l'upload de photo
             if ($request->hasFile('photo')) {
                 // Supprimer l'ancienne photo si elle existe
                 if ($student->photo && Storage::disk('public')->exists($student->photo)) {
                     Storage::disk('public')->delete($student->photo);
                 }
-                
+
                 $photoPath = $this->handlePhotoUpload($request->file('photo'), $student->student_number);
                 $updateData['photo'] = $photoPath;
             }
-            
+
             $student->update($updateData);
             $student->load(['schoolYear', 'classSeries']);
 
@@ -427,7 +426,7 @@ class StudentController extends Controller
 
         try {
             $updateData = $request->except(['photo']);
-            
+
             // Si school_year_id n'est pas fourni, utiliser l'année de travail de l'utilisateur
             if (empty($updateData['school_year_id'])) {
                 $workingYear = $this->getUserWorkingYear();
@@ -435,23 +434,23 @@ class StudentController extends Controller
                     $updateData['school_year_id'] = $workingYear->id;
                 }
             }
-            
+
             // Combiner nom + prénom pour le champ legacy 'name'
             if (!empty($updateData['last_name']) && !empty($updateData['first_name'])) {
                 $updateData['name'] = $updateData['last_name'] . ' ' . $updateData['first_name'];
             }
-            
+
             // Gérer l'upload de photo
             if ($request->hasFile('photo')) {
                 // Supprimer l'ancienne photo si elle existe
                 if ($student->photo && Storage::disk('public')->exists($student->photo)) {
                     Storage::disk('public')->delete($student->photo);
                 }
-                
+
                 $photoPath = $this->handlePhotoUpload($request->file('photo'), $student->student_number);
                 $updateData['photo'] = $photoPath;
             }
-            
+
             $student->update($updateData);
             $student->load(['schoolYear', 'classSeries']);
 
@@ -479,7 +478,7 @@ class StudentController extends Controller
             if ($student->photo && Storage::disk('public')->exists($student->photo)) {
                 Storage::disk('public')->delete($student->photo);
             }
-            
+
             $student->delete();
 
             return response()->json([
@@ -503,7 +502,7 @@ class StudentController extends Controller
         try {
             // Utiliser l'année de travail de l'utilisateur
             $workingYear = $this->getUserWorkingYear();
-            
+
             if (!$workingYear) {
                 return response()->json([
                     'success' => false,
@@ -528,14 +527,14 @@ class StudentController extends Controller
                 'Content-Disposition' => "attachment; filename=\"$filename\"",
             ];
 
-            $callback = function() use ($students) {
+            $callback = function () use ($students) {
                 $file = fopen('php://output', 'w');
-                
+
                 // Headers CSV
                 fputcsv($file, [
                     'Numéro',
                     'Nom',
-                    'Prénom', 
+                    'Prénom',
                     'Date de naissance',
                     'Lieu de naissance',
                     'Sexe',
@@ -582,7 +581,7 @@ class StudentController extends Controller
         try {
             // Utiliser l'année de travail de l'utilisateur
             $workingYear = $this->getUserWorkingYear();
-            
+
             if (!$workingYear) {
                 return response()->json([
                     'success' => false,
@@ -602,19 +601,18 @@ class StudentController extends Controller
 
             // Générer le HTML pour le PDF
             $html = $this->generateStudentListHtml($students, $series, $workingYear);
-            
+
             $filename = 'eleves_' . str_replace(' ', '_', $series->name) . '_' . date('Y-m-d') . '.pdf';
-            
+
             // Générer le HTML optimisé pour impression/PDF
             $optimizedHtml = $this->generatePdfFromHtml($html, $filename);
-            
+
             // Retourner le HTML formaté que le navigateur peut imprimer en PDF
             return response($optimizedHtml, 200, [
                 'Content-Type' => 'text/html',
                 'Content-Disposition' => "inline; filename=\"students_list.html\"",
                 'X-Suggested-Filename' => $filename
             ]);
-            
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -658,10 +656,10 @@ class StudentController extends Controller
 </head>
 <body>
     <div class="header">
-        <h1>GROUPE SCOLAIRE BILINGUE PRIVÉ LA SEMENCE</h1>
+        <h1>COLLEGE POLYVALENT BILINGUE DE DOUALA</h1>
         <p>Liste des Élèves</p>
     </div>
-    
+
     <div class="info-box">
         <div class="info-row">
             <strong>Série:</strong> <span>' . $series->name . '</span>
@@ -706,8 +704,8 @@ class StudentController extends Controller
                 <td><strong>' . $student->last_name . ' ' . $student->first_name . '</strong></td>
                 <td>' . ($student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : '') . '</td>
                 <td>' . $student->place_of_birth . '</td>
-                <td class="' . ($student->gender === 'M' ? 'gender-m' : 'gender-f') . '">' . 
-                    ($student->gender === 'M' ? 'M' : 'F') . '</td>
+                <td class="' . ($student->gender === 'M' ? 'gender-m' : 'gender-f') . '">' .
+                ($student->gender === 'M' ? 'M' : 'F') . '</td>
                 <td>' . $student->parent_name . '</td>
                 <td>' . $student->parent_phone . '</td>
             </tr>';
@@ -715,10 +713,10 @@ class StudentController extends Controller
 
         $html .= '</tbody>
     </table>
-    
+
     <div class="footer">
         <p>Document généré automatiquement le ' . date('d/m/Y à H:i:s') . '</p>
-        <p>Groupe Scolaire Bilingue Privé La Semence</p>
+        <p>COLLEGE POLYVALENT BILINGUE DE DOUALA</p>
     </div>
 </body>
 </html>';
@@ -733,38 +731,38 @@ class StudentController extends Controller
     {
         // Approche simple et robuste : retourner directement le HTML formaté pour impression
         // Le navigateur peut ensuite imprimer en PDF si nécessaire
-        
+
         // Ajouter des styles optimisés pour l'impression/PDF
         $printOptimizedHtml = str_replace(
             '<style>',
             '<style>
-                @page { 
-                    size: A4; 
-                    margin: 10mm; 
+                @page {
+                    size: A4;
+                    margin: 10mm;
                 }
-                body { 
-                    font-family: Arial, sans-serif; 
-                    font-size: 10pt; 
+                body {
+                    font-family: Arial, sans-serif;
+                    font-size: 10pt;
                     line-height: 1.3;
                     margin: 0;
                     padding: 0;
                 }
                 .no-print { display: none !important; }
-                table { 
-                    page-break-inside: avoid; 
+                table {
+                    page-break-inside: avoid;
                     width: 100%;
                     font-size: 9pt;
                 }
-                thead { 
-                    display: table-header-group; 
+                thead {
+                    display: table-header-group;
                 }
-                tr { 
-                    page-break-inside: avoid; 
+                tr {
+                    page-break-inside: avoid;
                 }
             ',
             $html
         );
-        
+
         // Retourner le HTML optimisé - le navigateur se chargera de la conversion PDF
         return $printOptimizedHtml;
     }
@@ -776,7 +774,7 @@ class StudentController extends Controller
     {
         // Obtenir l'année de travail de l'utilisateur
         $workingYear = $this->getUserWorkingYear();
-        
+
         if (!$workingYear) {
             return response()->json([
                 'success' => false,
@@ -799,13 +797,13 @@ class StudentController extends Controller
 
         try {
             $file = $request->file('file');
-            $csvData = array_map(function($line) {
+            $csvData = array_map(function ($line) {
                 return str_getcsv($line, ';', '"', '\\');
             }, file($file->getRealPath()));
-            
+
             // Ignorer la première ligne (headers)
             $headers = array_shift($csvData);
-            
+
             $imported = 0;
             $errors = [];
             $schoolYear = SchoolYear::find($request->school_year_id);
@@ -820,19 +818,19 @@ class StudentController extends Controller
 
                 try {
                     $studentNumber = Student::generateStudentNumber(
-                        $schoolYear->start_date, 
+                        $schoolYear->start_date,
                         $request->class_series_id
                     );
 
                     $lastName = trim($row[0] ?? '');
                     $firstName = trim($row[1] ?? '');
-                    
+
                     // Validation des champs obligatoires
                     if (empty($lastName) || empty($firstName)) {
                         $errors[] = "Ligne " . ($index + 2) . ": Nom et prénom obligatoires";
                         continue;
                     }
-                    
+
                     // Traitement de la date de naissance avec plusieurs formats possibles
                     $dateOfBirth = null;
                     if (!empty($row[2])) {
@@ -851,19 +849,18 @@ class StudentController extends Controller
                             continue;
                         }
                     }
-                    
+
                     // Traitement du sexe
                     $gender = strtoupper(trim($row[4] ?? ''));
                     if (!in_array($gender, ['M', 'F'])) {
-                        $gender = $gender === 'MASCULIN' || $gender === 'HOMME' ? 'M' : 
-                                 ($gender === 'FEMININ' || $gender === 'FÉMININ' || $gender === 'FEMME' ? 'F' : 'M');
+                        $gender = $gender === 'MASCULIN' || $gender === 'HOMME' ? 'M' : ($gender === 'FEMININ' || $gender === 'FÉMININ' || $gender === 'FEMME' ? 'F' : 'M');
                     }
-                    
+
                     // Calculer l'ordre automatiquement
                     $maxOrder = Student::where('class_series_id', $request->class_series_id)
                         ->where('school_year_id', $workingYear->id)
                         ->max('order') ?: 0;
-                    
+
                     Student::create([
                         'last_name' => $lastName,
                         'first_name' => $firstName,
@@ -881,7 +878,7 @@ class StudentController extends Controller
                         'order' => $maxOrder + 1,
                         'is_active' => true
                     ]);
-                    
+
                     $imported++;
                 } catch (\Exception $e) {
                     $errors[] = "Ligne " . ($index + 2) . ": " . $e->getMessage();
@@ -917,7 +914,7 @@ class StudentController extends Controller
             $years = SchoolYear::where('is_active', true)
                 ->orderBy('start_date', 'desc')
                 ->get();
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $years
@@ -939,7 +936,7 @@ class StudentController extends Controller
     {
         // Obtenir l'année de travail de l'utilisateur
         $workingYear = $this->getUserWorkingYear();
-        
+
         if (!$workingYear) {
             return response()->json([
                 'success' => false,
@@ -995,7 +992,7 @@ class StudentController extends Controller
     {
         // Obtenir l'année de travail de l'utilisateur
         $workingYear = $this->getUserWorkingYear();
-        
+
         if (!$workingYear) {
             return response()->json([
                 'success' => false,
@@ -1063,7 +1060,6 @@ class StudentController extends Controller
                 'message' => 'Statut mis à jour avec succès',
                 'data' => $student->fresh()
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -1185,7 +1181,6 @@ class StudentController extends Controller
                     ]
                 ]
             ]);
-
         } catch (\Exception $e) {
             DB::rollBack();
             \Log::error('Student transfer failed', [
