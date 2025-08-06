@@ -1,1 +1,1 @@
-export const host = "http://192.168.1.241:8000";
+export const host = "https://admin1.cpb-douala.com";

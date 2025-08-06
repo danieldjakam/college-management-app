@@ -19,19 +19,9 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        // 'http://localhost:3006',
-        // 'http://127.0.0.1:3006',
-        // 'http://192.168.1.241:3006',
-        // 'https://192.168.1.241:3006'
-    ],
+    'allowed_origins' => ['*'],
 
-    'allowed_origins_patterns' => [
-        '/^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:3006$/',
-        '/^https:\/\/192\.168\.\d{1,3}\.\d{1,3}:3006$/',
-        '/^http:\/\/localhost:\d+$/',
-        '/^http:\/\/127\.0\.0\.1:\d+$/'
-    ],
+    'allowed_origins_patterns' => ['*'],
 
     'allowed_headers' => ['*'],
 
