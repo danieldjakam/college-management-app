@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class StudentController extends Controller
 {
@@ -288,6 +289,11 @@ class StudentController extends Controller
             $studentData['school_year_id'] = $workingYear->id;
             $studentData['order'] = $maxOrder + 1; // Ajouter à la fin par défaut
             $studentData['is_active'] = true;
+            
+            // Convertir les chaînes boolean en vrais boolean
+            if (isset($studentData['has_scholarship_enabled'])) {
+                $studentData['has_scholarship_enabled'] = filter_var($studentData['has_scholarship_enabled'], FILTER_VALIDATE_BOOLEAN);
+            }
 
             // Combiner nom + prénom pour le champ legacy 'name'
             if (!empty($studentData['last_name']) && !empty($studentData['first_name'])) {
@@ -355,6 +361,11 @@ class StudentController extends Controller
             // Si school_year_id n'est pas fourni, utiliser l'année de l'étudiant existant ou l'année courante
             if (!isset($updateData['school_year_id']) || empty($updateData['school_year_id'])) {
                 $updateData['school_year_id'] = $student->school_year_id ?: $this->getUserWorkingYear()->id;
+            }
+            
+            // Convertir les chaînes boolean en vrais boolean
+            if (isset($updateData['has_scholarship_enabled'])) {
+                $updateData['has_scholarship_enabled'] = filter_var($updateData['has_scholarship_enabled'], FILTER_VALIDATE_BOOLEAN);
             }
 
             // Combiner nom + prénom pour le champ legacy 'name'
@@ -433,6 +444,11 @@ class StudentController extends Controller
                 if ($workingYear) {
                     $updateData['school_year_id'] = $workingYear->id;
                 }
+            }
+            
+            // Convertir les chaînes boolean en vrais boolean
+            if (isset($updateData['has_scholarship_enabled'])) {
+                $updateData['has_scholarship_enabled'] = filter_var($updateData['has_scholarship_enabled'], FILTER_VALIDATE_BOOLEAN);
             }
 
             // Combiner nom + prénom pour le champ legacy 'name'

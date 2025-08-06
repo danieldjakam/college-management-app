@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('school_website')->nullable();
             $table->string('school_logo')->nullable();
             $table->string('currency', 10)->default('FCFA');
-            $table->string('bank_name')->default('C4ED');
+            $table->string('bank_name')->default('FIGEC');
             $table->string('country')->default('Cameroun');
             $table->string('city')->default('Douala');
             $table->text('footer_text')->nullable();
@@ -39,7 +39,7 @@ return new class extends Migration
             'school_email' => 'contact@cpdyassa.com',
             'school_website' => 'www.cpdyassa.com',
             'currency' => 'FCFA',
-            'bank_name' => 'C4ED',
+            'bank_name' => 'FIGEC',
             'country' => 'Cameroun',
             'city' => 'Douala',
             'footer_text' => 'Vos dossiers ne seront transmis qu\'après paiement de la totalité des frais de scolarité sollicités',
