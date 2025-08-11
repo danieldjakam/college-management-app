@@ -70,6 +70,18 @@ import Search from "./pages/Search";
 // Stats
 import Stats from "./pages/Stats";
 
+// Inventory
+import InventoryModule from "./pages/Inventory/InventoryModule";
+import InventoryModuleSimple from "./pages/Inventory/InventoryModuleSimple";
+import InventoryModuleStable from "./pages/Inventory/InventoryModuleStable";
+import InventoryDebug from "./pages/Inventory/InventoryDebug";
+import InventorySimplest from "./pages/Inventory/InventorySimplest";
+import InventoryFull from "./pages/Inventory/InventoryFull";
+import TestInventory from "./pages/Inventory/TestInventory";
+
+// Documents
+import DocumentsManager from "./pages/Documents/DocumentsManager";
+
 
 // Components
 import Sidebar from "./components/Sidebar";
@@ -196,6 +208,33 @@ const AppContent = () => {
                   <ProtectedRoute>
                     <Stats />
                   </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/inventory"
+                element={
+                  <AccountantRoute>
+                    <InventoryFull />
+                  </AccountantRoute>
+                }
+              />
+
+              <Route
+                path="/documents"
+                element={
+                  <ProtectedRoute>
+                    <DocumentsManager />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/test-inventory"
+                element={
+                  <AdminRoute>
+                    <TestInventory />
+                  </AdminRoute>
                 }
               />
 

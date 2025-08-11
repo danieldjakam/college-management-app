@@ -25,6 +25,9 @@ use App\Http\Controllers\MainTeacherController;
 use App\Http\Controllers\NeedController;
 use App\Http\Controllers\SupervisorController;
 use App\Http\Controllers\StudentRameController;
+use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\DocumentFolderController;
 
 
 // Routes d'authentification
@@ -317,6 +320,8 @@ Route::middleware('auth:api')->group(function () {
         // Routes pour tous les utilisateurs authentifiés
         Route::post('/', [NeedController::class, 'store']); // Soumettre un besoin
         Route::get('/my-needs', [NeedController::class, 'myNeeds']); // Voir ses propres besoins
+        Route::put('/{need}', [NeedController::class, 'update']); // Modifier un besoin (propriétaire uniquement)
+        Route::delete('/{need}', [NeedController::class, 'destroy']); // Supprimer un besoin (propriétaire uniquement)
         Route::get('/{need}', [NeedController::class, 'show']); // Voir un besoin spécifique (avec contrôle d'accès)
         
         // Routes pour administrateurs uniquement
@@ -355,6 +360,59 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/student/{studentId}/status', [StudentRameController::class, 'getRameStatus']);
         Route::post('/student/{studentId}/update', [StudentRameController::class, 'updateRameStatus']);
         Route::get('/class-series/{classSeriesId}', [StudentRameController::class, 'getClassRameStatus']);
+    });
+
+    // Routes pour l'inventaire scolaire
+    Route::prefix('inventory')->middleware(['role:admin,accountant'])->group(function () {
+        // Routes de consultation (routes spécifiques d'abord)
+        Route::get('/', [InventoryController::class, 'index']);
+        Route::get('/dashboard', [InventoryController::class, 'dashboard']);
+        Route::get('/config', [InventoryController::class, 'config']);
+        Route::get('/export', [InventoryController::class, 'export']);
+        Route::get('/movements/recent', [InventoryController::class, 'getRecentMovements']);
+        
+        // Routes pour les alertes WhatsApp
+        Route::get('/low-stock-items', [InventoryController::class, 'getLowStockItems']);
+        Route::post('/send-low-stock-alert', [InventoryController::class, 'sendLowStockAlert'])->middleware(['role:admin']);
+        Route::post('/test-whatsapp', [InventoryController::class, 'testWhatsAppConfig'])->middleware(['role:admin']);
+        
+        // Routes avec paramètres (après les routes spécifiques)
+        Route::get('/{inventoryItem}', [InventoryController::class, 'show']);
+        Route::get('/{inventoryItem}/movements', [InventoryController::class, 'getMovements']);
+        
+        // Routes de gestion (admin uniquement)
+        Route::post('/', [InventoryController::class, 'store'])->middleware(['role:admin']);
+        Route::put('/{inventoryItem}', [InventoryController::class, 'update'])->middleware(['role:admin']);
+        Route::patch('/{inventoryItem}/quantity', [InventoryController::class, 'updateQuantity'])->middleware(['role:admin']);
+        Route::post('/{inventoryItem}/movements', [InventoryController::class, 'recordMovement'])->middleware(['role:admin']);
+        Route::delete('/{inventoryItem}', [InventoryController::class, 'destroy'])->middleware(['role:admin']);
+    });
+
+    // Routes pour le module Cahier des pièces jointes
+    Route::prefix('documents')->group(function () {
+        // Routes pour les dossiers
+        Route::prefix('folders')->group(function () {
+            Route::get('/', [DocumentFolderController::class, 'index']); // Lister les dossiers
+            Route::get('/tree', [DocumentFolderController::class, 'getTree']); // Arborescence des dossiers
+            Route::get('/types', [DocumentFolderController::class, 'getFolderTypes']); // Types de dossiers
+            Route::get('/search', [DocumentFolderController::class, 'search']); // Rechercher dans les dossiers
+            Route::post('/', [DocumentFolderController::class, 'store']); // Créer un dossier
+            Route::get('/{documentFolder}', [DocumentFolderController::class, 'show']); // Voir un dossier
+            Route::put('/{documentFolder}', [DocumentFolderController::class, 'update']); // Modifier un dossier
+            Route::delete('/{documentFolder}', [DocumentFolderController::class, 'destroy']); // Supprimer un dossier
+        });
+
+        // Routes pour les documents
+        Route::get('/', [DocumentController::class, 'index']); // Lister les documents
+        Route::get('/statistics', [DocumentController::class, 'statistics']); // Statistiques des documents
+        Route::get('/types', [DocumentController::class, 'getTypes']); // Types de documents
+        Route::get('/visibility-types', [DocumentController::class, 'getVisibilityTypes']); // Types de visibilité
+        Route::post('/', [DocumentController::class, 'store']); // Uploader un document
+        Route::get('/{document}', [DocumentController::class, 'show']); // Voir un document
+        Route::put('/{document}', [DocumentController::class, 'update']); // Modifier un document
+        Route::delete('/{document}', [DocumentController::class, 'destroy']); // Supprimer un document
+        Route::get('/{document}/download', [DocumentController::class, 'download']); // Télécharger un document
+        Route::post('/{document}/toggle-archive', [DocumentController::class, 'toggleArchive']); // Archiver/désarchiver
     });
 
 });

@@ -16,6 +16,7 @@ class StudentRameStatus extends Model
         'school_year_id',
         'has_brought_rame',
         'marked_date',
+        'deposit_date',
         'marked_by_user_id',
         'notes'
     ];
@@ -23,6 +24,7 @@ class StudentRameStatus extends Model
     protected $casts = [
         'has_brought_rame' => 'boolean',
         'marked_date' => 'date',
+        'deposit_date' => 'date',
         'created_at' => 'datetime',
         'updated_at' => 'datetime'
     ];
@@ -78,6 +80,7 @@ class StudentRameStatus extends Model
         $this->update([
             'has_brought_rame' => true,
             'marked_date' => now()->toDateString(),
+            'deposit_date' => now()->toDateString(), // Date de dépôt automatique
             'marked_by_user_id' => $userId,
             'notes' => $notes
         ]);
@@ -91,6 +94,7 @@ class StudentRameStatus extends Model
         $this->update([
             'has_brought_rame' => false,
             'marked_date' => now()->toDateString(),
+            'deposit_date' => null, // Effacer la date de dépôt
             'marked_by_user_id' => $userId,
             'notes' => $notes
         ]);

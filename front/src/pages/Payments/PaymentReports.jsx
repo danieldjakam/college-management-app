@@ -129,25 +129,111 @@ const PaymentReports = () => {
                 <head>
                     <title>État des Paiements</title>
                     <style>
-                        body { font-family: Arial, sans-serif; margin: 20px; }
-                        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                        th { background-color: #f5f5f5; font-weight: bold; }
+                        @page {
+                            size: A4;
+                            margin: 1cm;
+                        }
+                        
+                        body { 
+                            font-family: Arial, sans-serif; 
+                            margin: 0;
+                            padding: 0;
+                            font-size: 11px;
+                            line-height: 1.3;
+                        }
+                        
+                        table { 
+                            width: 100%; 
+                            border-collapse: collapse; 
+                            margin: 15px 0;
+                            font-size: 10px;
+                        }
+                        
+                        th, td { 
+                            border: 1px solid #ddd; 
+                            padding: 6px; 
+                            text-align: left; 
+                        }
+                        
+                        th { 
+                            background-color: #f5f5f5; 
+                            font-weight: bold; 
+                            font-size: 10px;
+                        }
+                        
                         .text-center { text-align: center; }
                         .text-right { text-align: right; }
-                        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin: 20px 0; }
-                        .stat-card { border: 1px solid #ddd; padding: 15px; text-align: center; }
+                        
+                        .stats-grid { 
+                            display: grid; 
+                            grid-template-columns: repeat(2, 1fr); 
+                            gap: 15px; 
+                            margin: 15px 0; 
+                        }
+                        
+                        .stat-card { 
+                            border: 1px solid #ddd; 
+                            padding: 10px; 
+                            text-align: center;
+                            font-size: 12px;
+                        }
+                        
+                        .report-header {
+                            text-align: center;
+                            margin-bottom: 20px;
+                            border-bottom: 2px solid #333;
+                            padding-bottom: 15px;
+                        }
+                        
+                        .report-header h1 {
+                            font-size: 16px;
+                            margin: 5px 0;
+                        }
+                        
+                        .report-header h2 {
+                            font-size: 14px;
+                            margin: 5px 0;
+                        }
+                        
+                        .report-header p {
+                            font-size: 11px;
+                            margin: 3px 0;
+                        }
+                        
                         @media print { 
-                            body { margin: 0; }
-                            .no-print { display: none; }
+                            body { 
+                                margin: 0; 
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                            }
+                            .no-print { 
+                                display: none !important; 
+                            }
+                        }
+                        
+                        @media screen {
+                            body {
+                                background: #f0f0f0;
+                                padding: 20px;
+                            }
+                            
+                            .report-container {
+                                background: white;
+                                max-width: 210mm;
+                                margin: 0 auto;
+                                padding: 20px;
+                                box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                            }
                         }
                     </style>
                 </head>
                 <body>
-                    ${html}
-                    <div class="no-print" style="text-align: center; margin-top: 30px;">
-                        <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">Imprimer</button>
-                        <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Fermer</button>
+                    <div class="report-container">
+                        ${html}
+                    </div>
+                    <div class="no-print" style="text-align: center; margin-top: 30px; background: white; padding: 20px;">
+                        <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">📄 Imprimer Rapport</button>
+                        <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer;">✖️ Fermer</button>
                     </div>
                 </body>
             </html>

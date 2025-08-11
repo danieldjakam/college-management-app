@@ -911,7 +911,89 @@ class PaymentController extends Controller
         }
 
 
-        // HTML du reçu selon le format de l'exemple
+        // Créer le contenu du reçu une seule fois
+        $receiptContent = "
+            <div class='receipt-copy'>
+                <div class='date-time'>
+                    Le " . now()->format('d/m/Y H:i:s') . "
+                </div>
+
+                <div class='header'>
+                    " . ($schoolSettings->school_logo ? "<img src='" . url('storage/' . $schoolSettings->school_logo) . "' alt='Logo école' class='logo'>" : "") . "
+                    <div class='school-name'>{$schoolSettings->school_name}</div>
+                    <div class='academic-year'>Année académique : " . $workingYear->name . "</div>
+                    <div class='receipt-title'>REÇU PENSION/FRAIS DIVERS</div>
+                </div>
+
+                <div class='student-info'>
+                    <div><strong>Matricule :</strong> " . ($student->student_number ?? 'N/A') . "</div>
+                    <div><strong>Nom :</strong> {$student->last_name} <span class='float-right'><strong>Prénom : </strong>{$student->first_name}</span></div>
+                    <div><strong>Classe :</strong> " . ($schoolClass ? $schoolClass->name : 'Non défini') . "</div>
+                    <div><strong>Inscription :</strong> " . $formatAmount($paymentStatus->tranche_status[0]['required_amount'] ?? 0) . " <span class='float-right'><strong>Banque :</strong> " . ($schoolSettings->bank_name ?? 'N/A') . "</span></div>
+                    <div><strong>Date de validation :</strong> " . \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y') . " <span class='float-right'><strong>Reçu N° :</strong> {$payment->receipt_number}</span></div>
+                    " . ($benefitInfo ? "<div><strong>Motif ou rabais :</strong> {$benefitInfo}</div>" : "") . "
+                </div>
+
+                <table class='payment-table'>
+                    <thead>
+                        <tr>
+                            <th>N° Op</th>
+                            <th>Banque</th>
+                            <th>Date versement</th>
+                            <th>Tranche affectée</th>
+                            <th>Montant payé</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {$paymentDetailsRows}
+                    </tbody>
+                </table>
+
+                <div class='recap-section'>
+                    <strong>Reste à payer par tranche</strong>
+                    <table class='recap-table'>
+                        <thead>
+                            <tr>
+                                <th>Tranche</th>
+                                <th>Montant normal</th>
+                                <th>Montant payé</th>
+                                <th>Réduction</th>
+                                <th>Bourse</th>
+                                <th>Reste à payer</th>
+                                <th>Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {$recapRows}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class='footer-info'>
+                    <div><strong>N.B :</strong> Vos dossiers ne seront transmis qu'après paiement de la totalité des frais scolaires.</div>
+                    <div>Les frais de scolarité et d'étude de dossier ne sont pas remboursables en cas d'abandon ou d'exclusion.</div>
+                    <div><em>Registration and studying documents fees are not refundable in case of withdrawal or exclusion.</em></div>
+                    <div class='contact-info'>
+                        <div class='contact-left'>
+                            <div><strong>B.P :</strong> " . ($schoolSettings->school_address ? explode(',', $schoolSettings->school_address)[0] : '4100') . "</div>
+                            <div><strong>Tél :</strong> " . ($schoolSettings->school_phone ?? '233 43 25 47') . "</div>
+                            <div><strong>Site web :</strong> " . ($schoolSettings->website ?? 'www.cpdyassa.com') . "</div>
+                        </div>
+                        <div class='contact-right'>
+                            <div>" . ($schoolSettings->school_address ? explode(',', $schoolSettings->school_address)[1] ?? 'Douala' : 'Douala') . "</div>
+                            <div><strong>Email :</strong> " . ($schoolSettings->school_email ?? 'contact@cpdyassa.com') . "</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class='signature-section'>
+                    <div>Validé par " . ($payment->createdByUser ? $payment->createdByUser->name : 'Comptable') . "</div>
+                    <div class='signature-line'>_____________________</div>
+                </div>
+            </div>
+        ";
+
+        // HTML du reçu en format A5 avec double exemplaire
         $html = "
         <!DOCTYPE html>
         <html>
@@ -919,175 +1001,194 @@ class PaymentController extends Controller
             <meta charset='utf-8'>
             <title>Reçu de Paiement - {$payment->receipt_number}</title>
             <style>
+                @page {
+                    size: A5;
+                    margin: 0.5cm;
+                }
+                
                 body {
                     font-family: Arial, sans-serif;
-                    margin: 20px;
-                    font-size: 12px;
-                    line-height: 1.2;
+                    margin: 0;
+                    padding: 0;
+                    font-size: 9px;
+                    line-height: 1.1;
+                    color: #000;
+                    height: 100vh;
+                    display: flex;
+                    flex-direction: column;
                 }
+                
+                .receipt-container {
+                    height: 100%;
+                    display: flex;
+                    flex-direction: column;
+                }
+                
+                .receipt-copy {
+                    flex: 1;
+                    position: relative;
+                    padding: 8px;
+                    border-bottom: 2px dashed #000;
+                    display: flex;
+                    flex-direction: column;
+                }
+                
+                .receipt-copy:last-child {
+                    border-bottom: none;
+                }
+                
+                .copy-label {
+                    position: absolute;
+                    top: 2px;
+                    right: 2px;
+                    font-size: 7px;
+                    font-weight: bold;
+                    color: #666;
+                    background: #f0f0f0;
+                    padding: 2px 4px;
+                    border-radius: 2px;
+                }
+                
                 .header {
                     text-align: center;
-                    margin-bottom: 20px;
+                    margin-bottom: 8px;
                     position: relative;
                 }
+                
                 .logo {
                     position: absolute;
-                    left: 20px;
+                    left: 5px;
                     top: 0;
-                    width: 60px;
-                    height: 60px;
+                    width: 25px;
+                    height: 25px;
                     object-fit: contain;
                 }
+                
                 .school-name {
-                    font-size: 16px;
+                    font-size: 10px;
                     font-weight: bold;
-                    margin-bottom: 5px;
+                    margin-bottom: 2px;
                 }
+                
                 .academic-year {
-                    font-size: 12px;
-                    margin-bottom: 10px;
+                    font-size: 8px;
+                    margin-bottom: 3px;
                 }
+                
                 .receipt-title {
-                    font-size: 14px;
+                    font-size: 9px;
                     font-weight: bold;
                     text-decoration: underline;
-                    margin: 15px 0;
+                    margin: 5px 0;
                 }
-                .student-info {
-                    margin: 15px 0;
-                    text-align: left;
-                }
-                .student-info div {
-                    margin: 3px 0;
-                }
-                .payment-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin: 15px 0;
-                    font-size: 11px;
-                }
-                .payment-table th {
-                    border: 1px solid #000;
-                    padding: 4px;
-                    background-color: #f0f0f0;
-                    text-align: center;
-                    font-weight: bold;
-                }
-                .recap-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin: 15px 0;
-                    font-size: 11px;
-                }
-                .recap-table th {
-                    border: 1px solid #000;
-                    padding: 4px;
-                    background-color: #f0f0f0;
-                    text-align: center;
-                    font-weight: bold;
-                }
-                .footer-info {
-                    margin-top: 20px;
-                    font-size: 10px;
-                    line-height: 1.4;
-                }
-                .signature-section {
-                    margin-top: 30px;
-                    text-align: right;
-                    font-size: 11px;
-                }
+                
                 .date-time {
                     position: absolute;
-                    top: 20px;
-                    right: 20px;
-                    font-size: 10px;
+                    top: 2px;
+                    left: 2px;
+                    font-size: 7px;
+                    color: #666;
                 }
+                
+                .student-info {
+                    margin: 8px 0;
+                    text-align: left;
+                    font-size: 8px;
+                }
+                
+                .student-info div {
+                    margin: 1px 0;
+                    line-height: 1.2;
+                }
+                
+                .payment-table, .recap-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 5px 0;
+                    font-size: 7px;
+                }
+                
+                .payment-table th, .payment-table td,
+                .recap-table th, .recap-table td {
+                    border: 1px solid #000;
+                    padding: 2px;
+                    text-align: center;
+                }
+                
+                .payment-table th, .recap-table th {
+                    background-color: #f0f0f0;
+                    font-weight: bold;
+                }
+                
+                .recap-section {
+                    margin: 5px 0;
+                }
+                
+                .recap-section strong {
+                    font-size: 8px;
+                }
+                
+                .footer-info {
+                    margin-top: auto;
+                    font-size: 6px;
+                    line-height: 1.2;
+                    text-align: justify;
+                }
+                
+                .contact-info {
+                    display: flex;
+                    justify-content: space-between;
+                    margin-top: 3px;
+                }
+                
+                .contact-left, .contact-right {
+                    flex: 1;
+                }
+                
+                .signature-section {
+                    margin-top: 8px;
+                    text-align: right;
+                    font-size: 7px;
+                }
+                
+                .signature-line {
+                    margin-top: 8px;
+                    font-size: 8px;
+                }
+                
                 .float-right {
                     float: right;
                 }
+                
                 .clearfix {
                     clear: both;
+                }
+                
+                @media print {
+                    body {
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                    }
+                    
+                    .no-print {
+                        display: none !important;
+                    }
                 }
             </style>
         </head>
         <body>
-            <div class='date-time'>
-                Le " . now()->format('d/m/Y H:i:s') . "
-            </div>
-
-            <div class='header'>
-                " . ($schoolSettings->school_logo ? "<img src='" . url('storage/' . $schoolSettings->school_logo) . "' alt='Logo école' class='logo'>" : "") . "
-                <div class='school-name'>{$schoolSettings->school_name}</div>
-                <div class='academic-year'>Année académique : " . $workingYear->name . "</div>
-                <div class='receipt-title'>REÇU PENSION/FRAIS DIVERS</div>
-            </div>
-
-            <div class='student-info'>
-                <div><strong>Matricule :</strong> " . ($student->student_number ?? 'N/A') . "</div>
-                <div><strong>Nom :</strong> {$student->last_name} <span class='float-right'><strong>Prénom : </strong>{$student->first_name}</span></div>
-                <div><strong>Classe :</strong> " . ($schoolClass ? $schoolClass->name : 'Non défini') . "</div>
-                <div><strong>Inscription :</strong> " . $formatAmount($paymentStatus->tranche_status[0]['required_amount'] ?? 0) . " <span class='float-right'><strong>Banque :</strong> " . ($schoolSettings->bank_name ?? 'N/A') . "</span></div>
-                <div><strong>Date de validation :</strong> " . \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y') . " <span class='float-right'><strong>Reçu N° :</strong> {$payment->receipt_number}</span></div>
-                " . ($benefitInfo ? "<div><strong>Motif ou rabais :</strong> {$benefitInfo}</div>" : "") . "
-            </div>
-
-
-            <table class='payment-table'>
-                <thead>
-                    <tr>
-                        <th>N° Op</th>
-                        <th>Banque</th>
-                        <th>Date de versement</th>
-                        <th>Tranche affectée</th>
-                        <th>Montant payé</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {$paymentDetailsRows}
-                </tbody>
-            </table>
-
-            <div style='margin: 20px 0;'>
-                <strong>Reste à payer par tranche</strong>
-                <table class='recap-table' style='width: 100%;'>
-                    <thead>
-                        <tr>
-                            <th>Tranche</th>
-                            <th>Montant normal</th>
-                            <th>Montant payé</th>
-                            <th>Réduction</th>
-                            <th>Bourse</th>
-                            <th>Reste à payer</th>
-                            <th>Statut</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {$recapRows}
-                    </tbody>
-                </table>
-            </div>
-
-            <div class='footer-info'>
-                <div><strong>N.B :</strong> Vos dossiers ne seront transmis qu'après paiement de la totalité des frais scolaires.</div>
-                <div>Les frais de scolarité et d'étude de dossier ne sont pas remboursables en cas d'abandon ou d'exclusion.</div>
-                <div><em>Registration and studying documents fees are not refundable in case of withdrawal or exclusion.</em></div>
-                <br>
-                <div style='display: flex; justify-content: space-between;'>
-                    <div>
-                        <div><strong>B.P :</strong> " . ($schoolSettings->school_address ? explode(',', $schoolSettings->school_address)[0] : '4100') . "</div>
-                        <div><strong>Tél :</strong> " . ($schoolSettings->school_phone ?? '233 43 25 47') . "</div>
-                        <div><strong>Site web :</strong> " . ($schoolSettings->website ?? 'www.cpdyassa.com') . "</div>
-                    </div>
-                    <div>
-                        <div>" . ($schoolSettings->school_address ? explode(',', $schoolSettings->school_address)[1] ?? 'Douala' : 'Douala') . "</div>
-                        <div><strong>Email :</strong> " . ($schoolSettings->school_email ?? 'contact@cpdyassa.com') . "</div>
-                    </div>
+            <div class='receipt-container'>
+                <!-- Exemplaire Parents -->
+                <div class='receipt-copy'>
+                    <div class='copy-label'>EXEMPLAIRE PARENTS</div>
+                    {$receiptContent}
                 </div>
-            </div>
-
-            <div class='signature-section'>
-                <div>Validé par " . ($payment->createdByUser ? $payment->createdByUser->name : 'Comptable') . "</div>
-                <div style='margin-top: 30px;'>_____________________</div>
+                
+                <!-- Exemplaire Collège -->
+                <div class='receipt-copy'>
+                    <div class='copy-label'>EXEMPLAIRE COLLÈGE</div>
+                    {$receiptContent}
+                </div>
             </div>
         </body>
         </html>

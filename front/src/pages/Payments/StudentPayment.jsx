@@ -682,18 +682,63 @@ const StudentPayment = () => {
                 <head>
                     <title>Reçu_${receiptNumber}</title>
                     <style>
-                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        @page {
+                            size: A5;
+                            margin: 0.5cm;
+                        }
+                        
+                        body { 
+                            font-family: Arial, sans-serif; 
+                            margin: 0; 
+                            padding: 0;
+                            font-size: 9px;
+                            line-height: 1.1;
+                        }
+                        
                         @media print { 
-                            body { margin: 0; }
-                            .no-print { display: none; }
+                            body { 
+                                margin: 0; 
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                            }
+                            .no-print { 
+                                display: none !important; 
+                            }
+                        }
+                        
+                        @media screen {
+                            body {
+                                background: #f0f0f0;
+                                padding: 20px;
+                            }
+                            
+                            .receipt-container {
+                                background: white;
+                                width: 148mm;  /* A5 width */
+                                height: 210mm; /* A5 height */
+                                margin: 0 auto;
+                                box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                            }
                         }
                     </style>
                 </head>
                 <body>
-                    ${receiptHtml}
-                    <div class="no-print" style="text-align: center; margin-top: 30px;">
-                        <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">Imprimer</button>
-                        <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Fermer</button>
+                    <div class="receipt-container">
+                        ${receiptHtml}
+                    </div>
+                    <div class="no-print" style="text-align: center; margin-top: 30px; background: white; padding: 20px;">
+                        <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">📄 Imprimer A5</button>
+                        <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer;">✖️ Fermer</button>
+                        <div style="margin-top: 15px; font-size: 12px; color: #666;">
+                            <p>📋 <strong>Instructions :</strong></p>
+                            <ul style="text-align: left; max-width: 400px; margin: 0 auto;">
+                                <li>Configurez votre imprimante sur format <strong>A5</strong></li>
+                                <li>Le reçu contient 2 exemplaires identiques</li>
+                                <li><strong>Partie haute :</strong> Exemplaire parents</li>
+                                <li><strong>Partie basse :</strong> Exemplaire collège</li>
+                                <li>Découpez le long de la ligne pointillée</li>
+                            </ul>
+                        </div>
                     </div>
                 </body>
             </html>

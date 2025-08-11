@@ -517,10 +517,44 @@ export const secureApiEndpoints = {
         },
         getById: (id) => secureApi.get(`/needs/${id}`),
         create: (data) => secureApi.post('/needs', data),
+        update: (id, data) => secureApi.put(`/needs/${id}`, data),
+        delete: (id) => secureApi.delete(`/needs/${id}`),
         approve: (id) => secureApi.post(`/needs/${id}/approve`),
         reject: (id, data) => secureApi.post(`/needs/${id}/reject`, data),
         getStatistics: () => secureApi.get('/needs/statistics/summary'),
         testWhatsApp: () => secureApi.post('/needs/test-whatsapp')
+    },
+
+    // === DOCUMENTS ===
+    documents: {
+        // Dossiers
+        folders: {
+            getAll: (params = {}) => {
+                const queryString = new URLSearchParams(params).toString();
+                return secureApi.get(`/documents/folders${queryString ? '?' + queryString : ''}`);
+            },
+            getTree: () => secureApi.get('/documents/folders/tree'),
+            getTypes: () => secureApi.get('/documents/folders/types'),
+            search: (query) => secureApi.get(`/documents/folders/search?query=${encodeURIComponent(query)}`),
+            getById: (id) => secureApi.get(`/documents/folders/${id}`),
+            create: (data) => secureApi.post('/documents/folders', data),
+            update: (id, data) => secureApi.put(`/documents/folders/${id}`, data),
+            delete: (id) => secureApi.delete(`/documents/folders/${id}`)
+        },
+        // Documents
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/documents${queryString ? '?' + queryString : ''}`);
+        },
+        getStatistics: () => secureApi.get('/documents/statistics'),
+        getTypes: () => secureApi.get('/documents/types'),
+        getVisibilityTypes: () => secureApi.get('/documents/visibility-types'),
+        getById: (id) => secureApi.get(`/documents/${id}`),
+        upload: (formData) => secureApi.post('/documents', formData),
+        update: (id, data) => secureApi.put(`/documents/${id}`, data),
+        delete: (id) => secureApi.delete(`/documents/${id}`),
+        download: (id) => secureApi.get(`/documents/${id}/download`, { responseType: 'blob' }),
+        toggleArchive: (id) => secureApi.post(`/documents/${id}/toggle-archive`)
     },
 
     // === REPORTS ===

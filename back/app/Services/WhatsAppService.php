@@ -136,6 +136,27 @@ class WhatsAppService
     }
 
     /**
+     * Envoyer une notification d'alerte de stock faible
+     */
+    public function sendLowStockAlert($items)
+    {
+        $settings = SchoolSetting::getSettings();
+        
+        if (!$settings->whatsapp_notifications_enabled || 
+            !$settings->whatsapp_notification_number ||
+            !$settings->whatsapp_api_url ||
+            !$settings->whatsapp_instance_id ||
+            !$settings->whatsapp_token) {
+            Log::info('Configuration WhatsApp incomplète pour alerte stock');
+            return false;
+        }
+
+        $message = $this->formatLowStockMessage($items);
+        
+        return $this->sendMessage($settings->whatsapp_notification_number, $message);
+    }
+
+    /**
      * Envoyer une notification d'entrée/sortie aux parents
      */
     public function sendAttendanceNotification(Attendance $attendance)
@@ -266,6 +287,50 @@ class WhatsAppService
                "📅 *Date:* " . $attendance->attendance_date->format('d/m/Y') . "\n\n" .
                "ℹ️ Votre enfant {$eventMessage} à {$attendance->scanned_at->format('H:i')}.\n\n" .
                "📱 Notification automatique du système de gestion scolaire.";
+    }
+
+    /**
+     * Formater le message pour une alerte de stock faible
+     */
+    protected function formatLowStockMessage($items)
+    {
+        $schoolName = SchoolSetting::getSettings()->school_name ?? 'École';
+        $itemCount = is_countable($items) ? count($items) : 0;
+        
+        if ($itemCount === 0) {
+            return "✅ *STOCK NORMAL - {$schoolName}*\n\n" .
+                   "Aucun article en stock faible actuellement.\n\n" .
+                   "📱 Notification automatique du système de gestion d'inventaire.";
+        }
+        
+        $message = "⚠️ *ALERTE STOCK FAIBLE - {$schoolName}*\n\n" .
+                   "📦 *{$itemCount}* article" . ($itemCount > 1 ? 's' : '') . " nécessite" . ($itemCount > 1 ? 'nt' : '') . " un réapprovisionnement :\n\n";
+        
+        $count = 0;
+        foreach ($items as $item) {
+            if ($count >= 10) { // Limiter à 10 articles pour éviter des messages trop longs
+                $remaining = $itemCount - $count;
+                $message .= "➕ ... et {$remaining} autre" . ($remaining > 1 ? 's' : '') . " article" . ($remaining > 1 ? 's' : '') . "\n\n";
+                break;
+            }
+            
+            $stockLevel = $item->quantite <= 0 ? '❌ RUPTURE' : 
+                         ($item->quantite <= $item->quantite_min / 2 ? '🔴 CRITIQUE' : '🟠 FAIBLE');
+            
+            $message .= "• *{$item->nom}* ({$item->categorie})\n" .
+                       "  📍 {$item->localisation}\n" .
+                       "  📊 Stock: {$item->quantite}/{$item->quantite_min} - {$stockLevel}\n\n";
+            $count++;
+        }
+        
+        $message .= "🎯 *Action requise :*\n" .
+                   "• Vérifiez les stocks physiques\n" .
+                   "• Planifiez les achats nécessaires\n" .
+                   "• Contactez les responsables concernés\n\n" .
+                   "📅 Alerte générée le " . now()->format('d/m/Y à H:i') . "\n\n" .
+                   "📱 Notification automatique du système de gestion d'inventaire.";
+        
+        return $message;
     }
 
     /**

@@ -307,6 +307,112 @@ class NeedController extends Controller
     }
 
     /**
+     * Mettre à jour un besoin (propriétaire uniquement, seulement si en attente)
+     */
+    public function update(Request $request, Need $need)
+    {
+        try {
+            // Vérifier que l'utilisateur est propriétaire du besoin
+            if ($need->user_id !== auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous n\'êtes pas autorisé à modifier ce besoin'
+                ], 403);
+            }
+
+            // Vérifier que le besoin est en attente
+            if ($need->status !== Need::STATUS_PENDING) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Seuls les besoins en attente peuvent être modifiés'
+                ], 422);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'description' => 'required|string|max:2000',
+                'amount' => 'required|numeric|min:0|max:999999999'
+            ], [
+                'name.required' => 'Le nom du besoin est obligatoire',
+                'name.max' => 'Le nom ne peut pas dépasser 255 caractères',
+                'description.required' => 'La description est obligatoire',
+                'description.max' => 'La description ne peut pas dépasser 2000 caractères',
+                'amount.required' => 'Le montant est obligatoire',
+                'amount.numeric' => 'Le montant doit être un nombre',
+                'amount.min' => 'Le montant doit être positif',
+                'amount.max' => 'Le montant est trop élevé'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Données invalides',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $need->update([
+                'name' => $request->name,
+                'description' => $request->description,
+                'amount' => $request->amount
+            ]);
+
+            $need->load(['user', 'approvedBy']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Besoin modifié avec succès',
+                'data' => $need
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la modification du besoin',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Supprimer un besoin (propriétaire uniquement, seulement si en attente)
+     */
+    public function destroy(Need $need)
+    {
+        try {
+            // Vérifier que l'utilisateur est propriétaire du besoin
+            if ($need->user_id !== auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous n\'êtes pas autorisé à supprimer ce besoin'
+                ], 403);
+            }
+
+            // Vérifier que le besoin est en attente
+            if ($need->status !== Need::STATUS_PENDING) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Seuls les besoins en attente peuvent être supprimés'
+                ], 422);
+            }
+
+            $need->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Besoin supprimé avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression du besoin',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Obtenir les statistiques des besoins (admin uniquement)
      */
     public function statistics()

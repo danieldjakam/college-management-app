@@ -49,6 +49,7 @@ class StudentRameController extends Controller
                     'school_year_id' => $workingYear->id,
                     'has_brought_rame' => $rameStatus->has_brought_rame,
                     'marked_date' => $rameStatus->marked_date,
+                    'deposit_date' => $rameStatus->deposit_date,
                     'marked_by_user' => $rameStatus->markedByUser ? [
                         'id' => $rameStatus->markedByUser->id,
                         'name' => $rameStatus->markedByUser->name
@@ -110,6 +111,7 @@ class StudentRameController extends Controller
                     'school_year_id' => $workingYear->id,
                     'has_brought_rame' => $rameStatus->has_brought_rame,
                     'marked_date' => $rameStatus->marked_date,
+                    'deposit_date' => $rameStatus->deposit_date,
                     'marked_by_user' => $rameStatus->markedByUser ? [
                         'id' => $rameStatus->markedByUser->id,
                         'name' => $rameStatus->markedByUser->name
@@ -166,6 +168,7 @@ class StudentRameController extends Controller
                     'rame_status' => [
                         'has_brought_rame' => $rameStatus->has_brought_rame,
                         'marked_date' => $rameStatus->marked_date,
+                        'deposit_date' => $rameStatus->deposit_date,
                         'marked_by_user' => $rameStatus->markedByUser ? [
                             'id' => $rameStatus->markedByUser->id,
                             'name' => $rameStatus->markedByUser->name

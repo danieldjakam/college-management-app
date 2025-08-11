@@ -9,6 +9,8 @@ import {
     ClipboardCheckFill,
     QrCodeScan,
     Calendar,
+    Archive,
+    FolderFill,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -90,8 +92,9 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         {
           title: "Outils",
           items: [
+            { name: "Inventaire", href: "/inventory", icon: <Archive /> },
+            { name: "Documents", href: "/documents", icon: <FolderFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
-            { name: "Documents", href: "/docs", icon: <FileTextFill /> },
             { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
           ],
         },
@@ -115,6 +118,13 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
             { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
+          ],
+        },
+        {
+          title: "Outils",
+          items: [
+            { name: "Inventaire", href: "/inventory", icon: <Archive /> },
+            { name: "Documents", href: "/documents", icon: <FolderFill /> },
           ],
         },
         {
@@ -155,6 +165,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
         {
+          title: "Outils",
+          items: [
+            { name: "Documents", href: "/documents", icon: <FolderFill /> },
+          ],
+        },
+        {
           title: "Compte",
           items: [
             { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
@@ -179,6 +195,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         {
           title: "Outils",
           items: [
+            { name: "Documents", href: "/documents", icon: <FolderFill /> },
             { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
             { name: "Profil", href: "/profile", icon: <PersonCircle /> },

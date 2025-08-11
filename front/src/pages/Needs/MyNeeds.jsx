@@ -22,7 +22,9 @@ import {
     FileText,
     Check2Circle,
     XCircle,
-    Clock
+    Clock,
+    PencilSquare,
+    Trash3
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import { extractErrorMessage } from '../../utils/errorHandler';
@@ -34,6 +36,7 @@ const MyNeeds = () => {
     const [saving, setSaving] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [selectedNeed, setSelectedNeed] = useState(null);
+    const [editingNeed, setEditingNeed] = useState(null);
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -88,17 +91,28 @@ const MyNeeds = () => {
             setError('');
             setSuccess('');
 
-            const response = await secureApiEndpoints.needs.create(formData);
+            let response;
+            if (editingNeed) {
+                // Mode modification
+                response = await secureApiEndpoints.needs.update(editingNeed.id, formData);
+            } else {
+                // Mode création
+                response = await secureApiEndpoints.needs.create(formData);
+            }
             
             if (response.success) {
-                setSuccess('Besoin soumis avec succès');
+                const message = editingNeed ? 'Besoin modifié avec succès' : 'Besoin soumis avec succès';
+                setSuccess(message);
                 setShowModal(false);
                 setFormData({ name: '', description: '', amount: '' });
+                setEditingNeed(null);
                 loadNeeds();
                 
                 Swal.fire({
                     title: 'Succès !',
-                    text: 'Votre besoin a été soumis avec succès. Vous recevrez une notification une fois qu\'il aura été traité.',
+                    text: editingNeed 
+                        ? 'Votre besoin a été modifié avec succès.' 
+                        : 'Votre besoin a été soumis avec succès. Vous recevrez une notification une fois qu\'il aura été traité.',
                     icon: 'success',
                     confirmButtonText: 'OK'
                 });
@@ -117,10 +131,65 @@ const MyNeeds = () => {
             const response = await secureApiEndpoints.needs.getById(need.id);
             if (response.success) {
                 setSelectedNeed(response.data);
+                setEditingNeed(null);
                 setShowModal(true);
             }
         } catch (error) {
             setError(extractErrorMessage(error));
+        }
+    };
+
+    const editNeed = (need) => {
+        setEditingNeed(need);
+        setSelectedNeed(null);
+        setFormData({
+            name: need.name,
+            description: need.description,
+            amount: need.amount
+        });
+        setShowModal(true);
+    };
+
+    const deleteNeed = async (need) => {
+        const result = await Swal.fire({
+            title: 'Êtes-vous sûr ?',
+            text: 'Cette action supprimera définitivement ce besoin. Cette action est irréversible !',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Oui, supprimer !',
+            cancelButtonText: 'Annuler'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                setError('');
+                const response = await secureApiEndpoints.needs.delete(need.id);
+                
+                if (response.success) {
+                    setSuccess('Besoin supprimé avec succès');
+                    loadNeeds();
+                    
+                    Swal.fire({
+                        title: 'Supprimé !',
+                        text: 'Le besoin a été supprimé avec succès.',
+                        icon: 'success',
+                        confirmButtonText: 'OK'
+                    });
+                } else {
+                    setError(response.message);
+                }
+            } catch (error) {
+                setError(extractErrorMessage(error));
+                
+                Swal.fire({
+                    title: 'Erreur !',
+                    text: 'Une erreur est survenue lors de la suppression.',
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
+            }
         }
     };
 
@@ -175,6 +244,7 @@ const MyNeeds = () => {
                             variant="primary"
                             onClick={() => {
                                 setSelectedNeed(null);
+                                setEditingNeed(null);
                                 setFormData({ name: '', description: '', amount: '' });
                                 setShowModal(true);
                             }}
@@ -243,6 +313,7 @@ const MyNeeds = () => {
                                 variant="primary"
                                 onClick={() => {
                                     setSelectedNeed(null);
+                                    setEditingNeed(null);
                                     setFormData({ name: '', description: '', amount: '' });
                                     setShowModal(true);
                                 }}
@@ -289,14 +360,38 @@ const MyNeeds = () => {
                                                 </small>
                                             </td>
                                             <td>
-                                                <Button
-                                                    variant="outline-primary"
-                                                    size="sm"
-                                                    onClick={() => showNeedDetails(need)}
-                                                >
-                                                    <Eye size={14} className="me-1" />
-                                                    Voir
-                                                </Button>
+                                                <div className="d-flex gap-1">
+                                                    <Button
+                                                        variant="outline-primary"
+                                                        size="sm"
+                                                        onClick={() => showNeedDetails(need)}
+                                                    >
+                                                        <Eye size={14} className="me-1" />
+                                                        Voir
+                                                    </Button>
+                                                    
+                                                    {need.status === 'pending' && (
+                                                        <>
+                                                            <Button
+                                                                variant="outline-warning"
+                                                                size="sm"
+                                                                onClick={() => editNeed(need)}
+                                                                title="Modifier ce besoin"
+                                                            >
+                                                                <PencilSquare size={14} />
+                                                            </Button>
+                                                            
+                                                            <Button
+                                                                variant="outline-danger"
+                                                                size="sm"
+                                                                onClick={() => deleteNeed(need)}
+                                                                title="Supprimer ce besoin"
+                                                            >
+                                                                <Trash3 size={14} />
+                                                            </Button>
+                                                        </>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -335,12 +430,22 @@ const MyNeeds = () => {
             {/* Modal pour création/détails */}
             <Modal
                 show={showModal}
-                onHide={() => setShowModal(false)}
+                onHide={() => {
+                    setShowModal(false);
+                    setEditingNeed(null);
+                    setSelectedNeed(null);
+                    setFormData({ name: '', description: '', amount: '' });
+                }}
                 size="lg"
             >
                 <Modal.Header closeButton>
                     <Modal.Title>
-                        {selectedNeed ? 'Détails du Besoin' : 'Nouveau Besoin'}
+                        {selectedNeed 
+                            ? 'Détails du Besoin' 
+                            : editingNeed 
+                                ? 'Modifier le Besoin' 
+                                : 'Nouveau Besoin'
+                        }
                     </Modal.Title>
                 </Modal.Header>
                 
@@ -395,7 +500,7 @@ const MyNeeds = () => {
                             )}
                         </div>
                     ) : (
-                        // Mode création
+                        // Mode création/modification
                         <Form onSubmit={handleSubmit}>
                             <Form.Group className="mb-3">
                                 <Form.Label>Nom du besoin *</Form.Label>
@@ -440,7 +545,15 @@ const MyNeeds = () => {
                 </Modal.Body>
 
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowModal(false)}>
+                    <Button 
+                        variant="secondary" 
+                        onClick={() => {
+                            setShowModal(false);
+                            setEditingNeed(null);
+                            setSelectedNeed(null);
+                            setFormData({ name: '', description: '', amount: '' });
+                        }}
+                    >
                         {selectedNeed ? 'Fermer' : 'Annuler'}
                     </Button>
                     {!selectedNeed && (
@@ -452,12 +565,21 @@ const MyNeeds = () => {
                             {saving ? (
                                 <>
                                     <Spinner animation="border" size="sm" className="me-2" />
-                                    Soumission...
+                                    {editingNeed ? 'Modification...' : 'Soumission...'}
                                 </>
                             ) : (
                                 <>
-                                    <CurrencyDollar className="me-2" />
-                                    Soumettre le Besoin
+                                    {editingNeed ? (
+                                        <>
+                                            <PencilSquare className="me-2" />
+                                            Modifier le Besoin
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CurrencyDollar className="me-2" />
+                                            Soumettre le Besoin
+                                        </>
+                                    )}
                                 </>
                             )}
                         </Button>

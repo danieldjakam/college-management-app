@@ -1090,11 +1090,9 @@ const Reports = () => {
                 <tr>
                   <th>Étudiant</th>
                   <th>Classe/Série</th>
-                  <th>Montant RAME</th>
                   <th>Quantité</th>
-                  <th>Type de Paiement</th>
                   <th>Statut</th>
-                  <th>Date Paiement</th>
+                  <th>Date de Dépôt</th>
                   <th>Notes</th>
                 </tr>
               </thead>
@@ -1103,11 +1101,6 @@ const Reports = () => {
                   <tr key={studentIndex}>
                     <td>{studentData?.student?.full_name}</td>
                     <td>{studentData?.student?.class_series}</td>
-                    <td>
-                      {formatCurrency(
-                        studentData?.rame_details?.required_amount || 0
-                      )}
-                    </td>
                     <td className="text-center">
                       <Badge
                         bg={
@@ -1117,23 +1110,6 @@ const Reports = () => {
                         }
                       >
                         {studentData?.rame_details?.quantity || 0}
-                      </Badge>
-                    </td>
-                    <td>
-                      <Badge
-                        bg={
-                          studentData?.rame_details?.payment_type === "physical"
-                            ? "success"
-                            : studentData?.rame_details?.payment_type === "cash"
-                            ? "primary"
-                            : "secondary"
-                        }
-                      >
-                        {studentData?.rame_details?.payment_type === "physical"
-                          ? "Physique"
-                          : studentData?.rame_details?.payment_type === "cash"
-                          ? "Espèces"
-                          : "Non payé"}
                       </Badge>
                     </td>
                     <td>
@@ -1150,9 +1126,13 @@ const Reports = () => {
                       </Badge>
                     </td>
                     <td>
-                      {studentData?.rame_details?.payment_date
+                      {studentData?.rame_details?.deposit_date
                         ? new Date(
-                            studentData.rame_details.payment_date
+                            studentData.rame_details.deposit_date
+                          ).toLocaleDateString("fr-FR")
+                        : studentData?.rame_details?.marked_date
+                        ? new Date(
+                            studentData.rame_details.marked_date
                           ).toLocaleDateString("fr-FR")
                         : "-"}
                     </td>
