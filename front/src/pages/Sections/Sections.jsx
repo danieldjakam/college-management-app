@@ -14,6 +14,7 @@ import {
 
 // Components
 import { Card, Button, Input, Alert, LoadingSpinner, Modal } from '../../components/UI';
+import ImportExportButton from '../../components/ImportExportButton';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 
 // Hooks
@@ -202,16 +203,24 @@ const Sections = () => {
                         Bienvenue {user?.name} - Gérez les sections de l'établissement
                     </p>
                 </div>
-                <Button
-                    onClick={() => {
-                        resetForm();
-                        setShowAddModal(true);
-                    }}
-                    className="flex items-center gap-2"
-                >
-                    <Plus size={16} />
-                    Nouvelle Section
-                </Button>
+                <div className="flex gap-2">
+                    <ImportExportButton
+                        title="Sections"
+                        apiBasePath="/api/sections"
+                        onImportSuccess={loadSections}
+                        templateFileName="template_sections.csv"
+                    />
+                    <Button
+                        onClick={() => {
+                            resetForm();
+                            setShowAddModal(true);
+                        }}
+                        className="flex items-center gap-2"
+                    >
+                        <Plus size={16} />
+                        Nouvelle Section
+                    </Button>
+                </div>
             </div>
 
             {/* Alerts */}

@@ -27,6 +27,7 @@ import {
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import { useAuth } from '../../hooks/useAuth';
 import { useSchool } from '../../contexts/SchoolContext';
+import ImportExportButton from '../../components/ImportExportButton';
 import StudentCardPrint from '../../components/StudentCardPrint';
 import StudentTransfer from '../../components/StudentTransfer';
 import StudentActionsDropdown from '../../components/StudentActionsDropdown';
@@ -1206,13 +1207,21 @@ const SeriesStudents = () => {
                                 <Upload size={16} className="me-1" />
                                 Import CSV
                             </button>
-                            <button
-                                className="btn btn-primary d-flex align-items-center gap-2"
-                                onClick={() => setShowAddModal(true)}
-                            >
-                                <Plus size={16} />
-                                Nouvel Élève
-                            </button>
+                            <div className="d-flex gap-2">
+                                <ImportExportButton
+                                    title="Élèves"
+                                    apiBasePath="/api/students"
+                                    onImportSuccess={loadStudents}
+                                    templateFileName="template_eleves.csv"
+                                />
+                                <button
+                                    className="btn btn-primary d-flex align-items-center gap-2"
+                                    onClick={() => setShowAddModal(true)}
+                                >
+                                    <Plus size={16} />
+                                    Nouvel Élève
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

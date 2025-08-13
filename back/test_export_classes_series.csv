@@ -1,0 +1,6 @@
+"class_id","class_nom","level_id","class_description","class_statut","series"
+"6","3e","1","","1","3:M4::46:1"
+"4","5eme","1","","1","2:M1::47:1"
+"2","6eme MODIFIÉE","15","Classe modifiée par ID","","1:M1UPDATED:M1UP:40:0|4:Série Test:ST:35:1|8:NewSerie:NS:20:1"
+"7","Test Classe A","15","Nouvelle classe de test","1","5:TestA1:TA1:30:1|6:TestA2:TA2:35:1"
+"8","Test Classe B","16","Autre classe test","1","7:TestB1:TB1:25:1"

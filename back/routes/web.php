@@ -20,3 +20,16 @@ Route::get('/storage/students/photos/{filename}', function ($filename) {
     
     return response($file, 200)->header('Content-Type', $type);
 })->where('filename', '.*');
+
+// Route de fallback pour login (éviter l'erreur "Route [login] not defined")
+Route::get('/login', function (\Illuminate\Http\Request $request) {
+    if ($request->expectsJson() || $request->is('api/*')) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Non authentifié. Veuillez vous connecter.',
+            'error' => 'Unauthorized'
+        ], 401);
+    }
+    
+    return redirect('/'); // Pour les requêtes web normales
+})->name('login');

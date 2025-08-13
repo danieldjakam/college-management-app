@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Student;
 use App\Models\SchoolYear;
 use App\Models\ClassSeries;
+use App\Exports\StudentsExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Facades\Response;
 
 class StudentController extends Controller
 {
@@ -1209,6 +1212,61 @@ class StudentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors du transfert de l\'élève',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export students to Excel
+     */
+    public function exportExcel($seriesId)
+    {
+        try {
+            // Utiliser l'année de travail de l'utilisateur
+            $workingYear = $this->getUserWorkingYear();
+
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            $filters = ['class_series_id' => $seriesId];
+            $filename = 'eleves_' . date('Y-m-d_H-i-s') . '.xlsx';
+            
+            return Excel::download(new StudentsExport($filters, $workingYear->id), $filename);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export Excel',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Download CSV template for students import
+     */
+    public function downloadTemplate()
+    {
+        try {
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="template_eleves.csv"'
+            ];
+
+            $csvData = "nom,prenom,date_naissance,lieu_naissance,sexe,nom_parent,telephone_parent,email_parent,adresse,serie,statut_etudiant,statut\n";
+            $csvData .= "DUPONT,Jean,01/01/2010,Douala,M,Marie DUPONT,123456789,marie@example.com,Douala,6ème A,nouveau,actif\n";
+            $csvData .= "MARTIN,Sophie,15/06/2009,Yaoundé,F,Paul MARTIN,987654321,paul@example.com,Yaoundé,6ème A,ancien,actif\n";
+
+            return Response::make($csvData, 200, $headers);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du téléchargement du template',
                 'error' => $e->getMessage()
             ], 500);
         }

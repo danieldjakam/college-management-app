@@ -1,0 +1,4 @@
+class_id,class_nom,level_id,class_description,class_statut,series
+,Test Classe Hiérarchique,8,Nouvelle classe de test,1,":TestH1:TH1:30:1|:TestH2:TH2:25:1"
+,Classe CM2,7,Cours Moyen 2,1,":CM2A:CM2A:35:1"
+2,6eme MODIFIÉE UPDATE,8,Classe mise à jour via hiérarchique,0,"1:M1HIERARCHICAL:M1H:50:1|:NewSerieH:NSH:20:1"

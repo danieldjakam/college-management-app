@@ -687,6 +687,47 @@ export const secureApiEndpoints = {
         create: (data) => secureApi.post('/school-years', data),
         update: (id, data) => secureApi.put(`/school-years/${id}`, data),
         setCurrent: (id) => secureApi.post(`/school-years/${id}/set-current`)
+    },
+
+    // === INVENTORY ===
+    inventory: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/inventory${queryString ? '?' + queryString : ''}`);
+        },
+        getDashboard: () => secureApi.get('/inventory/dashboard'),
+        getConfig: () => secureApi.get('/inventory/config'),
+        getById: (id) => secureApi.get(`/inventory/${id}`),
+        create: (data) => secureApi.post('/inventory', data),
+        update: (id, data) => secureApi.put(`/inventory/${id}`, data),
+        delete: (id) => secureApi.delete(`/inventory/${id}`),
+        updateQuantity: (id, data) => secureApi.patch(`/inventory/${id}/quantity`, data),
+        getMovements: (id) => secureApi.get(`/inventory/${id}/movements`),
+        recordMovement: (id, data) => secureApi.post(`/inventory/${id}/movements`, data),
+        exportData: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/inventory/export${queryString ? '?' + queryString : ''}`);
+        },
+        importData: (formData) => {
+            const token = authService.getToken();
+            return fetch(`${secureApi.baseURL}/inventory/import`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                    // Ne pas définir Content-Type pour FormData
+                },
+                body: formData
+            }).then(async response => {
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP Error ${response.status}`);
+                }
+                return response.json();
+            });
+        },
+        getLowStockItems: () => secureApi.get('/inventory/low-stock'),
+        testWhatsApp: () => secureApi.post('/inventory/test-whatsapp')
     }
 };
 
