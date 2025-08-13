@@ -9,6 +9,7 @@ import AppAuthProvider from "./components/AuthProvider";
 import ProtectedRoute, {
   AccountantRoute,
   AdminRoute,
+  NeedsManagementRoute,
   PublicRoute,
   RoleBasedRedirect,
   TeacherRoute,
@@ -378,10 +379,9 @@ const AppContent = () => {
               <Route
                 path="/needs-management"
                 element={
-                  <AdminRoute>
+                  <NeedsManagementRoute>
                     <NeedsManagement />
-
-                  </AdminRoute>
+                  </NeedsManagementRoute>
                 }
               />
 

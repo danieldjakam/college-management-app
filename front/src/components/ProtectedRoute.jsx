@@ -112,7 +112,35 @@ export const TeacherRoute = ({ children, fallbackPath = "/" }) => {
 export const AccountantRoute = ({ children, fallbackPath = "/" }) => {
   return (
     <ProtectedRoute
-      requiredRoles={["admin", "accountant"]}
+      requiredRoles={["admin", "accountant", "general_accountant"]}
+      fallbackPath={fallbackPath}
+    >
+      {children}
+    </ProtectedRoute>
+  );
+};
+
+/**
+ * Composant pour les routes réservées à la gestion des besoins (admin et comptable général)
+ */
+export const NeedsManagementRoute = ({ children, fallbackPath = "/" }) => {
+  return (
+    <ProtectedRoute
+      requiredRoles={["admin", "general_accountant"]}
+      fallbackPath={fallbackPath}
+    >
+      {children}
+    </ProtectedRoute>
+  );
+};
+
+/**
+ * Composant pour les routes réservées aux comptables généraux (comptable + gestion besoins)
+ */
+export const GeneralAccountantRoute = ({ children, fallbackPath = "/" }) => {
+  return (
+    <ProtectedRoute
+      requiredRoles={["admin", "accountant", "general_accountant"]}
       fallbackPath={fallbackPath}
     >
       {children}

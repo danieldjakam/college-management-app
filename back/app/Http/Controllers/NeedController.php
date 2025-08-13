@@ -172,8 +172,8 @@ class NeedController extends Controller
     public function show(Need $need)
     {
         try {
-            // Vérifier les permissions : admin ou propriétaire du besoin
-            if (auth()->user()->role !== 'admin' && $need->user_id !== auth()->id()) {
+            // Vérifier les permissions : admin, general_accountant ou propriétaire du besoin
+            if (!in_array(auth()->user()->role, ['admin', 'general_accountant']) && $need->user_id !== auth()->id()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Accès non autorisé à ce besoin'

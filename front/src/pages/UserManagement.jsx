@@ -59,6 +59,7 @@ const UserManagement = () => {
         admin: 'Administrateur',
         surveillant_general: 'Surveillant Général',
         comptable: 'Comptable',
+        general_accountant: 'Comptable Général',
         secretaire: 'Secrétaire',
         enseignant: 'Enseignant',
         teacher: 'Enseignant',
@@ -69,6 +70,7 @@ const UserManagement = () => {
         admin: 'danger',
         surveillant_general: 'primary',
         comptable: 'success',
+        general_accountant: 'warning',
         secretaire: 'info',
         enseignant: 'warning',
         teacher: 'warning',
@@ -270,9 +272,7 @@ const UserManagement = () => {
             errors.email = 'L\'adresse e-mail doit être valide';
         }
         
-        if (!formData.contact.trim()) {
-            errors.contact = 'Le numéro de téléphone est obligatoire';
-        } else if (formData.contact.length > 20) {
+        if (formData.contact && formData.contact.length > 20) {
             errors.contact = 'Le numéro de téléphone ne peut pas dépasser 20 caractères';
         }
         
@@ -609,13 +609,12 @@ const UserManagement = () => {
                     <Row>
                         <Col md={6}>
                             <Form.Group className="mb-3">
-                                <Form.Label>Contact *</Form.Label>
+                                <Form.Label>Contact</Form.Label>
                                 <Form.Control
                                     type="tel"
                                     value={formData.contact}
                                     onChange={(e) => setFormData({...formData, contact: e.target.value})}
                                     placeholder="Ex: +237 6XX XXX XXX"
-                                    required
                                     disabled={modalMode === 'view'}
                                 />
                             </Form.Group>
@@ -670,6 +669,7 @@ const UserManagement = () => {
                                 >
                                     <option value="surveillant_general">Surveillant Général</option>
                                     <option value="accountant">Comptable</option>
+                                    <option value="general_accountant">Comptable Général</option>
                                     <option value="secretaire">Secrétaire</option>
                                 </Form.Select>
                             </Form.Group>
@@ -785,6 +785,7 @@ const UserManagement = () => {
                                     <option value="all">Tous les rôles</option>
                                     <option value="surveillant_general">Surveillants Généraux</option>
                                     <option value="comptable">Comptables</option>
+                                    <option value="general_accountant">Comptables Généraux</option>
                                     <option value="secretaire">Secrétaires</option>
                                     <option value="enseignant">Enseignants</option>
                                     <option value="teacher">Enseignants (anciens)</option>
