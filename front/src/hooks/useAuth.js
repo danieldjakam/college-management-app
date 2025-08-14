@@ -71,6 +71,7 @@ export const usePermissions = () => {
     const isAdmin = useCallback(() => hasRole('admin'), [hasRole]);
     const isTeacher = useCallback(() => hasRole('teacher'), [hasRole]);
     const isAccountant = useCallback(() => hasRole('accountant'), [hasRole]);
+    const isGeneralAccountant = useCallback(() => hasRole('general_accountant'), [hasRole]);
     const isUser = useCallback(() => hasRole('user'), [hasRole]);
 
     const canAccess = useCallback((requiredRoles) => {
@@ -87,11 +88,15 @@ export const usePermissions = () => {
     }, [hasAnyRole]);
 
     const canManageFinances = useCallback(() => {
-        return hasAnyRole(['admin', 'accountant']);
+        return hasAnyRole(['admin', 'accountant', 'general_accountant']);
     }, [hasAnyRole]);
 
     const canViewReports = useCallback(() => {
-        return hasAnyRole(['admin', 'teacher', 'accountant']);
+        return hasAnyRole(['admin', 'teacher', 'accountant', 'general_accountant']);
+    }, [hasAnyRole]);
+
+    const canManageNeeds = useCallback(() => {
+        return hasAnyRole(['admin', 'general_accountant']);
     }, [hasAnyRole]);
 
     return {
@@ -100,12 +105,14 @@ export const usePermissions = () => {
         isAdmin,
         isTeacher,
         isAccountant,
+        isGeneralAccountant,
         isUser,
         canAccess,
         canManageUsers,
         canManageStudents,
         canManageFinances,
-        canViewReports
+        canViewReports,
+        canManageNeeds
     };
 };
 

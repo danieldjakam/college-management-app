@@ -70,7 +70,7 @@ class CreateUser extends Command
             'username' => 'required|string|between:3,100|unique:users',
             'email' => 'required|string|email|max:100|unique:users',
             'password' => 'required|string|min:6',
-            'role' => 'required|string|in:admin,teacher,accountant,user',
+            'role' => 'required|string|in:admin,teacher,accountant,user,general_accountant',
         ]);
 
         if ($validator->fails()) {
