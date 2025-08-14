@@ -112,7 +112,7 @@ export const TeacherRoute = ({ children, fallbackPath = "/" }) => {
 export const AccountantRoute = ({ children, fallbackPath = "/" }) => {
   return (
     <ProtectedRoute
-      requiredRoles={["admin", "accountant", "general_accountant"]}
+      requiredRoles={["admin", "accountant", "comptable_superieur"]}
       fallbackPath={fallbackPath}
     >
       {children}
@@ -121,12 +121,12 @@ export const AccountantRoute = ({ children, fallbackPath = "/" }) => {
 };
 
 /**
- * Composant pour les routes réservées à la gestion des besoins (admin et comptable général)
+ * Composant pour les routes réservées à la gestion des besoins (admin et comptable supérieur)
  */
 export const NeedsManagementRoute = ({ children, fallbackPath = "/" }) => {
   return (
     <ProtectedRoute
-      requiredRoles={["admin", "general_accountant"]}
+      requiredRoles={["admin", "comptable_superieur"]}
       fallbackPath={fallbackPath}
     >
       {children}
@@ -135,12 +135,12 @@ export const NeedsManagementRoute = ({ children, fallbackPath = "/" }) => {
 };
 
 /**
- * Composant pour les routes réservées aux comptables généraux (comptable + gestion besoins)
+ * Composant pour les routes réservées à l'inventaire (admin, comptable et comptable supérieur)
  */
-export const GeneralAccountantRoute = ({ children, fallbackPath = "/" }) => {
+export const InventoryRoute = ({ children, fallbackPath = "/" }) => {
   return (
     <ProtectedRoute
-      requiredRoles={["admin", "accountant", "general_accountant"]}
+      requiredRoles={["admin", "accountant", "comptable_superieur"]}
       fallbackPath={fallbackPath}
     >
       {children}
@@ -212,6 +212,7 @@ export const RoleBasedRedirect = ({ children }) => {
       admin: "/sections",
       teacher: "/students",
       accountant: "/class-comp",
+      comptable_superieur: "/class-comp",
       surveillant_general: "/attendance",
       user: "/profile",
     };

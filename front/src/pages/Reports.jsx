@@ -1061,7 +1061,7 @@ const Reports = () => {
                 </Col>
                 <Col md={3}>
                   <Badge bg="primary">
-                    Espèces: {reportData?.summary?.cash_count || 0}
+                    Banque: {reportData?.summary?.cash_count || 0}
                   </Badge>
                 </Col>
                 <Col md={3}>

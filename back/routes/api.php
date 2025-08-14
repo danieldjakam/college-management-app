@@ -73,9 +73,9 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les sections
     Route::prefix('sections')->group(function () {
-        Route::get('/dashboard', [SectionController::class, 'dashboard'])->middleware(['role:admin,accountant,general_accountant']);
-        Route::get('/', [SectionController::class, 'index'])->middleware(['role:admin,accountant,general_accountant']);
-        Route::get('/{section}', [SectionController::class, 'show'])->middleware(['role:admin,accountant,general_accountant']);
+        Route::get('/dashboard', [SectionController::class, 'dashboard'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/', [SectionController::class, 'index'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/{section}', [SectionController::class, 'show'])->middleware(['role:admin,accountant,comptable_superieur']);
 
         Route::post('/', [SectionController::class, 'store'])->middleware(['role:admin']);
         Route::put('/{section}', [SectionController::class, 'update'])->middleware(['role:admin']);
@@ -85,9 +85,9 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les tranches de paiement
     Route::prefix('payment-tranches')->group(function () {
-        Route::get('/', [PaymentTrancheController::class, 'index'])->middleware(['role:admin,accountant,general_accountant']);
-        Route::get('/{paymentTranche}', [PaymentTrancheController::class, 'show'])->middleware(['role:admin,accountant,general_accountant']);
-        Route::get('/{paymentTranche}/usage-stats', [PaymentTrancheController::class, 'usageStats'])->middleware(['role:admin,accountant,general_accountant']);
+        Route::get('/', [PaymentTrancheController::class, 'index'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/{paymentTranche}', [PaymentTrancheController::class, 'show'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/{paymentTranche}/usage-stats', [PaymentTrancheController::class, 'usageStats'])->middleware(['role:admin,accountant,comptable_superieur']);
 
         Route::post('/', [PaymentTrancheController::class, 'store'])->middleware(['role:admin']);
         Route::put('/{paymentTranche}', [PaymentTrancheController::class, 'update'])->middleware(['role:admin']);
@@ -97,9 +97,9 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les niveaux
     Route::prefix('levels')->group(function () {
-        Route::get('/dashboard', [LevelController::class, 'dashboard'])->middleware(['role:admin,accountant,general_accountant']);
-        Route::get('/', [LevelController::class, 'index'])->middleware(['role:admin,accountant,general_accountant']);
-        Route::get('/{level}', [LevelController::class, 'show'])->middleware(['role:admin,accountant,general_accountant']);
+        Route::get('/dashboard', [LevelController::class, 'dashboard'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/', [LevelController::class, 'index'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/{level}', [LevelController::class, 'show'])->middleware(['role:admin,accountant,comptable_superieur']);
 
         Route::post('/', [LevelController::class, 'store'])->middleware(['role:admin']);
         Route::put('/{level}', [LevelController::class, 'update'])->middleware(['role:admin']);
@@ -109,9 +109,9 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les classes
     Route::prefix('school-classes')->group(function () {
-        Route::get('/dashboard', [SchoolClassController::class, 'dashboard'])->middleware(['role:admin,accountant,general_accountant']);
-        Route::get('/', [SchoolClassController::class, 'index'])->middleware(['role:admin,accountant,general_accountant']);
-        Route::get('/{schoolClass}', [SchoolClassController::class, 'show'])->middleware(['role:admin,accountant,general_accountant']);
+        Route::get('/dashboard', [SchoolClassController::class, 'dashboard'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/', [SchoolClassController::class, 'index'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/{schoolClass}', [SchoolClassController::class, 'show'])->middleware(['role:admin,accountant,comptable_superieur']);
 
         Route::post('/', [SchoolClassController::class, 'store'])->middleware(['role:admin']);
         Route::put('/{schoolClass}', [SchoolClassController::class, 'update'])->middleware(['role:admin']);
@@ -121,7 +121,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour les élèves
-    Route::prefix('students')->middleware(['role:admin,accountant,general_accountant'])->group(function () {
+    Route::prefix('students')->middleware(['role:admin,accountant,comptable_superieur'])->group(function () {
         Route::get('/class-series/{seriesId}', [StudentController::class, 'getByClassSeries']);
         Route::post('/', [StudentController::class, 'store']);
         Route::put('/{student}', [StudentController::class, 'update']);
@@ -147,7 +147,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour les comptables
-    Route::prefix('accountant')->middleware(['role:admin,accountant,general_accountant'])->group(function () {
+    Route::prefix('accountant')->middleware(['role:admin,accountant,comptable_superieur'])->group(function () {
         Route::get('/dashboard', [AccountantController::class, 'dashboard']);
         Route::get('/classes', [AccountantController::class, 'getClasses']);
         Route::get('/classes/{classId}/series', [AccountantController::class, 'getClassSeries']);
@@ -170,7 +170,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour les paiements (comptables et admins)
-    Route::prefix('payments')->middleware(['role:admin,accountant,general_accountant'])->group(function () {
+    Route::prefix('payments')->middleware(['role:admin,accountant,comptable_superieur'])->group(function () {
         Route::get('/student/{studentId}/info', [PaymentController::class, 'getStudentPaymentInfo']);
         Route::get('/student/{studentId}/info-with-discount', [PaymentController::class, 'getStudentPaymentInfoWithDiscount']);
         Route::get('/student/{studentId}/history', [PaymentController::class, 'getStudentPaymentHistory']);
@@ -182,8 +182,8 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les paramètres de l'école
     Route::prefix('school-settings')->group(function () {
-        Route::get('/', [SchoolSettingsController::class, 'index'])->middleware(['role:admin,accountant,general_accountant,surveillant_general']);
-        Route::get('/logo', [SchoolSettingsController::class, 'getLogo'])->middleware(['role:admin,accountant,general_accountant,surveillant_general']);
+        Route::get('/', [SchoolSettingsController::class, 'index'])->middleware(['role:admin,accountant,surveillant_general,comptable_superieur']);
+        Route::get('/logo', [SchoolSettingsController::class, 'getLogo'])->middleware(['role:admin,accountant,surveillant_general,comptable_superieur']);
 
         // Routes admin uniquement
         Route::put('/', [SchoolSettingsController::class, 'update'])->middleware(['role:admin']);
@@ -202,7 +202,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour les rapports (comptables et admins)
-    Route::prefix('reports')->middleware(['role:admin,accountant,general_accountant'])->group(function () {
+    Route::prefix('reports')->middleware(['role:admin,accountant,comptable_superieur'])->group(function () {
         Route::get('/insolvable', [ReportsController::class, 'getInsolvableReport']);
         Route::get('/payments', [ReportsController::class, 'getPaymentsReport']);
         Route::get('/rame', [ReportsController::class, 'getRameReport']);
@@ -212,6 +212,15 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/scholarships-discounts', [ReportsController::class, 'getScholarshipsDiscountsReport']);
         Route::get('/collection-details', [ReportsController::class, 'getCollectionDetailsReport']);
         Route::get('/series-collection-summary', [ReportsController::class, 'getSeriesCollectionSummary']);
+        
+        // Nouveau rapport de détail des paiements des frais de scolarité
+        Route::get('/school-fee-payment-details', [ReportsController::class, 'getSchoolFeePaymentDetails']);
+        Route::get('/school-fee-payment-details/export-pdf', [ReportsController::class, 'exportSchoolFeePaymentDetailsPdf']);
+        
+        // Nouveaux rapports financiers
+        Route::get('/detailed-collection', [ReportsController::class, 'getDetailedCollectionReport']);
+        Route::get('/class-school-fees', [ReportsController::class, 'getClassSchoolFeesReport']);
+        
         Route::get('/export-pdf', [ReportsController::class, 'exportPdf']);
     });
 
@@ -245,9 +254,9 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les matières
     Route::prefix('subjects')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)
-        Route::get('/', [SubjectController::class, 'index'])->middleware(['role:admin,accountant,general_accountant,teacher']);
-        Route::get('/{subject}', [SubjectController::class, 'show'])->middleware(['role:admin,accountant,general_accountant,teacher']);
-        Route::get('/series/{classSeries}', [SubjectController::class, 'getForSeries'])->middleware(['role:admin,accountant,general_accountant,teacher']);
+        Route::get('/', [SubjectController::class, 'index'])->middleware(['role:admin,accountant,teacher']);
+        Route::get('/{subject}', [SubjectController::class, 'show'])->middleware(['role:admin,accountant,teacher']);
+        Route::get('/series/{classSeries}', [SubjectController::class, 'getForSeries'])->middleware(['role:admin,accountant,teacher']);
 
         // Routes pour administrateurs uniquement (gestion)
         Route::post('/', [SubjectController::class, 'store'])->middleware(['role:admin']);
@@ -260,9 +269,9 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les enseignants
     Route::prefix('teachers')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)
-        Route::get('/', [TeacherController::class, 'index'])->middleware(['role:admin,accountant,general_accountant']);
-        Route::get('/{teacher}', [TeacherController::class, 'show'])->middleware(['role:admin,accountant,general_accountant']);
-        Route::get('/{teacher}/stats', [TeacherController::class, 'getStats'])->middleware(['role:admin,accountant,general_accountant']);
+        Route::get('/', [TeacherController::class, 'index'])->middleware(['role:admin,accountant']);
+        Route::get('/{teacher}', [TeacherController::class, 'show'])->middleware(['role:admin,accountant']);
+        Route::get('/{teacher}/stats', [TeacherController::class, 'getStats'])->middleware(['role:admin,accountant']);
 
         // Routes pour administrateurs uniquement (gestion)
         Route::post('/', [TeacherController::class, 'store'])->middleware(['role:admin']);
@@ -276,8 +285,8 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour la configuration des matières par série
     Route::prefix('series-subjects')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)
-        Route::get('/', [SeriesSubjectController::class, 'index'])->middleware(['role:admin,accountant,general_accountant,teacher']);
-        Route::get('/class/{schoolClass}', [SeriesSubjectController::class, 'getByClass'])->middleware(['role:admin,accountant,general_accountant,teacher']);
+        Route::get('/', [SeriesSubjectController::class, 'index'])->middleware(['role:admin,accountant,teacher']);
+        Route::get('/class/{schoolClass}', [SeriesSubjectController::class, 'getByClass'])->middleware(['role:admin,accountant,teacher']);
 
         // Routes pour administrateurs uniquement (gestion)
         Route::post('/', [SeriesSubjectController::class, 'store'])->middleware(['role:admin']);
@@ -290,9 +299,9 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les affectations d'enseignants
     Route::prefix('teacher-assignments')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)
-        Route::get('/', [TeacherAssignmentController::class, 'index'])->middleware(['role:admin,accountant,general_accountant,teacher']);
-        Route::get('/teacher/{teacher}', [TeacherAssignmentController::class, 'getByTeacher'])->middleware(['role:admin,accountant,general_accountant,teacher']);
-        Route::get('/teacher/{teacher}/available-subjects', [TeacherAssignmentController::class, 'getAvailableSubjects'])->middleware(['role:admin,accountant,general_accountant']);
+        Route::get('/', [TeacherAssignmentController::class, 'index'])->middleware(['role:admin,accountant,teacher']);
+        Route::get('/teacher/{teacher}', [TeacherAssignmentController::class, 'getByTeacher'])->middleware(['role:admin,accountant,teacher']);
+        Route::get('/teacher/{teacher}/available-subjects', [TeacherAssignmentController::class, 'getAvailableSubjects'])->middleware(['role:admin,accountant']);
 
         // Routes pour administrateurs uniquement (gestion)
         Route::post('/', [TeacherAssignmentController::class, 'store'])->middleware(['role:admin']);
@@ -304,9 +313,9 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les professeurs principaux
     Route::prefix('main-teachers')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)
-        Route::get('/', [MainTeacherController::class, 'index'])->middleware(['role:admin,accountant,general_accountant,teacher']);
-        Route::get('/classes-without-main-teacher', [MainTeacherController::class, 'getClassesWithoutMainTeacher'])->middleware(['role:admin,accountant,general_accountant']);
-        Route::get('/available-teachers', [MainTeacherController::class, 'getAvailableTeachers'])->middleware(['role:admin,accountant,general_accountant']);
+        Route::get('/', [MainTeacherController::class, 'index'])->middleware(['role:admin,accountant,teacher']);
+        Route::get('/classes-without-main-teacher', [MainTeacherController::class, 'getClassesWithoutMainTeacher'])->middleware(['role:admin,accountant']);
+        Route::get('/available-teachers', [MainTeacherController::class, 'getAvailableTeachers'])->middleware(['role:admin,accountant']);
 
         // Routes pour administrateurs uniquement (gestion)
         Route::post('/', [MainTeacherController::class, 'store'])->middleware(['role:admin']);
@@ -324,12 +333,17 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/{need}', [NeedController::class, 'destroy']); // Supprimer un besoin (propriétaire uniquement)
         Route::get('/{need}', [NeedController::class, 'show']); // Voir un besoin spécifique (avec contrôle d'accès)
 
-        // Routes pour administrateurs et comptables généraux
-        Route::get('/', [NeedController::class, 'index'])->middleware(['role:admin,general_accountant']); // Lister tous les besoins
-        Route::post('/{need}/approve', [NeedController::class, 'approve'])->middleware(['role:admin,general_accountant']); // Approuver
-        Route::post('/{need}/reject', [NeedController::class, 'reject'])->middleware(['role:admin,general_accountant']); // Rejeter
-        Route::get('/statistics/summary', [NeedController::class, 'statistics'])->middleware(['role:admin,general_accountant']); // Statistiques
+        // Routes pour administrateurs et comptables supérieurs
+        Route::get('/', [NeedController::class, 'index'])->middleware(['role:admin,comptable_superieur']); // Lister tous les besoins
+        Route::post('/{need}/approve', [NeedController::class, 'approve'])->middleware(['role:admin,comptable_superieur']); // Approuver
+        Route::post('/{need}/reject', [NeedController::class, 'reject'])->middleware(['role:admin,comptable_superieur']); // Rejeter
+        Route::get('/statistics/summary', [NeedController::class, 'statistics'])->middleware(['role:admin,comptable_superieur']); // Statistiques
         Route::post('/test-whatsapp', [NeedController::class, 'testWhatsApp'])->middleware(['role:admin']); // Test WhatsApp (admin uniquement)
+        
+        // Routes d'export pour administrateurs et comptables supérieurs
+        Route::get('/export/pdf', [NeedController::class, 'exportPdf'])->middleware(['role:admin,comptable_superieur']); // Export PDF
+        Route::get('/export/excel', [NeedController::class, 'exportExcel'])->middleware(['role:admin,comptable_superieur']); // Export Excel
+        Route::get('/export/word', [NeedController::class, 'exportWord'])->middleware(['role:admin,comptable_superieur']); // Export Word
     });
 
     // Routes pour les surveillants généraux
@@ -356,14 +370,14 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour la gestion RAME simplifiée
-    Route::prefix('student-rame')->middleware(['role:admin,accountant,general_accountant'])->group(function () {
+    Route::prefix('student-rame')->middleware(['role:admin,accountant'])->group(function () {
         Route::get('/student/{studentId}/status', [StudentRameController::class, 'getRameStatus']);
         Route::post('/student/{studentId}/update', [StudentRameController::class, 'updateRameStatus']);
         Route::get('/class-series/{classSeriesId}', [StudentRameController::class, 'getClassRameStatus']);
     });
 
     // Routes pour l'inventaire scolaire
-    Route::prefix('inventory')->middleware(['role:admin,accountant,general_accountant'])->group(function () {
+    Route::prefix('inventory')->middleware(['role:admin,accountant,comptable_superieur'])->group(function () {
         // Routes de consultation (routes spécifiques d'abord)
         Route::get('/', [InventoryController::class, 'index']);
         Route::get('/dashboard', [InventoryController::class, 'dashboard']);

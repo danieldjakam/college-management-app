@@ -17,7 +17,7 @@ class UserManagementController extends Controller
     {
         try {
             $query = User::select('id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'is_active', 'created_at')
-                ->whereIn('role', ['surveillant_general', 'comptable', 'secretaire', 'teacher', 'accountant', 'general_accountant']); // Tous les rôles gérables (enseignants créés ailleurs)
+                ->whereIn('role', ['surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'accountant']); // Tous les rôles gérables (enseignants créés ailleurs)
 
             // Système de recherche
             if ($request->has('search') && !empty($request->search)) {
@@ -66,7 +66,7 @@ class UserManagementController extends Controller
                 'email' => 'required|email|unique:users,email',
                 'contact' => 'nullable|string|max:20',
                 'photo' => 'nullable|string|max:500',
-                'role' => 'required|in:surveillant_general,comptable,secretaire,accountant,general_accountant',
+                'role' => 'required|in:surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant',
                 'generate_password' => 'boolean'
             ], [
                 'name.required' => 'Le nom complet est obligatoire.',
@@ -163,7 +163,7 @@ class UserManagementController extends Controller
                 'email' => 'required|email|unique:users,email,' . $id,
                 'contact' => 'nullable|string|max:20',
                 'photo' => 'nullable|string|max:500', // Nullable en update
-                'role' => 'required|in:surveillant_general,comptable,secretaire,accountant,general_accountant',
+                'role' => 'required|in:surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant',
                 'is_active' => 'boolean'
             ], [
                 'name.required' => 'Le nom complet est obligatoire.',
