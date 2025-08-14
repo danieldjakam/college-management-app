@@ -57,7 +57,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
 
     const userRole = user.role;
 
-    if (userRole === "admin" || userRole === "general_accountant") {
+    if (userRole === "admin") {
       return [
         {
           title: "Gestion Académique",
@@ -110,7 +110,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
       ];
-    } else if (userRole === "accountant") {
+    } else if (userRole === "accountant" || userRole === "comptable_superieur") {
       return [
         {
           title: "Comptabilité",
@@ -145,63 +145,30 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               href: "/reports",
               icon: <FileTextFill />,
             },
-          ],
-        },
-        {
-          title: "Compte",
-          items: [
-            { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
-            { name: "Profil", href: "/profile", icon: <PersonCircle /> }
-          ],
-        },
-      ];
-    } else if (userRole === "general_accountant") {
-      return [
-        {
-          title: "Comptabilité",
-          items: [
-            { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
-            { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
-            { name: "Rechercher", href: "/search", icon: <Search /> },
-          ],
-        },
-        {
-          title: "Besoins",
-          items: [
-            { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> },
-            { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
-          ],
-        },
-        {
-          title: "Paiements",
-          items: [
             {
-              name: "États de Paiements",
-              href: "/payment-reports",
+              name: "Détail Paiements Scolarité",
+              href: "/reports/school-fee-payment-details",
+              icon: <Receipt />,
+            },
+            {
+              name: "Encaissement Détaillé Période",
+              href: "/reports/detailed-collection",
+              icon: <CashCoin />,
+            },
+            {
+              name: "Paiement Frais par Classe",
+              href: "/reports/class-school-fees",
               icon: <Receipt />,
             },
           ],
         },
         {
-          title: "Rapports",
-          items: [
-            {
-              name: "Rapports Financiers",
-              href: "/reports",
-              icon: <FileTextFill />,
-            },
-          ],
-        },
-        {
-          title: "Outils",
-          items: [
-            { name: "Inventaire", href: "/inventory", icon: <Archive /> },
-            { name: "Documents", href: "/documents", icon: <FolderFill /> },
-          ],
-        },
-        {
           title: "Compte",
           items: [
+            { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
+            ...(userRole === "comptable_superieur" ? [
+              { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> }
+            ] : []),
             { name: "Profil", href: "/profile", icon: <PersonCircle /> }
           ],
         },
@@ -270,7 +237,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
   const getUserDisplayName = () => {
     if (isLoading || !user) return "";
 
-    if (user.role === "admin" || user.role === "accountant" || user.role === "general_accountant") {
+    if (user.role === "admin" || user.role === "accountant" || user.role === "comptable_superieur") {
       return user.username || user.name || "";
     } else {
       return user.name || "";
@@ -285,8 +252,8 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         return "Administrateur";
       case "accountant":
         return "Comptable";
-      case "general_accountant":
-        return "Comptable Général";
+      case "comptable_superieur":
+        return "Comptable Supérieur";
       case "teacher":
         return "Enseignant";
       case "surveillant_general":

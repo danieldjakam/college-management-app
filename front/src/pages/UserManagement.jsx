@@ -58,8 +58,9 @@ const UserManagement = () => {
     const roleLabels = {
         admin: 'Administrateur',
         surveillant_general: 'Surveillant Général',
-        comptable: 'Comptable',
         general_accountant: 'Comptable Général',
+        comptable_superieur: 'Comptable Supérieur',
+        comptable: 'Comptable',
         secretaire: 'Secrétaire',
         enseignant: 'Enseignant',
         teacher: 'Enseignant',
@@ -69,8 +70,9 @@ const UserManagement = () => {
     const roleColors = {
         admin: 'danger',
         surveillant_general: 'primary',
-        comptable: 'success',
         general_accountant: 'warning',
+        comptable_superieur: 'dark',
+        comptable: 'success',
         secretaire: 'info',
         enseignant: 'warning',
         teacher: 'warning',
@@ -668,8 +670,9 @@ const UserManagement = () => {
                                     disabled={modalMode === 'view'}
                                 >
                                     <option value="surveillant_general">Surveillant Général</option>
-                                    <option value="accountant">Comptable</option>
                                     <option value="general_accountant">Comptable Général</option>
+                                    <option value="comptable_superieur">Comptable Supérieur</option>
+                                    <option value="accountant">Comptable</option>
                                     <option value="secretaire">Secrétaire</option>
                                 </Form.Select>
                             </Form.Group>
@@ -784,8 +787,9 @@ const UserManagement = () => {
                                 >
                                     <option value="all">Tous les rôles</option>
                                     <option value="surveillant_general">Surveillants Généraux</option>
-                                    <option value="comptable">Comptables</option>
                                     <option value="general_accountant">Comptables Généraux</option>
+                                    <option value="comptable_superieur">Comptables Supérieurs</option>
+                                    <option value="comptable">Comptables</option>
                                     <option value="secretaire">Secrétaires</option>
                                     <option value="enseignant">Enseignants</option>
                                     <option value="teacher">Enseignants (anciens)</option>

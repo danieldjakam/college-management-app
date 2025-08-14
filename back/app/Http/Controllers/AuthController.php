@@ -47,7 +47,7 @@ class AuthController extends Controller
             'username' => 'required|string|between:3,100|unique:users',
             'email' => 'required|string|email|max:100|unique:users',
             'password' => 'required|string|confirmed|min:6',
-            'role' => 'required|string|in:admin,teacher,accountant,user,surveillant_general,general_accountant',
+            'role' => 'required|string|in:admin,teacher,accountant,user,surveillant_general,general_accountant,comptable_superieur',
         ]);
 
         if ($validator->fails()) {

@@ -99,7 +99,7 @@ class DocumentFolderController extends Controller
                 'parent_folder_id' => 'nullable|exists:document_folders,id',
                 'is_private' => 'boolean',
                 'allowed_roles' => 'nullable|array',
-                'allowed_roles.*' => 'string|in:admin,accountant,teacher,surveillant_general,general_accountant',
+                'allowed_roles.*' => 'string|in:admin,accountant,teacher,surveillant_general',
                 'sort_order' => 'nullable|integer|min:0'
             ], [
                 'name.required' => 'Le nom du dossier est obligatoire',
@@ -191,7 +191,7 @@ class DocumentFolderController extends Controller
                 'icon' => 'nullable|string|max:50',
                 'is_private' => 'boolean',
                 'allowed_roles' => 'nullable|array',
-                'allowed_roles.*' => 'string|in:admin,accountant,teacher,surveillant_general,general_accountant',
+                'allowed_roles.*' => 'string|in:admin,accountant,teacher,surveillant_general',
                 'sort_order' => 'nullable|integer|min:0'
             ]);
 

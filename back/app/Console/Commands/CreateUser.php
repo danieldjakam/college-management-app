@@ -40,6 +40,9 @@ class CreateUser extends Command
         if (!$role) {
             $role = $this->choice('Rôle de l\'utilisateur', [
                 'admin' => 'Administrateur',
+                'surveillant_general' => 'Surveillant Général',
+                'general_accountant' => 'Comptable Général',
+                'comptable_superieur' => 'Comptable Supérieur',
                 'teacher' => 'Enseignant',
                 'accountant' => 'Comptable',
                 'user' => 'Utilisateur standard'
@@ -70,7 +73,7 @@ class CreateUser extends Command
             'username' => 'required|string|between:3,100|unique:users',
             'email' => 'required|string|email|max:100|unique:users',
             'password' => 'required|string|min:6',
-            'role' => 'required|string|in:admin,teacher,accountant,user,general_accountant',
+            'role' => 'required|string|in:admin,teacher,accountant,user,surveillant_general,general_accountant,comptable_superieur',
         ]);
 
         if ($validator->fails()) {
@@ -122,6 +125,9 @@ class CreateUser extends Command
     {
         $roles = [
             'admin' => 'Administrateur',
+            'surveillant_general' => 'Surveillant Général',
+            'general_accountant' => 'Comptable Général',
+            'comptable_superieur' => 'Comptable Supérieur',
             'teacher' => 'Enseignant',
             'accountant' => 'Comptable',
             'user' => 'Utilisateur standard'

@@ -27,7 +27,11 @@ import {
     FileText,
     BarChart,
     Search,
-    Whatsapp
+    Whatsapp,
+    Download,
+    FiletypePdf,
+    FiletypeDocx,
+    FileEarmarkExcel
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import { extractErrorMessage } from '../../utils/errorHandler';
@@ -248,6 +252,58 @@ const NeedsManagement = () => {
         });
     };
 
+    const exportNeeds = async (format) => {
+        try {
+            setProcessing(true);
+            
+            // Préparer les paramètres d'export avec les filtres actuels
+            const exportParams = { ...filters };
+            
+            // Nettoyer les paramètres vides
+            Object.keys(exportParams).forEach(key => {
+                if (exportParams[key] === '') {
+                    delete exportParams[key];
+                }
+            });
+
+            let url = '';
+            let filename = '';
+            const statusSuffix = filters.status ? `_${filters.status}` : '_tous';
+            const dateSuffix = new Date().toISOString().split('T')[0];
+
+            switch (format) {
+                case 'pdf':
+                    url = secureApiEndpoints.needs.exportPdf(exportParams);
+                    filename = `besoins${statusSuffix}_${dateSuffix}.pdf`;
+                    break;
+                case 'excel':
+                    url = secureApiEndpoints.needs.exportExcel(exportParams);
+                    filename = `besoins${statusSuffix}_${dateSuffix}.xlsx`;
+                    break;
+                case 'word':
+                    url = secureApiEndpoints.needs.exportWord(exportParams);
+                    filename = `besoins${statusSuffix}_${dateSuffix}.docx`;
+                    break;
+                default:
+                    throw new Error('Format d\'export non supporté');
+            }
+
+            // Créer un lien temporaire pour télécharger le fichier
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            setSuccess(`Export ${format.toUpperCase()} lancé avec succès`);
+        } catch (error) {
+            setError(extractErrorMessage(error));
+        } finally {
+            setProcessing(false);
+        }
+    };
+
     return (
         <Container fluid className="py-4">
             {/* Header */}
@@ -378,7 +434,7 @@ const NeedsManagement = () => {
                                 />
                             </Form.Group>
                         </Col>
-                        <Col md={3}>
+                        <Col md={2}>
                             <Form.Group>
                                 <Form.Label>Date de début</Form.Label>
                                 <Form.Control
@@ -391,7 +447,7 @@ const NeedsManagement = () => {
                                 />
                             </Form.Group>
                         </Col>
-                        <Col md={3}>
+                        <Col md={2}>
                             <Form.Group>
                                 <Form.Label>Date de fin</Form.Label>
                                 <Form.Control
@@ -402,6 +458,58 @@ const NeedsManagement = () => {
                                         setCurrentPage(1);
                                     }}
                                 />
+                            </Form.Group>
+                        </Col>
+                        <Col md={2}>
+                            <Form.Group>
+                                <Form.Label className="fw-bold">Actions d'Export</Form.Label>
+                                <div className="d-grid gap-2">
+                                    <OverlayTrigger
+                                        placement="top"
+                                        overlay={<Tooltip>Exporter la liste en PDF</Tooltip>}
+                                    >
+                                        <Button
+                                            variant="danger"
+                                            size="md"
+                                            onClick={() => exportNeeds('pdf')}
+                                            disabled={processing}
+                                            className="d-flex align-items-center justify-content-center py-2"
+                                        >
+                                            <FiletypePdf size={18} className="me-2" />
+                                            <strong>PDF</strong>
+                                        </Button>
+                                    </OverlayTrigger>
+                                    <OverlayTrigger
+                                        placement="top"
+                                        overlay={<Tooltip>Exporter la liste en Excel</Tooltip>}
+                                    >
+                                        <Button
+                                            variant="success"
+                                            size="md"
+                                            onClick={() => exportNeeds('excel')}
+                                            disabled={processing}
+                                            className="d-flex align-items-center justify-content-center py-2"
+                                        >
+                                            <FileEarmarkExcel size={18} className="me-2" />
+                                            <strong>Excel</strong>
+                                        </Button>
+                                    </OverlayTrigger>
+                                    <OverlayTrigger
+                                        placement="top"
+                                        overlay={<Tooltip>Exporter la liste en Word</Tooltip>}
+                                    >
+                                        <Button
+                                            variant="primary"
+                                            size="md"
+                                            onClick={() => exportNeeds('word')}
+                                            disabled={processing}
+                                            className="d-flex align-items-center justify-content-center py-2"
+                                        >
+                                            <FiletypeDocx size={18} className="me-2" />
+                                            <strong>Word</strong>
+                                        </Button>
+                                    </OverlayTrigger>
+                                </div>
                             </Form.Group>
                         </Col>
                     </Row>
