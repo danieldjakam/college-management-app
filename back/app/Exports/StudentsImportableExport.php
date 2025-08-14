@@ -11,7 +11,7 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
+class StudentsImportableExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
 {
     protected $filters;
     protected $schoolYearId;
@@ -28,9 +28,9 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
     public function collection()
     {
         $query = Student::with([
-            'classSeries',
+            'classSeries', 
             'classSeries.schoolClass',
-            'classSeries.schoolClass.level', 
+            'classSeries.schoolClass.level',
             'classSeries.schoolClass.level.section',
             'schoolYear'
         ]);
@@ -72,24 +72,18 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
     public function headings(): array
     {
         return [
-            'Numéro Étudiant',
-            'Nom',
-            'Prénom',
-            'Date de Naissance',
-            'Lieu de Naissance',
-            'Sexe',
-            'Nom du Parent',
-            'Téléphone Parent',
-            'Email Parent',
-            'Adresse',
-            'Série',
-            'Classe',
-            'Section',
-            'Niveau',
-            'Année Scolaire',
-            'Statut Étudiant',
-            'Statut',
-            'Date d\'Inscription'
+            'id',
+            'nom',
+            'prenom',
+            'date_naissance',
+            'lieu_naissance',
+            'sexe',
+            'nom_parent',
+            'telephone_parent',
+            'email_parent',
+            'adresse',
+            'statut_etudiant',
+            'statut'
         ];
     }
 
@@ -99,24 +93,18 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
     public function map($student): array
     {
         return [
-            $student->student_number ?? 'N/A',
-            $student->last_name ?? $student->subname ?? 'N/A',
-            $student->first_name ?? $student->name ?? 'N/A',
-            $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : ($student->birthday ? $student->birthday->format('d/m/Y') : 'N/A'),
-            $student->place_of_birth ?? $student->birthday_place ?? 'N/A',
-            $student->gender ?? $student->sex ?? 'N/A',
-            $student->parent_name ?? $student->father_name ?? 'N/A',
-            $student->parent_phone ?? $student->phone_number ?? 'N/A',
-            $student->parent_email ?? $student->email ?? 'N/A',
-            $student->address ?? 'N/A',
-            $student->classSeries ? $student->classSeries->name : 'N/A',
-            $student->classSeries && $student->classSeries->schoolClass ? $student->classSeries->schoolClass->name : 'N/A',
-            $student->classSeries && $student->classSeries->schoolClass && $student->classSeries->schoolClass->level && $student->classSeries->schoolClass->level->section ? $student->classSeries->schoolClass->level->section->name : 'N/A',
-            $student->classSeries && $student->classSeries->schoolClass && $student->classSeries->schoolClass->level ? $student->classSeries->schoolClass->level->name : 'N/A',
-            $student->schoolYear ? $student->schoolYear->name : 'N/A',
-            $student->student_status ?? ($student->is_new ? 'Nouveau' : 'Ancien'),
-            $student->is_active ? 'Actif' : 'Inactif',
-            $student->created_at ? $student->created_at->format('d/m/Y H:i') : 'N/A'
+            $student->id,
+            $student->last_name ?? $student->subname ?? '',
+            $student->first_name ?? $student->name ?? '',
+            $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : ($student->birthday ? $student->birthday->format('d/m/Y') : ''),
+            $student->place_of_birth ?? $student->birthday_place ?? '',
+            $student->gender ?? $student->sex ?? 'M',
+            $student->parent_name ?? $student->father_name ?? '',
+            $student->parent_phone ?? $student->phone_number ?? '',
+            $student->parent_email ?? $student->email ?? '',
+            $student->address ?? '',
+            $student->student_status ?? ($student->is_new ? 'nouveau' : 'ancien'),
+            $student->is_active ? '1' : '0'
         ];
     }
 
@@ -134,7 +122,7 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
                 ],
                 'fill' => [
                     'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                    'startColor' => ['argb' => 'E74C3C']
+                    'startColor' => ['argb' => '27AE60']
                 ]
             ]
         ];

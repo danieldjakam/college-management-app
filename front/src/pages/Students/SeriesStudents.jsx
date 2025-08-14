@@ -744,8 +744,7 @@ const SeriesStudents = () => {
             
             const formData = new FormData();
             formData.append('file', importFile);
-            formData.append('class_series_id', seriesId);
-            // school_year_id géré automatiquement par le backend
+            // class_series_id et school_year_id gérés automatiquement par la nouvelle route
 
             // Debug log détaillé
             console.log('Import CSV - FormData contents:', {
@@ -755,7 +754,7 @@ const SeriesStudents = () => {
                     size: importFile.size,
                     lastModified: importFile.lastModified
                 },
-                class_series_id: seriesId,
+                seriesIdFromUrl: seriesId,
                 seriesInfo: series?.name,
                 schoolYearInfo: schoolYears.find(y => y.id == selectedSchoolYear)?.name
             });
@@ -765,7 +764,7 @@ const SeriesStudents = () => {
                 console.log('FormData entry:', key, value);
             }
 
-            const response = await secureApiEndpoints.students.importCsv(formData);
+            const response = await secureApiEndpoints.students.importCsv(formData, seriesId);
             
             if (response.success) {
                 setSuccess(response.message);
@@ -1183,36 +1182,13 @@ const SeriesStudents = () => {
                             </div>
                         </div>
                         <div className="d-flex gap-2">
-                            <button
-                                className="btn btn-outline-success"
-                                onClick={handleExportCsv}
-                                title="Exporter en CSV"
-                            >
-                                <Download size={16} className="me-1" />
-                                Export CSV
-                            </button>
-                            <button
-                                className="btn btn-outline-danger"
-                                onClick={handleExportPdf}
-                                title="Exporter en PDF"
-                            >
-                                <Download size={16} className="me-1" />
-                                Export PDF
-                            </button>
-                            <button
-                                className="btn btn-outline-info"
-                                onClick={() => setShowImportModal(true)}
-                                title="Importer depuis CSV"
-                            >
-                                <Upload size={16} className="me-1" />
-                                Import CSV
-                            </button>
                             <div className="d-flex gap-2">
                                 <ImportExportButton
                                     title="Élèves"
                                     apiBasePath="/api/students"
                                     onImportSuccess={loadStudents}
                                     templateFileName="template_eleves.csv"
+                                    seriesId={seriesId}
                                 />
                                 <button
                                     className="btn btn-primary d-flex align-items-center gap-2"

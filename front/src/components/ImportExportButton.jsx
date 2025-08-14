@@ -10,7 +10,8 @@ const ImportExportButton = ({
     filters = {},
     templateFileName = "template.csv",
     className = "",
-    size = "sm"
+    size = "sm",
+    seriesId = null // Nouveau paramètre pour l'ID de série
 }) => {
     const [showModal, setShowModal] = useState(false);
     const [modalMode, setModalMode] = useState('export');
@@ -58,6 +59,7 @@ const ImportExportButton = ({
                 onImportSuccess={onImportSuccess}
                 filters={filters}
                 templateFileName={templateFileName}
+                seriesId={seriesId}
             />
         </>
     );

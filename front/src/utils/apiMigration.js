@@ -248,9 +248,41 @@ export const secureApiEndpoints = {
             
             return response; // Retourner la réponse pour permettre .text()
         },
-        importCsv: (formData) => {
+        importCsv: (formData, seriesId) => {
             const token = authService.getToken();
-            return fetch(`${secureApi.baseURL}/students/import-csv`, {
+            
+            // Utiliser la nouvelle route avec l'ID de série
+            const endpoint = seriesId 
+                ? `/students/series/${seriesId}/import`
+                : `/students/import/csv`; // Fallback vers l'ancienne route
+            
+            return fetch(`${secureApi.baseURL}${endpoint}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                    // Don't set Content-Type - let browser set it with boundary for FormData
+                },
+                body: formData
+            }).then(async response => {
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP Error ${response.status}`);
+                }
+                return response.json();
+            });
+        },
+        
+        // Nouvelle méthode pour import Excel spécifique à une série
+        importExcel: (formData, seriesId) => {
+            const token = authService.getToken();
+            
+            // Utiliser la nouvelle route avec l'ID de série
+            const endpoint = seriesId 
+                ? `/students/series/${seriesId}/import`
+                : `/students/import/excel`; // Fallback vers l'ancienne route
+            
+            return fetch(`${secureApi.baseURL}${endpoint}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,

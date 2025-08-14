@@ -193,9 +193,13 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/class-series/{seriesId}', [StudentController::class, 'getByClassSeries']);
         
         // Export routes - amélioration des routes existantes
+        Route::get('/export/excel', [StudentController::class, 'exportStudentsExcel']);
+        Route::get('/export/csv', [StudentController::class, 'exportStudentsCsv']);
+        Route::get('/export/pdf', [StudentController::class, 'exportStudentsPdf']);
         Route::get('/export/csv/{seriesId}', [StudentController::class, 'exportCsv']);
         Route::get('/export/excel/{seriesId}', [StudentController::class, 'exportExcel']);
         Route::get('/export/pdf/{seriesId}', [StudentController::class, 'exportPdf']);
+        Route::get('/export/importable', [StudentController::class, 'exportImportable']);
         Route::get('/template/download', [StudentController::class, 'downloadTemplate']);
         
         Route::post('/', [StudentController::class, 'store']);
@@ -205,6 +209,9 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{student}/transfer-series', [StudentController::class, 'transferToSeries']);
         Route::delete('/{student}', [StudentController::class, 'destroy']);
         Route::post('/import/csv', [StudentController::class, 'importCsv']);
+        Route::post('/import/excel', [StudentController::class, 'importExcel']);
+        Route::post('/series/{seriesId}/import', [StudentController::class, 'importForSeries']);
+        Route::post('/series/{seriesId}/import/csv', [StudentController::class, 'importCsvForSeries']);
         Route::get('/school-years', [StudentController::class, 'getSchoolYears']);
         Route::post('/reorder', [StudentController::class, 'reorder']);
         Route::post('/class-series/{seriesId}/sort-alphabetically', [StudentController::class, 'sortAlphabetically']);

@@ -12,7 +12,8 @@ const ImportExportModal = ({
     apiBasePath, 
     onImportSuccess,
     filters = {},
-    templateFileName = "template.csv" 
+    templateFileName = "template.csv",
+    seriesId = null // Nouveau paramètre pour l'ID de série
 }) => {
     const [activeTab, setActiveTab] = useState('export');
     const [exportFormat, setExportFormat] = useState('excel');
@@ -97,7 +98,12 @@ const ImportExportModal = ({
                 throw new Error('Session expirée. Veuillez vous reconnecter.');
             }
 
-            const response = await fetch(`${host}${apiBasePath}/import/csv`, {
+            // Utiliser la nouvelle route si seriesId est fourni
+            const importUrl = seriesId 
+                ? `${host}/api/students/series/${seriesId}/import`
+                : `${host}${apiBasePath}/import/csv`;
+                
+            const response = await fetch(importUrl, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,

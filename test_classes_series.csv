@@ -1,4 +1,0 @@
-class_id,class_nom,level_id,class_description,class_statut,series
-,Test Classe A,15,Nouvelle classe de test,1,":TestA1:TA1:30:1|:TestA2:TA2:35:1"
-,Test Classe B,16,Autre classe test,1,":TestB1:TB1:25:1"
-2,6eme MODIFIÉE,15,Classe modifiée par ID,0,"1:M1UPDATED:M1UP:40:0|:NewSerie:NS:20:1"

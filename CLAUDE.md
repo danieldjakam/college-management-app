@@ -89,6 +89,46 @@ npm run createsuperuser  # Create admin user interactively
 - **Document Generation**: Automated PDF reports for administrative tasks
 - **Data Import**: CSV import for bulk student registration
 
+## Students Import API Routes
+
+### Recommended Routes (Series-Specific)
+
+#### Import for Specific Series
+- **POST** `/api/students/series/{seriesId}/import`
+  - Accepts: Excel (.xlsx, .xls) and CSV files
+  - Max size: 2048KB
+  - Series ID in URL path (no body parameter needed)
+  
+- **POST** `/api/students/series/{seriesId}/import/csv`  
+  - Accepts: CSV (.csv, .txt) files only
+  - Max size: 2048KB
+  - Series ID in URL path (no body parameter needed)
+
+#### CSV Format Required
+```csv
+id,nom,prenom,date_naissance,lieu_naissance,sexe,nom_parent,telephone_parent,email_parent,adresse,statut_etudiant,statut
+,DUPONT,Jean,01/01/2010,Douala,M,Marie DUPONT,123456789,marie@example.com,Douala,nouveau,1
+123,MARTIN,Sophie,15/06/2009,Yaoundé,F,Paul MARTIN,987654321,paul@example.com,Yaoundé,ancien,0
+```
+
+#### Import Logic
+- **Empty ID**: Creates new student with auto-generated matricule
+- **Provided ID**: Updates existing student (must exist in same school year)
+- **Status**: `1` = Active, `0` = Inactive
+- **Series**: Automatically assigned from URL parameter
+- **School Year**: Uses user's working year
+
+### Legacy Routes (Deprecated)
+- **POST** `/api/students/import/excel` (requires `class_series_id` in body)
+- **POST** `/api/students/import/csv` (requires `class_series_id` in body)
+
+### Export Routes
+- **GET** `/api/students/export/excel` - Global Excel export with filters
+- **GET** `/api/students/export/csv` - Global CSV export with filters  
+- **GET** `/api/students/export/pdf` - Global PDF export with filters
+- **GET** `/api/students/export/importable` - CSV format ready for import
+- **GET** `/api/students/template/download` - Download CSV template
+
 ## Environment Configuration
 
 - Backend `.env` requires: `PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, `DB_HOST`, `SECRET`
