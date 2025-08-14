@@ -220,6 +220,7 @@ Route::middleware('auth:api')->group(function () {
         // Nouveaux rapports financiers
         Route::get('/detailed-collection', [ReportsController::class, 'getDetailedCollectionReport']);
         Route::get('/class-school-fees', [ReportsController::class, 'getClassSchoolFeesReport']);
+        Route::get('/class-school-fees/export-pdf', [ReportsController::class, 'exportClassSchoolFeesPdf']);
         
         Route::get('/export-pdf', [ReportsController::class, 'exportPdf']);
     });
