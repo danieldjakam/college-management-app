@@ -110,7 +110,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
       ];
-    } else if (userRole === "accountant") {
+    } else if (userRole === "accountant" || userRole === "comptable_superieur") {
       return [
         {
           title: "Comptabilité",
@@ -145,12 +145,30 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               href: "/reports",
               icon: <FileTextFill />,
             },
+            {
+              name: "Détail Paiements Scolarité",
+              href: "/reports/school-fee-payment-details",
+              icon: <Receipt />,
+            },
+            {
+              name: "Encaissement Détaillé Période",
+              href: "/reports/detailed-collection",
+              icon: <CashCoin />,
+            },
+            {
+              name: "Paiement Frais par Classe",
+              href: "/reports/class-school-fees",
+              icon: <Receipt />,
+            },
           ],
         },
         {
           title: "Compte",
           items: [
             { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
+            ...(userRole === "comptable_superieur" ? [
+              { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> }
+            ] : []),
             { name: "Profil", href: "/profile", icon: <PersonCircle /> }
           ],
         },
@@ -219,7 +237,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
   const getUserDisplayName = () => {
     if (isLoading || !user) return "";
 
-    if (user.role === "admin" || user.role === "accountant") {
+    if (user.role === "admin" || user.role === "accountant" || user.role === "comptable_superieur") {
       return user.username || user.name || "";
     } else {
       return user.name || "";
@@ -234,8 +252,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         return "Administrateur";
       case "accountant":
         return "Comptable";
+      case "comptable_superieur":
+        return "Comptable Supérieur";
       case "teacher":
         return "Enseignant";
+      case "surveillant_general":
+        return "Surveillant Général";
       default:
         return "Utilisateur";
     }

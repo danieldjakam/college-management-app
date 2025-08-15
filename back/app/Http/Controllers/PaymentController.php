@@ -75,7 +75,6 @@ class PaymentController extends Controller
             ];
 
             return response()->json(['success' => true, 'data' => $response_data]);
-
         } catch (\Exception $e) {
             Log::error('Error in PaymentController@getStudentPaymentInfo: ' . $e->getMessage());
             return response()->json([
@@ -152,7 +151,6 @@ class PaymentController extends Controller
                 'data' => $formattedPayments,
                 'message' => 'Historique des paiements récupéré avec succès'
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error in PaymentController@getStudentPaymentHistory: ' . $e->getMessage());
             return response()->json([
@@ -366,7 +364,6 @@ class PaymentController extends Controller
                 'data' => $payment,
                 'message' => 'Paiement enregistré avec succès'
             ], 201);
-
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error in PaymentController@store: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
@@ -471,13 +468,13 @@ class PaymentController extends Controller
             }
 
             // Vérifier si la RAME n'a pas été payée électroniquement
-            $existingElectronicRame = PaymentDetail::whereHas('payment', function($query) use ($studentId, $workingYear) {
+            $existingElectronicRame = PaymentDetail::whereHas('payment', function ($query) use ($studentId, $workingYear) {
                 $query->where('student_id', $studentId)
-                      ->where('school_year_id', $workingYear->id)
-                      ->where('is_rame_physical', false);
+                    ->where('school_year_id', $workingYear->id)
+                    ->where('is_rame_physical', false);
             })->where('payment_tranche_id', $rameTranche->id)
-              ->where('amount_allocated', '>', 0)
-              ->first();
+                ->where('amount_allocated', '>', 0)
+                ->first();
 
             if ($existingElectronicRame) {
                 return response()->json([
@@ -545,7 +542,6 @@ class PaymentController extends Controller
                 ],
                 'message' => 'RAME payée physiquement avec succès'
             ], 201);
-
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error in PaymentController@payRamePhysically: ' . $e->getMessage());
@@ -593,13 +589,13 @@ class PaymentController extends Controller
                 ->first();
 
             // Vérifier si la RAME a été payée électroniquement
-            $electronicRamePayment = PaymentDetail::whereHas('payment', function($query) use ($studentId, $workingYear) {
+            $electronicRamePayment = PaymentDetail::whereHas('payment', function ($query) use ($studentId, $workingYear) {
                 $query->where('student_id', $studentId)
-                      ->where('school_year_id', $workingYear->id)
-                      ->where('is_rame_physical', false);
+                    ->where('school_year_id', $workingYear->id)
+                    ->where('is_rame_physical', false);
             })->where('payment_tranche_id', $rameTranche->id)
-              ->where('amount_allocated', '>', 0)
-              ->first();
+                ->where('amount_allocated', '>', 0)
+                ->first();
 
             $status = [
                 'rame_available' => true,
@@ -638,7 +634,6 @@ class PaymentController extends Controller
                 'success' => true,
                 'data' => $status
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error in PaymentController@getRameStatus: ' . $e->getMessage());
             return response()->json([
@@ -761,7 +756,6 @@ class PaymentController extends Controller
                     'filename' => "Recu_{$payment->receipt_number}.pdf"
                 ]
             ]);
-
         } catch (\Exception $e) {
             \Log::error('Error generating receipt: ' . $e->getMessage());
             return response()->json([
@@ -781,7 +775,7 @@ class PaymentController extends Controller
         $schoolClass = $student->classSeries->schoolClass ?? null;
 
         // Formatage des montants
-        $formatAmount = function($amount) {
+        $formatAmount = function ($amount) {
             return number_format($amount, 0, ',', ' ');
         };
 
@@ -1005,7 +999,7 @@ class PaymentController extends Controller
                     size: A5;
                     margin: 0.5cm;
                 }
-                
+
                 body {
                     font-family: Arial, sans-serif;
                     margin: 0;
@@ -1017,13 +1011,13 @@ class PaymentController extends Controller
                     display: flex;
                     flex-direction: column;
                 }
-                
+
                 .receipt-container {
                     height: 100%;
                     display: flex;
                     flex-direction: column;
                 }
-                
+
                 .receipt-copy {
                     flex: 1;
                     position: relative;
@@ -1032,11 +1026,11 @@ class PaymentController extends Controller
                     display: flex;
                     flex-direction: column;
                 }
-                
+
                 .receipt-copy:last-child {
                     border-bottom: none;
                 }
-                
+
                 .copy-label {
                     position: absolute;
                     top: 2px;
@@ -1048,13 +1042,13 @@ class PaymentController extends Controller
                     padding: 2px 4px;
                     border-radius: 2px;
                 }
-                
+
                 .header {
                     text-align: center;
                     margin-bottom: 8px;
                     position: relative;
                 }
-                
+
                 .logo {
                     position: absolute;
                     left: 5px;
@@ -1063,25 +1057,25 @@ class PaymentController extends Controller
                     height: 25px;
                     object-fit: contain;
                 }
-                
+
                 .school-name {
                     font-size: 10px;
                     font-weight: bold;
                     margin-bottom: 2px;
                 }
-                
+
                 .academic-year {
                     font-size: 8px;
                     margin-bottom: 3px;
                 }
-                
+
                 .receipt-title {
                     font-size: 9px;
                     font-weight: bold;
                     text-decoration: underline;
                     margin: 5px 0;
                 }
-                
+
                 .date-time {
                     position: absolute;
                     top: 2px;
@@ -1089,87 +1083,87 @@ class PaymentController extends Controller
                     font-size: 7px;
                     color: #666;
                 }
-                
+
                 .student-info {
                     margin: 8px 0;
                     text-align: left;
                     font-size: 8px;
                 }
-                
+
                 .student-info div {
                     margin: 1px 0;
                     line-height: 1.2;
                 }
-                
+
                 .payment-table, .recap-table {
                     width: 100%;
                     border-collapse: collapse;
                     margin: 5px 0;
                     font-size: 7px;
                 }
-                
+
                 .payment-table th, .payment-table td,
                 .recap-table th, .recap-table td {
                     border: 1px solid #000;
                     padding: 2px;
                     text-align: center;
                 }
-                
+
                 .payment-table th, .recap-table th {
                     background-color: #f0f0f0;
                     font-weight: bold;
                 }
-                
+
                 .recap-section {
                     margin: 5px 0;
                 }
-                
+
                 .recap-section strong {
                     font-size: 8px;
                 }
-                
+
                 .footer-info {
                     margin-top: auto;
                     font-size: 6px;
                     line-height: 1.2;
                     text-align: justify;
                 }
-                
+
                 .contact-info {
                     display: flex;
                     justify-content: space-between;
                     margin-top: 3px;
                 }
-                
+
                 .contact-left, .contact-right {
                     flex: 1;
                 }
-                
+
                 .signature-section {
                     margin-top: 8px;
                     text-align: right;
                     font-size: 7px;
                 }
-                
+
                 .signature-line {
                     margin-top: 8px;
                     font-size: 8px;
                 }
-                
+
                 .float-right {
                     float: right;
                 }
-                
+
                 .clearfix {
                     clear: both;
                 }
-                
+
                 @media print {
                     body {
                         -webkit-print-color-adjust: exact;
                         print-color-adjust: exact;
                     }
-                    
+
                     .no-print {
                         display: none !important;
                     }
@@ -1183,7 +1177,7 @@ class PaymentController extends Controller
                     <div class='copy-label'>EXEMPLAIRE PARENTS</div>
                     {$receiptContent}
                 </div>
-                
+
                 <!-- Exemplaire Collège -->
                 <div class='receipt-copy'>
                     <div class='copy-label'>EXEMPLAIRE COLLÈGE</div>
@@ -1314,7 +1308,7 @@ class PaymentController extends Controller
         $method = strtoupper($payment->payment_method);
         switch ($method) {
             case 'CASH':
-                return 'ESP'; // Espèces
+                return 'BK'; // Espèces
             case 'CARD':
                 return 'CB'; // Carte bancaire
             case 'TRANSFER':
@@ -1377,7 +1371,6 @@ class PaymentController extends Controller
                     'payment_amount_required' => $discountDetails['total_with_discount'] // Montant exact à payer
                 ]
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error in PaymentController@getStudentPaymentInfoWithDiscount: ' . $e->getMessage());
             return response()->json([
@@ -1546,7 +1539,6 @@ class PaymentController extends Controller
                     'recent_payments' => $recentPayments
                 ]
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error in PaymentController@getPaymentStats: ' . $e->getMessage());
             return response()->json([
@@ -1579,7 +1571,7 @@ class PaymentController extends Controller
     private function getPaymentMethodLabel($method)
     {
         $methods = [
-            'cash' => 'Espèces',
+            'cash' => 'Bancaire',
             'card' => 'Carte bancaire',
             'transfer' => 'Virement',
             'check' => 'Chèque',

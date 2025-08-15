@@ -37,7 +37,7 @@ Route::prefix('auth')->group(function () {
     // Routes publiques (pas d'authentification requise)
     Route::post('login', [AuthController::class, 'login']);
     Route::post('register', [AuthController::class, 'register']);
-    
+
     // Routes protégées (authentification JWT requise)
     Route::middleware('auth:api')->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
@@ -90,9 +90,10 @@ Route::get('test-inventory', function () {
 
 // Routes protégées
 Route::middleware('auth:api')->group(function () {
-    
+
     // Routes pour les sections
     Route::prefix('sections')->group(function () {
+
         Route::get('/dashboard', [SectionController::class, 'dashboard'])->middleware(['role:admin,accountant']);
         Route::get('/', [SectionController::class, 'index'])->middleware(['role:admin,accountant']);
         Route::get('/{section}', [SectionController::class, 'show'])->middleware(['role:admin,accountant']);
@@ -104,6 +105,12 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/export/importable', [SectionController::class, 'exportImportable'])->middleware(['role:admin,accountant']);
         Route::get('/template/download', [SectionController::class, 'downloadTemplate'])->middleware(['role:admin']);
         
+
+        Route::get('/dashboard', [SectionController::class, 'dashboard'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/', [SectionController::class, 'index'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/{section}', [SectionController::class, 'show'])->middleware(['role:admin,accountant,comptable_superieur']);
+
+
         Route::post('/', [SectionController::class, 'store'])->middleware(['role:admin']);
         Route::put('/{section}', [SectionController::class, 'update'])->middleware(['role:admin']);
         Route::delete('/{section}', [SectionController::class, 'destroy'])->middleware(['role:admin']);
@@ -113,9 +120,9 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les tranches de paiement
     Route::prefix('payment-tranches')->group(function () {
-        Route::get('/', [PaymentTrancheController::class, 'index'])->middleware(['role:admin,accountant']);
-        Route::get('/{paymentTranche}', [PaymentTrancheController::class, 'show'])->middleware(['role:admin,accountant']);
-        Route::get('/{paymentTranche}/usage-stats', [PaymentTrancheController::class, 'usageStats'])->middleware(['role:admin,accountant']);
+        Route::get('/', [PaymentTrancheController::class, 'index'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/{paymentTranche}', [PaymentTrancheController::class, 'show'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/{paymentTranche}/usage-stats', [PaymentTrancheController::class, 'usageStats'])->middleware(['role:admin,accountant,comptable_superieur']);
 
         Route::post('/', [PaymentTrancheController::class, 'store'])->middleware(['role:admin']);
         Route::put('/{paymentTranche}', [PaymentTrancheController::class, 'update'])->middleware(['role:admin']);
@@ -125,9 +132,9 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les niveaux
     Route::prefix('levels')->group(function () {
-        Route::get('/dashboard', [LevelController::class, 'dashboard'])->middleware(['role:admin,accountant']);
-        Route::get('/', [LevelController::class, 'index'])->middleware(['role:admin,accountant']);
-        Route::get('/{level}', [LevelController::class, 'show'])->middleware(['role:admin,accountant']);
+        Route::get('/dashboard', [LevelController::class, 'dashboard'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/', [LevelController::class, 'index'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/{level}', [LevelController::class, 'show'])->middleware(['role:admin,accountant,comptable_superieur']);
 
         // Export routes
         Route::get('/export/excel', [LevelController::class, 'exportExcel'])->middleware(['role:admin,accountant']);
@@ -145,9 +152,9 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les classes
     Route::prefix('school-classes')->group(function () {
-        Route::get('/dashboard', [SchoolClassController::class, 'dashboard'])->middleware(['role:admin,accountant']);
-        Route::get('/', [SchoolClassController::class, 'index'])->middleware(['role:admin,accountant']);
-        Route::get('/{schoolClass}', [SchoolClassController::class, 'show'])->middleware(['role:admin,accountant']);
+        Route::get('/dashboard', [SchoolClassController::class, 'dashboard'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/', [SchoolClassController::class, 'index'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/{schoolClass}', [SchoolClassController::class, 'show'])->middleware(['role:admin,accountant,comptable_superieur']);
 
         // Export routes
         Route::get('/export/excel', [SchoolClassController::class, 'exportExcel'])->middleware(['role:admin,accountant']);
@@ -189,7 +196,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour les élèves
-    Route::prefix('students')->middleware(['role:admin,accountant'])->group(function () {
+    Route::prefix('students')->middleware(['role:admin,accountant,comptable_superieur'])->group(function () {
         Route::get('/class-series/{seriesId}', [StudentController::class, 'getByClassSeries']);
         
         // Export routes - amélioration des routes existantes
@@ -227,7 +234,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour les comptables
-    Route::prefix('accountant')->middleware(['role:admin,accountant'])->group(function () {
+    Route::prefix('accountant')->middleware(['role:admin,accountant,comptable_superieur'])->group(function () {
         Route::get('/dashboard', [AccountantController::class, 'dashboard']);
         Route::get('/classes', [AccountantController::class, 'getClasses']);
         Route::get('/classes/{classId}/series', [AccountantController::class, 'getClassSeries']);
@@ -241,7 +248,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/active', [SchoolYearController::class, 'getActiveYears']);
         Route::get('/user-working-year', [SchoolYearController::class, 'getUserWorkingYear']);
         Route::post('/set-user-working-year', [SchoolYearController::class, 'setUserWorkingYear']);
-        
+
         // Routes pour administrateurs uniquement
         Route::get('/', [SchoolYearController::class, 'index'])->middleware('role:admin');
         Route::post('/', [SchoolYearController::class, 'store'])->middleware('role:admin');
@@ -250,7 +257,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour les paiements (comptables et admins)
-    Route::prefix('payments')->middleware(['role:admin,accountant'])->group(function () {
+    Route::prefix('payments')->middleware(['role:admin,accountant,comptable_superieur'])->group(function () {
         Route::get('/student/{studentId}/info', [PaymentController::class, 'getStudentPaymentInfo']);
         Route::get('/student/{studentId}/info-with-discount', [PaymentController::class, 'getStudentPaymentInfoWithDiscount']);
         Route::get('/student/{studentId}/history', [PaymentController::class, 'getStudentPaymentHistory']);
@@ -262,9 +269,9 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les paramètres de l'école
     Route::prefix('school-settings')->group(function () {
-        Route::get('/', [SchoolSettingsController::class, 'index'])->middleware(['role:admin,accountant,surveillant_general']);
-        Route::get('/logo', [SchoolSettingsController::class, 'getLogo'])->middleware(['role:admin,accountant,surveillant_general']);
-        
+        Route::get('/', [SchoolSettingsController::class, 'index'])->middleware(['role:admin,accountant,surveillant_general,comptable_superieur']);
+        Route::get('/logo', [SchoolSettingsController::class, 'getLogo'])->middleware(['role:admin,accountant,surveillant_general,comptable_superieur']);
+
         // Routes admin uniquement
         Route::put('/', [SchoolSettingsController::class, 'update'])->middleware(['role:admin']);
         Route::post('/', [SchoolSettingsController::class, 'update'])->middleware(['role:admin']); // Pour FormData avec _method=PUT
@@ -282,7 +289,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour les rapports (comptables et admins)
-    Route::prefix('reports')->middleware(['role:admin,accountant'])->group(function () {
+    Route::prefix('reports')->middleware(['role:admin,accountant,comptable_superieur'])->group(function () {
         Route::get('/insolvable', [ReportsController::class, 'getInsolvableReport']);
         Route::get('/payments', [ReportsController::class, 'getPaymentsReport']);
         Route::get('/rame', [ReportsController::class, 'getRameReport']);
@@ -292,6 +299,16 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/scholarships-discounts', [ReportsController::class, 'getScholarshipsDiscountsReport']);
         Route::get('/collection-details', [ReportsController::class, 'getCollectionDetailsReport']);
         Route::get('/series-collection-summary', [ReportsController::class, 'getSeriesCollectionSummary']);
+        
+        // Nouveau rapport de détail des paiements des frais de scolarité
+        Route::get('/school-fee-payment-details', [ReportsController::class, 'getSchoolFeePaymentDetails']);
+        Route::get('/school-fee-payment-details/export-pdf', [ReportsController::class, 'exportSchoolFeePaymentDetailsPdf']);
+        
+        // Nouveaux rapports financiers
+        Route::get('/detailed-collection', [ReportsController::class, 'getDetailedCollectionReport']);
+        Route::get('/class-school-fees', [ReportsController::class, 'getClassSchoolFeesReport']);
+        Route::get('/class-school-fees/export-pdf', [ReportsController::class, 'exportClassSchoolFeesPdf']);
+        
         Route::get('/export-pdf', [ReportsController::class, 'exportPdf']);
     });
 
@@ -306,6 +323,10 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{id}/reset-password', [UserManagementController::class, 'resetPassword']);
         Route::post('/{id}/toggle-status', [UserManagementController::class, 'toggleStatus']);
         Route::delete('/{id}', [UserManagementController::class, 'destroy']);
+        
+        // Routes pour cartes d'identité professionnelles
+        Route::get('/{id}/professional-card', [UserManagementController::class, 'generateProfessionalCard']);
+        Route::get('/{id}/qr-code', [UserManagementController::class, 'getUserQR']);
     });
 
     // Routes d'upload de photos
@@ -328,7 +349,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/', [SubjectController::class, 'index'])->middleware(['role:admin,accountant,teacher']);
         Route::get('/{subject}', [SubjectController::class, 'show'])->middleware(['role:admin,accountant,teacher']);
         Route::get('/series/{classSeries}', [SubjectController::class, 'getForSeries'])->middleware(['role:admin,accountant,teacher']);
-        
+
         // Routes pour administrateurs uniquement (gestion)
         Route::post('/', [SubjectController::class, 'store'])->middleware(['role:admin']);
         Route::put('/{subject}', [SubjectController::class, 'update'])->middleware(['role:admin']);
@@ -343,7 +364,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/', [TeacherController::class, 'index'])->middleware(['role:admin,accountant']);
         Route::get('/{teacher}', [TeacherController::class, 'show'])->middleware(['role:admin,accountant']);
         Route::get('/{teacher}/stats', [TeacherController::class, 'getStats'])->middleware(['role:admin,accountant']);
-        
+
         // Routes pour administrateurs uniquement (gestion)
         Route::post('/', [TeacherController::class, 'store'])->middleware(['role:admin']);
         Route::put('/{teacher}', [TeacherController::class, 'update'])->middleware(['role:admin']);
@@ -358,7 +379,7 @@ Route::middleware('auth:api')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)
         Route::get('/', [SeriesSubjectController::class, 'index'])->middleware(['role:admin,accountant,teacher']);
         Route::get('/class/{schoolClass}', [SeriesSubjectController::class, 'getByClass'])->middleware(['role:admin,accountant,teacher']);
-        
+
         // Routes pour administrateurs uniquement (gestion)
         Route::post('/', [SeriesSubjectController::class, 'store'])->middleware(['role:admin']);
         Route::put('/{seriesSubject}', [SeriesSubjectController::class, 'update'])->middleware(['role:admin']);
@@ -373,7 +394,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/', [TeacherAssignmentController::class, 'index'])->middleware(['role:admin,accountant,teacher']);
         Route::get('/teacher/{teacher}', [TeacherAssignmentController::class, 'getByTeacher'])->middleware(['role:admin,accountant,teacher']);
         Route::get('/teacher/{teacher}/available-subjects', [TeacherAssignmentController::class, 'getAvailableSubjects'])->middleware(['role:admin,accountant']);
-        
+
         // Routes pour administrateurs uniquement (gestion)
         Route::post('/', [TeacherAssignmentController::class, 'store'])->middleware(['role:admin']);
         Route::delete('/{assignment}', [TeacherAssignmentController::class, 'destroy'])->middleware(['role:admin']);
@@ -387,7 +408,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/', [MainTeacherController::class, 'index'])->middleware(['role:admin,accountant,teacher']);
         Route::get('/classes-without-main-teacher', [MainTeacherController::class, 'getClassesWithoutMainTeacher'])->middleware(['role:admin,accountant']);
         Route::get('/available-teachers', [MainTeacherController::class, 'getAvailableTeachers'])->middleware(['role:admin,accountant']);
-        
+
         // Routes pour administrateurs uniquement (gestion)
         Route::post('/', [MainTeacherController::class, 'store'])->middleware(['role:admin']);
         Route::put('/{mainTeacher}', [MainTeacherController::class, 'update'])->middleware(['role:admin']);
@@ -403,13 +424,18 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/{need}', [NeedController::class, 'update']); // Modifier un besoin (propriétaire uniquement)
         Route::delete('/{need}', [NeedController::class, 'destroy']); // Supprimer un besoin (propriétaire uniquement)
         Route::get('/{need}', [NeedController::class, 'show']); // Voir un besoin spécifique (avec contrôle d'accès)
+
+        // Routes pour administrateurs et comptables supérieurs
+        Route::get('/', [NeedController::class, 'index'])->middleware(['role:admin,comptable_superieur']); // Lister tous les besoins
+        Route::post('/{need}/approve', [NeedController::class, 'approve'])->middleware(['role:admin,comptable_superieur']); // Approuver
+        Route::post('/{need}/reject', [NeedController::class, 'reject'])->middleware(['role:admin,comptable_superieur']); // Rejeter
+        Route::get('/statistics/summary', [NeedController::class, 'statistics'])->middleware(['role:admin,comptable_superieur']); // Statistiques
+        Route::post('/test-whatsapp', [NeedController::class, 'testWhatsApp'])->middleware(['role:admin']); // Test WhatsApp (admin uniquement)
         
-        // Routes pour administrateurs uniquement
-        Route::get('/', [NeedController::class, 'index'])->middleware(['role:admin']); // Lister tous les besoins
-        Route::post('/{need}/approve', [NeedController::class, 'approve'])->middleware(['role:admin']); // Approuver
-        Route::post('/{need}/reject', [NeedController::class, 'reject'])->middleware(['role:admin']); // Rejeter
-        Route::get('/statistics/summary', [NeedController::class, 'statistics'])->middleware(['role:admin']); // Statistiques
-        Route::post('/test-whatsapp', [NeedController::class, 'testWhatsApp'])->middleware(['role:admin']); // Test WhatsApp
+        // Routes d'export pour administrateurs et comptables supérieurs
+        Route::get('/export/pdf', [NeedController::class, 'exportPdf'])->middleware(['role:admin,comptable_superieur']); // Export PDF
+        Route::get('/export/excel', [NeedController::class, 'exportExcel'])->middleware(['role:admin,comptable_superieur']); // Export Excel
+        Route::get('/export/word', [NeedController::class, 'exportWord'])->middleware(['role:admin,comptable_superieur']); // Export Word
     });
 
     // Routes pour les surveillants généraux
@@ -420,7 +446,7 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/assignments/{assignmentId}', [SupervisorController::class, 'deleteAssignment'])->middleware(['role:admin']);
         Route::get('/{supervisorId}/assignments', [SupervisorController::class, 'getSupervisorAssignments'])->middleware(['role:admin,surveillant_general']);
         Route::get('/{supervisorId}/available-classes', [SupervisorController::class, 'getAvailableClasses'])->middleware(['role:admin,surveillant_general']);
-        
+
         // Routes pour surveillants généraux (scanner QR et voir présences)
         Route::post('/scan-qr', [SupervisorController::class, 'scanStudentQR'])->middleware(['role:admin,surveillant_general']);
         Route::get('/daily-attendance', [SupervisorController::class, 'getDailyAttendance'])->middleware(['role:admin,surveillant_general']);
@@ -429,7 +455,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/student-status', [SupervisorController::class, 'getStudentCurrentStatus'])->middleware(['role:admin,surveillant_general']);
         Route::post('/mark-absent-students', [SupervisorController::class, 'markAbsentStudents'])->middleware(['role:admin,surveillant_general']);
         Route::post('/mark-all-absent-students', [SupervisorController::class, 'markAllAbsentStudents'])->middleware(['role:admin,surveillant_general']);
-        
+
         // Routes pour génération codes QR
         Route::get('/generate-qr/{studentId}', [SupervisorController::class, 'generateStudentQR'])->middleware(['role:admin']);
         Route::get('/generate-all-qrs', [SupervisorController::class, 'generateAllStudentQRs'])->middleware(['role:admin']);
@@ -443,23 +469,23 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour l'inventaire scolaire
-    Route::prefix('inventory')->middleware(['role:admin,accountant'])->group(function () {
+    Route::prefix('inventory')->middleware(['role:admin,accountant,comptable_superieur'])->group(function () {
         // Routes de consultation (routes spécifiques d'abord)
         Route::get('/', [InventoryController::class, 'index']);
         Route::get('/dashboard', [InventoryController::class, 'dashboard']);
         Route::get('/config', [InventoryController::class, 'config']);
         Route::get('/export', [InventoryController::class, 'export']);
         Route::get('/movements/recent', [InventoryController::class, 'getRecentMovements']);
-        
+
         // Routes pour les alertes WhatsApp
         Route::get('/low-stock-items', [InventoryController::class, 'getLowStockItems']);
         Route::post('/send-low-stock-alert', [InventoryController::class, 'sendLowStockAlert'])->middleware(['role:admin']);
         Route::post('/test-whatsapp', [InventoryController::class, 'testWhatsAppConfig'])->middleware(['role:admin']);
-        
+
         // Routes avec paramètres (après les routes spécifiques)
         Route::get('/{inventoryItem}', [InventoryController::class, 'show']);
         Route::get('/{inventoryItem}/movements', [InventoryController::class, 'getMovements']);
-        
+
         // Routes de gestion (admin uniquement)
         Route::post('/', [InventoryController::class, 'store'])->middleware(['role:admin']);
         Route::put('/{inventoryItem}', [InventoryController::class, 'update'])->middleware(['role:admin']);
@@ -494,5 +520,4 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{document}/download', [DocumentController::class, 'download']); // Télécharger un document
         Route::post('/{document}/toggle-archive', [DocumentController::class, 'toggleArchive']); // Archiver/désarchiver
     });
-
 });

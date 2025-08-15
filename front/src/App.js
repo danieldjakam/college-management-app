@@ -9,6 +9,7 @@ import AppAuthProvider from "./components/AuthProvider";
 import ProtectedRoute, {
   AccountantRoute,
   AdminRoute,
+  NeedsManagementRoute,
   PublicRoute,
   RoleBasedRedirect,
   TeacherRoute,
@@ -41,6 +42,9 @@ import PaymentReports from "./pages/Payments/PaymentReports";
 
 // Reports
 import Reports from "./pages/Reports";
+import SchoolFeePaymentDetails from "./pages/Reports/SchoolFeePaymentDetails";
+import DetailedCollectionReport from "./pages/Reports/DetailedCollectionReport";
+import ClassSchoolFeesReport from "./pages/Reports/ClassSchoolFeesReport";
 
 
 // User Management
@@ -378,10 +382,9 @@ const AppContent = () => {
               <Route
                 path="/needs-management"
                 element={
-                  <AdminRoute>
+                  <NeedsManagementRoute>
                     <NeedsManagement />
-
-                  </AdminRoute>
+                  </NeedsManagementRoute>
                 }
               />
 
@@ -436,6 +439,30 @@ const AppContent = () => {
                 element={
                   <AccountantRoute>
                     <Reports />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/reports/school-fee-payment-details"
+                element={
+                  <AccountantRoute>
+                    <SchoolFeePaymentDetails />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/reports/detailed-collection"
+                element={
+                  <AccountantRoute>
+                    <DetailedCollectionReport />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/reports/class-school-fees"
+                element={
+                  <AccountantRoute>
+                    <ClassSchoolFeesReport />
                   </AccountantRoute>
                 }
               />

@@ -7,6 +7,12 @@ use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Response;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpWord\PhpWord;
+use PhpOffice\PhpWord\IOFactory;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class NeedController extends Controller
 {
@@ -173,7 +179,7 @@ class NeedController extends Controller
     {
         try {
             // Vérifier les permissions : admin ou propriétaire du besoin
-            if (auth()->user()->role !== 'admin' && $need->user_id !== auth()->id()) {
+            if (!in_array(auth()->user()->role, ['admin']) && $need->user_id !== auth()->id()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Accès non autorisé à ce besoin'
@@ -479,5 +485,257 @@ class NeedController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Exporter les besoins en PDF
+     */
+    public function exportPdf(Request $request)
+    {
+        try {
+            $needs = $this->getFilteredNeeds($request);
+            
+            $pdf = Pdf::loadView('exports.needs.pdf', [
+                'needs' => $needs,
+                'status_filter' => $request->get('status', 'all'),
+                'generated_at' => now()->format('d/m/Y H:i')
+            ]);
+            
+            $filename = 'besoins_' . ($request->get('status', 'all')) . '_' . now()->format('Y_m_d_H_i_s') . '.pdf';
+            
+            return $pdf->download($filename);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export PDF',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Exporter les besoins en Excel
+     */
+    public function exportExcel(Request $request)
+    {
+        try {
+            $needs = $this->getFilteredNeeds($request);
+            
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            
+            // Ajouter le logo si disponible
+            $logoPath = public_path('assets/logo.png');
+            if (file_exists($logoPath)) {
+                $drawing = new \PhpOffice\PhpSpreadsheet\Worksheet\Drawing();
+                $drawing->setName('Logo');
+                $drawing->setDescription('Logo du Collège');
+                $drawing->setPath($logoPath);
+                $drawing->setHeight(60);
+                $drawing->setCoordinates('A1');
+                $drawing->setWorksheet($sheet);
+                
+                // Décaler les headers vers le bas
+                $startRow = 4;
+            } else {
+                $startRow = 1;
+            }
+            
+            // Titre principal
+            if (file_exists($logoPath)) {
+                $sheet->setCellValue('C1', 'COLLÈGE POLYVALENT BILINGUE DE DOUALA');
+                $sheet->getStyle('C1')->getFont()->setBold(true)->setSize(16);
+                $sheet->setCellValue('C2', 'Liste des Besoins');
+                $sheet->getStyle('C2')->getFont()->setBold(true)->setSize(14);
+            }
+            
+            // Headers
+            $sheet->setCellValue('A' . $startRow, 'ID');
+            $sheet->setCellValue('B' . $startRow, 'Nom');
+            $sheet->setCellValue('C' . $startRow, 'Description');
+            $sheet->setCellValue('D' . $startRow, 'Montant (FCFA)');
+            $sheet->setCellValue('E' . $startRow, 'Statut');
+            $sheet->setCellValue('F' . $startRow, 'Demandeur');
+            $sheet->setCellValue('G' . $startRow, 'Date de création');
+            $sheet->setCellValue('H' . $startRow, 'Approuvé par');
+            $sheet->setCellValue('I' . $startRow, 'Date d\'approbation');
+            $sheet->setCellValue('J' . $startRow, 'Motif de rejet');
+            
+            // Style des headers
+            $headerStyle = [
+                'font' => ['bold' => true],
+                'fill' => ['fillType' => 'solid', 'color' => ['rgb' => 'CCCCCC']]
+            ];
+            $sheet->getStyle('A' . $startRow . ':J' . $startRow)->applyFromArray($headerStyle);
+            
+            // Data
+            $row = $startRow + 1;
+            foreach ($needs as $need) {
+                $sheet->setCellValue('A' . $row, $need->id);
+                $sheet->setCellValue('B' . $row, $need->name);
+                $sheet->setCellValue('C' . $row, $need->description);
+                $sheet->setCellValue('D' . $row, number_format($need->amount, 0, ',', ' '));
+                $sheet->setCellValue('E' . $row, $need->status_label);
+                $sheet->setCellValue('F' . $row, $need->user ? $need->user->name : '');
+                $sheet->setCellValue('G' . $row, $need->created_at->format('d/m/Y H:i'));
+                $sheet->setCellValue('H' . $row, $need->approvedBy ? $need->approvedBy->name : '');
+                $sheet->setCellValue('I' . $row, $need->approved_at ? $need->approved_at->format('d/m/Y H:i') : '');
+                $sheet->setCellValue('J' . $row, $need->rejection_reason ?? '');
+                $row++;
+            }
+            
+            // Auto-adjust column widths
+            foreach (range('A', 'J') as $col) {
+                $sheet->getColumnDimension($col)->setAutoSize(true);
+            }
+            
+            $filename = 'besoins_' . ($request->get('status', 'all')) . '_' . now()->format('Y_m_d_H_i_s') . '.xlsx';
+            
+            $writer = new Xlsx($spreadsheet);
+            $tempFile = tempnam(sys_get_temp_dir(), 'needs_export');
+            $writer->save($tempFile);
+            
+            return Response::download($tempFile, $filename)->deleteFileAfterSend(true);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export Excel',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Exporter les besoins en Word
+     */
+    public function exportWord(Request $request)
+    {
+        try {
+            $needs = $this->getFilteredNeeds($request);
+            
+            $phpWord = new PhpWord();
+            $section = $phpWord->addSection();
+            
+            // Ajouter le logo et l'en-tête
+            $logoPath = public_path('assets/logo.png');
+            if (file_exists($logoPath)) {
+                // Créer un tableau pour le header avec logo
+                $headerTable = $section->addTable();
+                $headerTable->addRow();
+                $cellLogo = $headerTable->addCell(2000);
+                $cellLogo->addImage($logoPath, ['width' => 80, 'height' => 80]);
+                
+                $cellTitle = $headerTable->addCell(8000);
+                $cellTitle->addText('COLLÈGE POLYVALENT BILINGUE DE DOUALA', ['bold' => true, 'size' => 16], ['alignment' => 'center']);
+                $cellTitle->addTextBreak();
+                
+                // Titre du rapport
+                $statusLabel = match($request->get('status', 'all')) {
+                    'pending' => 'En Attente',
+                    'approved' => 'Approuvés',
+                    'rejected' => 'Rejetés',
+                    default => 'Tous'
+                };
+                
+                $cellTitle->addText('Liste des Besoins - ' . $statusLabel, ['bold' => true, 'size' => 14], ['alignment' => 'center']);
+                $section->addTextBreak();
+            } else {
+                // Titre sans logo
+                $statusLabel = match($request->get('status', 'all')) {
+                    'pending' => 'En Attente',
+                    'approved' => 'Approuvés',
+                    'rejected' => 'Rejetés',
+                    default => 'Tous'
+                };
+                
+                $section->addTitle('COLLÈGE POLYVALENT BILINGUE DE DOUALA', 1);
+                $section->addTitle('Liste des Besoins - ' . $statusLabel, 2);
+            }
+            
+            $section->addText('Généré le ' . now()->format('d/m/Y à H:i'));
+            $section->addTextBreak(2);
+            
+            // Table
+            $table = $section->addTable([
+                'borderSize' => 6,
+                'borderColor' => '000000',
+                'cellMargin' => 80
+            ]);
+            
+            // Headers
+            $table->addRow();
+            $table->addCell(800)->addText('ID', ['bold' => true]);
+            $table->addCell(2000)->addText('Nom', ['bold' => true]);
+            $table->addCell(3000)->addText('Description', ['bold' => true]);
+            $table->addCell(1500)->addText('Montant', ['bold' => true]);
+            $table->addCell(1200)->addText('Statut', ['bold' => true]);
+            $table->addCell(1500)->addText('Demandeur', ['bold' => true]);
+            $table->addCell(1200)->addText('Date', ['bold' => true]);
+            
+            // Data
+            foreach ($needs as $need) {
+                $table->addRow();
+                $table->addCell()->addText($need->id);
+                $table->addCell()->addText($need->name);
+                $table->addCell()->addText($need->description);
+                $table->addCell()->addText($need->formatted_amount);
+                $table->addCell()->addText($need->status_label);
+                $table->addCell()->addText($need->user ? $need->user->name : '');
+                $table->addCell()->addText($need->created_at->format('d/m/Y'));
+            }
+            
+            $filename = 'besoins_' . ($request->get('status', 'all')) . '_' . now()->format('Y_m_d_H_i_s') . '.docx';
+            $tempFile = tempnam(sys_get_temp_dir(), 'needs_export');
+            
+            $objWriter = IOFactory::createWriter($phpWord, 'Word2007');
+            $objWriter->save($tempFile);
+            
+            return Response::download($tempFile, $filename)->deleteFileAfterSend(true);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export Word',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Méthode helper pour récupérer les besoins filtrés
+     */
+    private function getFilteredNeeds(Request $request)
+    {
+        $query = Need::with(['user', 'approvedBy'])
+                     ->orderBy('created_at', 'desc');
+
+        // Filtrer par statut
+        if ($request->has('status') && $request->status !== '' && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+
+        // Filtrer par utilisateur
+        if ($request->has('user_id') && $request->user_id !== '') {
+            $query->where('user_id', $request->user_id);
+        }
+
+        // Filtrer par période
+        if ($request->has('from_date') && $request->from_date !== '') {
+            $query->whereDate('created_at', '>=', $request->from_date);
+        }
+
+        if ($request->has('to_date') && $request->to_date !== '') {
+            $query->whereDate('created_at', '<=', $request->to_date);
+        }
+
+        // Recherche par nom ou description
+        if ($request->has('search') && $request->search !== '') {
+            $searchTerm = $request->search;
+            $query->where(function($q) use ($searchTerm) {
+                $q->where('name', 'like', "%{$searchTerm}%")
+                  ->orWhere('description', 'like', "%{$searchTerm}%");
+            });
+        }
+
+        return $query->get();
     }
 }

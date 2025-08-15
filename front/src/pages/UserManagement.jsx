@@ -23,7 +23,9 @@ import {
     Trash,
     PencilSquare,
     EyeFill,
-    PersonCheck
+    PersonCheck,
+    CreditCard2Back,
+    QrCode
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../utils/apiMigration';
 import Swal from 'sweetalert2';
@@ -39,6 +41,8 @@ const UserManagement = () => {
     const [modalMode, setModalMode] = useState('create'); // create, edit, view
     const [selectedUser, setSelectedUser] = useState(null);
     const [showPhotoCapture, setShowPhotoCapture] = useState(false);
+    const [showQRModal, setShowQRModal] = useState(false);
+    const [selectedUserQR, setSelectedUserQR] = useState(null);
     
     // États pour la recherche et les filtres
     const [searchTerm, setSearchTerm] = useState('');
@@ -58,6 +62,8 @@ const UserManagement = () => {
     const roleLabels = {
         admin: 'Administrateur',
         surveillant_general: 'Surveillant Général',
+        general_accountant: 'Comptable Général',
+        comptable_superieur: 'Comptable Supérieur',
         comptable: 'Comptable',
         secretaire: 'Secrétaire',
         enseignant: 'Enseignant',
@@ -68,6 +74,8 @@ const UserManagement = () => {
     const roleColors = {
         admin: 'danger',
         surveillant_general: 'primary',
+        general_accountant: 'warning',
+        comptable_superieur: 'dark',
         comptable: 'success',
         secretaire: 'info',
         enseignant: 'warning',
@@ -270,9 +278,7 @@ const UserManagement = () => {
             errors.email = 'L\'adresse e-mail doit être valide';
         }
         
-        if (!formData.contact.trim()) {
-            errors.contact = 'Le numéro de téléphone est obligatoire';
-        } else if (formData.contact.length > 20) {
+        if (formData.contact && formData.contact.length > 20) {
             errors.contact = 'Le numéro de téléphone ne peut pas dépasser 20 caractères';
         }
         
@@ -525,6 +531,61 @@ const UserManagement = () => {
         }
     };
 
+    const handleGenerateProfessionalCard = async (user) => {
+        try {
+            setLoading(true);
+            
+            const pdfBlob = await secureApiEndpoints.userManagement.generateProfessionalCard(user.id);
+            
+            // Créer un lien de téléchargement
+            const url = window.URL.createObjectURL(pdfBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `carte_professionnelle_${user.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            
+            await Swal.fire({
+                title: 'Carte générée !',
+                text: `La carte d'identité professionnelle de ${user.name} a été générée et téléchargée.`,
+                icon: 'success',
+                confirmButtonText: 'OK'
+            });
+            
+        } catch (error) {
+            console.error('Error generating professional card:', error);
+            await Swal.fire({
+                title: 'Erreur',
+                text: 'Erreur lors de la génération de la carte professionnelle: ' + error.message,
+                icon: 'error',
+                confirmButtonText: 'Fermer'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleShowQRCode = async (user) => {
+        try {
+            setLoading(true);
+            const response = await secureApiEndpoints.userManagement.getUserQR(user.id);
+            
+            if (response.success) {
+                setSelectedUserQR(response.data);
+                setShowQRModal(true);
+            } else {
+                Swal.fire('Erreur', response.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error fetching QR code:', error);
+            Swal.fire('Erreur', 'Erreur lors de la génération du QR code: ' + error.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const renderStatsCards = () => (
         <Row className="mb-4">
             <Col md={3}>
@@ -609,13 +670,12 @@ const UserManagement = () => {
                     <Row>
                         <Col md={6}>
                             <Form.Group className="mb-3">
-                                <Form.Label>Contact *</Form.Label>
+                                <Form.Label>Contact</Form.Label>
                                 <Form.Control
                                     type="tel"
                                     value={formData.contact}
                                     onChange={(e) => setFormData({...formData, contact: e.target.value})}
                                     placeholder="Ex: +237 6XX XXX XXX"
-                                    required
                                     disabled={modalMode === 'view'}
                                 />
                             </Form.Group>
@@ -669,6 +729,8 @@ const UserManagement = () => {
                                     disabled={modalMode === 'view'}
                                 >
                                     <option value="surveillant_general">Surveillant Général</option>
+                                    <option value="general_accountant">Comptable Général</option>
+                                    <option value="comptable_superieur">Comptable Supérieur</option>
                                     <option value="accountant">Comptable</option>
                                     <option value="secretaire">Secrétaire</option>
                                 </Form.Select>
@@ -784,6 +846,8 @@ const UserManagement = () => {
                                 >
                                     <option value="all">Tous les rôles</option>
                                     <option value="surveillant_general">Surveillants Généraux</option>
+                                    <option value="general_accountant">Comptables Généraux</option>
+                                    <option value="comptable_superieur">Comptables Supérieurs</option>
                                     <option value="comptable">Comptables</option>
                                     <option value="secretaire">Secrétaires</option>
                                     <option value="enseignant">Enseignants</option>
@@ -903,6 +967,21 @@ const UserManagement = () => {
                                                         {user.is_active ? <PersonX className="me-2" /> : <PersonCheck className="me-2" />}
                                                         {user.is_active ? 'Désactiver' : 'Activer'}
                                                     </Dropdown.Item>
+                                                    <Dropdown.Divider />
+                                                    <Dropdown.Item 
+                                                        onClick={() => handleShowQRCode(user)}
+                                                        className="text-info"
+                                                    >
+                                                        <QrCode className="me-2" />
+                                                        Voir code QR
+                                                    </Dropdown.Item>
+                                                    <Dropdown.Item 
+                                                        onClick={() => handleGenerateProfessionalCard(user)}
+                                                        className="text-success"
+                                                    >
+                                                        <CreditCard2Back className="me-2" />
+                                                        Générer carte professionnelle
+                                                    </Dropdown.Item>
                                                     {user.role !== 'admin' && (
                                                         <>
                                                             <Dropdown.Divider />
@@ -927,6 +1006,68 @@ const UserManagement = () => {
             </Card>
 
             {renderUserModal()}
+            
+            {/* Modal QR Code Preview */}
+            <Modal show={showQRModal} onHide={() => setShowQRModal(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <QrCode className="me-2" />
+                        Code QR - {selectedUserQR?.user_name}
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body className="text-center">
+                    {selectedUserQR && (
+                        <>
+                            <div className="mb-3">
+                                <img 
+                                    src={selectedUserQR.qr_url} 
+                                    alt="QR Code" 
+                                    style={{ 
+                                        width: '200px', 
+                                        height: '200px',
+                                        border: '2px solid #dee2e6',
+                                        borderRadius: '8px'
+                                    }}
+                                />
+                            </div>
+                            <div className="mb-3">
+                                <h6>Informations du QR Code</h6>
+                                <div className="text-start">
+                                    <p><strong>Nom:</strong> {selectedUserQR.user_name}</p>
+                                    <p><strong>Rôle:</strong> {roleLabels[selectedUserQR.user_role] || selectedUserQR.user_role}</p>
+                                    <p><strong>Code:</strong> <code>{selectedUserQR.qr_content}</code></p>
+                                </div>
+                            </div>
+                            <Alert variant="info" className="text-start">
+                                <small>
+                                    <strong>Note:</strong> Ce code QR est unique pour cet utilisateur et peut être utilisé 
+                                    pour l'identification et l'authentification dans le système.
+                                </small>
+                            </Alert>
+                        </>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowQRModal(false)}>
+                        Fermer
+                    </Button>
+                    {selectedUserQR && (
+                        <Button 
+                            variant="success" 
+                            onClick={() => {
+                                setShowQRModal(false);
+                                handleGenerateProfessionalCard({
+                                    id: selectedUserQR.user_id,
+                                    name: selectedUserQR.user_name
+                                });
+                            }}
+                        >
+                            <CreditCard2Back className="me-2" />
+                            Générer la carte
+                        </Button>
+                    )}
+                </Modal.Footer>
+            </Modal>
             
             <PhotoCapture
                 show={showPhotoCapture}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Download, Search, BarChart3, TrendingUp, MessageCircle } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { host } from '../../utils/fetch';
 import InventoryDashboard from './components/InventoryDashboard';
 import StockMovements from './components/StockMovements';
 import WhatsAppAlerts from './components/WhatsAppAlerts';
@@ -44,7 +45,7 @@ const InventoryFull = () => {
     description: ''
   });
 
-  const API_BASE = 'http://127.0.0.1:8000/api';
+  const API_BASE =  `${host}/api`;
 
   const apiCall = async (url, options = {}) => {
     const token = localStorage.getItem('token');

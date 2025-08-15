@@ -17,7 +17,7 @@ class UserManagementController extends Controller
     {
         try {
             $query = User::select('id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'is_active', 'created_at')
-                ->whereIn('role', ['surveillant_general', 'comptable', 'secretaire', 'teacher', 'accountant']); // Tous les rôles gérables (enseignants créés ailleurs)
+                ->whereIn('role', ['surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'accountant']); // Tous les rôles gérables (enseignants créés ailleurs)
 
             // Système de recherche
             if ($request->has('search') && !empty($request->search)) {
@@ -64,9 +64,9 @@ class UserManagementController extends Controller
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'email' => 'required|email|unique:users,email',
-                'contact' => 'required|string|max:20',
+                'contact' => 'nullable|string|max:20',
                 'photo' => 'nullable|string|max:500',
-                'role' => 'required|in:surveillant_general,comptable,secretaire,accountant',
+                'role' => 'required|in:surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant',
                 'generate_password' => 'boolean'
             ], [
                 'name.required' => 'Le nom complet est obligatoire.',
@@ -74,7 +74,7 @@ class UserManagementController extends Controller
                 'email.required' => 'L\'adresse e-mail est obligatoire.',
                 'email.email' => 'L\'adresse e-mail doit être valide.',
                 'email.unique' => 'Cette adresse e-mail est déjà utilisée par un autre utilisateur.',
-                'contact.required' => 'Le numéro de téléphone est obligatoire.',
+                'contact.string' => 'Le numéro de téléphone doit être une chaîne de caractères.',
                 'contact.max' => 'Le numéro de téléphone ne peut pas dépasser 20 caractères.',
                 'role.required' => 'Le rôle est obligatoire.',
                 'role.in' => 'Le rôle sélectionné n\'est pas valide.'
@@ -161,9 +161,9 @@ class UserManagementController extends Controller
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'email' => 'required|email|unique:users,email,' . $id,
-                'contact' => 'required|string|max:20',
+                'contact' => 'nullable|string|max:20',
                 'photo' => 'nullable|string|max:500', // Nullable en update
-                'role' => 'required|in:surveillant_general,comptable,secretaire,accountant',
+                'role' => 'required|in:surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant',
                 'is_active' => 'boolean'
             ], [
                 'name.required' => 'Le nom complet est obligatoire.',
@@ -171,7 +171,7 @@ class UserManagementController extends Controller
                 'email.required' => 'L\'adresse e-mail est obligatoire.',
                 'email.email' => 'L\'adresse e-mail doit être valide.',
                 'email.unique' => 'Cette adresse e-mail est déjà utilisée par un autre utilisateur.',
-                'contact.required' => 'Le numéro de téléphone est obligatoire.',
+                'contact.string' => 'Le numéro de téléphone doit être une chaîne de caractères.',
                 'contact.max' => 'Le numéro de téléphone ne peut pas dépasser 20 caractères.',
                 'role.required' => 'Le rôle est obligatoire.',
                 'role.in' => 'Le rôle sélectionné n\'est pas valide.'
@@ -348,6 +348,91 @@ class UserManagementController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération des statistiques',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Générer une carte d'identité professionnelle pour un utilisateur
+     */
+    public function generateProfessionalCard($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            // Vérifier que l'utilisateur n'est pas admin
+            if ($user->role === 'admin') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de générer une carte pour un administrateur'
+                ], 403);
+            }
+
+            // Générer le contenu QR pour l'utilisateur professionnel
+            $qrContent = "STAFF_ID_" . $user->id;
+            $qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" . urlencode($qrContent);
+
+            // Préparer les données pour la carte
+            $cardData = [
+                'user' => $user,
+                'qr_content' => $qrContent,
+                'qr_url' => $qrUrl,
+                'generated_at' => now()->format('d/m/Y H:i:s')
+            ];
+
+            // Générer le PDF de la carte
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.staff.professional-card', $cardData);
+            $pdf->setPaper([0, 0, 320, 200], 'landscape'); // Format carte bancaire (86mm x 54mm en points)
+
+            $fileName = 'carte_professionnelle_' . Str::slug($user->name) . '_' . now()->format('Y-m-d') . '.pdf';
+            
+            return $pdf->download($fileName);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération de la carte professionnelle',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir les données QR pour un utilisateur (pour affichage en frontend)
+     */
+    public function getUserQR($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            // Vérifier que l'utilisateur n'est pas admin
+            if ($user->role === 'admin') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de générer un QR pour un administrateur'
+                ], 403);
+            }
+
+            // Générer le contenu QR pour l'utilisateur professionnel
+            $qrContent = "STAFF_ID_" . $user->id;
+            $qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" . urlencode($qrContent);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'user_id' => $user->id,
+                    'user_name' => $user->name,
+                    'user_role' => $user->role,
+                    'qr_content' => $qrContent,
+                    'qr_url' => $qrUrl
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du QR code',
                 'error' => $e->getMessage()
             ], 500);
         }

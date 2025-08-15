@@ -120,7 +120,8 @@ export const secureApiEndpoints = {
         logout: () => authService.logout(),
         refresh: () => authService.refreshToken(),
         me: () => authService.getCurrentUser(),
-        updateProfile: (data) => secureApi.put('/users/profile', data)
+        updateProfile: (data) => secureApi.put('/users/profile', data),
+        changePassword: (data) => secureApi.put('/auth/change-password', data)
     },
 
     // === USERS ===
@@ -554,7 +555,21 @@ export const secureApiEndpoints = {
         approve: (id) => secureApi.post(`/needs/${id}/approve`),
         reject: (id, data) => secureApi.post(`/needs/${id}/reject`, data),
         getStatistics: () => secureApi.get('/needs/statistics/summary'),
-        testWhatsApp: () => secureApi.post('/needs/test-whatsapp')
+        testWhatsApp: () => secureApi.post('/needs/test-whatsapp'),
+        
+        // Exports
+        exportPdf: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return `${secureApi.baseURL}/needs/export/pdf${queryString ? '?' + queryString : ''}?token=${authService.getToken()}`;
+        },
+        exportExcel: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return `${secureApi.baseURL}/needs/export/excel${queryString ? '?' + queryString : ''}?token=${authService.getToken()}`;
+        },
+        exportWord: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return `${secureApi.baseURL}/needs/export/word${queryString ? '?' + queryString : ''}?token=${authService.getToken()}`;
+        }
     },
 
     // === DOCUMENTS ===
@@ -627,6 +642,18 @@ export const secureApiEndpoints = {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/reports/series-collection-summary?${queryString}`);
         },
+        getSchoolFeePaymentDetails: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/school-fee-payment-details?${queryString}`);
+        },
+        getDetailedCollectionReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/detailed-collection?${queryString}`);
+        },
+        getClassSchoolFeesReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/class-school-fees?${queryString}`);
+        },
         exportPdf: async (params) => {
             const queryString = new URLSearchParams(params).toString();
             const token = authService.getToken();
@@ -675,7 +702,27 @@ export const secureApiEndpoints = {
                 }
                 return response.json();
             });
-        }
+        },
+        
+        // Nouvelle fonctionnalité: cartes d'identité professionnelles
+        generateProfessionalCard: (id) => {
+            const token = authService.getToken();
+            return fetch(`${secureApi.baseURL}/user-management/${id}/professional-card`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/pdf'
+                }
+            }).then(async response => {
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `Erreur ${response.status}`);
+                }
+                return response.blob();
+            });
+        },
+        
+        getUserQR: (id) => secureApi.get(`/user-management/${id}/qr-code`)
     },
 
     // === SUPERVISORS & ATTENDANCE ===
