@@ -30,6 +30,7 @@ use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\DocumentFolderController;
 use App\Http\Controllers\ClassesSeriesController;
+use App\Http\Controllers\TeacherAttendanceController;
 
 
 // Routes d'authentification
@@ -530,5 +531,23 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/{document}', [DocumentController::class, 'destroy']); // Supprimer un document
         Route::get('/{document}/download', [DocumentController::class, 'download']); // Télécharger un document
         Route::post('/{document}/toggle-archive', [DocumentController::class, 'toggleArchive']); // Archiver/désarchiver
+    });
+
+    // Routes pour les présences des enseignants
+    Route::prefix('teacher-attendance')->group(function () {
+        // Routes pour scan QR des enseignants
+        Route::post('/scan-qr', [TeacherAttendanceController::class, 'scanQR'])->middleware(['role:admin,surveillant_general']);
+        Route::get('/daily-attendance', [TeacherAttendanceController::class, 'getDailyAttendance'])->middleware(['role:admin,surveillant_general']);
+        Route::get('/entry-exit-stats', [TeacherAttendanceController::class, 'getEntryExitStats'])->middleware(['role:admin,surveillant_general']);
+        
+        // Routes pour gestion des QR codes enseignants
+        Route::post('/generate-qr', [TeacherAttendanceController::class, 'generateQRCode'])->middleware(['role:admin']);
+        Route::get('/teachers-with-qr', [TeacherAttendanceController::class, 'getTeachersWithQR'])->middleware(['role:admin,surveillant_general']);
+        
+        // Routes pour rapports et statistiques
+        Route::get('/teacher/{teacherId}/report', [TeacherAttendanceController::class, 'getTeacherReport'])->middleware(['role:admin,surveillant_general']);
+        Route::get('/teacher/{teacherId}/detailed-stats', [TeacherAttendanceController::class, 'getDetailedTeacherStats'])->middleware(['role:admin,surveillant_general']);
+        Route::get('/teacher/{teacherId}/day-movements', [TeacherAttendanceController::class, 'getDayMovements'])->middleware(['role:admin,surveillant_general']);
+        Route::put('/teacher/{teacherId}/work-schedule', [TeacherAttendanceController::class, 'updateWorkSchedule'])->middleware(['role:admin']);
     });
 });

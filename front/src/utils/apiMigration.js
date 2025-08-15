@@ -759,6 +759,39 @@ export const secureApiEndpoints = {
         generateAllQRs: () => secureApi.get('/supervisors/generate-all-qrs')
     },
 
+    // === TEACHER ATTENDANCE ===
+    teacherAttendance: {
+        // Scanner QR et présences enseignants
+        scanQR: (data) => secureApi.post('/teacher-attendance/scan-qr', data),
+        getDailyAttendance: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-attendance/daily-attendance${queryString ? '?' + queryString : ''}`);
+        },
+        getEntryExitStats: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-attendance/entry-exit-stats${queryString ? '?' + queryString : ''}`);
+        },
+        
+        // Gestion des QR codes enseignants
+        generateQRCode: (data) => secureApi.post('/teacher-attendance/generate-qr', data),
+        getTeachersWithQR: () => secureApi.get('/teacher-attendance/teachers-with-qr'),
+        
+        // Rapports et statistiques
+        getTeacherReport: (teacherId, params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-attendance/teacher/${teacherId}/report${queryString ? '?' + queryString : ''}`);
+        },
+        getDetailedTeacherStats: (teacherId, params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-attendance/teacher/${teacherId}/detailed-stats${queryString ? '?' + queryString : ''}`);
+        },
+        getDayMovements: (teacherId, params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-attendance/teacher/${teacherId}/day-movements${queryString ? '?' + queryString : ''}`);
+        },
+        updateWorkSchedule: (teacherId, data) => secureApi.put(`/teacher-attendance/teacher/${teacherId}/work-schedule`, data)
+    },
+
     // === SCHOOL YEARS ===
     schoolYears: {
         getAll: () => secureApi.get('/school-years'),

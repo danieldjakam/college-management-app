@@ -20,13 +20,20 @@ class Teacher extends Model
         'qualification',
         'hire_date',
         'is_active',
-        'user_id'
+        'user_id',
+        'qr_code',
+        'expected_arrival_time',
+        'expected_departure_time',
+        'daily_work_hours'
     ];
 
     protected $casts = [
         'date_of_birth' => 'date',
         'hire_date' => 'date',
-        'is_active' => 'boolean'
+        'is_active' => 'boolean',
+        'expected_arrival_time' => 'datetime:H:i',
+        'expected_departure_time' => 'datetime:H:i',
+        'daily_work_hours' => 'decimal:2'
     ];
 
     protected $appends = [
@@ -151,5 +158,79 @@ class Teacher extends Model
                     ->where('is_active', true)
                     ->distinct('class_series_id')  
                     ->count();
+    }
+
+    /**
+     * Relation avec les présences de l'enseignant
+     */
+    public function attendances()
+    {
+        return $this->hasMany(TeacherAttendance::class);
+    }
+
+    /**
+     * Générer un QR code unique pour l'enseignant
+     */
+    public function generateQRCode()
+    {
+        if (!$this->qr_code) {
+            $qrCode = 'TCH_' . strtoupper(\Illuminate\Support\Str::random(8)) . '_' . $this->id;
+            $this->update(['qr_code' => $qrCode]);
+        }
+        return $this->qr_code;
+    }
+
+    /**
+     * Obtenir les statistiques de présence pour une période
+     */
+    public function getAttendanceStats($startDate, $endDate)
+    {
+        return TeacherAttendance::getTeacherStats($this->id, $startDate, $endDate);
+    }
+
+    /**
+     * Vérifier si l'enseignant est actuellement présent
+     */
+    public function isCurrentlyPresent()
+    {
+        $today = now()->toDateString();
+        $lastEntry = $this->attendances()
+            ->whereDate('attendance_date', $today)
+            ->where('event_type', 'entry')
+            ->latest('scanned_at')
+            ->first();
+
+        $lastExit = $this->attendances()
+            ->whereDate('attendance_date', $today)
+            ->where('event_type', 'exit')
+            ->latest('scanned_at')
+            ->first();
+
+        // Présent si : entrée sans sortie OU dernière entrée après dernière sortie
+        return $lastEntry && (!$lastExit || $lastEntry->scanned_at > $lastExit->scanned_at);
+    }
+
+    /**
+     * Obtenir l'heure d'arrivée aujourd'hui
+     */
+    public function getTodayArrivalTime()
+    {
+        return $this->attendances()
+            ->whereDate('attendance_date', now()->toDateString())
+            ->where('event_type', 'entry')
+            ->latest('scanned_at')
+            ->first()?->scanned_at;
+    }
+
+    /**
+     * Obtenir l'heure de départ aujourd'hui
+     */
+    public function getTodayDepartureTime()
+    {
+        return $this->attendances()
+            ->whereDate('attendance_date', now()->toDateString())
+            ->where('event_type', 'exit')
+            ->latest('scanned_at')
+            ->first()?->scanned_at;
     }
 }
