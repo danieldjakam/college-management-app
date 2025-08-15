@@ -352,4 +352,89 @@ class UserManagementController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Générer une carte d'identité professionnelle pour un utilisateur
+     */
+    public function generateProfessionalCard($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            // Vérifier que l'utilisateur n'est pas admin
+            if ($user->role === 'admin') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de générer une carte pour un administrateur'
+                ], 403);
+            }
+
+            // Générer le contenu QR pour l'utilisateur professionnel
+            $qrContent = "STAFF_ID_" . $user->id;
+            $qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" . urlencode($qrContent);
+
+            // Préparer les données pour la carte
+            $cardData = [
+                'user' => $user,
+                'qr_content' => $qrContent,
+                'qr_url' => $qrUrl,
+                'generated_at' => now()->format('d/m/Y H:i:s')
+            ];
+
+            // Générer le PDF de la carte
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.staff.professional-card', $cardData);
+            $pdf->setPaper([0, 0, 320, 200], 'landscape'); // Format carte bancaire (86mm x 54mm en points)
+
+            $fileName = 'carte_professionnelle_' . Str::slug($user->name) . '_' . now()->format('Y-m-d') . '.pdf';
+            
+            return $pdf->download($fileName);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération de la carte professionnelle',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir les données QR pour un utilisateur (pour affichage en frontend)
+     */
+    public function getUserQR($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            // Vérifier que l'utilisateur n'est pas admin
+            if ($user->role === 'admin') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de générer un QR pour un administrateur'
+                ], 403);
+            }
+
+            // Générer le contenu QR pour l'utilisateur professionnel
+            $qrContent = "STAFF_ID_" . $user->id;
+            $qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" . urlencode($qrContent);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'user_id' => $user->id,
+                    'user_name' => $user->name,
+                    'user_role' => $user->role,
+                    'qr_content' => $qrContent,
+                    'qr_url' => $qrUrl
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du QR code',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

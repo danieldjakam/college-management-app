@@ -670,7 +670,27 @@ export const secureApiEndpoints = {
                 }
                 return response.json();
             });
-        }
+        },
+        
+        // Nouvelle fonctionnalité: cartes d'identité professionnelles
+        generateProfessionalCard: (id) => {
+            const token = authService.getToken();
+            return fetch(`${secureApi.baseURL}/user-management/${id}/professional-card`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/pdf'
+                }
+            }).then(async response => {
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `Erreur ${response.status}`);
+                }
+                return response.blob();
+            });
+        },
+        
+        getUserQR: (id) => secureApi.get(`/user-management/${id}/qr-code`)
     },
 
     // === SUPERVISORS & ATTENDANCE ===

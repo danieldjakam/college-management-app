@@ -2515,10 +2515,19 @@ class ReportsController extends Controller
                     $tranche = $detail->paymentTranche;
                     $amount = $detail->amount_allocated ?? 0;
 
-                    if ($tranche && stripos($tranche->name, 'inscription') !== false) {
-                        $inscriptionAmount += $amount;
-                    } else {
-                        $trancheAmount += $amount;
+                    if ($tranche) {
+                        $trancheName = strtolower($tranche->name);
+                        
+                        // Exclure la RAME qui n'est pas un paiement financier
+                        if (stripos($trancheName, 'rame') !== false) {
+                            continue; // Ignorer la RAME dans les calculs financiers
+                        }
+                        
+                        if (stripos($trancheName, 'inscription') !== false) {
+                            $inscriptionAmount += $amount;
+                        } else {
+                            $trancheAmount += $amount;
+                        }
                     }
                 }
 
@@ -2657,6 +2666,11 @@ class ReportsController extends Controller
 
                         if ($tranche) {
                             $trancheName = strtolower($tranche->name);
+                            
+                            // Exclure la RAME qui n'est pas un paiement financier
+                            if (stripos($trancheName, 'rame') !== false) {
+                                continue; // Ignorer la RAME dans les calculs financiers
+                            }
                             
                             if (stripos($trancheName, 'inscription') !== false) {
                                 $amounts['inscription'] += $amount;
