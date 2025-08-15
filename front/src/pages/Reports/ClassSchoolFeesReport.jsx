@@ -44,7 +44,7 @@ const ClassSchoolFeesReport = () => {
 
     const loadClasses = async () => {
         try {
-            const response = await secureApiEndpoints.classes.getAll();
+            const response = await secureApiEndpoints.schoolClasses.getAll();
             if (response.success) {
                 setClasses(response.data);
             }
@@ -66,11 +66,11 @@ const ClassSchoolFeesReport = () => {
             const response = await secureApiEndpoints.reports.getClassSchoolFeesReport(filters);
 
             if (response.success) {
-                setPayments(response.data.payments);
+                setPayments(response.data.students);
                 setSummary(response.data.summary);
                 setClassInfo(response.data.class_info);
                 setSchoolYear(response.data.school_year);
-                setSuccess(`${response.data.payments.length} élèves trouvés`);
+                setSuccess(`${response.data.students.length} élèves trouvés`);
             } else {
                 setError(response.message);
             }
@@ -88,7 +88,7 @@ const ClassSchoolFeesReport = () => {
         }
 
         try {
-            const response = await fetch(`${window.location.protocol}//${window.location.hostname}:4000/api/reports/class-school-fees/export-pdf?class_id=${filters.class_id}`, {
+            const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8000/api/reports/class-school-fees/export-pdf?class_id=${filters.class_id}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -185,7 +185,7 @@ const ClassSchoolFeesReport = () => {
                                     <option value="">Sélectionner une classe</option>
                                     {classes.map(classe => (
                                         <option key={classe.id} value={classe.id}>
-                                            {classe.name} ({classe.section_name})
+                                            {classe.name} ({classe.level?.section?.name || 'Section N/A'})
                                         </option>
                                     ))}
                                 </Form.Select>
@@ -201,6 +201,7 @@ const ClassSchoolFeesReport = () => {
                                 <Search className="me-2" />
                                 {loading ? 'Chargement...' : 'Générer'}
                             </Button>
+                            {/* Export PDF temporairement désactivé
                             {payments.length > 0 && (
                                 <Button
                                     variant="danger"
@@ -211,6 +212,7 @@ const ClassSchoolFeesReport = () => {
                                     PDF
                                 </Button>
                             )}
+                            */}
                         </Col>
                     </Row>
                 </Card.Body>
@@ -233,12 +235,25 @@ const ClassSchoolFeesReport = () => {
                         </Card>
                     </Col>
                     <Col md={2}>
+                        <Card className="bg-warning text-white">
+                            <Card.Body>
+                                <div className="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6>Inscription</h6>
+                                        <h5>{formatAmount(summary.totals?.inscription || 0)}</h5>
+                                    </div>
+                                    <CurrencyDollar size={25} />
+                                </div>
+                            </Card.Body>
+                        </Card>
+                    </Col>
+                    <Col md={2}>
                         <Card className="bg-success text-white">
                             <Card.Body>
                                 <div className="d-flex justify-content-between align-items-center">
                                     <div>
                                         <h6>1ère Tranche</h6>
-                                        <h5>{formatAmount(summary.total_tranche_1)}</h5>
+                                        <h5>{formatAmount(summary.totals?.tranche1 || 0)}</h5>
                                     </div>
                                     <CurrencyDollar size={25} />
                                 </div>
@@ -251,7 +266,7 @@ const ClassSchoolFeesReport = () => {
                                 <div className="d-flex justify-content-between align-items-center">
                                     <div>
                                         <h6>2ème Tranche</h6>
-                                        <h5>{formatAmount(summary.total_tranche_2)}</h5>
+                                        <h5>{formatAmount(summary.totals?.tranche2 || 0)}</h5>
                                     </div>
                                     <CurrencyDollar size={25} />
                                 </div>
@@ -264,7 +279,7 @@ const ClassSchoolFeesReport = () => {
                                 <div className="d-flex justify-content-between align-items-center">
                                     <div>
                                         <h6>3ème Tranche</h6>
-                                        <h5>{formatAmount(summary.total_tranche_3)}</h5>
+                                        <h5>{formatAmount(summary.totals?.tranche3 || 0)}</h5>
                                     </div>
                                     <CurrencyDollar size={25} />
                                 </div>
@@ -276,23 +291,10 @@ const ClassSchoolFeesReport = () => {
                             <Card.Body>
                                 <div className="d-flex justify-content-between align-items-center">
                                     <div>
-                                        <h6>Total Payé</h6>
-                                        <h5>{formatAmount(summary.total_paid)}</h5>
+                                        <h6>Total</h6>
+                                        <h5>{formatAmount((summary.totals?.inscription || 0) + (summary.totals?.tranche1 || 0) + (summary.totals?.tranche2 || 0) + (summary.totals?.tranche3 || 0))}</h5>
                                     </div>
                                     <Collection size={25} />
-                                </div>
-                            </Card.Body>
-                        </Card>
-                    </Col>
-                    <Col md={2}>
-                        <Card className="bg-danger text-white">
-                            <Card.Body>
-                                <div className="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h6>Reste à Payer</h6>
-                                        <h5>{formatAmount(summary.total_remaining)}</h5>
-                                    </div>
-                                    <CurrencyDollar size={25} />
                                 </div>
                             </Card.Body>
                         </Card>
@@ -370,58 +372,61 @@ const ClassSchoolFeesReport = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {payments.map((payment, index) => (
-                                            <tr key={payment.student_id}>
-                                                <td>{index + 1}</td>
+                                        {payments.map((student, index) => (
+                                            <tr key={index}>
+                                                <td>{student.numero}</td>
                                                 <td>
                                                     <Badge bg="outline-primary" text="primary">
-                                                        {payment.matricule}
+                                                        {student.matricule}
                                                     </Badge>
                                                 </td>
-                                                <td><strong>{payment.nom}</strong></td>
-                                                <td><strong>{payment.prenom}</strong></td>
+                                                <td><strong>{student.nom}</strong></td>
+                                                <td><strong>{student.prenom}</strong></td>
                                                 <td className="text-end">
                                                     <span className="text-warning fw-bold">
-                                                        {formatAmount(payment.inscription_amount)}
+                                                        {formatAmount(student.inscription)}
                                                     </span>
                                                 </td>
                                                 <td className="text-end">
                                                     <span className="text-success fw-bold">
-                                                        {formatAmount(payment.tranche_1_amount)}
+                                                        {formatAmount(student.tranche1)}
                                                     </span>
                                                 </td>
                                                 <td className="text-end">
                                                     <span className="text-info fw-bold">
-                                                        {formatAmount(payment.tranche_2_amount)}
+                                                        {formatAmount(student.tranche2)}
                                                     </span>
                                                 </td>
                                                 <td className="text-end">
                                                     <span className="text-primary fw-bold">
-                                                        {formatAmount(payment.tranche_3_amount)}
+                                                        {formatAmount(student.tranche3)}
                                                     </span>
                                                 </td>
                                                 <td className="text-end">
                                                     <span className="text-secondary">
-                                                        {formatAmount(payment.discount_amount)}
+                                                        {formatAmount(student.rabais)}
                                                     </span>
                                                 </td>
                                                 <td className="text-end">
                                                     <span className="text-secondary">
-                                                        {formatAmount(payment.scholarship_amount)}
+                                                        {formatAmount(student.bourse)}
                                                     </span>
                                                 </td>
                                                 <td className="text-end">
                                                     <span className="text-success fw-bold">
-                                                        {formatAmount(payment.total_paid)}
+                                                        {formatAmount(student.total_paye)}
                                                     </span>
                                                 </td>
                                                 <td className="text-end">
                                                     <span className="text-danger fw-bold">
-                                                        {formatAmount(payment.remaining_amount)}
+                                                        {formatAmount(student.reste_a_payer)}
                                                     </span>
                                                 </td>
                                                 <td className="text-center">
-                                                    {getStatusBadge(payment.payment_status)}
+                                                    {student.reste_a_payer > 0 ? 
+                                                        <Badge bg="warning">Partiel</Badge> : 
+                                                        <Badge bg="success">Complet</Badge>
+                                                    }
                                                 </td>
                                             </tr>
                                         ))}
@@ -433,42 +438,42 @@ const ClassSchoolFeesReport = () => {
                                             </th>
                                             <th className="text-end">
                                                 <strong className="text-warning fs-6">
-                                                    {formatAmount(summary.total_inscription)}
+                                                    {formatAmount(summary.totals?.inscription || 0)}
                                                 </strong>
                                             </th>
                                             <th className="text-end">
                                                 <strong className="text-success fs-6">
-                                                    {formatAmount(summary.total_tranche_1)}
+                                                    {formatAmount(summary.totals?.tranche1 || 0)}
                                                 </strong>
                                             </th>
                                             <th className="text-end">
                                                 <strong className="text-info fs-6">
-                                                    {formatAmount(summary.total_tranche_2)}
+                                                    {formatAmount(summary.totals?.tranche2 || 0)}
                                                 </strong>
                                             </th>
                                             <th className="text-end">
                                                 <strong className="text-primary fs-6">
-                                                    {formatAmount(summary.total_tranche_3)}
+                                                    {formatAmount(summary.totals?.tranche3 || 0)}
                                                 </strong>
                                             </th>
                                             <th className="text-end">
                                                 <strong className="text-secondary fs-6">
-                                                    {formatAmount(summary.total_discount)}
+                                                    {formatAmount(payments.reduce((sum, student) => sum + student.rabais, 0))}
                                                 </strong>
                                             </th>
                                             <th className="text-end">
                                                 <strong className="text-secondary fs-6">
-                                                    {formatAmount(summary.total_scholarship)}
+                                                    {formatAmount(payments.reduce((sum, student) => sum + student.bourse, 0))}
                                                 </strong>
                                             </th>
                                             <th className="text-end">
                                                 <strong className="text-success fs-5">
-                                                    {formatAmount(summary.total_paid)}
+                                                    {formatAmount(payments.reduce((sum, student) => sum + student.total_paye, 0))}
                                                 </strong>
                                             </th>
                                             <th className="text-end">
                                                 <strong className="text-danger fs-5">
-                                                    {formatAmount(summary.total_remaining)}
+                                                    {formatAmount(payments.reduce((sum, student) => sum + student.reste_a_payer, 0))}
                                                 </strong>
                                             </th>
                                             <th></th>

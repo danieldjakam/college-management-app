@@ -220,6 +220,7 @@ Route::middleware('auth:api')->group(function () {
         // Nouveaux rapports financiers
         Route::get('/detailed-collection', [ReportsController::class, 'getDetailedCollectionReport']);
         Route::get('/class-school-fees', [ReportsController::class, 'getClassSchoolFeesReport']);
+        Route::get('/class-school-fees/export-pdf', [ReportsController::class, 'exportClassSchoolFeesPdf']);
         
         Route::get('/export-pdf', [ReportsController::class, 'exportPdf']);
     });
@@ -235,6 +236,10 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{id}/reset-password', [UserManagementController::class, 'resetPassword']);
         Route::post('/{id}/toggle-status', [UserManagementController::class, 'toggleStatus']);
         Route::delete('/{id}', [UserManagementController::class, 'destroy']);
+        
+        // Routes pour cartes d'identité professionnelles
+        Route::get('/{id}/professional-card', [UserManagementController::class, 'generateProfessionalCard']);
+        Route::get('/{id}/qr-code', [UserManagementController::class, 'getUserQR']);
     });
 
     // Routes d'upload de photos

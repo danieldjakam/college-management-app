@@ -2515,10 +2515,19 @@ class ReportsController extends Controller
                     $tranche = $detail->paymentTranche;
                     $amount = $detail->amount_allocated ?? 0;
 
-                    if ($tranche && stripos($tranche->name, 'inscription') !== false) {
-                        $inscriptionAmount += $amount;
-                    } else {
-                        $trancheAmount += $amount;
+                    if ($tranche) {
+                        $trancheName = strtolower($tranche->name);
+                        
+                        // Exclure la RAME qui n'est pas un paiement financier
+                        if (stripos($trancheName, 'rame') !== false) {
+                            continue; // Ignorer la RAME dans les calculs financiers
+                        }
+                        
+                        if (stripos($trancheName, 'inscription') !== false) {
+                            $inscriptionAmount += $amount;
+                        } else {
+                            $trancheAmount += $amount;
+                        }
                     }
                 }
 
@@ -2597,14 +2606,8 @@ class ReportsController extends Controller
                 ], 400);
             }
 
-            // Récupérer la classe avec ses étudiants
-            $schoolClass = \App\Models\SchoolClass::with([
-                'level.section',
-                'classSeries' => function($query) use ($workingYear) {
-                    $query->where('school_year_id', $workingYear->id);
-                },
-                'classSeries.students.payments.paymentDetails.paymentTranche'
-            ])->find($classId);
+            // Récupérer la classe avec ses informations de base
+            $schoolClass = \App\Models\SchoolClass::with(['level.section'])->find($classId);
 
             if (!$schoolClass) {
                 return response()->json([
@@ -2618,93 +2621,113 @@ class ReportsController extends Controller
                 'inscription' => 0,
                 'tranche1' => 0,
                 'tranche2' => 0,
-                'tranche3' => 0
+                'tranche3' => 0,
+                'rabais' => 0,
+                'bourse' => 0,
+                'total_paye' => 0,
+                'reste_a_payer' => 0
             ];
             $numero = 1;
 
-            foreach ($schoolClass->classSeries as $classSeries) {
-                foreach ($classSeries->students as $student) {
-                    $amounts = [
-                        'inscription' => 0,
-                        'tranche1' => 0,
-                        'tranche2' => 0,
-                        'tranche3' => 0,
-                        'rabais' => 0,
-                        'bourse' => 0
-                    ];
+            // Récupérer tous les étudiants de cette classe pour l'année scolaire courante
+            $students = \App\Models\Student::with(['payments.paymentDetails.paymentTranche', 'classSeries.schoolClass'])
+                ->whereHas('classSeries.schoolClass', function($query) use ($classId) {
+                    $query->where('id', $classId);
+                })
+                ->where('school_year_id', $workingYear->id)
+                ->where('is_active', true)
+                ->get();
 
-                    // Calculer les montants par tranche
-                    foreach ($student->payments as $payment) {
-                        if ($payment->school_year_id != $workingYear->id) continue;
+            foreach ($students as $student) {
+                $amounts = [
+                    'inscription' => 0,
+                    'tranche1' => 0,
+                    'tranche2' => 0,
+                    'tranche3' => 0,
+                    'rabais' => 0,
+                    'bourse' => 0
+                ];
 
-                        // Ajouter les rabais et bourses
-                        if ($payment->has_reduction) {
-                            $amounts['rabais'] += $payment->reduction_amount ?? 0;
-                        }
-                        if ($payment->has_scholarship) {
-                            $amounts['bourse'] += $payment->scholarship_amount ?? 0;
-                        }
+                // Calculer les montants par tranche
+                foreach ($student->payments as $payment) {
+                    if ($payment->school_year_id != $workingYear->id) continue;
 
-                        foreach ($payment->paymentDetails as $detail) {
-                            $tranche = $detail->paymentTranche;
-                            $amount = $detail->amount_allocated ?? 0;
+                    // Ajouter les rabais et bourses
+                    if ($payment->has_reduction) {
+                        $amounts['rabais'] += $payment->reduction_amount ?? 0;
+                    }
+                    if ($payment->has_scholarship) {
+                        $amounts['bourse'] += $payment->scholarship_amount ?? 0;
+                    }
 
-                            if ($tranche) {
-                                $trancheName = strtolower($tranche->name);
-                                
-                                if (stripos($trancheName, 'inscription') !== false) {
-                                    $amounts['inscription'] += $amount;
-                                } elseif (stripos($trancheName, '1') !== false && stripos($trancheName, 'tranche') !== false) {
-                                    $amounts['tranche1'] += $amount;
-                                } elseif (stripos($trancheName, '2') !== false && stripos($trancheName, 'tranche') !== false) {
-                                    $amounts['tranche2'] += $amount;
-                                } elseif (stripos($trancheName, '3') !== false && stripos($trancheName, 'tranche') !== false) {
-                                    $amounts['tranche3'] += $amount;
-                                }
+                    foreach ($payment->paymentDetails as $detail) {
+                        $tranche = $detail->paymentTranche;
+                        $amount = $detail->amount_allocated ?? 0;
+
+                        if ($tranche) {
+                            $trancheName = strtolower($tranche->name);
+                            
+                            // Exclure la RAME qui n'est pas un paiement financier
+                            if (stripos($trancheName, 'rame') !== false) {
+                                continue; // Ignorer la RAME dans les calculs financiers
+                            }
+                            
+                            if (stripos($trancheName, 'inscription') !== false) {
+                                $amounts['inscription'] += $amount;
+                            } elseif (stripos($trancheName, '1') !== false && stripos($trancheName, 'tranche') !== false) {
+                                $amounts['tranche1'] += $amount;
+                            } elseif (stripos($trancheName, '2') !== false && stripos($trancheName, 'tranche') !== false) {
+                                $amounts['tranche2'] += $amount;
+                            } elseif (stripos($trancheName, '3') !== false && stripos($trancheName, 'tranche') !== false) {
+                                $amounts['tranche3'] += $amount;
                             }
                         }
                     }
-
-                    $totalPaye = array_sum(array_slice($amounts, 0, 4)); // inscription + tranches
-                    $resteAPayer = $this->calculateRemainingAmount($student, $workingYear, $totalPaye);
-
-                    $studentsData[] = [
-                        'numero' => $numero++,
-                        'matricule' => $student->student_number ?? $student->matricule ?? 'N/A',
-                        'nom' => $student->last_name ?? $student->name ?? 'N/A',
-                        'prenom' => $student->first_name ?? $student->subname ?? 'N/A',
-                        'inscription' => $amounts['inscription'],
-                        'tranche1' => $amounts['tranche1'],
-                        'tranche2' => $amounts['tranche2'],
-                        'tranche3' => $amounts['tranche3'],
-                        'rabais' => $amounts['rabais'],
-                        'bourse' => $amounts['bourse'],
-                        'total_paye' => $totalPaye,
-                        'reste_a_payer' => $resteAPayer
-                    ];
-
-                    // Ajouter aux totaux (seulement les tranches, pas les bourses/rabais)
-                    $totals['inscription'] += $amounts['inscription'];
-                    $totals['tranche1'] += $amounts['tranche1'];
-                    $totals['tranche2'] += $amounts['tranche2'];
-                    $totals['tranche3'] += $amounts['tranche3'];
                 }
+
+                $totalPaye = array_sum(array_slice($amounts, 0, 4)); // inscription + tranches
+                $resteAPayer = $this->calculateRemainingAmount($student, $workingYear, $totalPaye);
+
+                $studentsData[] = [
+                    'numero' => $numero++,
+                    'matricule' => $student->student_number ?? $student->matricule ?? 'N/A',
+                    'nom' => $student->last_name ?? $student->name ?? 'N/A',
+                    'prenom' => $student->first_name ?? $student->subname ?? 'N/A',
+                    'inscription' => $amounts['inscription'],
+                    'tranche1' => $amounts['tranche1'],
+                    'tranche2' => $amounts['tranche2'],
+                    'tranche3' => $amounts['tranche3'],
+                    'rabais' => $amounts['rabais'],
+                    'bourse' => $amounts['bourse'],
+                    'total_paye' => $totalPaye,
+                    'reste_a_payer' => $resteAPayer
+                ];
+
+                // Ajouter aux totaux
+                $totals['inscription'] += $amounts['inscription'];
+                $totals['tranche1'] += $amounts['tranche1'];
+                $totals['tranche2'] += $amounts['tranche2'];
+                $totals['tranche3'] += $amounts['tranche3'];
+                $totals['rabais'] += $amounts['rabais'];
+                $totals['bourse'] += $amounts['bourse'];
+                $totals['total_paye'] += $totalPaye;
+                $totals['reste_a_payer'] += $resteAPayer;
             }
 
             return response()->json([
                 'success' => true,
                 'data' => [
                     'students' => $studentsData,
-                    'totals' => $totals,
                     'summary' => [
                         'total_students' => count($studentsData),
+                        'totals' => $totals,
                         'generated_at' => now()->format('d/m/Y H:i:s')
                     ],
                     'class_info' => [
                         'id' => $schoolClass->id,
                         'name' => $schoolClass->name,
-                        'level' => $schoolClass->level ? $schoolClass->level->name : 'N/A',
-                        'section' => $schoolClass->level && $schoolClass->level->section ? 
+                        'level_name' => $schoolClass->level ? $schoolClass->level->name : 'N/A',
+                        'section_name' => $schoolClass->level && $schoolClass->level->section ? 
                             $schoolClass->level->section->name : 'N/A'
                     ],
                     'school_year' => $workingYear
@@ -2735,4 +2758,98 @@ class ReportsController extends Controller
         
         return max(0, $expectedTotal - $totalPaid);
     }
+
+    /**
+     * Export PDF du rapport de paiement des frais de scolarité par classe
+     */
+    public function exportClassSchoolFeesPdf(Request $request)
+    {
+        try {
+            // Test simple pour vérifier le fonctionnement
+            $classId = $request->get('class_id', 'N/A');
+            $html = "<!DOCTYPE html><html><head><title>Rapport PDF</title></head><body>";
+            $html .= "<h1>COLLÈGE POLYVALENT BILINGUE DE DOUALA</h1>";
+            $html .= "<h2>Paiement des Frais de Scolarité par Classe</h2>";
+            $html .= "<p>Classe ID: " . $classId . "</p>";
+            $html .= "<p>Date de génération: " . date('d/m/Y H:i:s') . "</p>";
+            $html .= "<p>Rapport généré avec succès !</p>";
+            $html .= "</body></html>";
+            
+            return response($html, 200, [
+                'Content-Type' => 'text/html',
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Générer un HTML simple pour le rapport de classe
+     */
+    private function generateSimpleClassSchoolFeesHtml($reportData)
+    {
+        $summary = $reportData['summary'];
+        $classInfo = $reportData['class_info'];
+        $schoolYear = $reportData['school_year'];
+        
+        $html = "<!DOCTYPE html>";
+        $html .= "<html><head><meta charset='UTF-8'>";
+        $html .= "<title>Paiement des Frais de Scolarité par Classe</title>";
+        $html .= "<style>body{font-family:Arial;font-size:12px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #ccc;padding:5px;text-align:left;}</style>";
+        $html .= "</head><body>";
+        $html .= "<h2>COLLÈGE POLYVALENT BILINGUE DE DOUALA</h2>";
+        $html .= "<h3>PAIEMENT DES FRAIS DE SCOLARITÉ PAR CLASSE</h3>";
+        $html .= "<p>Classe: " . $classInfo['name'] . " | Section: " . $classInfo['section_name'] . "</p>";
+        $html .= "<p>Année scolaire: " . $schoolYear['name'] . " | Nombre d'élèves: " . $summary['total_students'] . "</p>";
+        
+        $html .= "<table>";
+        $html .= "<thead><tr>";
+        $html .= "<th>N°</th><th>Matricule</th><th>Nom</th><th>Prénom</th>";
+        $html .= "<th>Inscription</th><th>1ère Tr.</th><th>2ème Tr.</th><th>3ème Tr.</th>";
+        $html .= "<th>Rabais</th><th>Bourse</th><th>Total Payé</th><th>Reste à Payer</th>";
+        $html .= "</tr></thead><tbody>";
+
+        foreach ($reportData['students'] as $student) {
+            $html .= "<tr>";
+            $html .= "<td>" . $student['numero'] . "</td>";
+            $html .= "<td>" . $student['matricule'] . "</td>";
+            $html .= "<td>" . $student['nom'] . "</td>";
+            $html .= "<td>" . $student['prenom'] . "</td>";
+            $html .= "<td>" . number_format($student['inscription'], 0, ',', ' ') . "</td>";
+            $html .= "<td>" . number_format($student['tranche1'], 0, ',', ' ') . "</td>";
+            $html .= "<td>" . number_format($student['tranche2'], 0, ',', ' ') . "</td>";
+            $html .= "<td>" . number_format($student['tranche3'], 0, ',', ' ') . "</td>";
+            $html .= "<td>" . number_format($student['rabais'], 0, ',', ' ') . "</td>";
+            $html .= "<td>" . number_format($student['bourse'], 0, ',', ' ') . "</td>";
+            $html .= "<td>" . number_format($student['total_paye'], 0, ',', ' ') . "</td>";
+            $html .= "<td>" . number_format($student['reste_a_payer'], 0, ',', ' ') . "</td>";
+            $html .= "</tr>";
+        }
+
+        // Ligne de total
+        $totals = $summary['totals'];
+        $html .= "<tr style='background-color:#f0f0f0;font-weight:bold;'>";
+        $html .= "<td colspan='4'>TOTAL :</td>";
+        $html .= "<td>" . number_format($totals['inscription'], 0, ',', ' ') . "</td>";
+        $html .= "<td>" . number_format($totals['tranche1'], 0, ',', ' ') . "</td>";
+        $html .= "<td>" . number_format($totals['tranche2'], 0, ',', ' ') . "</td>";
+        $html .= "<td>" . number_format($totals['tranche3'], 0, ',', ' ') . "</td>";
+        $html .= "<td>" . number_format($totals['rabais'], 0, ',', ' ') . "</td>";
+        $html .= "<td>" . number_format($totals['bourse'], 0, ',', ' ') . "</td>";
+        $html .= "<td>" . number_format($totals['total_paye'], 0, ',', ' ') . "</td>";
+        $html .= "<td>" . number_format($totals['reste_a_payer'], 0, ',', ' ') . "</td>";
+        $html .= "</tr>";
+
+        $html .= "</tbody></table>";
+        $html .= "<p style='margin-top:20px;'>Document généré le " . $summary['generated_at'] . "</p>";
+        $html .= "</body></html>";
+
+        return $html;
+    }
+
+
 }
