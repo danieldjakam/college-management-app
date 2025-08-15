@@ -281,6 +281,17 @@ export const apiEndpoints = {
     addSection: (data) => api.post('/sections/store', data),
     updateSection: (id, data) => api.put(`/sections/${id}`, data),
     deleteSection: (id) => api.delete(`/sections/${id}`),
+    exportSections: (format, filters = {}) => {
+        const params = new URLSearchParams(filters);
+        return api.get(`/sections/export/${format}?${params}`);
+    },
+    importSections: (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post('/sections/import/csv', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
     
     // Sequences
     getAllSequences: () => api.get('/seq/getAll'),
@@ -337,7 +348,44 @@ export const apiEndpoints = {
     addSchoolClass: (data) => api.post('/school-classes', data),
     updateSchoolClass: (id, data) => api.put(`/school-classes/${id}`, data),
     deleteSchoolClass: (id) => api.delete(`/school-classes/${id}`),
-    configureClassPayments: (id, data) => api.post(`/school-classes/${id}/configure-payments`, data)
+    configureClassPayments: (id, data) => api.post(`/school-classes/${id}/configure-payments`, data),
+    exportSchoolClasses: (format, filters = {}) => {
+        const params = new URLSearchParams(filters);
+        return api.get(`/school-classes/export/${format}?${params}`);
+    },
+    importSchoolClasses: (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post('/school-classes/import/csv', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+
+    // Levels 
+    exportLevels: (format, filters = {}) => {
+        const params = new URLSearchParams(filters);
+        return api.get(`/levels/export/${format}?${params}`);
+    },
+    importLevels: (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post('/levels/import/csv', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+
+    // Students
+    exportStudents: (format, seriesId, filters = {}) => {
+        const params = new URLSearchParams(filters);
+        return api.get(`/students/export/${format}/${seriesId}?${params}`);
+    },
+    importStudents: (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post('/students/import/csv', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    }
 };
 
 export default api;

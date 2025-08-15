@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { secureApiEndpoints } from '../../utils/apiMigration';
+import ImportExportButton from '../../components/ImportExportButton';
 import CreateSchoolClass from './CreateSchoolClass';
 import EditSchoolClass from './EditSchoolClass';
 import Swal from 'sweetalert2';
@@ -201,13 +202,22 @@ const SchoolClasses = () => {
                                 Gérez les classes, leurs séries et montants de paiement
                             </p>
                         </div>
-                        <button
-                            className="btn btn-primary d-flex align-items-center gap-2"
-                            onClick={handleCreateClass}
-                        >
-                            <Plus size={16} />
-                            Nouvelle Classe
-                        </button>
+                        <div className="d-flex gap-2">
+                            <ImportExportButton
+                                title="Classes"
+                                apiBasePath="/api/school-classes"
+                                onImportSuccess={loadClasses}
+                                filters={filters}
+                                templateFileName="template_classes.csv"
+                            />
+                            <button
+                                className="btn btn-primary d-flex align-items-center gap-2"
+                                onClick={handleCreateClass}
+                            >
+                                <Plus size={16} />
+                                Nouvelle Classe
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

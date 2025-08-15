@@ -16,12 +16,13 @@ import {
 // Components
 import { Card, Button, Alert, LoadingSpinner, Modal } from '../../components/UI';
 import { useAuth } from '../../hooks/useAuth';
-import inventoryApiService from '../../services/inventoryApi';
+import { secureApiEndpoints } from '../../utils/apiMigration';
 
 const InventoryModule = () => {
   const { user } = useAuth();
   const [inventory, setInventory] = useState([]);
   const [dashboardStats, setDashboardStats] = useState(null);
+  const [lowStockAlerts, setLowStockAlerts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [etats, setEtats] = useState([]);
 
@@ -67,8 +68,8 @@ const InventoryModule = () => {
       setError('');
       
       const [itemsResponse, dashboardResponse] = await Promise.all([
-        inventoryApiService.getItems({ search: searchTerm, category: filterCategory, etat: filterEtat }),
-        inventoryApiService.getDashboardStats()
+        secureApiEndpoints.inventory.getAll({ search: searchTerm, category: filterCategory, etat: filterEtat }),
+        secureApiEndpoints.inventory.getDashboard()
       ]);
       
       if (itemsResponse.success) {
@@ -77,6 +78,7 @@ const InventoryModule = () => {
       
       if (dashboardResponse.success) {
         setDashboardStats(dashboardResponse.data.stats);
+        setLowStockAlerts(dashboardResponse.data.low_stock_alerts || []);
       }
       
     } catch (error) {
@@ -89,7 +91,7 @@ const InventoryModule = () => {
 
   const loadConfig = async () => {
     try {
-      const response = await inventoryApiService.getConfig();
+      const response = await secureApiEndpoints.inventory.getConfig();
       if (response.success) {
         setCategories(response.data.categories || []);
         setEtats(response.data.etats || []);
@@ -108,20 +110,11 @@ const InventoryModule = () => {
     return () => clearTimeout(timer);
   }, [searchTerm, filterCategory, filterEtat]);
 
-  const filteredInventory = useMemo(() => {
-    return inventory.filter(item => {
-      const matchSearch = item.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.localisation.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.responsable.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchCategory = !filterCategory || item.categorie === filterCategory;
-      const matchEtat = !filterEtat || item.etat === filterEtat;
-      
-      return matchSearch && matchCategory && matchEtat;
-    });
-  }, [inventory, searchTerm, filterCategory, filterEtat]);
+  // Le filtrage est déjà fait côté serveur, pas besoin de refiltrer côté client
+  const filteredInventory = inventory;
 
-  // Calculated values pour les alertes locales (affichage)
-  const alertesStock = inventory.filter(item => item.quantite <= item.quantite_min);
+  // Utiliser les alertes de stock du backend au lieu du calcul local
+  // const alertesStock = inventory.filter(item => item.quantite <= item.quantite_min);
 
   const resetForm = () => {
     setFormData({
@@ -160,7 +153,7 @@ const InventoryModule = () => {
 
       if (selectedItem) {
         // Modification
-        const response = await inventoryApiService.updateItem(selectedItem.id, articleData);
+        const response = await secureApiEndpoints.inventory.update(selectedItem.id, articleData);
         if (response.success) {
           setSuccess('Article modifié avec succès !');
           setShowEditModal(false);
@@ -170,7 +163,7 @@ const InventoryModule = () => {
         }
       } else {
         // Création
-        const response = await inventoryApiService.createItem(articleData);
+        const response = await secureApiEndpoints.inventory.create(articleData);
         if (response.success) {
           setSuccess('Article ajouté avec succès !');
           setShowAddModal(false);
@@ -223,7 +216,7 @@ const InventoryModule = () => {
       setLoading(true);
       setError('');
       
-      const response = await inventoryApiService.deleteItem(selectedItem.id);
+      const response = await secureApiEndpoints.inventory.delete(selectedItem.id);
       if (response.success) {
         setSuccess('Article supprimé avec succès !');
         setShowDeleteModal(false);
@@ -245,7 +238,7 @@ const InventoryModule = () => {
       setLoading(true);
       setError('');
       
-      const response = await inventoryApiService.exportData({
+      const response = await secureApiEndpoints.inventory.exportData({
         search: searchTerm,
         category: filterCategory,
         etat: filterEtat
@@ -396,14 +389,14 @@ const InventoryModule = () => {
           </div>
 
           {/* Alertes de stock bas */}
-          {alertesStock.length > 0 && (
+          {lowStockAlerts.length > 0 && (
             <Alert variant="warning" className="mb-4">
               <div className="d-flex align-items-center">
                 <ExclamationTriangle className="me-2" size={20} />
                 <strong>Alertes de stock faible</strong>
               </div>
               <p className="mb-0 mt-2">
-                {alertesStock.length} article(s) ont un stock faible : {alertesStock.map(item => item.nom).join(', ')}
+                {lowStockAlerts.length} article(s) ont un stock faible : {lowStockAlerts.map(item => item.nom).join(', ')}
               </p>
             </Alert>
           )}
