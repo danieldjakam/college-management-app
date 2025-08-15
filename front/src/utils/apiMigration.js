@@ -148,6 +148,8 @@ export const secureApiEndpoints = {
         toggleStatus: (id) => secureApi.post(`/teachers/${id}/toggle-status`),
         assignSubjects: (id, data) => secureApi.post(`/teachers/${id}/assign-subjects`, data),
         removeAssignment: (id, data) => secureApi.post(`/teachers/${id}/remove-assignment`, data),
+        createUserAccount: (id, data) => secureApi.post(`/teachers/${id}/create-user-account`, data),
+        removeUserAccount: (id) => secureApi.delete(`/teachers/${id}/remove-user-account`),
         getStats: (id, params = {}) => {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/teachers/${id}/stats${queryString ? '?' + queryString : ''}`);
@@ -755,6 +757,39 @@ export const secureApiEndpoints = {
         // Génération QR codes
         generateStudentQR: (studentId) => secureApi.get(`/supervisors/generate-qr/${studentId}`),
         generateAllQRs: () => secureApi.get('/supervisors/generate-all-qrs')
+    },
+
+    // === TEACHER ATTENDANCE ===
+    teacherAttendance: {
+        // Scanner QR et présences enseignants
+        scanQR: (data) => secureApi.post('/teacher-attendance/scan-qr', data),
+        getDailyAttendance: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-attendance/daily-attendance${queryString ? '?' + queryString : ''}`);
+        },
+        getEntryExitStats: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-attendance/entry-exit-stats${queryString ? '?' + queryString : ''}`);
+        },
+        
+        // Gestion des QR codes enseignants
+        generateQRCode: (data) => secureApi.post('/teacher-attendance/generate-qr', data),
+        getTeachersWithQR: () => secureApi.get('/teacher-attendance/teachers-with-qr'),
+        
+        // Rapports et statistiques
+        getTeacherReport: (teacherId, params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-attendance/teacher/${teacherId}/report${queryString ? '?' + queryString : ''}`);
+        },
+        getDetailedTeacherStats: (teacherId, params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-attendance/teacher/${teacherId}/detailed-stats${queryString ? '?' + queryString : ''}`);
+        },
+        getDayMovements: (teacherId, params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-attendance/teacher/${teacherId}/day-movements${queryString ? '?' + queryString : ''}`);
+        },
+        updateWorkSchedule: (teacherId, data) => secureApi.put(`/teacher-attendance/teacher/${teacherId}/work-schedule`, data)
     },
 
     // === SCHOOL YEARS ===

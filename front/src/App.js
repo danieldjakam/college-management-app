@@ -63,7 +63,10 @@ import NeedsManagement from "./pages/Needs/NeedsManagement";
 
 // Attendance
 import AttendanceScanner from "./pages/Attendance/AttendanceScanner";
+import AttendanceScannerOffline from "./pages/Attendance/AttendanceScannerOffline";
+import TeacherAttendanceScanner from "./pages/Attendance/TeacherAttendanceScanner";
 import AttendanceReports from "./pages/Attendance/AttendanceReports";
+import TeacherDetailedStats from "./pages/Teachers/TeacherDetailedStats";
 
 // Supervisor Management
 import SupervisorStatus from "./pages/SupervisorManagement/SupervisorStatus";
@@ -247,6 +250,33 @@ const AppContent = () => {
                 element={
                   <ProtectedRoute requiredRoles={['surveillant_general']}>
                     <AttendanceScanner />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/attendance-offline"
+                element={
+                  <ProtectedRoute requiredRoles={['surveillant_general']}>
+                    <AttendanceScannerOffline />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/teacher-attendance-scanner"
+                element={
+                  <ProtectedRoute requiredRoles={['surveillant_general', 'admin']}>
+                    <TeacherAttendanceScanner />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/teacher-detailed-stats"
+                element={
+                  <ProtectedRoute requiredRoles={['surveillant_general', 'admin']}>
+                    <TeacherDetailedStats />
                   </ProtectedRoute>
                 }
               />

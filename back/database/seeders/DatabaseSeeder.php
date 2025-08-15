@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             PaymentTrancheSeeder::class,
             LevelSeeder::class,
             SchoolClassSeeder::class,
+            TeacherAttendanceSeeder::class,
         ]);
     }
 }
