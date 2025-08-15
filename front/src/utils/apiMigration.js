@@ -148,6 +148,8 @@ export const secureApiEndpoints = {
         toggleStatus: (id) => secureApi.post(`/teachers/${id}/toggle-status`),
         assignSubjects: (id, data) => secureApi.post(`/teachers/${id}/assign-subjects`, data),
         removeAssignment: (id, data) => secureApi.post(`/teachers/${id}/remove-assignment`, data),
+        createUserAccount: (id, data) => secureApi.post(`/teachers/${id}/create-user-account`, data),
+        removeUserAccount: (id) => secureApi.delete(`/teachers/${id}/remove-user-account`),
         getStats: (id, params = {}) => {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/teachers/${id}/stats${queryString ? '?' + queryString : ''}`);

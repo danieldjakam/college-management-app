@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Form, Alert, Badge, ButtonGroup, Tabs, Tab, Card, Table } from 'react-bootstrap';
 import { LoadingSpinner } from '../../components/UI';
-import { PlusCircle, PencilFill, Trash2, Eye, EyeSlashFill, Search, PersonFill, TelephoneFill, EnvelopeFill } from 'react-bootstrap-icons';
+import ImportExportButton from '../../components/ImportExportButton';
+import { PlusCircle, PencilFill, Trash2, Eye, EyeSlashFill, Search, PersonFill, TelephoneFill, EnvelopeFill, PersonPlus, PersonDash } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import Swal from 'sweetalert2';
 
@@ -29,6 +30,13 @@ const Teachers = () => {
         password: ''
     });
     const [formErrors, setFormErrors] = useState({});
+    const [showUserAccountModal, setShowUserAccountModal] = useState(false);
+    const [selectedTeacherForAccount, setSelectedTeacherForAccount] = useState(null);
+    const [userAccountData, setUserAccountData] = useState({
+        username: '',
+        password: '',
+        email: ''
+    });
 
     useEffect(() => {
         loadTeachers();
@@ -246,6 +254,61 @@ const Teachers = () => {
         }
     };
 
+    const handleCreateUserAccount = async (teacher) => {
+        setSelectedTeacherForAccount(teacher);
+        setUserAccountData({
+            username: teacher.last_name.toLowerCase() + '.' + teacher.first_name.toLowerCase(),
+            password: '',
+            email: teacher.email || ''
+        });
+        setShowUserAccountModal(true);
+    };
+
+    const handleSubmitUserAccount = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await secureApiEndpoints.teachers.createUserAccount(
+                selectedTeacherForAccount.id,
+                userAccountData
+            );
+
+            if (response.success) {
+                Swal.fire('Succès!', 'Compte utilisateur créé avec succès', 'success');
+                setShowUserAccountModal(false);
+                setSelectedTeacherForAccount(null);
+                setUserAccountData({ username: '', password: '', email: '' });
+                loadTeachers();
+            }
+        } catch (error) {
+            Swal.fire('Erreur', error.response?.data?.message || 'Une erreur est survenue', 'error');
+        }
+    };
+
+    const handleRemoveUserAccount = async (teacher) => {
+        try {
+            const result = await Swal.fire({
+                title: 'Confirmation',
+                text: 'Êtes-vous sûr de vouloir supprimer le compte utilisateur de cet enseignant ?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Oui, supprimer',
+                cancelButtonText: 'Annuler',
+                confirmButtonColor: '#d33'
+            });
+
+            if (result.isConfirmed) {
+                const response = await secureApiEndpoints.teachers.removeUserAccount(teacher.id);
+
+                if (response.success) {
+                    Swal.fire('Supprimé!', 'Compte utilisateur supprimé avec succès', 'success');
+                    loadTeachers();
+                }
+            }
+        } catch (error) {
+            Swal.fire('Erreur', error.response?.data?.message || 'Une erreur est survenue', 'error');
+        }
+    };
+
     const getStatusBadge = (isActive) => {
         return (
             <Badge bg={isActive ? 'success' : 'secondary'}>
@@ -270,10 +333,18 @@ const Teachers = () => {
         <div className="container-fluid">
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <h2>Gestion des Enseignants</h2>
-                <Button variant="primary" onClick={() => handleShowModal()}>
-                    <PlusCircle className="me-2" />
-                    Nouvel Enseignant
-                </Button>
+                <div className="d-flex gap-2">
+                    <ImportExportButton
+                        title="Enseignants"
+                        apiBasePath="/api/teachers"
+                        onImportSuccess={loadTeachers}
+                        templateFileName="template_enseignants.csv"
+                    />
+                    <Button variant="primary" onClick={() => handleShowModal()}>
+                        <PlusCircle className="me-2" />
+                        Nouvel Enseignant
+                    </Button>
+                </div>
             </div>
 
             {/* Filtres */}
@@ -383,6 +454,23 @@ const Teachers = () => {
                                             >
                                                 <PencilFill size={14} />
                                             </Button>
+                                            {!teacher.user ? (
+                                                <Button
+                                                    variant="outline-info"
+                                                    onClick={() => handleCreateUserAccount(teacher)}
+                                                    title="Créer compte utilisateur"
+                                                >
+                                                    <PersonPlus size={14} />
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    variant="outline-warning"
+                                                    onClick={() => handleRemoveUserAccount(teacher)}
+                                                    title="Supprimer compte utilisateur"
+                                                >
+                                                    <PersonDash size={14} />
+                                                </Button>
+                                            )}
                                             <Button
                                                 variant={teacher.is_active ? "outline-warning" : "outline-success"}
                                                 onClick={() => handleToggleStatus(teacher)}
@@ -630,6 +718,62 @@ const Teachers = () => {
                         </Button>
                         <Button variant="primary" type="submit" disabled={loading}>
                             {loading ? 'Enregistrement...' : editingTeacher ? 'Mettre à jour' : 'Créer'}
+                        </Button>
+                    </Modal.Footer>
+                </Form>
+            </Modal>
+
+            {/* Modal de création de compte utilisateur */}
+            <Modal show={showUserAccountModal} onHide={() => setShowUserAccountModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        Créer un compte utilisateur pour {selectedTeacherForAccount?.full_name}
+                    </Modal.Title>
+                </Modal.Header>
+                <Form onSubmit={handleSubmitUserAccount}>
+                    <Modal.Body>
+                        <div className="mb-3">
+                            <Form.Label>Nom d'utilisateur <span className="text-danger">*</span></Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={userAccountData.username}
+                                onChange={(e) => setUserAccountData({...userAccountData, username: e.target.value})}
+                                required
+                                placeholder="nom.prenom"
+                            />
+                        </div>
+                        
+                        <div className="mb-3">
+                            <Form.Label>Mot de passe <span className="text-danger">*</span></Form.Label>
+                            <Form.Control
+                                type="password"
+                                value={userAccountData.password}
+                                onChange={(e) => setUserAccountData({...userAccountData, password: e.target.value})}
+                                required
+                                minLength="6"
+                                placeholder="Minimum 6 caractères"
+                            />
+                        </div>
+
+                        <div className="mb-3">
+                            <Form.Label>Email</Form.Label>
+                            <Form.Control
+                                type="email"
+                                value={userAccountData.email}
+                                onChange={(e) => setUserAccountData({...userAccountData, email: e.target.value})}
+                                placeholder="email@example.com (optionnel)"
+                            />
+                            <Form.Text className="text-muted">
+                                Si vide, l'email de l'enseignant sera utilisé ou un email temporaire sera généré.
+                            </Form.Text>
+                        </div>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="secondary" onClick={() => setShowUserAccountModal(false)}>
+                            Annuler
+                        </Button>
+                        <Button variant="primary" type="submit">
+                            Créer le compte
                         </Button>
                     </Modal.Footer>
                 </Form>

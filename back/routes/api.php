@@ -361,9 +361,17 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les enseignants
     Route::prefix('teachers')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)
+        Route::get('/dashboard', [TeacherController::class, 'dashboard'])->middleware(['role:admin,accountant']);
         Route::get('/', [TeacherController::class, 'index'])->middleware(['role:admin,accountant']);
         Route::get('/{teacher}', [TeacherController::class, 'show'])->middleware(['role:admin,accountant']);
         Route::get('/{teacher}/stats', [TeacherController::class, 'getStats'])->middleware(['role:admin,accountant']);
+        
+        // Export routes
+        Route::get('/export/excel', [TeacherController::class, 'exportExcel'])->middleware(['role:admin,accountant']);
+        Route::get('/export/csv', [TeacherController::class, 'exportCsv'])->middleware(['role:admin,accountant']);
+        Route::get('/export/pdf', [TeacherController::class, 'exportPdf'])->middleware(['role:admin,accountant']);
+        Route::get('/export/importable', [TeacherController::class, 'exportImportable'])->middleware(['role:admin,accountant']);
+        Route::get('/template/download', [TeacherController::class, 'downloadTemplate'])->middleware(['role:admin']);
 
         // Routes pour administrateurs uniquement (gestion)
         Route::post('/', [TeacherController::class, 'store'])->middleware(['role:admin']);
@@ -372,6 +380,9 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{teacher}/toggle-status', [TeacherController::class, 'toggleStatus'])->middleware(['role:admin']);
         Route::post('/{teacher}/assign-subjects', [TeacherController::class, 'assignSubjects'])->middleware(['role:admin']);
         Route::post('/{teacher}/remove-assignment', [TeacherController::class, 'removeAssignment'])->middleware(['role:admin']);
+        Route::post('/{teacher}/create-user-account', [TeacherController::class, 'createUserAccount'])->middleware(['role:admin']);
+        Route::delete('/{teacher}/remove-user-account', [TeacherController::class, 'removeUserAccount'])->middleware(['role:admin']);
+        Route::post('/import/csv', [TeacherController::class, 'importCsv'])->middleware(['role:admin']);
     });
 
     // Routes pour la configuration des matières par série
