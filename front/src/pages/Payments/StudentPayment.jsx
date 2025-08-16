@@ -1360,18 +1360,20 @@ const StudentPayment = () => {
                             </span>
                           )}
                           <br />
-                          <small className="text-muted">
-                            <Calendar size={14} className="me-1" />
-                            {formatDate(payment.payment_date)}
-                          </small>
-                          <br />
-                          <small className="text-muted">
-                            <CreditCard size={14} className="me-1" />
-                            {getPaymentMethodLabel(
-                              payment.payment_method,
-                              payment.is_rame_physical
-                            )}
-                          </small>
+                          <div className="text-muted d-flex align-items-center gap-3">
+                            <small className="text-muted d-flex align-items-center mt-2">
+                              <Calendar size={14} className="me-1" />
+                              {formatDate(payment.payment_date)}
+                            </small>
+                            <br />
+                            <small className="text-muted d-flex align-items-center">
+                              <CreditCard size={14} className="me-1" />
+                              {getPaymentMethodLabel(
+                                payment.payment_method,
+                                payment.is_rame_physical
+                              )}
+                            </small>
+                          </div>
 
                           {/* Affichage des réductions appliquées */}
                           {(payment.has_scholarship ||
