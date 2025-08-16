@@ -288,6 +288,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/student/{studentId}/calculate-with-date', [PaymentController::class, 'calculatePaymentWithDate']);
         Route::post('/', [PaymentController::class, 'store']);
         Route::get('/{paymentId}/receipt', [PaymentController::class, 'generateReceipt']);
+        Route::get('/{paymentId}/receipt/pdf', [PaymentController::class, 'downloadReceiptPDF']);
         Route::get('/stats', [PaymentController::class, 'getPaymentStats']);
     });
 
