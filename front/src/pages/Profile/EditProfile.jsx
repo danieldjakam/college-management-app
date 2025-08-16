@@ -6,6 +6,9 @@ import {CameraFill} from 'react-bootstrap-icons'
 import { useEffect } from 'react'
 import { host } from '../../utils/fetch'
 
+// ⚠️ COMPOSANT DÉPRÉCIÉ - Utiliser UserProfile.jsx à la place
+console.warn('[DEPRECATED] EditProfile.jsx est déprécié. Utilisez UserProfile.jsx à la place.');
+
 function EditProfile({setIsEditInfos, setError}) {
     const [loading, setLoading] = useState(false);
     const [updating, setUpdating] = useState(false);

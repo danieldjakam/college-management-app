@@ -11,10 +11,15 @@ import {
     X,
     Eye,
     EyeSlash,
-    Telephone
+    Telephone,
+    CameraFill,
+    Trash
 } from 'react-bootstrap-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { secureApiEndpoints } from '../../utils/apiMigration';
+import { paramsTraductions } from '../../local/params';
+import { getLang } from '../../utils/lang';
+import PhoneInput from '../../components/PhoneInput';
 import Swal from 'sweetalert2';
 
 const UserProfile = () => {
@@ -33,7 +38,19 @@ const UserProfile = () => {
     const [profileData, setProfileData] = useState({
         name: '',
         email: '',
-        contact: ''
+        contact: '',
+        username: '',
+        subname: '',
+        phone_number: '',
+        sex: '',
+        matricule: ''
+    });
+    
+    // Avatar management
+    const [avatarData, setAvatarData] = useState({
+        src: 'assets/1.png',
+        file: null,
+        uploading: false
     });
     
     // Password form data
@@ -56,8 +73,18 @@ const UserProfile = () => {
             setProfileData({
                 name: user.name || '',
                 email: user.email || '',
-                contact: user.contact || ''
+                contact: user.contact || '',
+                username: user.username || '',
+                subname: user.subname || '',
+                phone_number: user.phone_number || '',
+                sex: user.sex || '',
+                matricule: user.matricule || ''
             });
+            
+            // Load avatar if available (backend stores in 'photo' field)
+            if (user.photo || user.avatar) {
+                setAvatarData(prev => ({ ...prev, src: user.photo || user.avatar }));
+            }
             
             // Load school year data for admin and accountant
             if (user.role === 'admin' || user.role === 'accountant') {
@@ -91,28 +118,38 @@ const UserProfile = () => {
             setLoading(true);
             setError('');
             
+            // Upload avatar first if changed (temporairement désactivé)
+            if (avatarData.file) {
+                try {
+                    await handleAvatarUpload();
+                } catch (error) {
+                    console.log('Avatar upload disabled:', error.message);
+                    // Continue without failing the profile update
+                }
+            }
+            
             const response = await secureApiEndpoints.auth.updateProfile(profileData);
             
             if (response.success) {
-                setSuccess('Profil mis à jour avec succès');
+                setSuccess(paramsTraductions[getLang()].profileUpdated || 'Profil mis à jour avec succès');
                 setIsEditing(false);
                 
                 // Update user in auth context
                 updateUser(response.data);
                 
                 Swal.fire({
-                    title: 'Succès',
-                    text: 'Votre profil a été mis à jour avec succès',
+                    title: paramsTraductions[getLang()].success || 'Succès',
+                    text: paramsTraductions[getLang()].profileUpdatedSuccess || 'Votre profil a été mis à jour avec succès',
                     icon: 'success',
                     timer: 2000,
                     showConfirmButton: false
                 });
             } else {
-                setError(response.message || 'Erreur lors de la mise à jour du profil');
+                setError(response.message || paramsTraductions[getLang()].profileUpdateError || 'Erreur lors de la mise à jour du profil');
             }
         } catch (error) {
             console.error('Error updating profile:', error);
-            setError('Erreur lors de la mise à jour du profil');
+            setError(paramsTraductions[getLang()].profileUpdateError || 'Erreur lors de la mise à jour du profil');
         } finally {
             setLoading(false);
         }
@@ -123,12 +160,12 @@ const UserProfile = () => {
         
         // Validation
         if (passwordData.new_password !== passwordData.confirm_password) {
-            setError('Les nouveaux mots de passe ne correspondent pas');
+            setError(paramsTraductions[getLang()].passwordMismatch || 'Les nouveaux mots de passe ne correspondent pas');
             return;
         }
         
         if (passwordData.new_password.length < 6) {
-            setError('Le nouveau mot de passe doit contenir au moins 6 caractères');
+            setError(paramsTraductions[getLang()].passwordTooShort || 'Le nouveau mot de passe doit contenir au moins 6 caractères');
             return;
         }
         
@@ -142,7 +179,7 @@ const UserProfile = () => {
             });
             
             if (response.success) {
-                setSuccess('Mot de passe modifié avec succès');
+                setSuccess(paramsTraductions[getLang()].passwordChanged || 'Mot de passe modifié avec succès');
                 setPasswordData({
                     current_password: '',
                     new_password: '',
@@ -150,21 +187,90 @@ const UserProfile = () => {
                 });
                 
                 Swal.fire({
-                    title: 'Succès',
-                    text: 'Votre mot de passe a été modifié avec succès',
+                    title: paramsTraductions[getLang()].success || 'Succès',
+                    text: paramsTraductions[getLang()].passwordChangedSuccess || 'Votre mot de passe a été modifié avec succès',
                     icon: 'success',
                     timer: 2000,
                     showConfirmButton: false
                 });
             } else {
-                setError(response.message || 'Erreur lors de la modification du mot de passe');
+                setError(response.message || paramsTraductions[getLang()].passwordChangeError || 'Erreur lors de la modification du mot de passe');
             }
         } catch (error) {
             console.error('Error changing password:', error);
-            setError('Erreur lors de la modification du mot de passe');
+            setError(paramsTraductions[getLang()].passwordChangeError || 'Erreur lors de la modification du mot de passe');
         } finally {
             setLoading(false);
         }
+    };
+
+    // Avatar management functions
+    const handleAvatarChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                setError(paramsTraductions[getLang()].invalidImageType || 'Veuillez sélectionner un fichier image valide');
+                return;
+            }
+            
+            // Validate file size (max 2MB)
+            if (file.size > 2 * 1024 * 1024) {
+                setError(paramsTraductions[getLang()].imageTooLarge || 'L\'image ne doit pas dépasser 2MB');
+                return;
+            }
+            
+            const url = URL.createObjectURL(file);
+            setAvatarData({
+                src: url,
+                file: file,
+                uploading: false
+            });
+        }
+    };
+
+    const handleAvatarUpload = async () => {
+        if (!avatarData.file) return;
+        
+        try {
+            setAvatarData(prev => ({ ...prev, uploading: true }));
+            
+            const formData = new FormData();
+            formData.append('photo', avatarData.file); // Backend attend 'photo' et non 'avatar'
+            
+            const response = await secureApiEndpoints.auth.uploadAvatar(formData);
+            
+            if (response.success) {
+                setAvatarData(prev => ({ 
+                    ...prev, 
+                    file: null, 
+                    uploading: false,
+                    src: response.data.url || prev.src
+                }));
+                
+                // Update user data with new avatar (backend uses 'photo' field)
+                if (response.data.url) {
+                    updateUser({ ...user, photo: response.data.url, avatar: response.data.url });
+                }
+                
+                // Show success message
+                setSuccess(response.message || 'Avatar uploadé avec succès');
+            } else {
+                throw new Error(response.message || 'Erreur lors du téléchargement');
+            }
+        } catch (error) {
+            console.error('Error uploading avatar:', error);
+            setError(error.message || paramsTraductions[getLang()].avatarUploadError || 'Erreur lors du téléchargement de l\'avatar');
+            setAvatarData(prev => ({ ...prev, uploading: false }));
+        }
+    };
+
+    const handleAvatarRemove = () => {
+        setAvatarData({
+            src: 'assets/1.png',
+            file: null,
+            uploading: false
+        });
     };
 
     const handleWorkingYearChange = async (yearId) => {
@@ -176,21 +282,21 @@ const UserProfile = () => {
             
             if (response.success) {
                 setCurrentWorkingYear(response.data);
-                setSuccess('Année de travail mise à jour avec succès');
+                setSuccess(paramsTraductions[getLang()].workingYearUpdated || 'Année de travail mise à jour avec succès');
                 
                 Swal.fire({
-                    title: 'Succès',
-                    text: 'Votre année de travail a été mise à jour avec succès',
+                    title: paramsTraductions[getLang()].success || 'Succès',
+                    text: paramsTraductions[getLang()].workingYearUpdatedSuccess || 'Votre année de travail a été mise à jour avec succès',
                     icon: 'success',
                     timer: 2000,
                     showConfirmButton: false
                 });
             } else {
-                setError(response.message || 'Erreur lors de la mise à jour de l\'année de travail');
+                setError(response.message || paramsTraductions[getLang()].workingYearUpdateError || 'Erreur lors de la mise à jour de l\'année de travail');
             }
         } catch (error) {
             console.error('Error updating working year:', error);
-            setError('Erreur lors de la mise à jour de l\'année de travail');
+            setError(paramsTraductions[getLang()].workingYearUpdateError || 'Erreur lors de la mise à jour de l\'année de travail');
         } finally {
             setYearLoading(false);
         }
@@ -202,6 +308,7 @@ const UserProfile = () => {
             [field]: !prev[field]
         }));
     };
+
 
     const formatDate = (dateString) => {
         if (!dateString) return 'Non disponible';
@@ -277,23 +384,42 @@ const UserProfile = () => {
                 <div className="col-md-3 mb-4">
                     <div className="card">
                         <div className="card-body text-center">
-                            <div className="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3" 
-                                 style={{ width: '80px', height: '80px' }}>
-                                <Person className="text-primary" size={40} />
+                            <div className="position-relative mx-auto mb-3" style={{ width: '80px', height: '80px' }}>
+                                <img 
+                                    src={avatarData.src} 
+                                    alt="Avatar" 
+                                    className="rounded-circle w-100 h-100 object-fit-cover border"
+                                    style={{ objectFit: 'cover' }}
+                                />
+                                {avatarData.uploading && (
+                                    <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50 rounded-circle">
+                                        <div className="spinner-border spinner-border-sm text-white" role="status"></div>
+                                    </div>
+                                )}
                             </div>
-                            <h5 className="card-title">{user.name}</h5>
-                            <p className="text-muted small mb-2">{user.email}</p>
+                            <h5 className="card-title">
+                                {(user.role === 'admin' || user.role === 'accountant') ? 
+                                    (user.username || user.name) : 
+                                    (user.name && user.subname ? `${user.name} ${user.subname}` : user.name)
+                                }
+                            </h5>
+                            <p className="text-muted small mb-2">
+                                {(user.role === 'admin' || user.role === 'accountant') ? 
+                                    user.email : 
+                                    user.matricule
+                                }
+                            </p>
                             <div className="d-flex justify-content-center gap-1 mb-2">
                                 <span className={`badge ${user.is_active ? 'bg-success' : 'bg-secondary'}`}>
                                     {user.is_active ? 'Actif' : 'Inactif'}
                                 </span>
                                 <span className="badge bg-primary">
-                                    {user.role === 'admin' ? 'Admin' : 
-                                     user.role === 'accountant' ? 'Comptable' : 
-                                     user.role === 'teacher' ? 'Enseignant' : 'Utilisateur'}
+                                    {user.role === 'admin' ? paramsTraductions[getLang()].admin || 'Admin' : 
+                                     user.role === 'accountant' ? paramsTraductions[getLang()].accountant || 'Comptable' : 
+                                     user.role === 'teacher' ? paramsTraductions[getLang()].teacher || 'Enseignant' : 'Utilisateur'}
                                 </span>
                             </div>
-                            {user.username && (
+                            {(user.role === 'admin' || user.role === 'accountant') && user.username && (
                                 <small className="text-muted">@{user.username}</small>
                             )}
                         </div>
@@ -355,54 +481,194 @@ const UserProfile = () => {
                             <div className="card-body">
                                 {isEditing ? (
                                     <form onSubmit={handleProfileSubmit}>
-                                        <div className="row">
-                                            <div className="col-md-6">
-                                                <div className="mb-3">
-                                                    <label className="form-label">Nom complet *</label>
-                                                    <input
-                                                        type="text"
-                                                        className="form-control"
-                                                        value={profileData.name}
-                                                        onChange={(e) => setProfileData({
-                                                            ...profileData,
-                                                            name: e.target.value
-                                                        })}
-                                                        required
+                                        {/* Avatar Upload Section */}
+                                        <div className="row mb-4">
+                                            <div className="col-12 text-center">
+                                                <div className="position-relative d-inline-block">
+                                                    <img 
+                                                        src={avatarData.src} 
+                                                        alt="Avatar" 
+                                                        className="rounded-circle border"
+                                                        style={{ width: '120px', height: '120px', objectFit: 'cover' }}
                                                     />
+                                                    <div className="position-absolute bottom-0 end-0">
+                                                        <label htmlFor="avatar-upload" className="btn btn-primary btn-sm rounded-circle p-2" style={{ cursor: 'pointer' }}>
+                                                            <CameraFill size={16} />
+                                                            <input 
+                                                                type="file" 
+                                                                id="avatar-upload"
+                                                                accept="image/*"
+                                                                onChange={handleAvatarChange}
+                                                                style={{ display: 'none' }}
+                                                            />
+                                                        </label>
+                                                    </div>
+                                                    {avatarData.file && (
+                                                        <div className="position-absolute top-0 start-100 translate-middle">
+                                                            <button 
+                                                                type="button"
+                                                                className="btn btn-danger btn-sm rounded-circle p-1"
+                                                                onClick={handleAvatarRemove}
+                                                                title="Supprimer"
+                                                            >
+                                                                <Trash size={12} />
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                    {avatarData.uploading && (
+                                                        <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50 rounded-circle">
+                                                            <div className="spinner-border spinner-border-sm text-white" role="status"></div>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            </div>
-                                            <div className="col-md-6">
-                                                <div className="mb-3">
-                                                    <label className="form-label">Email *</label>
-                                                    <input
-                                                        type="email"
-                                                        className="form-control"
-                                                        value={profileData.email}
-                                                        onChange={(e) => setProfileData({
-                                                            ...profileData,
-                                                            email: e.target.value
-                                                        })}
-                                                        required
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="row">
-                                            <div className="col-md-6">
-                                                <div className="mb-3">
-                                                    <label className="form-label">Téléphone</label>
-                                                    <input
-                                                        type="tel"
-                                                        className="form-control"
-                                                        value={profileData.contact}
-                                                        onChange={(e) => setProfileData({
-                                                            ...profileData,
-                                                            contact: e.target.value
-                                                        })}
-                                                    />
-                                                </div>
+                                                <p className="text-muted small mt-2 mb-0">
+                                                    {paramsTraductions[getLang()].clickToChangeAvatar || 'Cliquez sur l\'icône pour changer votre photo'}
+                                                </p>
                                             </div>
                                         </div>
+
+                                        {/* Form fields based on user role */}
+                                        {(user.role === 'admin' || user.role === 'accountant') ? (
+                                            <>
+                                                <div className="row">
+                                                    <div className="col-md-6">
+                                                        <div className="mb-3">
+                                                            <label className="form-label">{paramsTraductions[getLang()].username || 'Nom d\'utilisateur'} *</label>
+                                                            <input
+                                                                type="text"
+                                                                className="form-control"
+                                                                value={profileData.username}
+                                                                onChange={(e) => setProfileData({
+                                                                    ...profileData,
+                                                                    username: e.target.value
+                                                                })}
+                                                                required
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="col-md-6">
+                                                        <div className="mb-3">
+                                                            <label className="form-label">{paramsTraductions[getLang()].email || 'Email'} *</label>
+                                                            <input
+                                                                type="email"
+                                                                className="form-control"
+                                                                value={profileData.email}
+                                                                onChange={(e) => setProfileData({
+                                                                    ...profileData,
+                                                                    email: e.target.value
+                                                                })}
+                                                                required
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="row">
+                                                    <div className="col-md-6">
+                                                        <PhoneInput
+                                                            label={paramsTraductions[getLang()].number || 'Téléphone'}
+                                                            value={profileData.contact || profileData.phone_number}
+                                                            onChange={(e) => {
+                                                                const value = e.target.value;
+                                                                setProfileData({
+                                                                    ...profileData,
+                                                                    contact: value,
+                                                                    phone_number: value
+                                                                });
+                                                            }}
+                                                            placeholder="+237 6XX XXX XXX"
+                                                            className="mb-3"
+                                                            showSuggestions={true}
+                                                        />
+                                                    </div>
+                                                    <div className="col-md-6">
+                                                        <div className="mb-3">
+                                                            <label className="form-label">{paramsTraductions[getLang()].name || 'Nom complet'}</label>
+                                                            <input
+                                                                type="text"
+                                                                className="form-control"
+                                                                value={profileData.name}
+                                                                onChange={(e) => setProfileData({
+                                                                    ...profileData,
+                                                                    name: e.target.value
+                                                                })}
+                                                                placeholder="Votre nom complet"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="row">
+                                                    <div className="col-md-6">
+                                                        <div className="mb-3">
+                                                            <label className="form-label">{paramsTraductions[getLang()].teacherName || 'Nom'} *</label>
+                                                            <input
+                                                                type="text"
+                                                                className="form-control"
+                                                                value={profileData.name}
+                                                                onChange={(e) => setProfileData({
+                                                                    ...profileData,
+                                                                    name: e.target.value
+                                                                })}
+                                                                required
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="col-md-6">
+                                                        <div className="mb-3">
+                                                            <label className="form-label">{paramsTraductions[getLang()].teacherSubname || 'Prénom'} *</label>
+                                                            <input
+                                                                type="text"
+                                                                className="form-control"
+                                                                value={profileData.subname}
+                                                                onChange={(e) => setProfileData({
+                                                                    ...profileData,
+                                                                    subname: e.target.value
+                                                                })}
+                                                                required
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="row">
+                                                    <div className="col-md-6">
+                                                        <PhoneInput
+                                                            label={paramsTraductions[getLang()].number || 'Téléphone'}
+                                                            value={profileData.phone_number}
+                                                            onChange={(e) => {
+                                                                const value = e.target.value;
+                                                                setProfileData({
+                                                                    ...profileData,
+                                                                    phone_number: value,
+                                                                    contact: value
+                                                                });
+                                                            }}
+                                                            placeholder="+237 6XX XXX XXX"
+                                                            className="mb-3"
+                                                            showSuggestions={true}
+                                                        />
+                                                    </div>
+                                                    <div className="col-md-6">
+                                                        <div className="mb-3">
+                                                            <label className="form-label">{paramsTraductions[getLang()].sex || 'Sexe'}</label>
+                                                            <select 
+                                                                className="form-select"
+                                                                value={profileData.sex}
+                                                                onChange={(e) => setProfileData({
+                                                                    ...profileData,
+                                                                    sex: e.target.value
+                                                                })}
+                                                            >
+                                                                <option value="">{paramsTraductions[getLang()].selectSex || 'Sélectionner...'}</option>
+                                                                <option value="m">{paramsTraductions[getLang()].m || 'Masculin'}</option>
+                                                                <option value="f">{paramsTraductions[getLang()].f || 'Féminin'}</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
                                         
                                         <div className="d-flex gap-2">
                                             <button
@@ -418,7 +684,7 @@ const UserProfile = () => {
                                                 ) : (
                                                     <>
                                                         <Check size={16} className="me-1" />
-                                                        Enregistrer
+                                                        {paramsTraductions[getLang()].save || 'Enregistrer'}
                                                     </>
                                                 )}
                                             </button>
@@ -430,46 +696,123 @@ const UserProfile = () => {
                                                     setProfileData({
                                                         name: user.name || '',
                                                         email: user.email || '',
-                                                        contact: user.contact || ''
+                                                        contact: user.contact || '',
+                                                        username: user.username || '',
+                                                        subname: user.subname || '',
+                                                        phone_number: user.phone_number || '',
+                                                        sex: user.sex || '',
+                                                        matricule: user.matricule || ''
                                                     });
+                                                    handleAvatarRemove();
                                                 }}
                                             >
                                                 <X size={16} className="me-1" />
-                                                Annuler
+                                                {paramsTraductions[getLang()].cancel || 'Annuler'}
                                             </button>
                                         </div>
                                     </form>
                                 ) : (
                                     <div className="row">
-                                        <div className="col-md-6">
-                                            <div className="mb-3">
-                                                <label className="form-label text-muted">Nom complet</label>
-                                                <p className="fw-medium">{user.name}</p>
-                                            </div>
-                                            <div className="mb-3">
-                                                <label className="form-label text-muted">Téléphone</label>
-                                                <p className="fw-medium">
-                                                    <Telephone size={16} className="me-1" />
-                                                    {user.contact || 'Non renseigné'}
-                                                </p>
-                                            </div>
+                                        {/* Avatar display */}
+                                        <div className="col-12 text-center mb-4">
+                                            <img 
+                                                src={avatarData.src} 
+                                                alt="Avatar" 
+                                                className="rounded-circle border"
+                                                style={{ width: '120px', height: '120px', objectFit: 'cover' }}
+                                            />
                                         </div>
-                                        <div className="col-md-6">
-                                            <div className="mb-3">
-                                                <label className="form-label text-muted">Email</label>
-                                                <p className="fw-medium">
-                                                    <Envelope size={16} className="me-1" />
-                                                    {user.email}
-                                                </p>
-                                            </div>
-                                        </div>
+                                        
+                                        {/* User information based on role */}
+                                        {(user.role === 'admin' || user.role === 'accountant') ? (
+                                            <>
+                                                <div className="col-md-6">
+                                                    <div className="mb-3">
+                                                        <label className="form-label text-muted">{paramsTraductions[getLang()].username || 'Nom d\'utilisateur'}</label>
+                                                        <p className="fw-medium d-flex align-items-center gap-1">
+                                                            <Person size={16} className="me-1" />
+                                                            {user.username || 'Non défini'}
+                                                        </p>
+                                                    </div>
+                                                    <div className="mb-3">
+                                                        <label className="form-label text-muted">{paramsTraductions[getLang()].email || 'Email'}</label>
+                                                        <p className="fw-medium d-flex align-items-center gap-1">
+                                                            <Envelope size={16} className="me-1" />
+                                                            {user.email}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="col-md-6">
+                                                    <div className="mb-3">
+                                                        <label className="form-label text-muted">{paramsTraductions[getLang()].number || 'Téléphone'}</label>
+                                                        <p className="fw-medium d-flex align-items-center gap-1">
+                                                            <Telephone size={16} className="me-1" />
+                                                            {user.contact || user.phone_number || 'Non renseigné'}
+                                                        </p>
+                                                    </div>
+                                                    <div className="mb-3">
+                                                        <label className="form-label text-muted">{paramsTraductions[getLang()].name || 'Nom complet'}</label>
+                                                        <p className="fw-medium d-flex align-items-center gap-1">
+                                                            <Person size={16} className="me-1" />
+                                                            {user.name || 'Non défini'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="col-md-6">
+                                                    <div className="mb-3">
+                                                        <label className="form-label text-muted">{paramsTraductions[getLang()].teacherName || 'Nom'}</label>
+                                                        <p className="fw-medium d-flex align-items-center gap-1">
+                                                            <Person size={16} className="me-1" />
+                                                            {user.name}
+                                                        </p>
+                                                    </div>
+                                                    <div className="mb-3">
+                                                        <label className="form-label text-muted">{paramsTraductions[getLang()].teacherSubname || 'Prénom'}</label>
+                                                        <p className="fw-medium d-flex align-items-center gap-1">
+                                                            <Person size={16} className="me-1" />
+                                                            {user.subname}
+                                                        </p>
+                                                    </div>
+                                                    <div className="mb-3">
+                                                        <label className="form-label text-muted">{paramsTraductions[getLang()].number || 'Téléphone'}</label>
+                                                        <p className="fw-medium d-flex align-items-center gap-1">
+                                                            <Telephone size={16} className="me-1" />
+                                                            {user.phone_number || user.contact || 'Non renseigné'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="col-md-6">
+                                                    <div className="mb-3">
+                                                        <label className="form-label text-muted">{paramsTraductions[getLang()].matricule || 'Matricule'}</label>
+                                                        <p className="fw-medium d-flex align-items-center gap-1">
+                                                            <Building size={16} className="me-1" />
+                                                            {user.matricule || 'Non défini'}
+                                                        </p>
+                                                    </div>
+                                                    <div className="mb-3">
+                                                        <label className="form-label text-muted">{paramsTraductions[getLang()].sex || 'Sexe'}</label>
+                                                        <p className="fw-medium d-flex align-items-center gap-1">
+                                                            {user.sex === 'm' ? 
+                                                                (paramsTraductions[getLang()].m || 'Masculin') : 
+                                                                user.sex === 'f' ? 
+                                                                (paramsTraductions[getLang()].f || 'Féminin') : 
+                                                                'Non défini'
+                                                            }
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
                                         <div className="col-12">
                                             <hr />
                                             <div className="row">
                                                 <div className="col-md-4">
                                                     <div className="mb-3">
                                                         <label className="form-label text-muted">Date de création</label>
-                                                        <p className="fw-medium">
+                                                        <p className="fw-medium d-flex align-items-center gap-1">
                                                             <Calendar size={16} className="me-1" />
                                                             {formatDate(user.created_at)}
                                                         </p>
@@ -478,7 +821,7 @@ const UserProfile = () => {
                                                 <div className="col-md-4">
                                                     <div className="mb-3">
                                                         <label className="form-label text-muted">Rôle</label>
-                                                        <p className="fw-medium">
+                                                        <p className="fw-medium d-flex align-items-center gap-1">
                                                             <Building size={16} className="me-1" />
                                                             {user.role === 'admin' ? 'Administrateur' : 
                                                              user.role === 'accountant' ? 'Comptable' : 
@@ -489,7 +832,7 @@ const UserProfile = () => {
                                                 <div className="col-md-4">
                                                     <div className="mb-3">
                                                         <label className="form-label text-muted">Nom d'utilisateur</label>
-                                                        <p className="fw-medium">
+                                                        <p className="fw-medium d-flex align-items-center gap-1">
                                                             <Person size={16} className="me-1" />
                                                             {user.username || 'Non défini'}
                                                         </p>
@@ -536,7 +879,7 @@ const UserProfile = () => {
                                                     <div className="col-12">
                                                         <div className="card bg-light">
                                                             <div className="card-body">
-                                                                <h6 className="card-title mb-2">
+                                                                <h6 className="card-title mb-2  d-flex align-items-center gap-1">
                                                                     <Calendar size={18} className="me-2 text-primary" />
                                                                     Année de travail actuelle
                                                                 </h6>
@@ -565,7 +908,7 @@ const UserProfile = () => {
                     {activeTab === 'security' && (
                         <div className="card">
                             <div className="card-header">
-                                <h5 className="mb-0">
+                                <h5 className="mb-0 d-flex align-items-center gap-1">
                                     <Key size={20} className="me-2" />
                                     Changer le mot de passe
                                 </h5>
@@ -668,7 +1011,7 @@ const UserProfile = () => {
                     {activeTab === 'working-year' && (user.role === 'admin' || user.role === 'accountant') && (
                         <div className="card">
                             <div className="card-header">
-                                <h5 className="mb-0">
+                                <h5 className="mb-0  d-flex align-items-center gap-1">
                                     <Calendar size={20} className="me-2" />
                                     Année de travail
                                 </h5>

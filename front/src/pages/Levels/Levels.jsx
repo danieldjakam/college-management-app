@@ -15,12 +15,13 @@ import {
 } from 'react-bootstrap-icons';
 
 // Components
-import { Card, Button, Input, Alert, LoadingSpinner, Modal } from '../../components/UI';
+import { Card, Input, Alert, LoadingSpinner, Modal } from '../../components/UI';
 import ImportExportButton from '../../components/ImportExportButton';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 
 // Hooks
 import { useAuth } from '../../hooks/useAuth';
+import { Button } from 'react-bootstrap';
 
 const Levels = () => {
     const { user } = useAuth();
@@ -239,7 +240,6 @@ const Levels = () => {
                             resetForm();
                             setShowAddModal(true);
                         }}
-                        className="flex items-center gap-2"
                     >
                         <Plus size={16} />
                         Nouveau Niveau

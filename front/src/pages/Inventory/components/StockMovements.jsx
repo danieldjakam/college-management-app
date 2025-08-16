@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Eye
 } from 'lucide-react';
+import { host } from '../../../utils/fetch';
 
 const StockMovements = ({ item, onMovementRecorded }) => {
   const [movements, setMovements] = useState([]);
@@ -30,7 +31,7 @@ const StockMovements = ({ item, onMovementRecorded }) => {
     notes: ''
   });
 
-  const API_BASE = 'https://admin1.cpb-douala.com/api';
+  const API_BASE = host+'/api';
 
   const apiCall = async (url, options = {}) => {
     const token = localStorage.getItem('token');

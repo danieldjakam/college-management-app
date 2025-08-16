@@ -12,6 +12,7 @@ import {
   Activity,
   RefreshCw
 } from 'lucide-react';
+import { host } from '../../../utils/fetch';
 
 const InventoryDashboard = ({ onRefresh }) => {
   const [stats, setStats] = useState(null);
@@ -19,7 +20,7 @@ const InventoryDashboard = ({ onRefresh }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const API_BASE = 'https://admin1.cpb-douala.com/api';
+  const API_BASE = host+'/api';
 
   const apiCall = async (url) => {
     const token = localStorage.getItem('token');

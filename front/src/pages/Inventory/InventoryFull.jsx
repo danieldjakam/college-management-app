@@ -307,7 +307,7 @@ const InventoryFull = () => {
         <div className="col-12">
           {/* Header */}
           <div className="card mb-4">
-            <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <div className="card-header d-flex justify-content-between align-items-center">
               <div>
                 <h3 className="mb-0">📦 Gestion d'Inventaire</h3>
                 <small>Bienvenue {user?.name} - Gérez l'inventaire des équipements</small>

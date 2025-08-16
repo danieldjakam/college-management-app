@@ -341,7 +341,7 @@ const SchoolSettings = () => {
           <Col lg={8}>
             <Card className="mb-4">
               <Card.Header>
-                <h5 className="mb-0">
+                <h5 className="mb-0 d-flex align-items-center gap-1">
                   <Building className="me-2" />
                   Informations Générales
                 </h5>
@@ -377,7 +377,7 @@ const SchoolSettings = () => {
                 </Row>
 
                 <Form.Group className="mb-3">
-                  <Form.Label>
+                  <Form.Label className=" d-flex align-items-center gap-1">
                     <GeoAlt className="me-1" />
                     Adresse complète
                   </Form.Label>
@@ -395,7 +395,7 @@ const SchoolSettings = () => {
                 <Row>
                   <Col md={6}>
                     <Form.Group className="mb-3">
-                      <Form.Label>
+                  <Form.Label className=" d-flex align-items-center gap-1">
                         <Telephone className="me-1" />
                         Téléphone
                       </Form.Label>
@@ -411,7 +411,7 @@ const SchoolSettings = () => {
                   </Col>
                   <Col md={6}>
                     <Form.Group className="mb-3">
-                      <Form.Label>
+                  <Form.Label className=" d-flex align-items-center gap-1">
                         <Envelope className="me-1" />
                         Email
                       </Form.Label>
@@ -430,7 +430,7 @@ const SchoolSettings = () => {
                 <Row>
                   <Col md={6}>
                     <Form.Group className="mb-3">
-                      <Form.Label>
+                    <Form.Label className=" d-flex align-items-center gap-1">
                         <Globe className="me-1" />
                         Site Web
                       </Form.Label>
@@ -446,7 +446,7 @@ const SchoolSettings = () => {
                   </Col>
                   <Col md={6}>
                     <Form.Group className="mb-3">
-                      <Form.Label>
+                    <Form.Label className=" d-flex align-items-center gap-1">
                         <CurrencyDollar className="me-1" />
                         Monnaie
                       </Form.Label>
@@ -512,7 +512,7 @@ const SchoolSettings = () => {
             {/* Paramètres financiers */}
             <Card className="mb-4">
               <Card.Header>
-                <h5 className="mb-0">
+                <h5 className="mb-0 d-flex align-items-center gap-1">
                   <CurrencyDollar className="me-2" />
                   Paramètres Financiers
                 </h5>
@@ -521,7 +521,7 @@ const SchoolSettings = () => {
                 <Row>
                   <Col md={6}>
                     <Form.Group className="mb-3">
-                      <Form.Label>
+                    <Form.Label className=" d-flex align-items-center gap-1">
                         <Calendar className="me-1" />
                         Date limite pour bourses/réductions
                       </Form.Label>
@@ -543,7 +543,7 @@ const SchoolSettings = () => {
                   </Col>
                   <Col md={6}>
                     <Form.Group className="mb-3">
-                      <Form.Label>
+                      <Form.Label className=" d-flex align-items-center gap-1">
                         <Percent className="me-1" />
                         Pourcentage de réduction (%)
                       </Form.Label>
@@ -573,7 +573,7 @@ const SchoolSettings = () => {
             {/* Configuration WhatsApp */}
             <Card className="mb-4">
               <Card.Header>
-                <h5 className="mb-0">
+                <h5 className="mb-0 d-flex align-items-center gap-1">
                   <Whatsapp className="me-2" />
                   Notifications WhatsApp
                 </h5>
@@ -582,7 +582,7 @@ const SchoolSettings = () => {
                 <Row className="mb-3">
                   <Col md={6}>
                     <Form.Group className="mb-3">
-                      <Form.Label>
+                      <Form.Label className=" d-flex align-items-center gap-1">
                         <Telephone className="me-1" />
                         Numéro WhatsApp pour notifications
                       </Form.Label>
@@ -773,7 +773,7 @@ const SchoolSettings = () => {
           <Col lg={4}>
             <Card className="mb-4">
               <Card.Header>
-                <h5 className="mb-0">
+                <h5 className="mb-0 d-flex align-items-center gap-1">
                   <Upload className="me-2" />
                   Logo de l'Établissement
                 </h5>

@@ -30,12 +30,19 @@ class PhotoUploadController extends Controller
             $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
             
             // Stocker le fichier dans le dossier public/user_photos
-            $path = $file->storeAs('public/user_photos', $filename);
+            $path = Storage::disk('public')->putFileAs('user_photos', $file, $filename);
             
             if ($path) {
                 // Retourner l'URL complète avec le bon port
                 $url = Storage::url('user_photos/' . $filename);
                 $fullUrl = request()->getSchemeAndHttpHost() . $url; // Utilise le même host que la requête
+                
+                // Mettre à jour la photo dans le profil utilisateur
+                $user = auth()->user();
+                if ($user) {
+                    $user->photo = $fullUrl;
+                    $user->save();
+                }
                 
                 return response()->json([
                     'success' => true,

@@ -361,7 +361,7 @@ const Stats = () => {
                 <Col>
                     <div className="d-flex justify-content-between align-items-center">
                         <div>
-                            <h2 className="h4 mb-1">
+                            <h2 className="h4 mb-1 d-flex align-items-center">
                                 <BarChartFill size={24} className="me-2" />
                                 Statistiques du Système
                             </h2>
@@ -445,7 +445,7 @@ const Stats = () => {
                     <Tabs activeKey={activeTab} onSelect={setActiveTab}>
                         {/* Onglet Élèves */}
                         <Tab eventKey="students" title={
-                            <span><Person className="me-2" />Élèves</span>
+                            <span className='d-flex align-items-center'><Person className="me-2" />Élèves</span>
                         }>
                             <Row className="mt-4">
                                 <Col md={6}>
@@ -476,7 +476,7 @@ const Stats = () => {
 
                         {/* Onglet Classes */}
                         <Tab eventKey="classes" title={
-                            <span><Building className="me-2" />Classes</span>
+                            <span className='d-flex align-items-center'><Building className="me-2" />Classes</span>
                         }>
                             <Row className="mt-4">
                                 <Col md={6}>
@@ -499,7 +499,7 @@ const Stats = () => {
                         {/* Onglet Enseignants - Admin seulement */}
                         {user?.role === 'admin' && (
                             <Tab eventKey="teachers" title={
-                                <span><PersonFill className="me-2" />Enseignants</span>
+                                <span className='d-flex align-items-center'><PersonFill className="me-2" />Enseignants</span>
                             }>
                                 <Row className="mt-4">
                                     <Col md={6}>

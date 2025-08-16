@@ -13,12 +13,13 @@ import {
 } from 'react-bootstrap-icons';
 
 // Components
-import { Card, Button, Input, Alert, LoadingSpinner, Modal } from '../../components/UI';
+import { Card, Input, Alert, LoadingSpinner, Modal } from '../../components/UI';
 import ImportExportButton from '../../components/ImportExportButton';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 
 // Hooks
 import { useAuth } from '../../hooks/useAuth';
+import { Button } from 'react-bootstrap';
 
 const Sections = () => {
     const { user } = useAuth();
@@ -210,6 +211,7 @@ const Sections = () => {
                         onImportSuccess={loadSections}
                         templateFileName="template_sections.csv"
                     />
+                    
                     <Button
                         onClick={() => {
                             resetForm();
