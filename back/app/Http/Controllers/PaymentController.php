@@ -987,7 +987,7 @@ class PaymentController extends Controller
             </div>
         ";
 
-        // HTML du reçu en format A5 avec double exemplaire
+        // HTML du reçu en format A4 paysage - double exemplaire côte à côte
         $html = "
         <!DOCTYPE html>
         <html>
@@ -996,98 +996,116 @@ class PaymentController extends Controller
             <title>Reçu de Paiement - {$payment->receipt_number}</title>
             <style>
                 @page {
-                    size: A5;
-                    margin: 0.5cm;
+                    size: A4 landscape;
+                    margin: 1cm;
                 }
 
                 body {
                     font-family: Arial, sans-serif;
                     margin: 0;
                     padding: 0;
-                    font-size: 9px;
+                    font-size: 7px;
                     line-height: 1.1;
                     color: #000;
+                    background-color: white;
+                }
+
+                .receipt-main-container {
                     height: 100vh;
                     display: flex;
                     flex-direction: column;
-                }
-
-                .receipt-container {
-                    height: 100%;
-                    display: flex;
-                    flex-direction: column;
+                    max-width: 100%;
                 }
 
                 .receipt-copy {
                     flex: 1;
+                    padding: 4px;
+                    border: 1px solid #000;
+                    background-color: white;
                     position: relative;
-                    padding: 8px;
-                    border-bottom: 2px dashed #000;
                     display: flex;
                     flex-direction: column;
+                    margin-bottom: 3px;
                 }
 
                 .receipt-copy:last-child {
-                    border-bottom: none;
+                    margin-bottom: 0;
                 }
 
                 .copy-label {
                     position: absolute;
                     top: 2px;
-                    right: 2px;
-                    font-size: 7px;
+                    right: 4px;
+                    font-size: 5px;
                     font-weight: bold;
                     color: #666;
                     background: #f0f0f0;
-                    padding: 2px 4px;
-                    border-radius: 2px;
+                    padding: 1px 2px;
+                    border: 1px solid #ccc;
                 }
 
                 .header {
                     text-align: center;
-                    margin-bottom: 8px;
+                    margin-bottom: 4px;
                     position: relative;
+                    border-bottom: 1px solid #000;
+                    padding-bottom: 3px;
                 }
 
                 .logo {
                     position: absolute;
-                    left: 5px;
+                    left: 0;
                     top: 0;
-                    width: 25px;
-                    height: 25px;
+                    width: 20px;
+                    height: 20px;
                     object-fit: contain;
                 }
 
                 .school-name {
-                    font-size: 10px;
+                    font-size: 8px;
                     font-weight: bold;
                     margin-bottom: 2px;
+                    color: #000;
                 }
 
                 .academic-year {
-                    font-size: 8px;
-                    margin-bottom: 3px;
+                    font-size: 6px;
+                    margin-bottom: 2px;
+                    color: #000;
                 }
 
                 .receipt-title {
-                    font-size: 9px;
+                    font-size: 7px;
                     font-weight: bold;
                     text-decoration: underline;
-                    margin: 5px 0;
+                    margin: 2px 0;
+                    color: #000;
                 }
 
                 .date-time {
                     position: absolute;
-                    top: 2px;
-                    left: 2px;
-                    font-size: 7px;
+                    top: 0;
+                    left: 0;
+                    font-size: 5px;
                     color: #666;
+                    background: #f0f0f0;
+                    padding: 1px 2px;
                 }
 
                 .student-info {
-                    margin: 8px 0;
-                    text-align: left;
-                    font-size: 8px;
+                    background: #f9f9f9;
+                    padding: 3px;
+                    border: 1px solid #ccc;
+                    margin-bottom: 3px;
+                    font-size: 6px;
+                }
+
+                .student-info h4 {
+                    margin: 0 0 2px 0;
+                    color: #000;
+                    font-size: 6px;
+                    border-bottom: 1px solid #ccc;
+                    padding-bottom: 1px;
                 }
 
                 .student-info div {
@@ -1095,67 +1113,175 @@ class PaymentController extends Controller
                     line-height: 1.2;
                 }
 
-                .payment-table, .recap-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin: 5px 0;
-                    font-size: 7px;
+                .student-info strong {
+                    color: #000;
+                    display: inline-block;
+                    min-width: 30px;
+                    font-size: 6px;
                 }
 
-                .payment-table th, .payment-table td,
-                .recap-table th, .recap-table td {
+                .payment-details {
+                    background: #fff;
                     border: 1px solid #000;
                     padding: 2px;
+                    margin-bottom: 2px;
+                    flex: 1;
+                }
+
+                .payment-details h4 {
+                    margin: 0 0 1px 0;
+                    color: #000;
+                    font-size: 6px;
                     text-align: center;
                 }
 
-                .payment-table th, .recap-table th {
-                    background-color: #f0f0f0;
+                .payment-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 1px 0;
+                    font-size: 4px;
+                }
+
+                .payment-table th {
+                    background: #e0e0e0;
+                    color: #000;
+                    padding: 1px;
+                    border: 1px solid #000;
                     font-weight: bold;
+                    text-align: center;
+                    font-size: 4px;
+                }
+
+                .payment-table td {
+                    border: 1px solid #000;
+                    padding: 1px;
+                    text-align: center;
+                    font-size: 4px;
+                }
+
+                .payment-table tr:nth-child(even) td {
+                    background: #f9f9f9;
                 }
 
                 .recap-section {
-                    margin: 5px 0;
+                    margin: 3px 0;
                 }
 
-                .recap-section strong {
-                    font-size: 8px;
+                .recap-section h4 {
+                    color: #000;
+                    font-size: 6px;
+                    margin-bottom: 2px;
+                    text-align: center;
+                    background: #f0f0f0;
+                    padding: 2px;
+                }
+
+                .recap-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 4px;
+                }
+
+                .recap-table th {
+                    background: #e0e0e0;
+                    color: #000;
+                    padding: 1px;
+                    border: 1px solid #000;
+                    font-weight: bold;
+                    text-align: center;
+                    font-size: 3px;
+                }
+
+                .recap-table td {
+                    border: 1px solid #000;
+                    padding: 1px;
+                    text-align: center;
+                    font-size: 3px;
+                }
+
+                .recap-table tr:nth-child(even) td {
+                    background: #f9f9f9;
+                }
+
+                .recap-table tr:last-child td {
+                    background: #f0f0f0 !important;
+                    font-weight: bold;
+                    border: 1px solid #000;
                 }
 
                 .footer-info {
                     margin-top: auto;
-                    font-size: 6px;
-                    line-height: 1.2;
+                    font-size: 5px;
+                    line-height: 1.1;
                     text-align: justify;
+                    background: #f9f9f9;
+                    padding: 2px;
+                    border-left: 1px solid #000;
+                }
+
+                .footer-info > div {
+                    margin: 1px 0;
+                }
+
+                .footer-info strong {
+                    color: #000;
                 }
 
                 .contact-info {
                     display: flex;
                     justify-content: space-between;
-                    margin-top: 3px;
+                    margin-top: 2px;
+                    background: white;
+                    padding: 2px;
+                    border: 1px solid #ccc;
                 }
 
                 .contact-left, .contact-right {
                     flex: 1;
                 }
 
+                .contact-left div, .contact-right div {
+                    margin: 1px 0;
+                    font-size: 5px;
+                }
+
                 .signature-section {
-                    margin-top: 8px;
+                    margin-top: 4px;
                     text-align: right;
-                    font-size: 7px;
+                    font-size: 5px;
+                    background: #f0f0f0;
+                    padding: 2px;
                 }
 
                 .signature-line {
-                    margin-top: 8px;
-                    font-size: 8px;
+                    margin-top: 3px;
+                    font-size: 5px;
+                    font-weight: bold;
+                    color: #000;
                 }
 
-                .float-right {
-                    float: right;
+                .amount-highlight {
+                    background: #fff3cd;
+                    padding: 1px 4px;
+                    border-radius: 3px;
+                    font-weight: bold;
+                    color: #856404;
                 }
 
-                .clearfix {
-                    clear: both;
+                .status-paid {
+                    color: #27ae60;
+                    font-weight: bold;
+                    background: #d4edda;
+                    padding: 2px 4px;
+                    border-radius: 3px;
+                }
+
+                .status-unpaid {
+                    color: #dc3545;
+                    font-weight: bold;
+                    background: #f8d7da;
+                    padding: 2px 4px;
+                    border-radius: 3px;
                 }
 
                 @media print {
@@ -1167,21 +1293,183 @@ class PaymentController extends Controller
                     .no-print {
                         display: none !important;
                     }
+
+                    .receipt-copy {
+                        border: 2px solid #000 !important;
+                    }
                 }
             </style>
         </head>
         <body>
-            <div class='receipt-container'>
+            <div class='receipt-main-container'>
                 <!-- Exemplaire Parents -->
                 <div class='receipt-copy'>
                     <div class='copy-label'>EXEMPLAIRE PARENTS</div>
-                    {$receiptContent}
+                    <div class='date-time'>
+                        Généré le " . now()->format('d/m/Y à H:i:s') . "
+                    </div>
+
+                    <div class='header'>
+                        " . ($schoolSettings->school_logo ? "<img src='" . url('storage/' . $schoolSettings->school_logo) . "' alt='Logo école' class='logo'>" : "") . "
+                        <div class='school-name'>{$schoolSettings->school_name}</div>
+                        <div class='academic-year'>Année académique : " . $workingYear->name . "</div>
+                        <div class='receipt-title'>REÇU DE PAIEMENT - N° {$payment->receipt_number}</div>
+                    </div>
+
+                    <div class='student-info'>
+                        <h4>📋 Informations Étudiant</h4>
+                        <div><strong>Matricule :</strong> " . ($student->student_number ?? 'N/A') . "</div>
+                        <div><strong>Nom :</strong> {$student->last_name} {$student->first_name}</div>
+                        <div><strong>Classe :</strong> " . ($schoolClass ? $schoolClass->name : 'Non défini') . "</div>
+                        <div><strong>Date validation :</strong> " . \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y') . "</div>
+                        <div><strong>Banque :</strong> " . ($schoolSettings->bank_name ?? 'N/A') . "</div>
+                        " . ($benefitInfo ? "<div><strong>Avantage :</strong> <span class='amount-highlight'>{$benefitInfo}</span></div>" : "") . "
+                    </div>
+
+                    <div class='payment-details'>
+                        <h4>💳 Détails du Paiement</h4>
+                        <table class='payment-table'>
+                            <thead>
+                                <tr>
+                                    <th>N°</th>
+                                    <th>Banque</th>
+                                    <th>Date versement</th>
+                                    <th>Tranche</th>
+                                    <th>Montant (FCFA)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {$paymentDetailsRows}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class='recap-section'>
+                        <h4>📊 Récapitulatif par Tranche</h4>
+                        <table class='recap-table'>
+                            <thead>
+                                <tr>
+                                    <th>Tranche</th>
+                                    <th>Normal</th>
+                                    <th>Payé</th>
+                                    <th>Réduc.</th>
+                                    <th>Bourse</th>
+                                    <th>Reste</th>
+                                    <th>Statut</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {$recapRows}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class='footer-info'>
+                        <div><strong>📌 Important :</strong> Vos dossiers ne seront transmis qu'après paiement complet.</div>
+                        <div>Les frais ne sont pas remboursables en cas d'abandon ou d'exclusion.</div>
+                        
+                        <div class='contact-info'>
+                            <div class='contact-left'>
+                                <div><strong>📍</strong> " . ($schoolSettings->school_address ? explode(',', $schoolSettings->school_address)[0] : '4100') . "</div>
+                                <div><strong>📞</strong> " . ($schoolSettings->school_phone ?? '233 43 25 47') . "</div>
+                                <div><strong>🌐</strong> " . ($schoolSettings->website ?? 'www.cpdyassa.com') . "</div>
+                            </div>
+                            <div class='contact-right'>
+                                <div><strong>🏙️</strong> " . ($schoolSettings->school_address ? explode(',', $schoolSettings->school_address)[1] ?? 'Douala' : 'Douala') . "</div>
+                                <div><strong>✉️</strong> " . ($schoolSettings->school_email ?? 'contact@cpdyassa.com') . "</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class='signature-section'>
+                        <div>Validé par : " . ($payment->createdByUser ? $payment->createdByUser->name : 'Comptable') . "</div>
+                        <div class='signature-line'>Signature : _____________</div>
+                    </div>
                 </div>
 
                 <!-- Exemplaire Collège -->
                 <div class='receipt-copy'>
                     <div class='copy-label'>EXEMPLAIRE COLLÈGE</div>
-                    {$receiptContent}
+                    <div class='date-time'>
+                        Généré le " . now()->format('d/m/Y à H:i:s') . "
+                    </div>
+
+                    <div class='header'>
+                        " . ($schoolSettings->school_logo ? "<img src='" . url('storage/' . $schoolSettings->school_logo) . "' alt='Logo école' class='logo'>" : "") . "
+                        <div class='school-name'>{$schoolSettings->school_name}</div>
+                        <div class='academic-year'>Année académique : " . $workingYear->name . "</div>
+                        <div class='receipt-title'>REÇU DE PAIEMENT - N° {$payment->receipt_number}</div>
+                    </div>
+
+                    <div class='student-info'>
+                        <h4>📋 Informations Étudiant</h4>
+                        <div><strong>Matricule :</strong> " . ($student->student_number ?? 'N/A') . "</div>
+                        <div><strong>Nom :</strong> {$student->last_name} {$student->first_name}</div>
+                        <div><strong>Classe :</strong> " . ($schoolClass ? $schoolClass->name : 'Non défini') . "</div>
+                        <div><strong>Date validation :</strong> " . \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y') . "</div>
+                        <div><strong>Banque :</strong> " . ($schoolSettings->bank_name ?? 'N/A') . "</div>
+                        " . ($benefitInfo ? "<div><strong>Avantage :</strong> <span class='amount-highlight'>{$benefitInfo}</span></div>" : "") . "
+                    </div>
+
+                    <div class='payment-details'>
+                        <h4>💳 Détails du Paiement</h4>
+                        <table class='payment-table'>
+                            <thead>
+                                <tr>
+                                    <th>N°</th>
+                                    <th>Banque</th>
+                                    <th>Date versement</th>
+                                    <th>Tranche</th>
+                                    <th>Montant (FCFA)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {$paymentDetailsRows}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class='recap-section'>
+                        <h4>📊 Récapitulatif par Tranche</h4>
+                        <table class='recap-table'>
+                            <thead>
+                                <tr>
+                                    <th>Tranche</th>
+                                    <th>Normal</th>
+                                    <th>Payé</th>
+                                    <th>Réduc.</th>
+                                    <th>Bourse</th>
+                                    <th>Reste</th>
+                                    <th>Statut</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {$recapRows}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class='footer-info'>
+                        <div><strong>📌 Important :</strong> Vos dossiers ne seront transmis qu'après paiement complet.</div>
+                        <div>Les frais ne sont pas remboursables en cas d'abandon ou d'exclusion.</div>
+                        
+                        <div class='contact-info'>
+                            <div class='contact-left'>
+                                <div><strong>📍</strong> " . ($schoolSettings->school_address ? explode(',', $schoolSettings->school_address)[0] : '4100') . "</div>
+                                <div><strong>📞</strong> " . ($schoolSettings->school_phone ?? '233 43 25 47') . "</div>
+                                <div><strong>🌐</strong> " . ($schoolSettings->website ?? 'www.cpdyassa.com') . "</div>
+                            </div>
+                            <div class='contact-right'>
+                                <div><strong>🏙️</strong> " . ($schoolSettings->school_address ? explode(',', $schoolSettings->school_address)[1] ?? 'Douala' : 'Douala') . "</div>
+                                <div><strong>✉️</strong> " . ($schoolSettings->school_email ?? 'contact@cpdyassa.com') . "</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class='signature-section'>
+                        <div>Validé par : " . ($payment->createdByUser ? $payment->createdByUser->name : 'Comptable') . "</div>
+                        <div class='signature-line'>Signature : _____________</div>
+                    </div>
                 </div>
             </div>
         </body>

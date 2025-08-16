@@ -793,15 +793,15 @@ const StudentPayment = () => {
                     <title>Reçu_${receiptNumber}</title>
                     <style>
                         @page {
-                            size: A5;
-                            margin: 0.5cm;
+                            size: A4 landscape;
+                            margin: 1cm;
                         }
                         
                         body { 
                             font-family: Arial, sans-serif; 
                             margin: 0; 
                             padding: 0;
-                            font-size: 9px;
+                            font-size: 7px;
                             line-height: 1.1;
                         }
                         
@@ -824,8 +824,8 @@ const StudentPayment = () => {
                             
                             .receipt-container {
                                 background: white;
-                                width: 148mm;  /* A5 width */
-                                height: 210mm; /* A5 height */
+                                width: 200mm;  /* Largeur encore plus réduite */
+                                height: 190mm; /* Hauteur maintenue */
                                 margin: 0 auto;
                                 box-shadow: 0 0 10px rgba(0,0,0,0.1);
                             }
@@ -837,16 +837,16 @@ const StudentPayment = () => {
                         ${receiptHtml}
                     </div>
                     <div class="no-print" style="text-align: center; margin-top: 30px; background: white; padding: 20px;">
-                        <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">📄 Imprimer A5</button>
+                        <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">📄 Imprimer A4 Paysage</button>
                         <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer;">✖️ Fermer</button>
                         <div style="margin-top: 15px; font-size: 12px; color: #666;">
                             <p>📋 <strong>Instructions :</strong></p>
-                            <ul style="text-align: left; max-width: 400px; margin: 0 auto;">
-                                <li>Configurez votre imprimante sur format <strong>A5</strong></li>
+                            <ul style="text-align: left; max-width: 500px; margin: 0 auto;">
+                                <li>Configurez votre imprimante sur format <strong>A4 Paysage</strong></li>
                                 <li>Le reçu contient 2 exemplaires identiques</li>
                                 <li><strong>Partie haute :</strong> Exemplaire parents</li>
                                 <li><strong>Partie basse :</strong> Exemplaire collège</li>
-                                <li>Découpez le long de la ligne pointillée</li>
+                                <li>Découpez au milieu de la page pour séparer les exemplaires</li>
                             </ul>
                         </div>
                     </div>
