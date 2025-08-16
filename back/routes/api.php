@@ -67,7 +67,32 @@ Route::get('test-school-settings', function () {
     }
 });
 
+// In api.php
 
+Route::get('/user-management/{id}/professional-card', function () {
+    return response('', 204)
+        ->header('Access-Control-Allow-Origin', 'https://admin.cpb-douala.com')
+        ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With')
+        ->header('Access-Control-Allow-Credentials', 'true')
+        ->header('Access-Control-Max-Age', '1728000');
+});
+Route::get('/students', function () {
+    return response('', 204)
+        ->header('Access-Control-Allow-Origin', 'https://admin.cpb-douala.com')
+        ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With')
+        ->header('Access-Control-Allow-Credentials', 'true')
+        ->header('Access-Control-Max-Age', '1728000');
+});
+Route::post('/students', function () {
+    return response('', 201)
+        ->header('Access-Control-Allow-Origin', 'https://admin.cpb-douala.com')
+        ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With')
+        ->header('Access-Control-Allow-Credentials', 'true')
+        ->header('Access-Control-Max-Age', '1728000');
+});
 // Routes protégées
 Route::middleware('auth:api')->group(function () {
 
@@ -123,7 +148,6 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les élèves
     Route::prefix('students')->middleware(['role:admin,accountant,comptable_superieur'])->group(function () {
         Route::get('/class-series/{seriesId}', [StudentController::class, 'getByClassSeries']);
-        Route::post('/', [StudentController::class, 'store']);
         Route::put('/{student}', [StudentController::class, 'update']);
         Route::patch('/{student}/status', [StudentController::class, 'updateStatus']);
         Route::post('/{student}/update-with-photo', [StudentController::class, 'updateWithPhoto']);
@@ -238,7 +262,6 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/{id}', [UserManagementController::class, 'destroy']);
         
         // Routes pour cartes d'identité professionnelles
-        Route::get('/{id}/professional-card', [UserManagementController::class, 'generateProfessionalCard']);
         Route::get('/{id}/qr-code', [UserManagementController::class, 'getUserQR']);
     });
 
