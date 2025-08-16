@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Bell
 } from 'lucide-react';
+import { host } from '../../../utils/fetch';
 
 const WhatsAppAlerts = () => {
   const [lowStockItems, setLowStockItems] = useState([]);
@@ -19,7 +20,7 @@ const WhatsAppAlerts = () => {
   const [testLoading, setTestLoading] = useState(false);
   const [sendLoading, setSendLoading] = useState(false);
 
-  const API_BASE = 'https://admin1.cpb-douala.com/api';
+  const API_BASE = host+'/api';
 
   const apiCall = async (url, options = {}) => {
     const token = localStorage.getItem('token');

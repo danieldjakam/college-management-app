@@ -496,7 +496,7 @@ const Search = () => {
                 <Col>
                     <div className="d-flex justify-content-between align-items-center">
                         <div>
-                            <h2 className="h4 mb-1">
+                            <h2 className="h4 mb-1 d-flex align-items-center">
                                 <SearchIcon size={24} className="me-2" />
                                 Recherche Globale
                             </h2>

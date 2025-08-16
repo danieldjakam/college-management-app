@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { host } from '../../utils/fetch';
 
 const InventorySimplest = () => {
   const { user } = useAuth();
@@ -16,7 +17,7 @@ const InventorySimplest = () => {
     
     try {
       // Test simple sans service complexe
-      const response = await fetch('https://admin1.cpb-douala.com/api/inventory', {
+      const response = await fetch(host + '/api/inventory', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'

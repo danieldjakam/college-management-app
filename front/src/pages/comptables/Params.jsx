@@ -1,40 +1,45 @@
-import React, { useEffect, useState } from 'react';
-import { host } from '../../utils/fetch';
+import React, { useState } from 'react';
+import UserProfile from '../Profile/UserProfile';
 import EditLanguage from '../Profile/EditLanguage';
-import EditProfile from '../Profile/EditProfile';
-import Profile from '../Profile/Profile';
 function ParamsCompt() {
 	const [error, setError] = useState('');
-	const [loading, setLoading] = useState(false);
-	const [userInfos, setUserInfos] = useState([]);
 
-	const [isEditInfos, setIsEditInfos] = useState(false);
-	useEffect(() => {
-		(
-			async () => {
-				setLoading(true)
-				const resp = await fetch(host+'/users/getTeacherOrAdmin/', {headers: {
-					'Authorization': sessionStorage.user
-				}})
-				const data = await resp.json();
-				setUserInfos(data);
-				setLoading(false);
-			}
-		)()
-	}, [])
 	return (
-		<div className='container proCon'>
-		{
-			error !== '' ? <div className="alert alert-danger">{error}</div> : <></>
-		}
-		{
-		isEditInfos ? <EditProfile setIsEditInfos={setIsEditInfos} setError={setError}/> : <Profile userInfos={userInfos} setIsEditInfos={setIsEditInfos}/>
-    }
-    <EditLanguage setError={setError}/>
-	{
-		loading ? '' : ''
-	}
-  </div>)
+		<div className='container-fluid py-4'>
+			{error && (
+				<div className="row mb-3">
+					<div className="col-12">
+						<div className="alert alert-danger alert-dismissible fade show" role="alert">
+							{error}
+							<button 
+								type="button" 
+								className="btn-close" 
+								onClick={() => setError('')}
+								aria-label="Close"
+							></button>
+						</div>
+					</div>
+				</div>
+			)}
+			
+			{/* Profil utilisateur moderne */}
+			<UserProfile />
+			
+			{/* Paramètres de langue */}
+			<div className="row mt-4">
+				<div className="col-12">
+					<div className="card">
+						<div className="card-header">
+							<h5 className="mb-0">Paramètres de langue</h5>
+						</div>
+						<div className="card-body">
+							<EditLanguage setError={setError}/>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
 }
 
 export default ParamsCompt

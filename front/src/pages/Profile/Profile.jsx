@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { paramsTraductions } from '../../local/params'
 import {getLang} from '../../utils/lang'
 
+// ⚠️ COMPOSANT DÉPRÉCIÉ - Utiliser UserProfile.jsx à la place
+console.warn('[DEPRECATED] Profile.jsx est déprécié. Utilisez UserProfile.jsx à la place.');
+
 function Profile({userInfos, setIsEditInfos}) {
     const navigate = useNavigate();
     const logout = () => {

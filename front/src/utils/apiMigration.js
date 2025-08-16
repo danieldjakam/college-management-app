@@ -157,7 +157,55 @@ export const secureApiEndpoints = {
         refresh: () => authService.refreshToken(),
         me: () => authService.getCurrentUser(),
         updateProfile: (data) => secureApi.put('/users/profile', data),
-        changePassword: (data) => secureApi.put('/auth/change-password', data)
+        changePassword: (data) => secureApi.put('/auth/change-password', data),
+        uploadAvatar: async (formData) => {
+            const token = authService.getToken();
+            
+            try {
+                const response = await fetch(`${secureApi.baseURL}/upload-photo`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                        // Don't set Content-Type for FormData
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    let errorMessage = `HTTP Error ${response.status}: ${response.statusText}`;
+                    
+                    try {
+                        const contentType = response.headers.get('content-type');
+                        if (contentType && contentType.includes('application/json')) {
+                            const errorData = await response.json();
+                            errorMessage = errorData.message || errorData.error || errorMessage;
+                        }
+                    } catch (e) {
+                        // Ignore JSON parsing errors
+                    }
+                    
+                    throw new Error(errorMessage);
+                }
+
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const result = await response.json();
+                    return {
+                        success: result.success,
+                        message: result.message,
+                        data: {
+                            url: result.data?.url || null,
+                            filename: result.data?.filename || null
+                        }
+                    };
+                } else {
+                    throw new Error('Invalid response format');
+                }
+            } catch (error) {
+                throw error;
+            }
+        }
     },
 
     // === USERS ===
@@ -627,10 +675,10 @@ export const secureApiEndpoints = {
         create: (data) => secureApi.post('/school-years', data),
         update: (id, data) => secureApi.put(`/school-years/${id}`, data),
         setCurrent: (id) => secureApi.post(`/school-years/${id}/set-current`),
+        getActive: () => secureApi.get('/school-years/active'),
         getActiveYears: () => secureApi.get('/school-years/active'),
         getUserWorkingYear: () => secureApi.get('/school-years/user-working-year'),
-        setUserWorkingYear: (yearId) => secureApi.post('/school-years/set-user-working-year', { school_year_id: yearId }),
-        getActive: () => secureApi.get('/school-years/active')
+        setUserWorkingYear: (yearId) => secureApi.post('/school-years/set-user-working-year', { school_year_id: yearId })
     },
 
     // === PAYMENTS ===
@@ -932,16 +980,6 @@ export const secureApiEndpoints = {
         updateWorkSchedule: (teacherId, data) => secureApi.put(`/teacher-attendance/teacher/${teacherId}/work-schedule`, data)
     },
 
-    // === SCHOOL YEARS ===
-    schoolYears: {
-        getAll: () => secureApi.get('/school-years'),
-        getActive: () => secureApi.get('/school-years/active'),
-        getUserWorkingYear: () => secureApi.get('/school-years/user-working-year'),
-        setUserWorkingYear: (yearId) => secureApi.post('/school-years/set-user-working-year', { school_year_id: yearId }),
-        create: (data) => secureApi.post('/school-years', data),
-        update: (id, data) => secureApi.put(`/school-years/${id}`, data),
-        setCurrent: (id) => secureApi.post(`/school-years/${id}/set-current`)
-    },
 
     // === INVENTORY ===
     inventory: {

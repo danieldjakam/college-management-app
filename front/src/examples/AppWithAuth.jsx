@@ -19,7 +19,7 @@ import Login from '../pages/Login';
 import Dashboard from '../pages/Dashboard';
 import Students from '../pages/Students';
 import Teachers from '../pages/Teachers';
-import Profile from '../pages/Profile';
+import UserProfile from '../pages/Profile/UserProfile';
 
 /**
  * Exemple d'intégration complète de l'authentification dans votre App
@@ -90,7 +90,7 @@ const AppWithAuth = () => {
                                 path="/profile" 
                                 element={
                                     <ProtectedRoute>
-                                        <Profile />
+                                        <UserProfile />
                                     </ProtectedRoute>
                                 } 
                             />
