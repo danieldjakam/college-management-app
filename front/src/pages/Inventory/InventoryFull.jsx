@@ -46,7 +46,6 @@ const InventoryFull = () => {
   });
 
   const API_BASE =  `${host}/api`;
-
   const apiCall = async (url, options = {}) => {
     const token = localStorage.getItem('token');
     return fetch(`${API_BASE}${url}`, {

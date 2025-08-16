@@ -19,7 +19,7 @@ const InventoryDashboard = ({ onRefresh }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const API_BASE = 'http://127.0.0.1:8000/api';
+  const API_BASE = 'https://admin1.cpb-douala.com/api';
 
   const apiCall = async (url) => {
     const token = localStorage.getItem('token');

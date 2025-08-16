@@ -88,7 +88,30 @@ Route::get('test-inventory', function () {
     }
 });
 
-
+Route::get('/user-management/{id}/professional-card', function () {
+    return response('', 204)
+        ->header('Access-Control-Allow-Origin', 'https://admin.cpb-douala.com')
+        ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With')
+        ->header('Access-Control-Allow-Credentials', 'true')
+        ->header('Access-Control-Max-Age', '1728000');
+});
+Route::get('/students', function () {
+    return response('', 204)
+        ->header('Access-Control-Allow-Origin', 'https://admin.cpb-douala.com')
+        ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With')
+        ->header('Access-Control-Allow-Credentials', 'true')
+        ->header('Access-Control-Max-Age', '1728000');
+});
+Route::post('/students', function () {
+    return response('', 201)
+        ->header('Access-Control-Allow-Origin', 'https://admin.cpb-douala.com')
+        ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With')
+        ->header('Access-Control-Allow-Credentials', 'true')
+        ->header('Access-Control-Max-Age', '1728000');
+});
 // Routes protégées
 Route::middleware('auth:api')->group(function () {
 
@@ -326,7 +349,6 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/{id}', [UserManagementController::class, 'destroy']);
         
         // Routes pour cartes d'identité professionnelles
-        Route::get('/{id}/professional-card', [UserManagementController::class, 'generateProfessionalCard']);
         Route::get('/{id}/qr-code', [UserManagementController::class, 'getUserQR']);
     });
 

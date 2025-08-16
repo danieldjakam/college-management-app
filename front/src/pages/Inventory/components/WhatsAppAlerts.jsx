@@ -19,7 +19,7 @@ const WhatsAppAlerts = () => {
   const [testLoading, setTestLoading] = useState(false);
   const [sendLoading, setSendLoading] = useState(false);
 
-  const API_BASE = 'http://127.0.0.1:8000/api';
+  const API_BASE = 'https://admin1.cpb-douala.com/api';
 
   const apiCall = async (url, options = {}) => {
     const token = localStorage.getItem('token');

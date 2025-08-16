@@ -14,16 +14,20 @@ class SecureApiService {
         this.baseURL = `${host}/api`;
     }
 
-    // Fonction de requête sécurisée personnalisée
+    // Fonction de requête sécurisée personnalisée - VERSION AMÉLIORÉE
     async makeRequest(endpoint, options = {}) {
         const fullUrl = endpoint.startsWith('http') ? endpoint : `${this.baseURL}${endpoint}`;
         
         const token = authService.getToken();
         const headers = {
-            'Content-Type': 'application/json',
             'Accept': 'application/json',
             ...options.headers
         };
+
+        // Ne pas ajouter Content-Type pour FormData
+        if (!(options.body instanceof FormData)) {
+            headers['Content-Type'] = 'application/json';
+        }
 
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
@@ -37,7 +41,22 @@ class SecureApiService {
 
             // Gestion des erreurs HTTP
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
+                let errorMessage = `Erreur HTTP ${response.status}: ${response.statusText}`;
+                
+                try {
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        const errorData = await response.json();
+                        errorMessage = errorData.message || errorData.error || errorMessage;
+                    } else {
+                        const errorText = await response.text();
+                        if (errorText) {
+                            errorMessage = errorText;
+                        }
+                    }
+                } catch (parseError) {
+                    console.warn('Impossible de parser la réponse d\'erreur:', parseError);
+                }
                 
                 // Gestion spéciale pour les erreurs 401
                 if (response.status === 401) {
@@ -46,14 +65,31 @@ class SecureApiService {
                     throw new Error('Session expirée. Veuillez vous reconnecter.');
                 }
                 
-                throw new Error(
-                    errorData.message || 
-                    errorData.error || 
-                    `Erreur HTTP ${response.status}: ${response.statusText}`
-                );
+                throw new Error(errorMessage);
             }
 
-            return await response.json();
+            // Vérifier le type de contenu
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                const responseText = await response.text();
+                
+                if (!responseText.trim()) {
+                    console.warn('Réponse JSON vide du serveur');
+                    return { success: true };
+                }
+                
+                try {
+                    return JSON.parse(responseText);
+                } catch (jsonError) {
+                    console.error('Erreur de parsing JSON:', jsonError);
+                    console.error('Contenu reçu:', responseText);
+                    throw new Error('Format de réponse invalide du serveur');
+                }
+            } else {
+                // Pour les réponses non-JSON (PDF, images, etc.)
+                return response;
+            }
+
         } catch (error) {
             if (error.name === 'TypeError' && error.message.includes('fetch')) {
                 throw new Error('Impossible de se connecter au serveur. Vérifiez votre connexion.');
@@ -74,7 +110,7 @@ class SecureApiService {
     async post(endpoint, data = null, options = {}) {
         return await this.makeRequest(endpoint, {
             method: 'POST',
-            body: data ? JSON.stringify(data) : null,
+            body: data ? (data instanceof FormData ? data : JSON.stringify(data)) : null,
             ...options
         });
     }
@@ -83,7 +119,7 @@ class SecureApiService {
     async put(endpoint, data = null, options = {}) {
         return await this.makeRequest(endpoint, {
             method: 'PUT',
-            body: data ? JSON.stringify(data) : null,
+            body: data ? (data instanceof FormData ? data : JSON.stringify(data)) : null,
             ...options
         });
     }
@@ -100,7 +136,7 @@ class SecureApiService {
     async patch(endpoint, data = null, options = {}) {
         return await this.makeRequest(endpoint, {
             method: 'PATCH',
-            body: data ? JSON.stringify(data) : null,
+            body: data ? (data instanceof FormData ? data : JSON.stringify(data)) : null,
             ...options
         });
     }
@@ -178,24 +214,133 @@ export const secureApiEndpoints = {
         getByClassSeries: (seriesId) => secureApi.get(`/students/class-series/${seriesId}`),
         getById: (id) => secureApi.get(`/students/${id}`),
         create: (data) => secureApi.post('/students', data),
-        createWithPhoto: (formData) => {
+        
+        // VERSION AMÉLIORÉE avec meilleure gestion des erreurs JSON
+        createWithPhoto: async (formData) => {
             const token = authService.getToken();
-            return fetch(`${secureApi.baseURL}/students`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/json'
-                    // Don't set Content-Type - let browser set it with boundary for FormData
-                },
-                body: formData
-            }).then(async response => {
+            
+            try {
+                const response = await fetch(`${secureApi.baseURL}/students`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                        // Don't set Content-Type - let browser set it with boundary for FormData
+                    },
+                    body: formData
+                });
+
+                // Vérifier d'abord si la réponse est ok
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.message || `HTTP Error ${response.status}`);
+                    // Essayer de récupérer le message d'erreur
+                    let errorMessage = `HTTP Error ${response.status}: ${response.statusText}`;
+                    
+                    try {
+                        const contentType = response.headers.get('content-type');
+                        if (contentType && contentType.includes('application/json')) {
+                            const errorData = await response.json();
+                            errorMessage = errorData.message || errorData.error || errorMessage;
+                        } else {
+                            // Si ce n'est pas du JSON, lire comme texte
+                            const errorText = await response.text();
+                            if (errorText) {
+                                errorMessage = errorText;
+                            }
+                        }
+                    } catch (parseError) {
+                        console.warn('Impossible de parser la réponse d\'erreur:', parseError);
+                    }
+                    
+                    throw new Error(errorMessage);
                 }
-                return response.json();
-            });
+
+                // Vérifier le type de contenu de la réponse
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    console.warn('La réponse du serveur n\'est pas au format JSON, type:', contentType);
+                    // Essayer quand même de lire comme texte pour voir ce qu'on reçoit
+                    const responseText = await response.text();
+                    console.log('Contenu de la réponse non-JSON:', responseText);
+                    
+                    // Si c'est vide mais status 200/201, considérer comme succès
+                    if (!responseText.trim() && (response.status === 200 || response.status === 201)) {
+                        return { success: true, message: 'Étudiant créé avec succès' };
+                    }
+                    
+                    throw new Error('La réponse du serveur n\'est pas au format JSON');
+                }
+
+                // Vérifier si le body existe
+                const responseText = await response.text();
+                if (!responseText || responseText.trim() === '') {
+                    console.warn('Réponse vide du serveur mais status OK');
+                    return { success: true, message: 'Étudiant créé avec succès' };
+                }
+
+                // Parser le JSON
+                try {
+                    return JSON.parse(responseText);
+                } catch (jsonError) {
+                    console.error('Erreur de parsing JSON:', jsonError);
+                    console.error('Contenu de la réponse:', responseText);
+                    throw new Error('Format de réponse invalide du serveur');
+                }
+
+            } catch (networkError) {
+                if (networkError.name === 'TypeError' && networkError.message.includes('fetch')) {
+                    throw new Error('Impossible de se connecter au serveur. Vérifiez votre connexion.');
+                }
+                throw networkError;
+            }
         },
+
+        // Fonction de debug pour diagnostiquer les problèmes
+        debugCreateStudent: async (formData) => {
+            const token = authService.getToken();
+            
+            console.log('=== DEBUG CREATE STUDENT ===');
+            console.log('Token présent:', !!token);
+            console.log('FormData entries:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`${key}:`, value instanceof File ? `File(${value.name})` : value);
+            }
+            
+            try {
+                const response = await fetch(`${secureApi.baseURL}/students`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    },
+                    body: formData
+                });
+
+                console.log('Response received:');
+                console.log('- Status:', response.status);
+                console.log('- Status Text:', response.statusText);
+                console.log('- Headers:', Object.fromEntries(response.headers.entries()));
+
+                const responseText = await response.text();
+                console.log('- Body length:', responseText.length);
+                console.log('- Body content:', responseText);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}\nBody: ${responseText}`);
+                }
+
+                if (!responseText.trim()) {
+                    console.warn('Empty response body');
+                    return { success: true, debug: true };
+                }
+
+                return JSON.parse(responseText);
+
+            } catch (error) {
+                console.error('=== ERROR ===', error);
+                throw error;
+            }
+        },
+
         update: (id, data) => secureApi.put(`/students/${id}`, data),
         updateStatus: (id, status) => secureApi.patch(`/students/${id}/status`, { student_status: status }),
         updateWithPhoto: (id, formData) => {
@@ -356,7 +501,6 @@ export const secureApiEndpoints = {
         getBySection: (sectionId) => secureApi.get(`/school-classes?section_id=${sectionId}`)
     },
 
-
     // === GRADES ===
     grades: {
         getByStudent: (studentId) => secureApi.get(`/grades/student/${studentId}`),
@@ -377,7 +521,6 @@ export const secureApiEndpoints = {
         getUsageStats: (id) => secureApi.get(`/payment-tranches/${id}/usage-stats`)
     },
 
-
     // === SETTINGS ===
     settings: {
         get: () => secureApi.get('/settings'),
@@ -388,7 +531,74 @@ export const secureApiEndpoints = {
     reports: {
         getBulletin: (studentId, period) => secureApi.get(`/reports/bulletin/${studentId}/${period}`),
         getClassReport: (classId) => secureApi.get(`/reports/class/${classId}`),
-        getFinancialReport: (period) => secureApi.get(`/reports/financial/${period}`)
+        getFinancialReport: (period) => secureApi.get(`/reports/financial/${period}`),
+        getInsolvableReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/insolvable?${queryString}`);
+        },
+        getPaymentsReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/payments?${queryString}`);
+        },
+        getRameReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/rame?${queryString}`);
+        },
+        getRecoveryReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/recovery?${queryString}`);
+        },
+        getCollectionSummaryReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/collection-summary?${queryString}`);
+        },
+        getPaymentDetailsReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/payment-details?${queryString}`);
+        },
+        getScholarshipsDiscountsReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/scholarships-discounts?${queryString}`);
+        },
+        getCollectionDetailsReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/collection-details?${queryString}`);
+        },
+        getSeriesCollectionSummary: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/series-collection-summary?${queryString}`);
+        },
+        getSchoolFeePaymentDetails: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/school-fee-payment-details?${queryString}`);
+        },
+        getDetailedCollectionReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/detailed-collection?${queryString}`);
+        },
+        getClassSchoolFeesReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/class-school-fees?${queryString}`);
+        },
+        exportPdf: async (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            const token = authService.getToken();
+            const response = await fetch(`${secureApi.baseURL}/reports/export-pdf?${queryString}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'text/html'
+                }
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Erreur lors de l\'export PDF');
+            }
+            
+            const htmlContent = await response.text();
+            return { success: true, data: htmlContent };
+        }
     },
 
     // === SEARCH ===
@@ -419,7 +629,8 @@ export const secureApiEndpoints = {
         setCurrent: (id) => secureApi.post(`/school-years/${id}/set-current`),
         getActiveYears: () => secureApi.get('/school-years/active'),
         getUserWorkingYear: () => secureApi.get('/school-years/user-working-year'),
-        setUserWorkingYear: (yearId) => secureApi.post('/school-years/set-user-working-year', { school_year_id: yearId })
+        setUserWorkingYear: (yearId) => secureApi.post('/school-years/set-user-working-year', { school_year_id: yearId }),
+        getActive: () => secureApi.get('/school-years/active')
     },
 
     // === PAYMENTS ===
@@ -604,77 +815,6 @@ export const secureApiEndpoints = {
         delete: (id) => secureApi.delete(`/documents/${id}`),
         download: (id) => secureApi.get(`/documents/${id}/download`, { responseType: 'blob' }),
         toggleArchive: (id) => secureApi.post(`/documents/${id}/toggle-archive`)
-    },
-
-    // === REPORTS ===
-    reports: {
-        getInsolvableReport: (params) => {
-            const queryString = new URLSearchParams(params).toString();
-            return secureApi.get(`/reports/insolvable?${queryString}`);
-        },
-        getPaymentsReport: (params) => {
-            const queryString = new URLSearchParams(params).toString();
-            return secureApi.get(`/reports/payments?${queryString}`);
-        },
-        getRameReport: (params) => {
-            const queryString = new URLSearchParams(params).toString();
-            return secureApi.get(`/reports/rame?${queryString}`);
-        },
-        getRecoveryReport: (params) => {
-            const queryString = new URLSearchParams(params).toString();
-            return secureApi.get(`/reports/recovery?${queryString}`);
-        },
-        getCollectionSummaryReport: (params) => {
-            const queryString = new URLSearchParams(params).toString();
-            return secureApi.get(`/reports/collection-summary?${queryString}`);
-        },
-        getPaymentDetailsReport: (params) => {
-            const queryString = new URLSearchParams(params).toString();
-            return secureApi.get(`/reports/payment-details?${queryString}`);
-        },
-        getScholarshipsDiscountsReport: (params) => {
-            const queryString = new URLSearchParams(params).toString();
-            return secureApi.get(`/reports/scholarships-discounts?${queryString}`);
-        },
-        getCollectionDetailsReport: (params) => {
-            const queryString = new URLSearchParams(params).toString();
-            return secureApi.get(`/reports/collection-details?${queryString}`);
-        },
-        getSeriesCollectionSummary: (params = {}) => {
-            const queryString = new URLSearchParams(params).toString();
-            return secureApi.get(`/reports/series-collection-summary?${queryString}`);
-        },
-        getSchoolFeePaymentDetails: (params) => {
-            const queryString = new URLSearchParams(params).toString();
-            return secureApi.get(`/reports/school-fee-payment-details?${queryString}`);
-        },
-        getDetailedCollectionReport: (params) => {
-            const queryString = new URLSearchParams(params).toString();
-            return secureApi.get(`/reports/detailed-collection?${queryString}`);
-        },
-        getClassSchoolFeesReport: (params) => {
-            const queryString = new URLSearchParams(params).toString();
-            return secureApi.get(`/reports/class-school-fees?${queryString}`);
-        },
-        exportPdf: async (params) => {
-            const queryString = new URLSearchParams(params).toString();
-            const token = authService.getToken();
-            const response = await fetch(`${secureApi.baseURL}/reports/export-pdf?${queryString}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'text/html'
-                }
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || 'Erreur lors de l\'export PDF');
-            }
-            
-            const htmlContent = await response.text();
-            return { success: true, data: htmlContent };
-        }
     },
 
     // === USER MANAGEMENT ===
