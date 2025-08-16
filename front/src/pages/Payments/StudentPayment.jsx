@@ -824,8 +824,8 @@ const StudentPayment = () => {
                             
                             .receipt-container {
                                 background: white;
-                                width: 296mm;  /* Deux A5 côte à côte (148mm x 2) + gap */
-                                height: 210mm; /* Hauteur A5 (210mm) */
+                                width: 294mm;  /* Deux reçus côte à côte (147mm x 2) */
+                                height: 148mm; /* Hauteur à 148mm */
                                 margin: 0 auto;
                                 box-shadow: 0 0 10px rgba(0,0,0,0.1);
                             }

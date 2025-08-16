@@ -997,7 +997,7 @@ class PaymentController extends Controller
             <style>
                 @page {
                     size: A4 landscape;
-                    margin: 1cm;
+                    margin: 0.5cm;
                 }
 
                 body {
@@ -1011,7 +1011,7 @@ class PaymentController extends Controller
                 }
 
                 .receipt-main-container {
-                    height: 210mm;
+                    height: 148mm;
                     display: flex;
                     flex-direction: row;
                     gap: 0;
@@ -1020,8 +1020,8 @@ class PaymentController extends Controller
                 }
 
                 .receipt-copy {
-                    width: 148mm;
-                    height: 210mm;
+                    width: 147mm;
+                    height: 148mm;
                     padding: 8px;
                     border: 1px solid #000;
                     background-color: white;
@@ -1049,10 +1049,10 @@ class PaymentController extends Controller
 
                 .header {
                     text-align: center;
-                    margin-bottom: 10px;
+                    margin-bottom: 6px;
                     position: relative;
                     border-bottom: 2px solid #000;
-                    padding-bottom: 8px;
+                    padding-bottom: 4px;
                 }
 
                 .logo {
@@ -1097,9 +1097,9 @@ class PaymentController extends Controller
 
                 .student-info {
                     background: #f9f9f9;
-                    padding: 10px;
+                    padding: 6px;
                     border: 1px solid #ccc;
-                    margin-bottom: 12px;
+                    margin-bottom: 6px;
                     font-size: 9px;
                 }
 
@@ -1126,8 +1126,8 @@ class PaymentController extends Controller
                 .payment-details {
                     background: #fff;
                     border: 1px solid #000;
-                    padding: 8px;
-                    margin-bottom: 10px;
+                    padding: 4px;
+                    margin-bottom: 6px;
                     flex: 1;
                 }
 
@@ -1167,7 +1167,7 @@ class PaymentController extends Controller
                 }
 
                 .recap-section {
-                    margin: 10px 0;
+                    margin: 6px 0;
                 }
 
                 .recap-section h4 {
@@ -1213,12 +1213,12 @@ class PaymentController extends Controller
                 }
 
                 .footer-info {
-                    margin-top: 12px;
+                    margin-top: 6px;
                     font-size: 8px;
-                    line-height: 1.3;
+                    line-height: 1.2;
                     text-align: justify;
                     background: #f9f9f9;
-                    padding: 6px;
+                    padding: 4px;
                     border-left: 2px solid #000;
                 }
 
@@ -1249,11 +1249,11 @@ class PaymentController extends Controller
                 }
 
                 .signature-section {
-                    margin-top: 12px;
+                    margin-top: 6px;
                     text-align: right;
                     font-size: 8px;
                     background: #f0f0f0;
-                    padding: 6px;
+                    padding: 4px;
                 }
 
                 .signature-line {
