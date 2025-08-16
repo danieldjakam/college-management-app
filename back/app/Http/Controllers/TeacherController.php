@@ -7,10 +7,15 @@ use App\Models\User;
 use App\Models\TeacherSubject;
 use App\Models\ClassSeries;
 use App\Models\SchoolYear;
+use App\Exports\TeachersExport;
+use App\Exports\TeachersImportableExport;
+use App\Imports\TeachersImport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Facades\Response;
 
 class TeacherController extends Controller
 {
@@ -457,6 +462,283 @@ class TeacherController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération des statistiques',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export teachers to Excel
+     */
+    public function exportExcel(Request $request)
+    {
+        try {
+            $filename = 'enseignants_' . date('Y-m-d_H-i-s') . '.xlsx';
+            return Excel::download(new TeachersExport(), $filename);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export Excel',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export teachers to CSV
+     */
+    public function exportCsv(Request $request)
+    {
+        try {
+            $filename = 'enseignants_' . date('Y-m-d_H-i-s') . '.csv';
+            return Excel::download(new TeachersImportableExport(), $filename, \Maatwebsite\Excel\Excel::CSV);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export CSV',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export teachers to PDF
+     */
+    public function exportPdf(Request $request)
+    {
+        try {
+            $filename = 'enseignants_' . date('Y-m-d_H-i-s') . '.pdf';
+            return Excel::download(new TeachersExport(), $filename, \Maatwebsite\Excel\Excel::DOMPDF);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export PDF',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Import teachers from CSV
+     */
+    public function importCsv(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'file' => 'required|mimes:csv,txt|max:2048'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Fichier invalide',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $import = new TeachersImport();
+            Excel::import($import, $request->file('file'));
+            
+            $results = $import->getResults();
+
+            return response()->json([
+                'success' => true,
+                'data' => $results,
+                'message' => 'Import terminé avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'import',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export teachers in importable CSV format
+     */
+    public function exportImportable(Request $request)
+    {
+        try {
+            $filename = 'enseignants_importable_' . date('Y-m-d_H-i-s') . '.csv';
+            return Excel::download(new TeachersImportableExport(), $filename, \Maatwebsite\Excel\Excel::CSV);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export CSV importable',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Download CSV template for teachers import
+     */
+    public function downloadTemplate()
+    {
+        try {
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="template_enseignants.csv"'
+            ];
+
+            $csvData = "id,nom,prenom,telephone,email,adresse,date_naissance,sexe,qualification,date_embauche,statut\n";
+            $csvData .= ",DUPONT,Jean,123456789,jean.dupont@email.com,123 Rue de la Paix,01/01/1980,m,Licence en Mathématiques,01/09/2020,1\n";
+            $csvData .= ",MARTIN,Sophie,987654321,sophie.martin@email.com,456 Avenue des Ecoles,15/05/1985,f,Master en Français,01/09/2021,1\n";
+            $csvData .= "3,BERNARD,Pierre,555123456,pierre.bernard@email.com,789 Boulevard Education,20/03/1978,m,CAPES Histoire-Géographie,01/09/2019,0\n";
+
+            return Response::make($csvData, 200, $headers);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du téléchargement du template',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get dashboard statistics
+     */
+    public function dashboard()
+    {
+        try {
+            $stats = [
+                'total_teachers' => Teacher::count(),
+                'active_teachers' => Teacher::where('is_active', true)->count(),
+                'inactive_teachers' => Teacher::where('is_active', false)->count(),
+                'with_user_account' => Teacher::whereNotNull('user_id')->count(),
+                'main_teachers' => Teacher::has('mainClasses')->count(),
+            ];
+
+            $recent_teachers = Teacher::latest()->take(5)->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'stats' => $stats,
+                    'recent_teachers' => $recent_teachers
+                ],
+                'message' => 'Statistiques récupérées avec succès'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des statistiques',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Create a user account for an existing teacher
+     */
+    public function createUserAccount(Request $request, Teacher $teacher)
+    {
+        try {
+            // Vérifier si l'enseignant a déjà un compte utilisateur
+            if ($teacher->user_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet enseignant a déjà un compte utilisateur'
+                ], 400);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'username' => 'required|string|unique:users,username|max:255',
+                'password' => 'required|string|min:6',
+                'email' => 'nullable|email|unique:users,email'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Données invalides',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            // Utiliser l'email de l'enseignant ou celui fourni, ou générer un email temporaire
+            $email = $request->email ?: $teacher->email ?: $request->username . '@school.local';
+
+            // Créer le compte utilisateur
+            $user = User::create([
+                'name' => $teacher->full_name,
+                'username' => $request->username,
+                'email' => $email,
+                'password' => Hash::make($request->password),
+                'role' => 'teacher'
+            ]);
+
+            // Lier l'utilisateur à l'enseignant
+            $teacher->update(['user_id' => $user->id]);
+
+            // Si un nouvel email a été fourni, mettre à jour l'enseignant aussi
+            if ($request->email && $request->email !== $teacher->email) {
+                $teacher->update(['email' => $request->email]);
+            }
+
+            DB::commit();
+
+            $teacher->load('user');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Compte utilisateur créé avec succès',
+                'data' => $teacher
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la création du compte utilisateur',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove user account from a teacher
+     */
+    public function removeUserAccount(Teacher $teacher)
+    {
+        try {
+            if (!$teacher->user_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet enseignant n\'a pas de compte utilisateur'
+                ], 400);
+            }
+
+            DB::beginTransaction();
+
+            // Supprimer le compte utilisateur
+            if ($teacher->user) {
+                $teacher->user->delete();
+            }
+
+            // Retirer la liaison
+            $teacher->update(['user_id' => null]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Compte utilisateur supprimé avec succès',
+                'data' => $teacher
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression du compte utilisateur',
                 'error' => $e->getMessage()
             ], 500);
         }

@@ -6,9 +6,15 @@ use App\Models\SchoolClass;
 use App\Models\ClassSeries;
 use App\Models\ClassPaymentAmount;
 use App\Models\PaymentTranche;
+use App\Exports\SchoolClassesExport;
+use App\Exports\SchoolClassesImportableExport;
+use App\Exports\SchoolClassesDetailedExport;
+use App\Imports\SchoolClassesImport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Facades\Response;
 
 class SchoolClassController extends Controller
 {
@@ -443,6 +449,181 @@ class SchoolClassController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la configuration des paiements',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export school classes to Excel
+     */
+    public function exportExcel(Request $request)
+    {
+        try {
+            $filters = [
+                'section_id' => $request->get('section_id'),
+                'level_id' => $request->get('level_id')
+            ];
+            $filename = 'classes_' . date('Y-m-d_H-i-s') . '.xlsx';
+            return Excel::download(new SchoolClassesExport($filters), $filename);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export Excel',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export school classes to CSV
+     */
+    public function exportCsv(Request $request)
+    {
+        try {
+            $filters = [
+                'section_id' => $request->get('section_id'),
+                'level_id' => $request->get('level_id')
+            ];
+            $filename = 'classes_' . date('Y-m-d_H-i-s') . '.csv';
+            return Excel::download(new SchoolClassesImportableExport($filters), $filename, \Maatwebsite\Excel\Excel::CSV);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export CSV',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export school classes to PDF
+     */
+    public function exportPdf(Request $request)
+    {
+        try {
+            \Log::info('Export PDF démarré', ['user_id' => auth()->id()]);
+            
+            $filters = [
+                'section_id' => $request->get('section_id'),
+                'level_id' => $request->get('level_id')
+            ];
+            
+            \Log::info('Filtres appliqués', $filters);
+            
+            $filename = 'classes_' . date('Y-m-d_H-i-s') . '.pdf';
+            
+            $export = new SchoolClassesDetailedExport($filters);
+            
+            \Log::info('Export créé, génération PDF...');
+            
+            return Excel::download($export, $filename, \Maatwebsite\Excel\Excel::DOMPDF);
+            
+        } catch (\Exception $e) {
+            \Log::error('Erreur export PDF', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export PDF',
+                'error' => $e->getMessage(),
+                'debug' => config('app.debug') ? $e->getTraceAsString() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Import school classes from CSV
+     */
+    public function importCsv(Request $request)
+    {
+        try {
+            \Log::info('Import CSV démarré', ['user_id' => auth()->id()]);
+            
+            $validator = Validator::make($request->all(), [
+                'file' => 'required|mimes:csv,txt|max:2048'
+            ]);
+
+            if ($validator->fails()) {
+                \Log::error('Validation import failed', $validator->errors()->toArray());
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Fichier invalide',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            \Log::info('Début du traitement du fichier', ['filename' => $request->file('file')->getClientOriginalName()]);
+
+            $import = new SchoolClassesImport();
+            Excel::import($import, $request->file('file'));
+            
+            $results = $import->getResults();
+            
+            \Log::info('Import terminé', $results);
+
+            return response()->json([
+                'success' => true,
+                'data' => $results,
+                'message' => 'Import terminé avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'import',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export school classes in importable CSV format
+     */
+    public function exportImportable(Request $request)
+    {
+        try {
+            $filters = [
+                'section_id' => $request->get('section_id'),
+                'level_id' => $request->get('level_id')
+            ];
+            $filename = 'classes_importable_' . date('Y-m-d_H-i-s') . '.csv';
+            return Excel::download(new SchoolClassesImportableExport($filters), $filename, \Maatwebsite\Excel\Excel::CSV);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export CSV importable',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Download CSV template for school classes import
+     */
+    public function downloadTemplate()
+    {
+        try {
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="template_classes.csv"'
+            ];
+
+            $csvData = "class_id,class_nom,level_id,class_description,class_statut,series\n";
+            $csvData .= ",6ème A,8,Classe de Sixième,1,\":6A1:6A1:35:1|:6A2:6A2:35:1\"\n";
+            $csvData .= ",CM1,6,Cours Moyen 1ère année,1,\":CM1A:CM1A:30:1\"\n";
+            $csvData .= "1,6ème A MODIFIÉE,8,Classe modifiée,1,\"3:6A1MOD:6A1MOD:40:0\"\n";
+
+            return Response::make($csvData, 200, $headers);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du téléchargement du template',
                 'error' => $e->getMessage()
             ], 500);
         }

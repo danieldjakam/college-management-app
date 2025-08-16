@@ -20,6 +20,7 @@ use App\Http\Controllers\PhotoUploadController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TeacherController;
 use App\Http\Controllers\SeriesSubjectController;
+use App\Http\Controllers\SeriesController;
 use App\Http\Controllers\TeacherAssignmentController;
 use App\Http\Controllers\MainTeacherController;
 use App\Http\Controllers\NeedController;
@@ -28,6 +29,8 @@ use App\Http\Controllers\StudentRameController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\DocumentFolderController;
+use App\Http\Controllers\ClassesSeriesController;
+use App\Http\Controllers\TeacherAttendanceController;
 
 
 // Routes d'authentification
@@ -67,7 +70,23 @@ Route::get('test-school-settings', function () {
     }
 });
 
-// In api.php
+// Test route pour inventory sans auth
+Route::get('test-inventory', function () {
+    try {
+        return response()->json([
+            'success' => true,
+            'message' => 'Route inventory accessible',
+            'items_count' => \App\Models\InventoryItem::count(),
+            'timestamp' => now()->toDateTimeString()
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ], 500);
+    }
+});
 
 Route::get('/user-management/{id}/professional-card', function () {
     return response('', 204)
@@ -98,14 +117,29 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les sections
     Route::prefix('sections')->group(function () {
+
+        Route::get('/dashboard', [SectionController::class, 'dashboard'])->middleware(['role:admin,accountant']);
+        Route::get('/', [SectionController::class, 'index'])->middleware(['role:admin,accountant']);
+        Route::get('/{section}', [SectionController::class, 'show'])->middleware(['role:admin,accountant']);
+        
+        // Export routes
+        Route::get('/export/excel', [SectionController::class, 'exportExcel'])->middleware(['role:admin,accountant']);
+        Route::get('/export/csv', [SectionController::class, 'exportCsv'])->middleware(['role:admin,accountant']);
+        Route::get('/export/pdf', [SectionController::class, 'exportPdf'])->middleware(['role:admin,accountant']);
+        Route::get('/export/importable', [SectionController::class, 'exportImportable'])->middleware(['role:admin,accountant']);
+        Route::get('/template/download', [SectionController::class, 'downloadTemplate'])->middleware(['role:admin']);
+        
+
         Route::get('/dashboard', [SectionController::class, 'dashboard'])->middleware(['role:admin,accountant,comptable_superieur']);
         Route::get('/', [SectionController::class, 'index'])->middleware(['role:admin,accountant,comptable_superieur']);
         Route::get('/{section}', [SectionController::class, 'show'])->middleware(['role:admin,accountant,comptable_superieur']);
+
 
         Route::post('/', [SectionController::class, 'store'])->middleware(['role:admin']);
         Route::put('/{section}', [SectionController::class, 'update'])->middleware(['role:admin']);
         Route::delete('/{section}', [SectionController::class, 'destroy'])->middleware(['role:admin']);
         Route::post('/{section}/toggle-status', [SectionController::class, 'toggleStatus'])->middleware(['role:admin']);
+        Route::post('/import/csv', [SectionController::class, 'importCsv'])->middleware(['role:admin']);
     });
 
     // Routes pour les tranches de paiement
@@ -126,10 +160,18 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/', [LevelController::class, 'index'])->middleware(['role:admin,accountant,comptable_superieur']);
         Route::get('/{level}', [LevelController::class, 'show'])->middleware(['role:admin,accountant,comptable_superieur']);
 
+        // Export routes
+        Route::get('/export/excel', [LevelController::class, 'exportExcel'])->middleware(['role:admin,accountant']);
+        Route::get('/export/csv', [LevelController::class, 'exportCsv'])->middleware(['role:admin,accountant']);
+        Route::get('/export/pdf', [LevelController::class, 'exportPdf'])->middleware(['role:admin,accountant']);
+        Route::get('/export/importable', [LevelController::class, 'exportImportable'])->middleware(['role:admin,accountant']);
+        Route::get('/template/download', [LevelController::class, 'downloadTemplate'])->middleware(['role:admin']);
+
         Route::post('/', [LevelController::class, 'store'])->middleware(['role:admin']);
         Route::put('/{level}', [LevelController::class, 'update'])->middleware(['role:admin']);
         Route::delete('/{level}', [LevelController::class, 'destroy'])->middleware(['role:admin']);
         Route::post('/{level}/toggle-status', [LevelController::class, 'toggleStatus'])->middleware(['role:admin']);
+        Route::post('/import/csv', [LevelController::class, 'importCsv'])->middleware(['role:admin']);
     });
 
     // Routes pour les classes
@@ -138,24 +180,69 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/', [SchoolClassController::class, 'index'])->middleware(['role:admin,accountant,comptable_superieur']);
         Route::get('/{schoolClass}', [SchoolClassController::class, 'show'])->middleware(['role:admin,accountant,comptable_superieur']);
 
+        // Export routes
+        Route::get('/export/excel', [SchoolClassController::class, 'exportExcel'])->middleware(['role:admin,accountant']);
+        Route::get('/export/csv', [SchoolClassController::class, 'exportCsv'])->middleware(['role:admin,accountant']);
+        Route::get('/export/pdf', [SchoolClassController::class, 'exportPdf'])->middleware(['role:admin,accountant']);
+        Route::get('/export/importable', [SchoolClassController::class, 'exportImportable'])->middleware(['role:admin,accountant']);
+        Route::get('/template/download', [SchoolClassController::class, 'downloadTemplate'])->middleware(['role:admin']);
+
         Route::post('/', [SchoolClassController::class, 'store'])->middleware(['role:admin']);
         Route::put('/{schoolClass}', [SchoolClassController::class, 'update'])->middleware(['role:admin']);
         Route::delete('/{schoolClass}', [SchoolClassController::class, 'destroy'])->middleware(['role:admin']);
         Route::post('/{schoolClass}/toggle-status', [SchoolClassController::class, 'toggleStatus'])->middleware(['role:admin']);
         Route::post('/{schoolClass}/configure-payments', [SchoolClassController::class, 'configurePayments'])->middleware(['role:admin']);
+        Route::post('/import/csv', [SchoolClassController::class, 'importCsv'])->middleware(['role:admin']);
+    });
+
+    // Routes pour les séries
+    Route::prefix('series')->group(function () {
+        Route::get('/', [SeriesController::class, 'index'])->middleware(['role:admin,accountant']);
+        
+        // Export routes
+        Route::get('/export/excel', [SeriesController::class, 'exportExcel'])->middleware(['role:admin,accountant']);
+        Route::get('/export/csv', [SeriesController::class, 'exportCsv'])->middleware(['role:admin,accountant']);
+        Route::get('/export/pdf', [SeriesController::class, 'exportPdf'])->middleware(['role:admin,accountant']);
+        Route::get('/export/importable', [SeriesController::class, 'exportImportable'])->middleware(['role:admin,accountant']);
+        Route::get('/template/download', [SeriesController::class, 'downloadTemplate'])->middleware(['role:admin']);
+        
+        Route::post('/import/csv', [SeriesController::class, 'importCsv'])->middleware(['role:admin']);
+    });
+
+    // Routes pour les classes et séries combinées
+    Route::prefix('classes-series')->group(function () {
+        // Export routes
+        Route::get('/export/excel', [ClassesSeriesController::class, 'exportExcel'])->middleware(['role:admin,accountant']);
+        Route::get('/export/csv', [ClassesSeriesController::class, 'exportCsv'])->middleware(['role:admin,accountant']);
+        Route::get('/export/pdf', [ClassesSeriesController::class, 'exportPdf'])->middleware(['role:admin,accountant']);
+        Route::get('/template/download', [ClassesSeriesController::class, 'downloadTemplate'])->middleware(['role:admin']);
+        Route::post('/import/csv', [ClassesSeriesController::class, 'importCsv'])->middleware(['role:admin']);
     });
 
     // Routes pour les élèves
     Route::prefix('students')->middleware(['role:admin,accountant,comptable_superieur'])->group(function () {
         Route::get('/class-series/{seriesId}', [StudentController::class, 'getByClassSeries']);
+        
+        // Export routes - amélioration des routes existantes
+        Route::get('/export/excel', [StudentController::class, 'exportStudentsExcel']);
+        Route::get('/export/csv', [StudentController::class, 'exportStudentsCsv']);
+        Route::get('/export/pdf', [StudentController::class, 'exportStudentsPdf']);
+        Route::get('/export/csv/{seriesId}', [StudentController::class, 'exportCsv']);
+        Route::get('/export/excel/{seriesId}', [StudentController::class, 'exportExcel']);
+        Route::get('/export/pdf/{seriesId}', [StudentController::class, 'exportPdf']);
+        Route::get('/export/importable', [StudentController::class, 'exportImportable']);
+        Route::get('/template/download', [StudentController::class, 'downloadTemplate']);
+        
+        Route::post('/', [StudentController::class, 'store']);
         Route::put('/{student}', [StudentController::class, 'update']);
         Route::patch('/{student}/status', [StudentController::class, 'updateStatus']);
         Route::post('/{student}/update-with-photo', [StudentController::class, 'updateWithPhoto']);
         Route::post('/{student}/transfer-series', [StudentController::class, 'transferToSeries']);
         Route::delete('/{student}', [StudentController::class, 'destroy']);
-        Route::get('/export-csv/{seriesId}', [StudentController::class, 'exportCsv']);
-        Route::get('/export-pdf/{seriesId}', [StudentController::class, 'exportPdf']);
-        Route::post('/import-csv', [StudentController::class, 'importCsv']);
+        Route::post('/import/csv', [StudentController::class, 'importCsv']);
+        Route::post('/import/excel', [StudentController::class, 'importExcel']);
+        Route::post('/series/{seriesId}/import', [StudentController::class, 'importForSeries']);
+        Route::post('/series/{seriesId}/import/csv', [StudentController::class, 'importCsvForSeries']);
         Route::get('/school-years', [StudentController::class, 'getSchoolYears']);
         Route::post('/reorder', [StudentController::class, 'reorder']);
         Route::post('/class-series/{seriesId}/sort-alphabetically', [StudentController::class, 'sortAlphabetically']);
@@ -297,9 +384,17 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les enseignants
     Route::prefix('teachers')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)
+        Route::get('/dashboard', [TeacherController::class, 'dashboard'])->middleware(['role:admin,accountant']);
         Route::get('/', [TeacherController::class, 'index'])->middleware(['role:admin,accountant']);
         Route::get('/{teacher}', [TeacherController::class, 'show'])->middleware(['role:admin,accountant']);
         Route::get('/{teacher}/stats', [TeacherController::class, 'getStats'])->middleware(['role:admin,accountant']);
+        
+        // Export routes
+        Route::get('/export/excel', [TeacherController::class, 'exportExcel'])->middleware(['role:admin,accountant']);
+        Route::get('/export/csv', [TeacherController::class, 'exportCsv'])->middleware(['role:admin,accountant']);
+        Route::get('/export/pdf', [TeacherController::class, 'exportPdf'])->middleware(['role:admin,accountant']);
+        Route::get('/export/importable', [TeacherController::class, 'exportImportable'])->middleware(['role:admin,accountant']);
+        Route::get('/template/download', [TeacherController::class, 'downloadTemplate'])->middleware(['role:admin']);
 
         // Routes pour administrateurs uniquement (gestion)
         Route::post('/', [TeacherController::class, 'store'])->middleware(['role:admin']);
@@ -308,6 +403,9 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{teacher}/toggle-status', [TeacherController::class, 'toggleStatus'])->middleware(['role:admin']);
         Route::post('/{teacher}/assign-subjects', [TeacherController::class, 'assignSubjects'])->middleware(['role:admin']);
         Route::post('/{teacher}/remove-assignment', [TeacherController::class, 'removeAssignment'])->middleware(['role:admin']);
+        Route::post('/{teacher}/create-user-account', [TeacherController::class, 'createUserAccount'])->middleware(['role:admin']);
+        Route::delete('/{teacher}/remove-user-account', [TeacherController::class, 'removeUserAccount'])->middleware(['role:admin']);
+        Route::post('/import/csv', [TeacherController::class, 'importCsv'])->middleware(['role:admin']);
     });
 
     // Routes pour la configuration des matières par série
@@ -455,5 +553,23 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/{document}', [DocumentController::class, 'destroy']); // Supprimer un document
         Route::get('/{document}/download', [DocumentController::class, 'download']); // Télécharger un document
         Route::post('/{document}/toggle-archive', [DocumentController::class, 'toggleArchive']); // Archiver/désarchiver
+    });
+
+    // Routes pour les présences des enseignants
+    Route::prefix('teacher-attendance')->group(function () {
+        // Routes pour scan QR des enseignants
+        Route::post('/scan-qr', [TeacherAttendanceController::class, 'scanQR'])->middleware(['role:admin,surveillant_general']);
+        Route::get('/daily-attendance', [TeacherAttendanceController::class, 'getDailyAttendance'])->middleware(['role:admin,surveillant_general']);
+        Route::get('/entry-exit-stats', [TeacherAttendanceController::class, 'getEntryExitStats'])->middleware(['role:admin,surveillant_general']);
+        
+        // Routes pour gestion des QR codes enseignants
+        Route::post('/generate-qr', [TeacherAttendanceController::class, 'generateQRCode'])->middleware(['role:admin']);
+        Route::get('/teachers-with-qr', [TeacherAttendanceController::class, 'getTeachersWithQR'])->middleware(['role:admin,surveillant_general']);
+        
+        // Routes pour rapports et statistiques
+        Route::get('/teacher/{teacherId}/report', [TeacherAttendanceController::class, 'getTeacherReport'])->middleware(['role:admin,surveillant_general']);
+        Route::get('/teacher/{teacherId}/detailed-stats', [TeacherAttendanceController::class, 'getDetailedTeacherStats'])->middleware(['role:admin,surveillant_general']);
+        Route::get('/teacher/{teacherId}/day-movements', [TeacherAttendanceController::class, 'getDayMovements'])->middleware(['role:admin,surveillant_general']);
+        Route::put('/teacher/{teacherId}/work-schedule', [TeacherAttendanceController::class, 'updateWorkSchedule'])->middleware(['role:admin']);
     });
 });

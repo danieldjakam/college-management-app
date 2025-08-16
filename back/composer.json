@@ -11,9 +11,11 @@
     "require": {
         "php": "^8.2",
         "barryvdh/laravel-dompdf": "^3.1",
+        "dompdf/dompdf": "^3.1",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
-        "phpoffice/phpspreadsheet": "^5.0",
+        "maatwebsite/excel": "^3.1",
+        "phpoffice/phpspreadsheet": "^1.30",
         "phpoffice/phpword": "^1.4",
         "tymon/jwt-auth": "^2.2"
     },

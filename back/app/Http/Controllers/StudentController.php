@@ -5,12 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\Student;
 use App\Models\SchoolYear;
 use App\Models\ClassSeries;
+use App\Exports\StudentsExport;
+use App\Exports\StudentsImportableExport;
+use App\Imports\StudentsImport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Facades\Response;
 
 class StudentController extends Controller
 {
@@ -799,9 +804,22 @@ class StudentController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'file' => 'required|file|mimes:csv,txt',
-            'class_series_id' => 'required|exists:class_series,id'
+            'file' => 'required|file|max:2048',
+            'class_series_id' => 'nullable|exists:class_series,id'
         ]);
+        
+        // Validation supplémentaire pour l'extension CSV
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $extension = strtolower($file->getClientOriginalExtension());
+            if (!in_array($extension, ['csv', 'txt'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Format de fichier non supporté. Utilisez csv ou txt.',
+                    'errors' => ['file' => ['Le fichier doit être au format csv ou txt.']]
+                ], 422);
+            }
+        }
 
         if ($validator->fails()) {
             return response()->json([
@@ -809,6 +827,21 @@ class StudentController extends Controller
                 'message' => 'Fichier invalide',
                 'errors' => $validator->errors()
             ], 422);
+        }
+
+        $classSeriesId = $request->class_series_id;
+        
+        // Si pas de class_series_id fourni, essayer de le détecter automatiquement
+        if (!$classSeriesId) {
+            $classSeriesId = $this->detectSeriesFromContext($request);
+        }
+        
+        if (!$classSeriesId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aucune série spécifiée. Utilisez la route /api/students/series/{seriesId}/import/csv ou spécifiez class_series_id.',
+                'help' => 'Nouvelles routes recommandées: POST /api/students/series/{seriesId}/import/csv'
+            ], 400);
         }
 
         try {
@@ -873,7 +906,7 @@ class StudentController extends Controller
                     }
 
                     // Calculer l'ordre automatiquement
-                    $maxOrder = Student::where('class_series_id', $request->class_series_id)
+                    $maxOrder = Student::where('class_series_id', $classSeriesId)
                         ->where('school_year_id', $workingYear->id)
                         ->max('order') ?: 0;
 
@@ -888,7 +921,7 @@ class StudentController extends Controller
                         'parent_phone' => trim($row[6] ?? null),
                         'parent_email' => trim($row[7] ?? null),
                         'address' => trim($row[8] ?? null),
-                        'class_series_id' => $request->class_series_id,
+                        'class_series_id' => $classSeriesId,
                         'school_year_id' => $workingYear->id,
                         'student_number' => $studentNumber,
                         'order' => $maxOrder + 1,
@@ -1209,6 +1242,499 @@ class StudentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors du transfert de l\'élève',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export students to Excel (global export with filters)
+     */
+    public function exportStudentsExcel(Request $request)
+    {
+        try {
+            // Obtenir l'année de travail de l'utilisateur
+            $workingYear = $this->getUserWorkingYear();
+
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            $filters = [];
+            
+            // Appliquer les filtres optionnels
+            if ($request->has('class_series_id')) {
+                $filters['class_series_id'] = $request->class_series_id;
+            }
+            
+            if ($request->has('section_id')) {
+                $filters['section_id'] = $request->section_id;
+            }
+            
+            if ($request->has('level_id')) {
+                $filters['level_id'] = $request->level_id;
+            }
+            
+            if ($request->has('is_active')) {
+                $filters['is_active'] = $request->boolean('is_active');
+            }
+
+            $filename = 'eleves_' . date('Y-m-d_H-i-s') . '.xlsx';
+            
+            return Excel::download(new StudentsExport($filters, $workingYear->id), $filename);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export Excel',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export students to CSV (global export with filters)
+     */
+    public function exportStudentsCsv(Request $request)
+    {
+        try {
+            // Obtenir l'année de travail de l'utilisateur
+            $workingYear = $this->getUserWorkingYear();
+
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            $filters = [];
+            
+            // Appliquer les filtres optionnels
+            if ($request->has('class_series_id')) {
+                $filters['class_series_id'] = $request->class_series_id;
+            }
+            
+            if ($request->has('section_id')) {
+                $filters['section_id'] = $request->section_id;
+            }
+            
+            if ($request->has('level_id')) {
+                $filters['level_id'] = $request->level_id;
+            }
+            
+            if ($request->has('is_active')) {
+                $filters['is_active'] = $request->boolean('is_active');
+            }
+
+            $filename = 'eleves_' . date('Y-m-d_H-i-s') . '.csv';
+            
+            return Excel::download(new StudentsExport($filters, $workingYear->id), $filename, \Maatwebsite\Excel\Excel::CSV);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export CSV',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export students to Excel (by series - legacy method)
+     */
+    public function exportExcel($seriesId)
+    {
+        try {
+            // Utiliser l'année de travail de l'utilisateur
+            $workingYear = $this->getUserWorkingYear();
+
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            $filters = ['class_series_id' => $seriesId];
+            $filename = 'eleves_' . date('Y-m-d_H-i-s') . '.xlsx';
+            
+            return Excel::download(new StudentsExport($filters, $workingYear->id), $filename);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export Excel',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Import students for a specific series
+     */
+    public function importForSeries(Request $request, $seriesId)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'file' => 'required|file|max:2048'
+            ]);
+            
+            // Validation supplémentaire pour l'extension
+            if ($request->hasFile('file')) {
+                $file = $request->file('file');
+                $extension = strtolower($file->getClientOriginalExtension());
+                if (!in_array($extension, ['xlsx', 'xls', 'csv'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Format de fichier non supporté. Utilisez xlsx, xls ou csv.',
+                        'errors' => ['file' => ['Le fichier doit être au format xlsx, xls ou csv.']]
+                    ], 422);
+                }
+            }
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Fichier invalide',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Vérifier que la série existe
+            $classSeries = ClassSeries::find($seriesId);
+            if (!$classSeries) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Série de classe non trouvée'
+                ], 404);
+            }
+
+            // Obtenir l'année de travail de l'utilisateur
+            $workingYear = $this->getUserWorkingYear();
+
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            $import = new StudentsImport($workingYear->id, $seriesId);
+            Excel::import($import, $request->file('file'));
+            
+            $results = $import->getResults();
+
+            return response()->json([
+                'success' => true,
+                'data' => $results,
+                'message' => 'Import terminé avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'import',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Import students CSV for a specific series
+     */
+    public function importCsvForSeries(Request $request, $seriesId)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'file' => 'required|file|max:2048'
+            ]);
+            
+            // Validation supplémentaire pour l'extension CSV
+            if ($request->hasFile('file')) {
+                $file = $request->file('file');
+                $extension = strtolower($file->getClientOriginalExtension());
+                if (!in_array($extension, ['csv', 'txt'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Format de fichier non supporté. Utilisez csv ou txt.',
+                        'errors' => ['file' => ['Le fichier doit être au format csv ou txt.']]
+                    ], 422);
+                }
+            }
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Fichier invalide',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Vérifier que la série existe
+            $classSeries = ClassSeries::find($seriesId);
+            if (!$classSeries) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Série de classe non trouvée'
+                ], 404);
+            }
+
+            // Obtenir l'année de travail de l'utilisateur
+            $workingYear = $this->getUserWorkingYear();
+
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            $import = new StudentsImport($workingYear->id, $seriesId);
+            Excel::import($import, $request->file('file'));
+            
+            $results = $import->getResults();
+
+            return response()->json([
+                'success' => true,
+                'data' => $results,
+                'message' => 'Import terminé avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'import',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Import students from Excel
+     */
+    public function importExcel(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'file' => 'required|mimes:xlsx,xls,csv|max:2048',
+                'class_series_id' => 'nullable|exists:class_series,id'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Fichier invalide',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Obtenir l'année de travail de l'utilisateur
+            $workingYear = $this->getUserWorkingYear();
+
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            $classSeriesId = $request->class_series_id;
+            
+            // Si pas de class_series_id fourni, essayer de le détecter automatiquement
+            if (!$classSeriesId) {
+                $classSeriesId = $this->detectSeriesFromContext($request);
+            }
+            
+            if (!$classSeriesId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune série spécifiée. Utilisez la route /api/students/series/{seriesId}/import ou spécifiez class_series_id.',
+                    'help' => 'Nouvelles routes recommandées: POST /api/students/series/{seriesId}/import'
+                ], 400);
+            }
+
+            $import = new StudentsImport($workingYear->id, $classSeriesId);
+            Excel::import($import, $request->file('file'));
+            
+            $results = $import->getResults();
+
+            return response()->json([
+                'success' => true,
+                'data' => $results,
+                'message' => 'Import terminé avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'import',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export students in importable CSV format
+     */
+    public function exportImportable(Request $request)
+    {
+        try {
+            // Obtenir l'année de travail de l'utilisateur
+            $workingYear = $this->getUserWorkingYear();
+
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            $filters = [];
+            
+            // Appliquer les filtres optionnels
+            if ($request->has('class_series_id')) {
+                $filters['class_series_id'] = $request->class_series_id;
+            }
+            
+            if ($request->has('section_id')) {
+                $filters['section_id'] = $request->section_id;
+            }
+            
+            if ($request->has('level_id')) {
+                $filters['level_id'] = $request->level_id;
+            }
+            
+            if ($request->has('is_active')) {
+                $filters['is_active'] = $request->boolean('is_active');
+            }
+
+            $filename = 'eleves_importable_' . date('Y-m-d_H-i-s') . '.csv';
+            return Excel::download(new StudentsImportableExport($filters, $workingYear->id), $filename, \Maatwebsite\Excel\Excel::CSV);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export CSV importable',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export students to PDF
+     */
+    public function exportStudentsPdf(Request $request)
+    {
+        try {
+            // Obtenir l'année de travail de l'utilisateur
+            $workingYear = $this->getUserWorkingYear();
+
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            $filters = [];
+            
+            // Appliquer les filtres optionnels
+            if ($request->has('class_series_id')) {
+                $filters['class_series_id'] = $request->class_series_id;
+            }
+            
+            if ($request->has('section_id')) {
+                $filters['section_id'] = $request->section_id;
+            }
+            
+            if ($request->has('level_id')) {
+                $filters['level_id'] = $request->level_id;
+            }
+            
+            if ($request->has('is_active')) {
+                $filters['is_active'] = $request->boolean('is_active');
+            }
+
+            $filename = 'eleves_' . date('Y-m-d_H-i-s') . '.pdf';
+            return Excel::download(new StudentsExport($filters, $workingYear->id), $filename, \Maatwebsite\Excel\Excel::DOMPDF);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export PDF',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Detect class series ID from request context
+     */
+    private function detectSeriesFromContext(Request $request)
+    {
+        // 1. Vérifier dans les headers personnalisés
+        if ($request->hasHeader('X-Class-Series-ID')) {
+            return $request->header('X-Class-Series-ID');
+        }
+        
+        // 2. Vérifier dans le referer URL
+        $referer = $request->header('referer');
+        if ($referer) {
+            // Chercher des patterns comme /series/123, /class-series/123, /students/series/123, etc.
+            $patterns = [
+                '/(?:students\/)?series\/(\d+)/',           // /series/123 ou /students/series/123
+                '/(?:students\/)?class-series\/(\d+)/',     // /class-series/123 ou /students/class-series/123
+                '/seriesId[=:](\d+)/',                      // seriesId=123 ou seriesId:123
+                '/class_series_id[=:](\d+)/'                // class_series_id=123 ou class_series_id:123
+            ];
+            
+            foreach ($patterns as $pattern) {
+                if (preg_match($pattern, $referer, $matches)) {
+                    return (int) $matches[1];
+                }
+            }
+        }
+        
+        // 3. Vérifier dans les paramètres d'URL cachés
+        if ($request->has('series_id')) {
+            return $request->get('series_id');
+        }
+        
+        // 4. Vérifier dans le contexte de session (si disponible)
+        try {
+            if ($request->hasSession() && $request->session()->has('current_series_id')) {
+                return $request->session()->get('current_series_id');
+            }
+        } catch (\Exception $e) {
+            // Ignorer silencieusement les erreurs de session
+        }
+        
+        return null;
+    }
+
+    /**
+     * Download CSV template for students import
+     */
+    public function downloadTemplate()
+    {
+        try {
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="template_eleves.csv"'
+            ];
+
+            $csvData = "id,nom,prenom,date_naissance,lieu_naissance,sexe,nom_parent,telephone_parent,email_parent,adresse,statut_etudiant,statut\n";
+            $csvData .= ",DUPONT,Jean,01/01/2010,Douala,M,Marie DUPONT,123456789,marie@example.com,Douala,nouveau,1\n";
+            $csvData .= ",MARTIN,Sophie,15/06/2009,Yaoundé,F,Paul MARTIN,987654321,paul@example.com,Yaoundé,ancien,1\n";
+            $csvData .= "123,BERNARD,Alice,12/03/2009,Douala,F,Pierre BERNARD,654321987,pierre@example.com,Douala,ancien,0\n";
+
+            return Response::make($csvData, 200, $headers);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du téléchargement du template',
                 'error' => $e->getMessage()
             ], 500);
         }

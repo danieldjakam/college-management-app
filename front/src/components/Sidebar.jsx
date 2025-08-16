@@ -128,6 +128,16 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
         {
+          title: "Surveillance Générale",
+          items: [
+            { name: "Scanner QR Étudiants", href: "/attendance", icon: <QrCodeScan /> },
+            { name: "Scanner Offline+", href: "/attendance-offline", icon: <QrCodeScan /> },
+            { name: "Scanner QR Enseignants", href: "/teacher-attendance-scanner", icon: <PeopleFill /> },
+            { name: "Stats Détaillées Enseignants", href: "/teacher-detailed-stats", icon: <BarChartFill /> },
+            { name: "Rapports Présences", href: "/attendance-reports", icon: <FileTextFill /> },
+          ],
+        },
+        {
           title: "Paiements",
           items: [
             {
@@ -178,7 +188,10 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         {
           title: "Surveillance",
           items: [
-            { name: "Scanner QR", href: "/attendance", icon: <QrCodeScan /> },
+            { name: "Scanner QR Étudiants", href: "/attendance", icon: <QrCodeScan /> },
+            { name: "Scanner Offline+", href: "/attendance-offline", icon: <QrCodeScan /> },
+            { name: "Scanner QR Enseignants", href: "/teacher-attendance-scanner", icon: <PeopleFill /> },
+            { name: "Stats Détaillées Enseignants", href: "/teacher-detailed-stats", icon: <BarChartFill /> },
             { name: "Rapports", href: "/attendance-reports", icon: <FileTextFill /> },
           ],
         },

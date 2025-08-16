@@ -184,6 +184,8 @@ export const secureApiEndpoints = {
         toggleStatus: (id) => secureApi.post(`/teachers/${id}/toggle-status`),
         assignSubjects: (id, data) => secureApi.post(`/teachers/${id}/assign-subjects`, data),
         removeAssignment: (id, data) => secureApi.post(`/teachers/${id}/remove-assignment`, data),
+        createUserAccount: (id, data) => secureApi.post(`/teachers/${id}/create-user-account`, data),
+        removeUserAccount: (id) => secureApi.delete(`/teachers/${id}/remove-user-account`),
         getStats: (id, params = {}) => {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/teachers/${id}/stats${queryString ? '?' + queryString : ''}`);
@@ -394,9 +396,41 @@ export const secureApiEndpoints = {
             
             return response; // Retourner la réponse pour permettre .text()
         },
-        importCsv: (formData) => {
+        importCsv: (formData, seriesId) => {
             const token = authService.getToken();
-            return fetch(`${secureApi.baseURL}/students/import-csv`, {
+            
+            // Utiliser la nouvelle route avec l'ID de série
+            const endpoint = seriesId 
+                ? `/students/series/${seriesId}/import`
+                : `/students/import/csv`; // Fallback vers l'ancienne route
+            
+            return fetch(`${secureApi.baseURL}${endpoint}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                    // Don't set Content-Type - let browser set it with boundary for FormData
+                },
+                body: formData
+            }).then(async response => {
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP Error ${response.status}`);
+                }
+                return response.json();
+            });
+        },
+        
+        // Nouvelle méthode pour import Excel spécifique à une série
+        importExcel: (formData, seriesId) => {
+            const token = authService.getToken();
+            
+            // Utiliser la nouvelle route avec l'ID de série
+            const endpoint = seriesId 
+                ? `/students/series/${seriesId}/import`
+                : `/students/import/excel`; // Fallback vers l'ancienne route
+            
+            return fetch(`${secureApi.baseURL}${endpoint}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -863,6 +897,91 @@ export const secureApiEndpoints = {
         // Génération QR codes
         generateStudentQR: (studentId) => secureApi.get(`/supervisors/generate-qr/${studentId}`),
         generateAllQRs: () => secureApi.get('/supervisors/generate-all-qrs')
+    },
+
+    // === TEACHER ATTENDANCE ===
+    teacherAttendance: {
+        // Scanner QR et présences enseignants
+        scanQR: (data) => secureApi.post('/teacher-attendance/scan-qr', data),
+        getDailyAttendance: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-attendance/daily-attendance${queryString ? '?' + queryString : ''}`);
+        },
+        getEntryExitStats: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-attendance/entry-exit-stats${queryString ? '?' + queryString : ''}`);
+        },
+        
+        // Gestion des QR codes enseignants
+        generateQRCode: (data) => secureApi.post('/teacher-attendance/generate-qr', data),
+        getTeachersWithQR: () => secureApi.get('/teacher-attendance/teachers-with-qr'),
+        
+        // Rapports et statistiques
+        getTeacherReport: (teacherId, params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-attendance/teacher/${teacherId}/report${queryString ? '?' + queryString : ''}`);
+        },
+        getDetailedTeacherStats: (teacherId, params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-attendance/teacher/${teacherId}/detailed-stats${queryString ? '?' + queryString : ''}`);
+        },
+        getDayMovements: (teacherId, params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/teacher-attendance/teacher/${teacherId}/day-movements${queryString ? '?' + queryString : ''}`);
+        },
+        updateWorkSchedule: (teacherId, data) => secureApi.put(`/teacher-attendance/teacher/${teacherId}/work-schedule`, data)
+    },
+
+    // === SCHOOL YEARS ===
+    schoolYears: {
+        getAll: () => secureApi.get('/school-years'),
+        getActive: () => secureApi.get('/school-years/active'),
+        getUserWorkingYear: () => secureApi.get('/school-years/user-working-year'),
+        setUserWorkingYear: (yearId) => secureApi.post('/school-years/set-user-working-year', { school_year_id: yearId }),
+        create: (data) => secureApi.post('/school-years', data),
+        update: (id, data) => secureApi.put(`/school-years/${id}`, data),
+        setCurrent: (id) => secureApi.post(`/school-years/${id}/set-current`)
+    },
+
+    // === INVENTORY ===
+    inventory: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/inventory${queryString ? '?' + queryString : ''}`);
+        },
+        getDashboard: () => secureApi.get('/inventory/dashboard'),
+        getConfig: () => secureApi.get('/inventory/config'),
+        getById: (id) => secureApi.get(`/inventory/${id}`),
+        create: (data) => secureApi.post('/inventory', data),
+        update: (id, data) => secureApi.put(`/inventory/${id}`, data),
+        delete: (id) => secureApi.delete(`/inventory/${id}`),
+        updateQuantity: (id, data) => secureApi.patch(`/inventory/${id}/quantity`, data),
+        getMovements: (id) => secureApi.get(`/inventory/${id}/movements`),
+        recordMovement: (id, data) => secureApi.post(`/inventory/${id}/movements`, data),
+        exportData: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/inventory/export${queryString ? '?' + queryString : ''}`);
+        },
+        importData: (formData) => {
+            const token = authService.getToken();
+            return fetch(`${secureApi.baseURL}/inventory/import`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                    // Ne pas définir Content-Type pour FormData
+                },
+                body: formData
+            }).then(async response => {
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP Error ${response.status}`);
+                }
+                return response.json();
+            });
+        },
+        getLowStockItems: () => secureApi.get('/inventory/low-stock'),
+        testWhatsApp: () => secureApi.post('/inventory/test-whatsapp')
     }
 };
 

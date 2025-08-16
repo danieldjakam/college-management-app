@@ -16,6 +16,7 @@ import {
 
 // Components
 import { Card, Button, Input, Alert, LoadingSpinner, Modal } from '../../components/UI';
+import ImportExportButton from '../../components/ImportExportButton';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 
 // Hooks
@@ -225,16 +226,25 @@ const Levels = () => {
                         Bienvenue {user?.name} - Gérez les niveaux de classe de l'établissement
                     </p>
                 </div>
-                <Button
-                    onClick={() => {
-                        resetForm();
-                        setShowAddModal(true);
-                    }}
-                    className="flex items-center gap-2"
-                >
-                    <Plus size={16} />
-                    Nouveau Niveau
-                </Button>
+                <div className="flex gap-2">
+                    <ImportExportButton
+                        title="Niveaux"
+                        apiBasePath="/api/levels"
+                        onImportSuccess={loadLevels}
+                        filters={{ section_id: filterSection !== 'all' ? filterSection : undefined }}
+                        templateFileName="template_niveaux.csv"
+                    />
+                    <Button
+                        onClick={() => {
+                            resetForm();
+                            setShowAddModal(true);
+                        }}
+                        className="flex items-center gap-2"
+                    >
+                        <Plus size={16} />
+                        Nouveau Niveau
+                    </Button>
+                </div>
             </div>
 
             {/* Alerts */}
