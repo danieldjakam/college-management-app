@@ -801,8 +801,8 @@ const StudentPayment = () => {
                             font-family: Arial, sans-serif; 
                             margin: 0; 
                             padding: 0;
-                            font-size: 7px;
-                            line-height: 1.1;
+                            font-size: 9px;
+                            line-height: 1.3;
                         }
                         
                         @media print { 
@@ -824,8 +824,8 @@ const StudentPayment = () => {
                             
                             .receipt-container {
                                 background: white;
-                                width: 200mm;  /* Largeur encore plus réduite */
-                                height: 190mm; /* Hauteur maintenue */
+                                width: 296mm;  /* Deux A5 côte à côte (148mm x 2) + gap */
+                                height: 210mm; /* Hauteur A5 (210mm) */
                                 margin: 0 auto;
                                 box-shadow: 0 0 10px rgba(0,0,0,0.1);
                             }
@@ -843,10 +843,10 @@ const StudentPayment = () => {
                             <p>📋 <strong>Instructions :</strong></p>
                             <ul style="text-align: left; max-width: 500px; margin: 0 auto;">
                                 <li>Configurez votre imprimante sur format <strong>A4 Paysage</strong></li>
-                                <li>Le reçu contient 2 exemplaires identiques</li>
-                                <li><strong>Partie haute :</strong> Exemplaire parents</li>
-                                <li><strong>Partie basse :</strong> Exemplaire collège</li>
-                                <li>Découpez au milieu de la page pour séparer les exemplaires</li>
+                                <li>Le reçu contient 2 exemplaires côte à côte</li>
+                                <li><strong>Côté gauche :</strong> Exemplaire parents</li>
+                                <li><strong>Côté droit :</strong> Exemplaire collège</li>
+                                <li>Découpez au milieu vertical pour séparer les exemplaires</li>
                             </ul>
                         </div>
                     </div>

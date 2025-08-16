@@ -1004,28 +1004,31 @@ class PaymentController extends Controller
                     font-family: Arial, sans-serif;
                     margin: 0;
                     padding: 0;
-                    font-size: 7px;
-                    line-height: 1.1;
+                    font-size: 9px;
+                    line-height: 1.3;
                     color: #000;
                     background-color: white;
                 }
 
                 .receipt-main-container {
-                    height: 100vh;
+                    height: 210mm;
                     display: flex;
-                    flex-direction: column;
+                    flex-direction: row;
+                    gap: 0;
                     max-width: 100%;
+                    justify-content: center;
                 }
 
                 .receipt-copy {
-                    flex: 1;
-                    padding: 4px;
+                    width: 148mm;
+                    height: 210mm;
+                    padding: 8px;
                     border: 1px solid #000;
                     background-color: white;
                     position: relative;
                     display: flex;
                     flex-direction: column;
-                    margin-bottom: 3px;
+                    box-sizing: border-box;
                 }
 
                 .receipt-copy:last-child {
@@ -1034,51 +1037,51 @@ class PaymentController extends Controller
 
                 .copy-label {
                     position: absolute;
-                    top: 2px;
-                    right: 4px;
-                    font-size: 5px;
+                    top: 1px;
+                    right: 2px;
+                    font-size: 4px;
                     font-weight: bold;
                     color: #666;
                     background: #f0f0f0;
-                    padding: 1px 2px;
+                    padding: 1px;
                     border: 1px solid #ccc;
                 }
 
                 .header {
                     text-align: center;
-                    margin-bottom: 4px;
+                    margin-bottom: 10px;
                     position: relative;
-                    border-bottom: 1px solid #000;
-                    padding-bottom: 3px;
+                    border-bottom: 2px solid #000;
+                    padding-bottom: 8px;
                 }
 
                 .logo {
                     position: absolute;
                     left: 0;
                     top: 0;
-                    width: 20px;
-                    height: 20px;
+                    width: 35px;
+                    height: 35px;
                     object-fit: contain;
                 }
 
                 .school-name {
-                    font-size: 8px;
+                    font-size: 12px;
                     font-weight: bold;
-                    margin-bottom: 2px;
+                    margin-bottom: 4px;
                     color: #000;
                 }
 
                 .academic-year {
-                    font-size: 6px;
-                    margin-bottom: 2px;
+                    font-size: 10px;
+                    margin-bottom: 4px;
                     color: #000;
                 }
 
                 .receipt-title {
-                    font-size: 7px;
+                    font-size: 11px;
                     font-weight: bold;
                     text-decoration: underline;
-                    margin: 2px 0;
+                    margin: 6px 0;
                     color: #000;
                 }
 
@@ -1086,77 +1089,77 @@ class PaymentController extends Controller
                     position: absolute;
                     top: 0;
                     left: 0;
-                    font-size: 5px;
+                    font-size: 6px;
                     color: #666;
                     background: #f0f0f0;
-                    padding: 1px 2px;
+                    padding: 2px 4px;
                 }
 
                 .student-info {
                     background: #f9f9f9;
-                    padding: 3px;
+                    padding: 10px;
                     border: 1px solid #ccc;
-                    margin-bottom: 3px;
-                    font-size: 6px;
+                    margin-bottom: 12px;
+                    font-size: 9px;
                 }
 
                 .student-info h4 {
-                    margin: 0 0 2px 0;
+                    margin: 0 0 6px 0;
                     color: #000;
-                    font-size: 6px;
+                    font-size: 10px;
                     border-bottom: 1px solid #ccc;
-                    padding-bottom: 1px;
+                    padding-bottom: 3px;
                 }
 
                 .student-info div {
-                    margin: 1px 0;
-                    line-height: 1.2;
+                    margin: 3px 0;
+                    line-height: 1.4;
                 }
 
                 .student-info strong {
                     color: #000;
                     display: inline-block;
-                    min-width: 30px;
-                    font-size: 6px;
+                    min-width: 60px;
+                    font-size: 9px;
                 }
 
                 .payment-details {
                     background: #fff;
                     border: 1px solid #000;
-                    padding: 2px;
-                    margin-bottom: 2px;
+                    padding: 8px;
+                    margin-bottom: 10px;
                     flex: 1;
                 }
 
                 .payment-details h4 {
-                    margin: 0 0 1px 0;
+                    margin: 0 0 6px 0;
                     color: #000;
-                    font-size: 6px;
+                    font-size: 10px;
                     text-align: center;
                 }
 
                 .payment-table {
                     width: 100%;
                     border-collapse: collapse;
-                    margin: 1px 0;
-                    font-size: 4px;
+                    margin: 6px 0;
+                    font-size: 8px;
                 }
 
                 .payment-table th {
                     background: #e0e0e0;
                     color: #000;
-                    padding: 1px;
+                    padding: 4px 3px;
                     border: 1px solid #000;
                     font-weight: bold;
                     text-align: center;
-                    font-size: 4px;
+                    font-size: 8px;
                 }
 
                 .payment-table td {
                     border: 1px solid #000;
-                    padding: 1px;
+                    padding: 4px 3px;
                     text-align: center;
-                    font-size: 4px;
+                    font-size: 8px;
                 }
 
                 .payment-table tr:nth-child(even) td {
@@ -1164,39 +1167,39 @@ class PaymentController extends Controller
                 }
 
                 .recap-section {
-                    margin: 3px 0;
+                    margin: 10px 0;
                 }
 
                 .recap-section h4 {
                     color: #000;
-                    font-size: 6px;
-                    margin-bottom: 2px;
+                    font-size: 10px;
+                    margin-bottom: 6px;
                     text-align: center;
                     background: #f0f0f0;
-                    padding: 2px;
+                    padding: 4px;
                 }
 
                 .recap-table {
                     width: 100%;
                     border-collapse: collapse;
-                    font-size: 4px;
+                    font-size: 7px;
                 }
 
                 .recap-table th {
                     background: #e0e0e0;
                     color: #000;
-                    padding: 1px;
+                    padding: 3px 2px;
                     border: 1px solid #000;
                     font-weight: bold;
                     text-align: center;
-                    font-size: 3px;
+                    font-size: 7px;
                 }
 
                 .recap-table td {
                     border: 1px solid #000;
-                    padding: 1px;
+                    padding: 3px 2px;
                     text-align: center;
-                    font-size: 3px;
+                    font-size: 7px;
                 }
 
                 .recap-table tr:nth-child(even) td {
@@ -1210,17 +1213,17 @@ class PaymentController extends Controller
                 }
 
                 .footer-info {
-                    margin-top: auto;
-                    font-size: 5px;
-                    line-height: 1.1;
+                    margin-top: 12px;
+                    font-size: 8px;
+                    line-height: 1.3;
                     text-align: justify;
                     background: #f9f9f9;
-                    padding: 2px;
-                    border-left: 1px solid #000;
+                    padding: 6px;
+                    border-left: 2px solid #000;
                 }
 
                 .footer-info > div {
-                    margin: 1px 0;
+                    margin: 3px 0;
                 }
 
                 .footer-info strong {
@@ -1230,9 +1233,9 @@ class PaymentController extends Controller
                 .contact-info {
                     display: flex;
                     justify-content: space-between;
-                    margin-top: 2px;
+                    margin-top: 6px;
                     background: white;
-                    padding: 2px;
+                    padding: 4px;
                     border: 1px solid #ccc;
                 }
 
@@ -1241,21 +1244,21 @@ class PaymentController extends Controller
                 }
 
                 .contact-left div, .contact-right div {
-                    margin: 1px 0;
-                    font-size: 5px;
+                    margin: 2px 0;
+                    font-size: 8px;
                 }
 
                 .signature-section {
-                    margin-top: 4px;
+                    margin-top: 12px;
                     text-align: right;
-                    font-size: 5px;
+                    font-size: 8px;
                     background: #f0f0f0;
-                    padding: 2px;
+                    padding: 6px;
                 }
 
                 .signature-line {
-                    margin-top: 3px;
-                    font-size: 5px;
+                    margin-top: 6px;
+                    font-size: 8px;
                     font-weight: bold;
                     color: #000;
                 }
