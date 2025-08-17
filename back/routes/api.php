@@ -246,6 +246,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/school-years', [StudentController::class, 'getSchoolYears']);
         Route::post('/reorder', [StudentController::class, 'reorder']);
         Route::post('/class-series/{seriesId}/sort-alphabetically', [StudentController::class, 'sortAlphabetically']);
+        Route::post('/bulk-upload-photos', [StudentController::class, 'bulkUploadPhotos']);
     });
 
     // Routes utilisateurs (pour compatibilité)
