@@ -1739,4 +1739,111 @@ class StudentController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Upload en lot de photos d'étudiants
+     * Les photos doivent être nommées avec le matricule de l'étudiant
+     */
+    public function bulkUploadPhotos(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'photos' => 'required|array',
+                'photos.*' => 'required|file|image|mimes:jpeg,jpg,png,gif|max:5120', // 5MB max par photo
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Fichiers invalides',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $photos = $request->file('photos');
+            $results = [
+                'total' => count($photos),
+                'success' => 0,
+                'errors' => 0,
+                'details' => []
+            ];
+
+            foreach ($photos as $photo) {
+                $originalName = $photo->getClientOriginalName();
+                $filename = pathinfo($originalName, PATHINFO_FILENAME); // Nom sans extension
+                
+                // Extraire le matricule du nom du fichier
+                // Supporte différents formats: 20240008.jpg, 25A00014.png, student_20240008.png, etc.
+                preg_match('/([0-9]{2}[A-Z]?[0-9]{5,}|\d{8,})/', $filename, $matches);
+                
+                if (!empty($matches[1])) {
+                    $studentNumber = $matches[1];
+                    
+                    // Rechercher l'étudiant par matricule
+                    $student = Student::where('student_number', $studentNumber)->first();
+                    
+                    if ($student) {
+                        // Supprimer l'ancienne photo si elle existe
+                        if ($student->photo && Storage::disk('public')->exists($student->photo)) {
+                            Storage::disk('public')->delete($student->photo);
+                        }
+                        
+                        // Uploader la nouvelle photo
+                        $photoPath = $this->handlePhotoUpload($photo, $studentNumber);
+                        
+                        if ($photoPath) {
+                            $student->photo = $photoPath;
+                            $student->save();
+                            
+                            $results['success']++;
+                            $results['details'][] = [
+                                'file' => $originalName,
+                                'student_number' => $studentNumber,
+                                'student_name' => $student->name,
+                                'status' => 'success',
+                                'message' => 'Photo mise à jour avec succès'
+                            ];
+                        } else {
+                            $results['errors']++;
+                            $results['details'][] = [
+                                'file' => $originalName,
+                                'student_number' => $studentNumber,
+                                'status' => 'error',
+                                'message' => 'Erreur lors de l\'upload de la photo'
+                            ];
+                        }
+                    } else {
+                        $results['errors']++;
+                        $results['details'][] = [
+                            'file' => $originalName,
+                            'student_number' => $studentNumber,
+                            'status' => 'error',
+                            'message' => 'Étudiant non trouvé avec ce matricule'
+                        ];
+                    }
+                } else {
+                    $results['errors']++;
+                    $results['details'][] = [
+                        'file' => $originalName,
+                        'student_number' => null,
+                        'status' => 'error',
+                        'message' => 'Matricule non détecté dans le nom du fichier'
+                    ];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "Upload terminé: {$results['success']} succès, {$results['errors']} erreurs",
+                'data' => $results
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'upload en lot',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
