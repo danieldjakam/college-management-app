@@ -314,6 +314,45 @@ const SeriesStudents = () => {
         }
     };
 
+    const downloadStudentsListPdf = async () => {
+        try {
+            setLoading(true);
+            setError('');
+
+            const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8000/api/students/export/pdf/${seriesId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${JSON.parse(localStorage.getItem('auth_token'))}`,
+                    'Accept': 'application/pdf'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const pdfBlob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(pdfBlob);
+            
+            // Créer un lien de téléchargement
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `liste_eleves_${series?.name || 'serie'}_${new Date().toISOString().split('T')[0]}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+            setSuccess('Liste des élèves téléchargée avec succès');
+            
+        } catch (error) {
+            console.error('Error downloading students list PDF:', error);
+            setError('Erreur lors du téléchargement de la liste PDF');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const loadSchoolYears = async () => {
         try {
             const response = await secureApiEndpoints.students.getSchoolYears();
@@ -2081,6 +2120,15 @@ const SeriesStudents = () => {
                                         Total: {students.length} élève{students.length > 1 ? 's' : ''}
                                     </small>
                                 </div>
+                                <button
+                                    type="button"
+                                    className="btn btn-danger me-2"
+                                    onClick={downloadStudentsListPdf}
+                                    disabled={loading || students.length === 0}
+                                >
+                                    <Download size={16} className="me-2" />
+                                    Télécharger PDF
+                                </button>
                                 <button
                                     type="button"
                                     className="btn btn-secondary"
