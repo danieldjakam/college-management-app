@@ -223,6 +223,7 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les élèves
     Route::prefix('students')->middleware(['role:admin,accountant,comptable_superieur'])->group(function () {
+        Route::get('/class/{classId}', [StudentController::class, 'getByClass']);
         Route::get('/class-series/{seriesId}', [StudentController::class, 'getByClassSeries']);
         
         // Export routes - amélioration des routes existantes
@@ -619,5 +620,17 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{department}/assign-teacher', [DepartmentController::class, 'assignTeacher'])->middleware(['role:admin']);
         Route::post('/{department}/remove-teacher', [DepartmentController::class, 'removeTeacher'])->middleware(['role:admin']);
         Route::post('/{department}/set-head', [DepartmentController::class, 'setHead'])->middleware(['role:admin']);
+    });
+
+    // Routes pour les rapports de recouvrement et certificats
+    Route::prefix('reports')->middleware(['role:admin,accountant,comptable_superieur'])->group(function () {
+        // État de recouvrement
+        Route::get('/recovery-status', [ReportsController::class, 'getRecoveryStatus']);
+        Route::get('/recovery-status/export-pdf', [ReportsController::class, 'exportRecoveryStatusPdf']);
+        
+        // Certificats de scolarité
+        Route::get('/school-certificates', [ReportsController::class, 'generateSchoolCertificates']);
+        Route::get('/school-certificate/preview/{studentId}', [ReportsController::class, 'previewSchoolCertificate']);
+        Route::get('/school-certificates/download', [ReportsController::class, 'downloadSchoolCertificates']);
     });
 });

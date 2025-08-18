@@ -235,6 +235,58 @@ class StudentController extends Controller
     }
 
     /**
+     * Récupérer les élèves par classe (toutes les séries d'une classe)
+     */
+    public function getByClass($classId)
+    {
+        try {
+            // Obtenir l'année de travail de l'utilisateur
+            $workingYear = $this->getUserWorkingYear();
+
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            // Récupérer toutes les séries de cette classe
+            $classSeries = ClassSeries::where('class_id', $classId)
+                ->where('is_active', true)
+                ->get();
+
+            if ($classSeries->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune série trouvée pour cette classe'
+                ], 404);
+            }
+
+            // Récupérer tous les élèves des séries de cette classe
+            $students = Student::with(['classSeries.schoolClass'])
+                ->whereIn('class_series_id', $classSeries->pluck('id'))
+                ->where('school_year_id', $workingYear->id)
+                ->where('is_active', true)
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Élèves récupérés avec succès',
+                'data' => $students
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error in getByClass: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des élèves',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Créer un nouvel élève
      */
     public function store(Request $request)

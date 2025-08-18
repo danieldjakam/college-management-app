@@ -56,8 +56,7 @@ class ReportsController extends Controller
 
             // Obtenir tous les montants de tranches pour cette série de classe
             $classPaymentAmounts = DB::table('class_payment_amounts')
-                ->where('class_series_id', $student->classSeries->id)
-                ->where('school_year_id', $schoolYearId)
+                ->where('class_id', $student->classSeries->class_id)
                 ->sum('amount');
 
             return $classPaymentAmounts ?: 0;
@@ -142,7 +141,7 @@ class ReportsController extends Controller
         }]);
 
         if ($classId) {
-            $query->where('school_class_id', $classId);
+            $query->where('class_id', $classId);
         }
 
         $classSeries = $query->get();
@@ -185,7 +184,7 @@ class ReportsController extends Controller
      */
     private function getRecoveryBySection($workingYear, $sectionId = null)
     {
-        $query = Section::with(['schoolClasses.classSeries.students' => function($q) use ($workingYear) {
+        $query = Section::with(['classes.series.students' => function($q) use ($workingYear) {
             $q->where('school_year_id', $workingYear->id)
               ->where('is_active', true);
         }]);
@@ -204,8 +203,8 @@ class ReportsController extends Controller
             $paidStudents = 0;
 
             // Parcourir toutes les classes de cette section
-            foreach ($section->schoolClasses as $schoolClass) {
-                foreach ($schoolClass->classSeries as $series) {
+            foreach ($section->classes as $schoolClass) {
+                foreach ($schoolClass->series as $series) {
                     $studentsCount = $series->students->count();
                     $totalStudents += $studentsCount;
                     
@@ -243,9 +242,13 @@ class ReportsController extends Controller
      */
     private function getClassSeriesTotalAmount($classSeriesId, $schoolYearId)
     {
+        $classSeries = ClassSeries::find($classSeriesId);
+        if (!$classSeries) {
+            return 0;
+        }
+        
         return DB::table('class_payment_amounts')
-            ->where('class_series_id', $classSeriesId)
-            ->where('school_year_id', $schoolYearId)
+            ->where('class_id', $classSeries->class_id)
             ->sum('amount');
     }
 
@@ -3177,7 +3180,12 @@ class ReportsController extends Controller
             }
 
             $html = $this->generateCertificateHtml($student, $workingYear);
-            return response($html, 200, ['Content-Type' => 'text/html']);
+            
+            // Générer le PDF avec DomPDF
+            $pdf = \PDF::loadHTML($html);
+            $pdf->setPaper('A4', 'portrait');
+            
+            return $pdf->stream("certificat_scolarite_{$student->student_number}_{$student->last_name}.pdf");
 
         } catch (\Exception $e) {
             Log::error('Error in ReportsController@previewSchoolCertificate: ' . $e->getMessage());
@@ -3239,7 +3247,7 @@ class ReportsController extends Controller
     {
         return Student::with(['classSeries.schoolClass'])
             ->whereHas('classSeries', function($q) use ($classId) {
-                $q->where('school_class_id', $classId);
+                $q->where('class_id', $classId);
             })
             ->where('school_year_id', $workingYear->id)
             ->where('is_active', true)
@@ -3421,7 +3429,7 @@ class ReportsController extends Controller
                 <p>Je soussigné(e), <strong>Directeur/Directrice</strong> du <strong>{$schoolSettings->school_name}</strong>, certifie que :</p>
                 
                 <p class='student-info'>
-                    L'élève <strong>" . strtoupper($student->last_name ?? $student->name) . " " . ucwords(strtolower($student->first_name ?? $student->subname)) . "</strong><br>
+                    L'élève <strong>" . strtoupper($student->last_name ?? $student->name ?? '') . " " . ucwords(strtolower($student->first_name ?? $student->subname ?? '')) . "</strong><br>
                     Né(e) le <strong>{$dateNaissance}</strong> à <strong>" . ($student->place_of_birth ?? $student->birthday_place ?? 'N/A') . "</strong><br>
                     Matricule : <strong>" . ($student->student_number ?? $student->matricule ?? 'N/A') . "</strong>
                 </p>
@@ -3473,4 +3481,308 @@ class ReportsController extends Controller
         }
 
         return $combinedHtml;
-    }}
+    }
+
+    /**
+     * Export PDF de l'état de recouvrement
+     */
+    public function exportRecoveryStatusPdf(Request $request)
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+            if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            $type = $request->get('type', 'by-class');
+            $classId = $request->get('class_id');
+            $sectionId = $request->get('section_id');
+
+            $recoveryData = [];
+
+            if ($type === 'by-class') {
+                $recoveryData = $this->getRecoveryByClass($workingYear, $classId);
+            } elseif ($type === 'by-section') {
+                $recoveryData = $this->getRecoveryBySection($workingYear, $sectionId);
+            }
+
+            // Calculer le résumé à partir des données de recouvrement
+            $summary = $this->calculateRecoverySummary($recoveryData);
+
+            $html = $this->generateRecoveryStatusPdfHtml($recoveryData, $summary, $type, $workingYear);
+            
+            // Générer le PDF avec DomPDF
+            $pdf = \PDF::loadHTML($html);
+            $pdf->setPaper('A4', 'landscape');
+            
+            $filename = "etat_recouvrement_{$type}_" . now()->format('Y-m-d') . ".pdf";
+            return $pdf->stream($filename);
+
+        } catch (\Exception $e) {
+            Log::error('Error in ReportsController@exportRecoveryStatusPdf: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export PDF',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Générer le HTML pour l'export PDF de l'état de recouvrement
+     */
+    private function generateRecoveryStatusPdfHtml($recoveryData, $summary, $type, $workingYear)
+    {
+        $schoolSettings = \App\Models\SchoolSetting::getSettings();
+        
+        // Obtenir le logo en base64
+        $logoBase64 = '';
+        if ($schoolSettings->logo) {
+            $logoPath = storage_path('app/public/logos/' . $schoolSettings->logo);
+            if (file_exists($logoPath)) {
+                $logoData = file_get_contents($logoPath);
+                $logoBase64 = 'data:image/' . pathinfo($logoPath, PATHINFO_EXTENSION) . ';base64,' . base64_encode($logoData);
+            }
+        }
+
+        $formatAmount = function($amount) {
+            return number_format($amount, 0, ',', ' ') . ' FCFA';
+        };
+
+        $typeLabel = $type === 'by-class' ? 'par Classe' : 'par Section';
+
+        $html = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='utf-8'>
+            <title>État de Recouvrement {$typeLabel}</title>
+            <style>
+                @page {
+                    size: A4 landscape;
+                    margin: 1.5cm;
+                }
+                
+                body {
+                    font-family: Arial, sans-serif;
+                    font-size: 12px;
+                    color: #000;
+                    margin: 0;
+                    padding: 0;
+                }
+
+                .header {
+                    text-align: center;
+                    margin-bottom: 30px;
+                    border-bottom: 2px solid #000;
+                    padding-bottom: 15px;
+                }
+
+                .logo {
+                    max-width: 60px;
+                    max-height: 60px;
+                    margin-bottom: 8px;
+                }
+
+                .school-name {
+                    font-size: 16px;
+                    font-weight: bold;
+                    text-transform: uppercase;
+                    margin-bottom: 5px;
+                }
+
+                .report-title {
+                    font-size: 18px;
+                    font-weight: bold;
+                    margin: 20px 0;
+                    text-align: center;
+                }
+
+                .summary {
+                    margin-bottom: 20px;
+                    border: 1px solid #ccc;
+                    padding: 10px;
+                    background-color: #f9f9f9;
+                }
+
+                .summary-grid {
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
+                    gap: 15px;
+                }
+
+                .summary-item {
+                    text-align: center;
+                }
+
+                .summary-value {
+                    font-size: 14px;
+                    font-weight: bold;
+                    color: #2c3e50;
+                }
+
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 20px;
+                    font-size: 11px;
+                }
+
+                th, td {
+                    border: 1px solid #000;
+                    padding: 8px;
+                    text-align: left;
+                }
+
+                th {
+                    background-color: #34495e;
+                    color: white;
+                    font-weight: bold;
+                    text-align: center;
+                }
+
+                .text-center { text-align: center; }
+                .text-end { text-align: right; }
+                .text-success { color: #27ae60; }
+                .text-warning { color: #f39c12; }
+                .text-danger { color: #e74c3c; }
+
+                .footer {
+                    margin-top: 30px;
+                    text-align: center;
+                    font-size: 10px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class='header'>
+                " . ($logoBase64 ? "<img src='{$logoBase64}' class='logo' alt='Logo'>" : "") . "
+                <div class='school-name'>{$schoolSettings->school_name}</div>
+                <div>Année scolaire: {$workingYear->name}</div>
+            </div>
+
+            <div class='report-title'>ÉTAT DE RECOUVREMENT {$typeLabel}</div>
+
+            <div class='summary'>
+                <h4>Résumé Général</h4>
+                <div class='summary-grid'>
+                    <div class='summary-item'>
+                        <div>Total Général</div>
+                        <div class='summary-value'>" . $formatAmount($summary['total_amount'] ?? 0) . "</div>
+                    </div>
+                    <div class='summary-item'>
+                        <div>Montant Collecté</div>
+                        <div class='summary-value text-success'>" . $formatAmount($summary['collected_amount'] ?? 0) . "</div>
+                    </div>
+                    <div class='summary-item'>
+                        <div>Reste à Collecter</div>
+                        <div class='summary-value text-warning'>" . $formatAmount($summary['remaining_amount'] ?? 0) . "</div>
+                    </div>
+                    <div class='summary-item'>
+                        <div>Taux Global</div>
+                        <div class='summary-value'>" . ($summary['global_recovery_rate'] ?? 0) . "%</div>
+                    </div>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>";
+
+        if ($type === 'by-class') {
+            $html .= "
+                        <th>Classe</th>
+                        <th>Série</th>";
+        } else {
+            $html .= "
+                        <th>Section</th>";
+        }
+
+        $html .= "
+                        <th>Total Élèves</th>
+                        <th>Payés</th>
+                        <th>Non Payés</th>
+                        <th>Taux (%)</th>
+                        <th class='text-end'>Collecté</th>
+                        <th class='text-end'>Restant</th>
+                    </tr>
+                </thead>
+                <tbody>";
+
+        foreach ($recoveryData as $item) {
+            $rateClass = $item['recovery_rate'] >= 80 ? 'text-success' : 
+                        ($item['recovery_rate'] >= 50 ? 'text-warning' : 'text-danger');
+            
+            $html .= "<tr>";
+            
+            if ($type === 'by-class') {
+                $html .= "
+                    <td><strong>{$item['class_name']}</strong></td>
+                    <td>{$item['series_name']}</td>";
+            } else {
+                $html .= "
+                    <td><strong>{$item['section_name']}</strong></td>";
+            }
+            
+            $html .= "
+                    <td class='text-center'>{$item['total_students']}</td>
+                    <td class='text-center text-success'>{$item['paid_students']}</td>
+                    <td class='text-center text-danger'>{$item['unpaid_students']}</td>
+                    <td class='text-center {$rateClass}'>{$item['recovery_rate']}%</td>
+                    <td class='text-end text-success'>" . $formatAmount($item['collected_amount']) . "</td>
+                    <td class='text-end text-warning'>" . $formatAmount($item['remaining_amount']) . "</td>
+                </tr>";
+        }
+
+        $html .= "
+                </tbody>
+                <tfoot>
+                    <tr style='background-color: #ecf0f1;'>
+                        <th colspan='" . ($type === 'by-class' ? '6' : '5') . "' class='text-end'><strong>TOTAUX:</strong></th>
+                        <th class='text-end text-success'>" . $formatAmount($summary['collected_amount'] ?? 0) . "</th>
+                        <th class='text-end text-warning'>" . $formatAmount($summary['remaining_amount'] ?? 0) . "</th>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div class='footer'>
+                <p>Rapport généré le " . now()->format('d/m/Y à H:i') . "</p>
+                <p>{$schoolSettings->school_name} - Système de Gestion Scolaire</p>
+            </div>
+        </body>
+        </html>";
+
+        return $html;
+    }
+
+    /**
+     * Calculer le résumé à partir des données de recouvrement
+     */
+    private function calculateRecoverySummary($recoveryData)
+    {
+        $totalAmount = 0;
+        $collectedAmount = 0;
+        $remainingAmount = 0;
+        $totalStudents = 0;
+        $paidStudents = 0;
+
+        foreach ($recoveryData as $item) {
+            $totalAmount += $item['collected_amount'] + $item['remaining_amount'];
+            $collectedAmount += $item['collected_amount'];
+            $remainingAmount += $item['remaining_amount'];
+            $totalStudents += $item['total_students'];
+            $paidStudents += $item['paid_students'];
+        }
+
+        $globalRecoveryRate = $totalStudents > 0 ? round(($paidStudents / $totalStudents) * 100, 2) : 0;
+
+        return [
+            'total_amount' => $totalAmount,
+            'collected_amount' => $collectedAmount,
+            'remaining_amount' => $remainingAmount,
+            'global_recovery_rate' => $globalRecoveryRate,
+            'total_students' => $totalStudents,
+            'paid_students' => $paidStudents
+        ];
+    }
+}
