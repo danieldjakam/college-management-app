@@ -32,8 +32,9 @@ class StaffAttendanceController extends Controller
 
             // Chercher d'abord dans les users qui ont un QR code
             // Inclure tous les rôles de personnel possible
+            $staffRoles = ['teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe'];
             $user = User::where('qr_code', $request->staff_qr_code)
-                       ->whereIn('role', ['teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire'])
+                       ->whereIn('role', $staffRoles)
                        ->where('is_active', true)
                        ->first();
 
@@ -42,7 +43,7 @@ class StaffAttendanceController extends Controller
                 $teacher = Teacher::where('qr_code', $request->staff_qr_code)
                                 ->where('is_active', true)
                                 ->first();
-                
+
                 if ($teacher && $teacher->user) {
                     $user = $teacher->user;
                 }
@@ -53,14 +54,14 @@ class StaffAttendanceController extends Controller
                 $userWithDifferentRole = User::where('qr_code', $request->staff_qr_code)
                     ->where('is_active', true)
                     ->first();
-                
+
                 if ($userWithDifferentRole) {
                     return response()->json([
                         'success' => false,
                         'message' => 'Code QR invalide - rôle non autorisé pour la présence personnel'
                     ], 403);
                 }
-                
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Code QR invalide - membre du personnel non trouvé ou inactif'
@@ -105,7 +106,7 @@ class StaffAttendanceController extends Controller
             if ($eventType === 'entry') {
                 $lateMinutes = $this->calculateLateMinutes($now, $staffType);
             }
-            
+
             // Créer un nouvel enregistrement pour chaque mouvement
             $attendance = StaffAttendance::create([
                 'user_id' => $user->id,
@@ -123,7 +124,7 @@ class StaffAttendanceController extends Controller
             $totalWorkTime = $this->calculateDailyWorkTime($user->id, $today, $currentSchoolYear->id);
 
             $message = $eventType === 'entry' ? 'Entrée enregistrée avec succès' : 'Sortie enregistrée avec succès';
-            
+
             return response()->json([
                 'success' => true,
                 'message' => $message,
@@ -217,9 +218,10 @@ class StaffAttendanceController extends Controller
             ]);
 
             $user = User::find($request->user_id);
-            
+
             // Vérifier que c'est un membre du personnel
-            if (!in_array($user->role, ['teacher', 'accountant', 'admin', 'surveillant_general'])) {
+            $staffRoles = ['teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe'];
+            if (!in_array($user->role, $staffRoles)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Cet utilisateur n\'est pas un membre du personnel'
@@ -228,7 +230,7 @@ class StaffAttendanceController extends Controller
 
             // Générer un code QR unique simple
             $qrCode = 'STAFF_' . $user->id;
-            
+
             // Pas besoin de générer de fichier, on utilise l'API externe côté frontend
             $qrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' . urlencode($qrCode) . '&margin=1';
 
@@ -245,11 +247,11 @@ class StaffAttendanceController extends Controller
 
             // Générer directement le PDF du badge
             $badgeHtml = $this->generateBadgeHtmlForPDF($user, $qrCode);
-            
+
             // Configuration DomPDF avec optimisations
             $pdf = Pdf::loadHtml($badgeHtml);
             $pdf->setPaper('A4', 'portrait');
-            
+
             // Optimisations pour améliorer la performance
             $pdf->setOptions([
                 'isPhpEnabled' => false,
@@ -282,7 +284,7 @@ class StaffAttendanceController extends Controller
     {
         // Récupérer les paramètres de l'école
         $schoolSettings = SchoolSetting::first();
-        
+
         // Convertir le logo en base64 pour DOMPDF
         $logoBase64 = '';
         if ($schoolSettings && $schoolSettings->school_logo) {
@@ -295,7 +297,7 @@ class StaffAttendanceController extends Controller
 
         // Log de début pour debug
         \Log::info("Starting badge generation for user: " . $user->id . " (" . $user->name . ")", ['photo_url' => $user->photo]);
-        
+
         // Convertir la photo du personnel en base64 (optimisée)
         $photoBase64 = '';
         if ($user->photo) {
@@ -304,7 +306,7 @@ class StaffAttendanceController extends Controller
                 if (str_starts_with($user->photo, 'http')) {
                     // Corriger l'URL pour pointer vers localhost/serveur local
                     $correctedUrl = str_replace(['127.0.0.1:8000', 'localhost:8000'], '192.168.1.229:8000', $user->photo);
-                    
+
                     // Pour les URLs, essayer d'abord l'accès direct au fichier
                     $relativePath = str_replace(['http://127.0.0.1:8000/', 'http://localhost:8000/', 'http://192.168.1.229:8000/'], '', $user->photo);
                     // Enlever "storage/" du début si présent car storage_path('app/public/') inclut déjà le chemin vers public
@@ -313,7 +315,7 @@ class StaffAttendanceController extends Controller
                         $relativePath = substr($relativePath, 8); // Enlever "storage/"
                     }
                     $localPath = storage_path('app/public/' . $relativePath);
-                    
+
                     if (file_exists($localPath)) {
                         // Utiliser le fichier local si disponible (plus rapide)
                         $photoContent = file_get_contents($localPath);
@@ -337,7 +339,7 @@ class StaffAttendanceController extends Controller
                         \Log::info("Photo loaded from relative path: " . $photoPath);
                     }
                 }
-                
+
                 if ($photoContent) {
                     // Optimiser l'image si elle est trop grosse (> 50KB)
                     if (strlen($photoContent) > 50000) {
@@ -348,19 +350,19 @@ class StaffAttendanceController extends Controller
                             $newImage = imagecreatetruecolor(80, 80);
                             $width = imagesx($tempImage);
                             $height = imagesy($tempImage);
-                            
+
                             imagecopyresampled($newImage, $tempImage, 0, 0, 0, 0, 80, 80, $width, $height);
-                            
+
                             // Convertir en PNG optimisé
                             ob_start();
                             imagepng($newImage, null, 6); // Compression 6/9
                             $photoContent = ob_get_clean();
-                            
+
                             imagedestroy($tempImage);
                             imagedestroy($newImage);
                         }
                     }
-                    
+
                     $photoBase64 = 'data:image/png;base64,' . base64_encode($photoContent);
                     \Log::info("Photo successfully converted to base64 for user: " . $user->id);
                 }
@@ -392,7 +394,20 @@ class StaffAttendanceController extends Controller
             'accountant' => ['label' => 'COMPTABLE', 'color' => '#2e7d32'],
             'comptable_superieur' => ['label' => 'COMPTABLE SUPÉRIEUR', 'color' => '#1976d2'],
             'surveillant_general' => ['label' => 'SURVEILLANT GÉNÉRAL', 'color' => '#f57c00'],
-            'admin' => ['label' => 'ADMINISTRATEUR', 'color' => '#d32f2f']
+            'admin' => ['label' => 'ADMINISTRATEUR', 'color' => '#d32f2f'],
+            'general_accountant' => ['label' => 'COMPTABLE GÉNÉRAL', 'color' => '#1565c0'],
+            'secretaire' => ['label' => 'SECRÉTAIRE', 'color' => '#7b1fa2'],
+            // Nouveaux rôles du fichier k.png
+            'responsable_pedagogique' => ['label' => 'RESPONSABLE PÉDAGOGIQUE', 'color' => '#3f51b5'],
+            'dean_of_studies' => ['label' => 'DEAN OF STUDIES', 'color' => '#5d4037'],
+            'censeur_esg' => ['label' => 'CENSEUR ESG', 'color' => '#00796b'],
+            'censeur' => ['label' => 'CENSEUR', 'color' => '#0097a7'],
+            'surveillant_secteur' => ['label' => 'SURVEILLANT DE SECTEUR', 'color' => '#fb8c00'],
+            'caissiere' => ['label' => 'CAISSIÈRE', 'color' => '#f57c00'],
+            'bibliothecaire' => ['label' => 'BIBLIOTHÉCAIRE', 'color' => '#8bc34a'],
+            'chef_travaux' => ['label' => 'CHEF DES TRAVAUX', 'color' => '#795548'],
+            'chef_securite' => ['label' => 'CHEF DE SÉCURITÉ', 'color' => '#f44336'],
+            'reprographe' => ['label' => 'REPROGRAPHE', 'color' => '#9c27b0']
         ];
 
         $staffConfig = $staffTypes[$user->role] ?? ['label' => 'PERSONNEL', 'color' => '#7f8c8d'];
@@ -405,9 +420,8 @@ class StaffAttendanceController extends Controller
             <title>Badge Personnel - {$user->name}</title>
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { 
-                    font-family: 'Arial', 'Helvetica', sans-serif; 
-                    background: #f5f5f5; 
+                body {
+                    font-family: 'Arial', 'Helvetica', sans-serif;
                     padding: 20mm;
                     display: flex;
                     justify-content: center;
@@ -424,7 +438,7 @@ class StaffAttendanceController extends Controller
                     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
                     border: 1px solid #e0e0e0;
                 }
-                
+
                 /* Header Section */
                 .badge-header {
                     background: {$staffConfig['color']};
@@ -440,14 +454,14 @@ class StaffAttendanceController extends Controller
                     justify-content: center;
                     gap: 8px;
                 }
-                
+
                 .school-logo {
                     width: 16px;
                     height: 16px;
                     object-fit: contain;
                     filter: brightness(0) invert(1);
                 }
-                
+
                 /* Tableau principal */
                 .content-table {
                     width: 100%;
@@ -455,19 +469,19 @@ class StaffAttendanceController extends Controller
                     border-collapse: collapse;
                     table-layout: fixed;
                 }
-                
+
                 .content-table td {
                     vertical-align: middle;
                     padding: 6px;
                     border: none;
                 }
-                
+
                 /* Colonne 1 - Photo (25%) */
                 .photo-cell {
                     width: 25%;
                     text-align: center;
                 }
-                
+
                 .staff-photo {
                     width: 24mm;
                     height: 30mm;
@@ -476,16 +490,16 @@ class StaffAttendanceController extends Controller
                     border: 1px solid #ddd;
                     background: #f9f9f9;
                 }
-                
+
                 /* Colonne 2 - Informations (50%) */
                 .info-cell {
-                    width: 50%;
+                    width: 40%;
                     padding-left: 8px;
                     padding-right: 8px;
                 }
-                
+
                 .id-number-label {
-                    font-size: 6px;
+                    font-size: 10px;
                     color: {$staffConfig['color']};
                     font-weight: bold;
                     text-transform: uppercase;
@@ -493,17 +507,17 @@ class StaffAttendanceController extends Controller
                     letter-spacing: 0.5px;
                     display: block;
                 }
-                
+
                 .id-number {
-                    font-size: 10px;
+                    font-size: 18px;
                     color: {$staffConfig['color']};
                     font-weight: bold;
                     margin-bottom: 4px;
                     display: block;
                 }
-                
+
                 .name-label {
-                    font-size: 6px;
+                    font-size: 10px;
                     color: {$staffConfig['color']};
                     font-weight: bold;
                     text-transform: uppercase;
@@ -511,18 +525,18 @@ class StaffAttendanceController extends Controller
                     letter-spacing: 0.5px;
                     display: block;
                 }
-                
+
                 .staff-name {
-                    font-size: 9px;
+                    font-size: 10px;
                     color: #2c2c2c;
                     font-weight: bold;
                     margin-bottom: 4px;
                     line-height: 1.1;
                     display: block;
                 }
-                
+
                 .role-label {
-                    font-size: 6px;
+                    font-size: 10px;
                     color: {$staffConfig['color']};
                     font-weight: bold;
                     text-transform: uppercase;
@@ -530,28 +544,28 @@ class StaffAttendanceController extends Controller
                     letter-spacing: 0.5px;
                     display: block;
                 }
-                
+
                 .staff-role {
-                    font-size: 8px;
+                    font-size: 10px;
                     color: #2c2c2c;
                     font-weight: normal;
                     line-height: 1.1;
                     display: block;
                 }
-                
+
                 /* Colonne 3 - QR Code (25%) */
                 .qr-cell {
                     width: 25%;
                     text-align: center;
                 }
-                
+
                 .qr-code {
                     width: 20mm;
                     height: 20mm;
                     object-fit: contain;
                     border: 1px solid #ddd;
                 }
-                
+
                 /* Footer Section */
                 .badge-footer {
                     position: absolute;
@@ -567,7 +581,7 @@ class StaffAttendanceController extends Controller
                     letter-spacing: 3px;
                     text-transform: uppercase;
                 }
-                
+
                 @page {
                     size: A4;
                     margin: 10mm;
@@ -581,7 +595,7 @@ class StaffAttendanceController extends Controller
                     " . ($logoBase64 ? "<img src='{$logoBase64}' alt='Logo' class='school-logo'>" : '') . "
                     <span>IDENTIFICATION EMPLOYÉ</span>
                 </div>
-                
+
                 <!-- Main Content - Tableau 3 colonnes -->
                 <table class='content-table'>
                     <tr>
@@ -589,26 +603,26 @@ class StaffAttendanceController extends Controller
                         <td class='photo-cell'>
                             <img src='{$photoBase64}' alt='Photo' class='staff-photo'>
                         </td>
-                        
+
                         <!-- Colonne 2: Informations -->
                         <td class='info-cell'>
                             <span class='id-number-label'>N° D'IDENTIFICATION</span>
                             <span class='id-number'>{$user->id}</span>
-                            
+
                             <span class='name-label'>NOM</span>
                             <span class='staff-name'>{$user->name}</span>
-                            
+
                             <span class='role-label'>POSTE / EMPLOI</span>
                             <span class='staff-role'>{$staffConfig['label']}</span>
                         </td>
-                        
+
                         <!-- Colonne 3: QR Code -->
                         <td class='qr-cell'>
                             <img src='https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" . urlencode($qrCode) . "&margin=1' alt='QR Code' class='qr-code'>
                         </td>
                     </tr>
                 </table>
-                
+
                 <!-- Footer -->
                 <div class='badge-footer'>
                     " . ($schoolSettings->school_name ?? 'COLLÈGE POLYVALENT BILINGUE DE DOUALA') . "
@@ -632,8 +646,9 @@ class StaffAttendanceController extends Controller
             ]);
 
             $userIds = $request->user_ids;
+            $staffRoles = ['teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe'];
             $users = User::whereIn('id', $userIds)
-                ->whereIn('role', ['teacher', 'accountant', 'admin', 'surveillant_general'])
+                ->whereIn('role', $staffRoles)
                 ->where('is_active', true)
                 ->get();
 
@@ -646,11 +661,11 @@ class StaffAttendanceController extends Controller
 
             // Générer le HTML avec plusieurs badges
             $html = $this->generateMultipleBadgesHtml($users);
-            
+
             // Configuration DomPDF
             $pdf = Pdf::loadHtml($html);
             $pdf->setPaper('A4', 'portrait');
-            
+
             $pdf->setOptions([
                 'isPhpEnabled' => false,
                 'isRemoteEnabled' => true,
@@ -680,7 +695,7 @@ class StaffAttendanceController extends Controller
     private function generateMultipleBadgesHtml($users)
     {
         $schoolSettings = SchoolSetting::first();
-        
+
         // Convertir le logo en base64
         $logoBase64 = '';
         if ($schoolSettings && $schoolSettings->school_logo) {
@@ -693,7 +708,7 @@ class StaffAttendanceController extends Controller
 
         $badgesHtml = '';
         $badgeCount = 0;
-        
+
         foreach ($users as $user) {
             // Générer QR code si nécessaire
             $qrCode = $user->qr_code ?: 'STAFF_' . $user->id;
@@ -712,12 +727,12 @@ class StaffAttendanceController extends Controller
 
             // Générer le HTML du badge
             $badgeHtml = $this->generateSingleBadgeHtml($user, $qrCode, $photoBase64, $logoBase64, $schoolSettings);
-            
+
             // Ajouter le badge avec gestion des sauts de page
             if ($badgeCount > 0 && $badgeCount % 4 === 0) {
                 $badgesHtml .= '<div style="page-break-before: always;"></div>';
             }
-            
+
             $badgesHtml .= '<div class="badge-wrapper">' . $badgeHtml . '</div>';
             $badgeCount++;
         }
@@ -730,18 +745,18 @@ class StaffAttendanceController extends Controller
             <title>Badges Personnel - " . count($users) . " badges</title>
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { 
-                    font-family: 'Arial', 'Helvetica', sans-serif; 
-                    background: white; 
+                body {
+                    font-family: 'Arial', 'Helvetica', sans-serif;
+                    background: white;
                     padding: 10mm;
                 }
-                
+
                 .badge-wrapper {
                     display: inline-block;
                     margin: 5mm;
                     page-break-inside: avoid;
                 }
-                
+
                 .badge-container {
                     width: 85.6mm;
                     height: 54mm;
@@ -752,7 +767,7 @@ class StaffAttendanceController extends Controller
                     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
                     border: 1px solid #e0e0e0;
                 }
-                
+
                 /* Styles de badge (repris du badge simple) */
                 .badge-header {
                     color: white;
@@ -767,32 +782,33 @@ class StaffAttendanceController extends Controller
                     justify-content: center;
                     gap: 8px;
                 }
-                
+
                 .school-logo {
                     width: 16px;
                     height: 16px;
                     object-fit: contain;
                     filter: brightness(0) invert(1);
                 }
-                
+
                 .content-table {
                     width: 100%;
                     height: calc(100% - 24px - 16px);
                     border-collapse: collapse;
                     table-layout: fixed;
                 }
-                
+
                 .content-table td {
                     vertical-align: middle;
                     padding: 6px;
                     border: none;
                 }
-                
+
+
                 .photo-cell {
                     width: 25%;
                     text-align: center;
                 }
-                
+
                 .staff-photo {
                     width: 24mm;
                     height: 30mm;
@@ -801,63 +817,90 @@ class StaffAttendanceController extends Controller
                     border: 1px solid #ddd;
                     background: #f9f9f9;
                 }
-                
+
+                /* Colonne 2 - Informations (50%) */
                 .info-cell {
-                    width: 50%;
+                    width: 40%;
                     padding-left: 8px;
                     padding-right: 8px;
                 }
-                
-                .id-number-label, .name-label, .role-label {
-                    font-size: 6px;
+
+                .id-number-label {
+                    font-size: 10px;
+                    color: {$staffConfig['color']};
                     font-weight: bold;
                     text-transform: uppercase;
                     margin-bottom: 1px;
                     letter-spacing: 0.5px;
                     display: block;
                 }
-                
+
                 .id-number {
-                    font-size: 10px;
+                    font-size: 18px;
+                    color: {$staffConfig['color']};
                     font-weight: bold;
                     margin-bottom: 4px;
                     display: block;
                 }
-                
+
+                .name-label {
+                    font-size: 10px;
+                    color: {$staffConfig['color']};
+                    font-weight: bold;
+                    text-transform: uppercase;
+                    margin-bottom: 1px;
+                    letter-spacing: 0.5px;
+                    display: block;
+                }
+
                 .staff-name {
-                    font-size: 9px;
+                    font-size: 10px;
                     color: #2c2c2c;
                     font-weight: bold;
                     margin-bottom: 4px;
                     line-height: 1.1;
                     display: block;
                 }
-                
+
+                .role-label {
+                    font-size: 10px;
+                    color: {$staffConfig['color']};
+                    font-weight: bold;
+                    text-transform: uppercase;
+                    margin-bottom: 1px;
+                    letter-spacing: 0.5px;
+                    display: block;
+                }
+
                 .staff-role {
-                    font-size: 8px;
+                    font-size: 10px;
                     color: #2c2c2c;
                     font-weight: normal;
                     line-height: 1.1;
                     display: block;
                 }
-                
+
+                /* Colonne 3 - QR Code (25%) */
                 .qr-cell {
                     width: 25%;
                     text-align: center;
                 }
-                
+
                 .qr-code {
                     width: 20mm;
                     height: 20mm;
                     object-fit: contain;
                     border: 1px solid #ddd;
                 }
-                
+
+                /* Footer Section */
                 .badge-footer {
                     position: absolute;
                     bottom: 0;
                     left: 0;
                     right: 0;
+                    background: " . $this->adjustBrightness($staffConfig['color'], 60) . ";
+                    color: {$staffConfig['color']};
                     padding: 3px 12px;
                     text-align: center;
                     font-size: 7px;
@@ -865,12 +908,12 @@ class StaffAttendanceController extends Controller
                     letter-spacing: 3px;
                     text-transform: uppercase;
                 }
-                
+
                 @page {
                     size: A4;
                     margin: 10mm;
                 }
-                
+
                 @media print {
                     .badge-wrapper {
                         page-break-inside: avoid;
@@ -894,7 +937,20 @@ class StaffAttendanceController extends Controller
             'accountant' => ['label' => 'COMPTABLE', 'color' => '#2e7d32'],
             'comptable_superieur' => ['label' => 'COMPTABLE SUPÉRIEUR', 'color' => '#1976d2'],
             'surveillant_general' => ['label' => 'SURVEILLANT GÉNÉRAL', 'color' => '#f57c00'],
-            'admin' => ['label' => 'ADMINISTRATEUR', 'color' => '#d32f2f']
+            'admin' => ['label' => 'ADMINISTRATEUR', 'color' => '#d32f2f'],
+            'general_accountant' => ['label' => 'COMPTABLE GÉNÉRAL', 'color' => '#1565c0'],
+            'secretaire' => ['label' => 'SECRÉTAIRE', 'color' => '#7b1fa2'],
+            // Nouveaux rôles du fichier k.png
+            'responsable_pedagogique' => ['label' => 'RESPONSABLE PÉDAGOGIQUE', 'color' => '#3f51b5'],
+            'dean_of_studies' => ['label' => 'DEAN OF STUDIES', 'color' => '#5d4037'],
+            'censeur_esg' => ['label' => 'CENSEUR ESG', 'color' => '#00796b'],
+            'censeur' => ['label' => 'CENSEUR', 'color' => '#0097a7'],
+            'surveillant_secteur' => ['label' => 'SURVEILLANT DE SECTEUR', 'color' => '#fb8c00'],
+            'caissiere' => ['label' => 'CAISSIÈRE', 'color' => '#f57c00'],
+            'bibliothecaire' => ['label' => 'BIBLIOTHÉCAIRE', 'color' => '#8bc34a'],
+            'chef_travaux' => ['label' => 'CHEF DES TRAVAUX', 'color' => '#795548'],
+            'chef_securite' => ['label' => 'CHEF DE SÉCURITÉ', 'color' => '#f44336'],
+            'reprographe' => ['label' => 'REPROGRAPHE', 'color' => '#9c27b0']
         ];
 
         $staffConfig = $staffTypes[$user->role] ?? ['label' => 'PERSONNEL', 'color' => '#7f8c8d'];
@@ -906,30 +962,30 @@ class StaffAttendanceController extends Controller
                 " . ($logoBase64 ? "<img src='{$logoBase64}' alt='Logo' class='school-logo'>" : '') . "
                 <span>IDENTIFICATION EMPLOYÉ</span>
             </div>
-            
+
             <table class='content-table'>
                 <tr>
                     <td class='photo-cell'>
                         <img src='{$photoBase64}' alt='Photo' class='staff-photo'>
                     </td>
-                    
+
                     <td class='info-cell'>
                         <span class='id-number-label' style='color: {$staffConfig['color']};'>N° D'IDENTIFICATION</span>
                         <span class='id-number' style='color: {$staffConfig['color']};'>{$user->id}</span>
-                        
+
                         <span class='name-label' style='color: {$staffConfig['color']};'>NOM</span>
                         <span class='staff-name'>{$user->name}</span>
-                        
+
                         <span class='role-label' style='color: {$staffConfig['color']};'>POSTE / EMPLOI</span>
                         <span class='staff-role'>{$staffConfig['label']}</span>
                     </td>
-                    
+
                     <td class='qr-cell'>
                         <img src='https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" . urlencode($qrCode) . "&margin=1' alt='QR Code' class='qr-code'>
                     </td>
                 </tr>
             </table>
-            
+
             <div class='badge-footer' style='background: {$footerColor}; color: {$staffConfig['color']};'>
                 " . ($schoolSettings->school_name ?? 'COLLÈGE POLYVALENT BILINGUE DE DOUALA') . "
             </div>
@@ -952,7 +1008,7 @@ class StaffAttendanceController extends Controller
                         $relativePath = substr($relativePath, 8);
                     }
                     $localPath = storage_path('app/public/' . $relativePath);
-                    
+
                     if (file_exists($localPath)) {
                         $photoContent = file_get_contents($localPath);
                     }
@@ -962,7 +1018,7 @@ class StaffAttendanceController extends Controller
                         $photoContent = file_get_contents($photoPath);
                     }
                 }
-                
+
                 if ($photoContent) {
                     // Optimiser l'image si trop grosse
                     if (strlen($photoContent) > 50000) {
@@ -971,18 +1027,18 @@ class StaffAttendanceController extends Controller
                             $newImage = imagecreatetruecolor(80, 80);
                             $width = imagesx($tempImage);
                             $height = imagesy($tempImage);
-                            
+
                             imagecopyresampled($newImage, $tempImage, 0, 0, 0, 0, 80, 80, $width, $height);
-                            
+
                             ob_start();
                             imagepng($newImage, null, 6);
                             $photoContent = ob_get_clean();
-                            
+
                             imagedestroy($tempImage);
                             imagedestroy($newImage);
                         }
                     }
-                    
+
                     $photoBase64 = 'data:image/png;base64,' . base64_encode($photoContent);
                 }
             } catch (\Exception $e) {
@@ -1013,7 +1069,8 @@ class StaffAttendanceController extends Controller
     public function getStaffWithQR(): JsonResponse
     {
         try {
-            $staff = User::whereIn('role', ['teacher', 'accountant', 'admin', 'surveillant_general'])
+            $staffRoles = ['teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe'];
+            $staff = User::whereIn('role', $staffRoles)
                 ->where('is_active', true)
                 ->get()
                 ->map(function ($user) {
@@ -1028,8 +1085,8 @@ class StaffAttendanceController extends Controller
                         'qr_code' => $user->qr_code,
                         'photo' => $user->photo,
                         'photo_url' => $user->photo ? (
-                            str_starts_with($user->photo, 'http') 
-                                ? $user->photo 
+                            str_starts_with($user->photo, 'http')
+                                ? $user->photo
                                 : url('storage/' . $user->photo)
                         ) : null
                     ];
@@ -1118,7 +1175,7 @@ class StaffAttendanceController extends Controller
                     ->forDate($date)
                     ->exits()
                     ->count();
-                
+
                 $stats[$staffType] = $typeStats;
             }
 
@@ -1150,13 +1207,24 @@ class StaffAttendanceController extends Controller
             case 'accountant':
             case 'comptable_superieur':
             case 'general_accountant':
+            case 'caissiere':
                 return 'accountant';
             case 'surveillant_general':
+            case 'surveillant_secteur':
                 return 'supervisor';
             case 'admin':
+            case 'chef_securite':
                 return 'admin';
             case 'secretaire':
+            case 'bibliothecaire':
+            case 'reprographe':
                 return 'secretaire';
+            case 'responsable_pedagogique':
+            case 'dean_of_studies':
+            case 'censeur_esg':
+            case 'censeur':
+            case 'chef_travaux':
+                return 'teacher'; // Rôles pédagogiques/académiques
             default:
                 return 'teacher'; // fallback
         }
@@ -1280,10 +1348,10 @@ class StaffAttendanceController extends Controller
     private function formatDuration($minutes)
     {
         if (!$minutes || $minutes <= 0) return '0min';
-        
+
         $hours = floor($minutes / 60);
         $remainingMinutes = $minutes % 60;
-        
+
         if ($hours > 0 && $remainingMinutes > 0) {
             return "{$hours}h{$remainingMinutes}min";
         } elseif ($hours > 0) {
@@ -1300,20 +1368,20 @@ class StaffAttendanceController extends Controller
     {
         // Supprimer le # si présent
         $hex = ltrim($hex, '#');
-        
+
         // Convertir en RGB
         $r = hexdec(substr($hex, 0, 2));
         $g = hexdec(substr($hex, 2, 2));
         $b = hexdec(substr($hex, 4, 2));
-        
+
         // Ajuster la luminosité
         $r = max(0, min(255, $r + ($r * $percent / 100)));
         $g = max(0, min(255, $g + ($g * $percent / 100)));
         $b = max(0, min(255, $b + ($b * $percent / 100)));
-        
+
         // Convertir de nouveau en hex
-        return '#' . str_pad(dechex(round($r)), 2, '0', STR_PAD_LEFT) . 
-                     str_pad(dechex(round($g)), 2, '0', STR_PAD_LEFT) . 
+        return '#' . str_pad(dechex(round($r)), 2, '0', STR_PAD_LEFT) .
+                     str_pad(dechex(round($g)), 2, '0', STR_PAD_LEFT) .
                      str_pad(dechex(round($b)), 2, '0', STR_PAD_LEFT);
     }
 }
