@@ -1,6 +1,6 @@
 /**
- * Scanner de présences pour les enseignants
- * Adaptation du scanner étudiant pour gérer les présences des enseignants
+ * Scanner de présences pour le personnel
+ * Scanner pour gérer les présences de tout le personnel (enseignants, comptables, surveillants, etc.)
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -16,34 +16,24 @@ import {
     Spinner, 
     ButtonGroup, 
     Form,
-    Modal,
-    ProgressBar,
     Toast,
     ToastContainer
 } from 'react-bootstrap';
 import { 
     QrCodeScan, 
     CheckCircleFill, 
-    XCircleFill, 
     Calendar, 
     Clock, 
     ArrowRightCircle, 
     ArrowLeftCircle,
     PersonBadge,
     Wifi,
-    WifiOff,
-    CloudArrowUp,
-    CloudArrowDown,
-    ExclamationTriangle,
-    InfoCircle,
     PersonCheck,
     PersonX
 } from 'react-bootstrap-icons';
 import { useAuth } from '../../hooks/useAuth';
-import { useOfflineMode } from '../../hooks/useOfflineMode';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import QrScanner from 'qr-scanner';
-import Swal from 'sweetalert2';
 
 const TeacherAttendanceScanner = () => {
     const [isScanning, setIsScanning] = useState(false);
@@ -56,71 +46,33 @@ const TeacherAttendanceScanner = () => {
     const [manualQrCode, setManualQrCode] = useState('');
     const [eventType, setEventType] = useState('auto');
     const [entryExitStats, setEntryExitStats] = useState(null);
-    const [showOfflineModal, setShowOfflineModal] = useState(false);
     const [toastList, setToastList] = useState([]);
-    const [teachersList, setTeachersList] = useState([]);
 
     const { user } = useAuth();
-    const {
-        isOnline,
-        isSyncing,
-        syncStats,
-        syncStatus,
-        saveAttendanceOffline,
-        forceSync
-    } = useOfflineMode();
+    
+    // Valeurs par défaut sans mode offline
+    const isOnline = true;
+    const isSyncing = false;
 
     const videoRef = useRef(null);
     const qrScannerRef = useRef(null);
 
-    useEffect(() => {
-        loadTodayAttendances();
-        loadEntryExitStats();
-        loadTeachersList();
-        
-        return () => {
-            if (qrScannerRef.current) {
-                qrScannerRef.current.destroy();
-            }
-        };
-    }, []);
+    // Le useEffect sera déplacé après les définitions des fonctions
 
-    // Surveiller les changements de statut offline/online
-    useEffect(() => {
-        if (!isOnline) {
-            showToast('Mode offline activé', 'warning', <WifiOff />);
-        } else {
-            showToast('Connexion restaurée', 'success', <Wifi />);
-        }
-    }, [isOnline]);
 
-    // Surveiller les changements de synchronisation
-    useEffect(() => {
-        if (syncStatus === 'syncing') {
-            showToast('Synchronisation en cours...', 'info', <CloudArrowUp />);
-        } else if (syncStatus === 'success') {
-            showToast('Synchronisation terminée', 'success', <CheckCircleFill />);
-        } else if (syncStatus === 'error') {
-            showToast('Erreur de synchronisation', 'danger', <ExclamationTriangle />);
-        }
-    }, [syncStatus]);
 
     const loadTodayAttendances = async () => {
         try {
             setIsLoading(true);
             
             if (isOnline) {
-                const response = await secureApiEndpoints.teacherAttendance.getDailyAttendance({
+                const response = await secureApiEndpoints.staff.getDailyAttendance({
                     supervisor_id: user.id
                 });
 
                 if (response.success) {
                     setTodayAttendances(response.data.attendances || []);
                 }
-            } else {
-                // Mode offline: récupérer les présences en attente
-                const pendingAttendances = await getPendingTeacherAttendances();
-                setTodayAttendances(pendingAttendances);
             }
         } catch (error) {
             console.error('Erreur lors du chargement des présences:', error);
@@ -134,7 +86,7 @@ const TeacherAttendanceScanner = () => {
         try {
             if (!isOnline) return;
 
-            const response = await secureApiEndpoints.teacherAttendance.getEntryExitStats({
+            const response = await secureApiEndpoints.staff.getEntryExitStats({
                 supervisor_id: user.id
             });
 
@@ -146,47 +98,25 @@ const TeacherAttendanceScanner = () => {
         }
     };
 
-    const loadTeachersList = async () => {
+    const loadStaffList = async () => {
         try {
             if (!isOnline) return;
 
-            const response = await secureApiEndpoints.teacherAttendance.getTeachersWithQR();
+            const response = await secureApiEndpoints.staff.getStaffWithQR();
 
             if (response.success) {
-                setTeachersList(response.data.teachers || []);
+                // Liste du personnel chargée (mode offline supprimé)
             }
         } catch (error) {
-            console.error('Erreur lors du chargement des enseignants:', error);
+            console.error('Erreur lors du chargement du personnel:', error);
         }
     };
 
-    const getPendingTeacherAttendances = async () => {
-        // Simulation pour mode offline
-        const stored = localStorage.getItem('pendingTeacherAttendances');
-        return stored ? JSON.parse(stored) : [];
-    };
-
-    const saveTeacherAttendanceOffline = async (attendanceData) => {
-        const stored = localStorage.getItem('pendingTeacherAttendances');
-        const pendingAttendances = stored ? JSON.parse(stored) : [];
-        
-        const newAttendance = {
-            ...attendanceData,
-            timestamp: new Date().toISOString(),
-            syncStatus: 'pending',
-            id: Date.now()
-        };
-        
-        pendingAttendances.push(newAttendance);
-        localStorage.setItem('pendingTeacherAttendances', JSON.stringify(pendingAttendances));
-        
-        return newAttendance;
-    };
 
     const handleScanResult = async (result) => {
         if (!result || result.trim() === '') return;
 
-        console.log('🔍 QR Code enseignant scanné:', result);
+        console.log('🔍 QR Code personnel scanné:', result);
         setIsScanning(false);
         stopScanner();
 
@@ -204,76 +134,46 @@ const TeacherAttendanceScanner = () => {
             setIsLoading(true);
             setMessage('');
 
-            // Essayer d'abord de traiter online si possible
-            if (isOnline) {
-                const response = await secureApiEndpoints.teacherAttendance.scanQR({
-                    teacher_qr_code: qrCode,
-                    supervisor_id: user.id,
-                    event_type: eventType
-                });
+            const response = await secureApiEndpoints.staff.scanQR({
+                staff_qr_code: qrCode,
+                supervisor_id: user.id,
+                event_type: eventType
+            });
 
-                if (response.success) {
-                    const data = response.data;
+            if (response.success) {
+                const data = response.data;
+                
+                setMessage(`✅ ${response.message}`);
+                setMessageType('success');
+                await loadTodayAttendances();
+                await loadEntryExitStats();
+                
+                // Afficher des informations détaillées
+                if (data.punctuality_info) {
+                    const info = data.punctuality_info;
+                    let statusMessage = '';
                     
-                    setMessage(`✅ ${response.message}`);
-                    setMessageType('success');
-                    await loadTodayAttendances();
-                    await loadEntryExitStats();
-                    
-                    // Afficher des informations détaillées
-                    if (data.punctuality_info) {
-                        const info = data.punctuality_info;
-                        let statusMessage = '';
-                        
-                        if (info.late_minutes > 0) {
-                            statusMessage += ` (${info.late_minutes} min de retard)`;
-                        }
-                        if (info.early_departure_minutes > 0) {
-                            statusMessage += ` (${info.early_departure_minutes} min de départ anticipé)`;
-                        }
-                        if (info.work_hours > 0) {
-                            statusMessage += ` (${info.work_hours}h travaillées)`;
-                        }
-                        
-                        if (statusMessage) {
-                            showToast(`Présence enregistrée${statusMessage}`, 'info');
-                        }
+                    if (info.late_minutes > 0) {
+                        statusMessage += ` (${info.late_minutes} min de retard)`;
+                    }
+                    if (info.early_departure_minutes > 0) {
+                        statusMessage += ` (${info.early_departure_minutes} min de départ anticipé)`;
+                    }
+                    if (info.work_hours > 0) {
+                        statusMessage += ` (${info.work_hours}h travaillées)`;
                     }
                     
-                    showToast('Présence enseignant enregistrée (en ligne)', 'success');
-                    return;
+                    if (statusMessage) {
+                        showToast(`Présence enregistrée${statusMessage}`, 'info');
+                    }
                 }
-            }
-
-            // Mode offline ou échec online
-            console.log('📱 Traitement en mode offline...');
-            
-            // Trouver l'enseignant dans la liste locale
-            const teacher = teachersList.find(t => t.qr_code === qrCode);
-            
-            const attendanceData = {
-                teacherId: teacher?.id || qrCode,
-                teacherName: teacher?.full_name || `Enseignant ${qrCode}`,
-                teacherQrCode: qrCode,
-                supervisorId: user.id,
-                eventType: eventType,
-                isPresent: true,
-                notes: teacher ? 'Scan offline' : 'Scan offline - enseignant non trouvé en cache'
-            };
-
-            await saveTeacherAttendanceOffline(attendanceData);
-            
-            if (teacher) {
-                setMessage(`📱 Présence sauvegardée offline: ${teacher.full_name}`);
-                setMessageType('info');
-                showToast(`Présence offline: ${teacher.full_name}`, 'info', <CloudArrowDown />);
+                
+                showToast('Présence personnel enregistrée', 'success');
             } else {
-                setMessage('📱 Présence sauvegardée offline (enseignant non trouvé en cache)');
-                setMessageType('warning');
-                showToast('Présence sauvegardée offline', 'warning', <CloudArrowDown />);
+                setMessage(`❌ ${response.message}`);
+                setMessageType('danger');
+                showToast(response.message, 'danger');
             }
-
-            await loadTodayAttendances();
 
         } catch (error) {
             console.error('Erreur lors du traitement:', error);
@@ -311,7 +211,7 @@ const TeacherAttendanceScanner = () => {
                 );
                 
                 await qrScannerRef.current.start();
-                console.log('✅ Scanner QR enseignants démarré avec succès');
+                console.log('✅ Scanner QR personnel démarré avec succès');
             }
         } catch (error) {
             console.error('❌ Erreur scanner:', error);
@@ -337,14 +237,6 @@ const TeacherAttendanceScanner = () => {
         }
     };
 
-    const handleForceSync = async () => {
-        try {
-            await forceSync();
-            showToast('Synchronisation forcée terminée', 'success');
-        } catch (error) {
-            showToast('Erreur lors de la synchronisation: ' + error.message, 'danger');
-        }
-    };
 
     const showToast = (message, variant = 'info', icon = null) => {
         const id = Date.now();
@@ -365,20 +257,6 @@ const TeacherAttendanceScanner = () => {
     };
 
     const getNetworkStatusBadge = () => {
-        if (!isOnline) {
-            return <Badge bg="warning" className="ms-2">
-                <WifiOff size={12} className="me-1" />
-                Offline
-            </Badge>;
-        }
-        
-        if (isSyncing) {
-            return <Badge bg="info" className="ms-2">
-                <CloudArrowUp size={12} className="me-1" />
-                Sync...
-            </Badge>;
-        }
-        
         return <Badge bg="success" className="ms-2">
             <Wifi size={12} className="me-1" />
             Online
@@ -407,6 +285,32 @@ const TeacherAttendanceScanner = () => {
         );
     };
 
+    const getRoleLabel = (role) => {
+        const roleLabels = {
+            'teacher': 'Enseignant',
+            'accountant': 'Comptable',
+            'comptable_superieur': 'Comptable Supérieur',
+            'general_accountant': 'Comptable Général',
+            'surveillant_general': 'Surveillant Général',
+            'admin': 'Administrateur',
+            'secretaire': 'Secrétaire'
+        };
+        return roleLabels[role] || role;
+    };
+
+    // Effet pour charger les données au montage du composant
+    useEffect(() => {
+        loadTodayAttendances();
+        loadEntryExitStats();
+        loadStaffList();
+        
+        return () => {
+            if (qrScannerRef.current) {
+                qrScannerRef.current.destroy();
+            }
+        };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
     return (
         <Container fluid className="py-4">
             {/* Header avec statut réseau */}
@@ -414,9 +318,9 @@ const TeacherAttendanceScanner = () => {
                 <Col>
                     <div className="d-flex justify-content-between align-items-center">
                         <div>
-                            <h2>
+                            <h2 className="mb-0 d-flex align-items-center">
                                 <PersonBadge className="me-2" />
-                                Scanner Présences Enseignants
+                                Scanner Présences Personnel
                                 {getNetworkStatusBadge()}
                             </h2>
                             <p className="text-muted mb-0">
@@ -424,27 +328,20 @@ const TeacherAttendanceScanner = () => {
                             </p>
                         </div>
                         
-                        <ButtonGroup>
-                            <Button 
-                                variant="outline-info"
-                                onClick={() => setShowOfflineModal(true)}
-                            >
-                                <InfoCircle className="me-1" />
-                                Status ({syncStats.pendingAttendances || 0})
-                            </Button>
-                        </ButtonGroup>
                     </div>
                 </Col>
             </Row>
 
             {/* Statistiques rapides */}
-            {entryExitStats && (
+            {entryExitStats && entryExitStats.stats_by_type && (
                 <Row className="mb-4">
                     <Col md={3}>
                         <Card className="text-center">
                             <Card.Body>
                                 <PersonCheck size={24} className="text-success mb-2" />
-                                <h4>{entryExitStats.totals.present_teachers}</h4>
+                                <h4>
+                                    {Object.values(entryExitStats.stats_by_type).reduce((sum, stats) => sum + (stats.present_count || 0), 0)}
+                                </h4>
                                 <small className="text-muted">Présents</small>
                             </Card.Body>
                         </Card>
@@ -453,7 +350,9 @@ const TeacherAttendanceScanner = () => {
                         <Card className="text-center">
                             <Card.Body>
                                 <ArrowRightCircle size={24} className="text-primary mb-2" />
-                                <h4>{entryExitStats.totals.entries}</h4>
+                                <h4>
+                                    {Object.values(entryExitStats.stats_by_type).reduce((sum, stats) => sum + (stats.entries || 0), 0)}
+                                </h4>
                                 <small className="text-muted">Entrées</small>
                             </Card.Body>
                         </Card>
@@ -462,7 +361,9 @@ const TeacherAttendanceScanner = () => {
                         <Card className="text-center">
                             <Card.Body>
                                 <ArrowLeftCircle size={24} className="text-warning mb-2" />
-                                <h4>{entryExitStats.totals.exits}</h4>
+                                <h4>
+                                    {Object.values(entryExitStats.stats_by_type).reduce((sum, stats) => sum + (stats.exits || 0), 0)}
+                                </h4>
                                 <small className="text-muted">Sorties</small>
                             </Card.Body>
                         </Card>
@@ -471,7 +372,9 @@ const TeacherAttendanceScanner = () => {
                         <Card className="text-center">
                             <Card.Body>
                                 <Clock size={24} className="text-danger mb-2" />
-                                <h4>{entryExitStats.totals.late_teachers}</h4>
+                                <h4>
+                                    {Object.values(entryExitStats.stats_by_type).reduce((sum, stats) => sum + (stats.late_count || 0), 0)}
+                                </h4>
                                 <small className="text-muted">En retard</small>
                             </Card.Body>
                         </Card>
@@ -479,27 +382,15 @@ const TeacherAttendanceScanner = () => {
                 </Row>
             )}
 
-            {/* Alerte mode offline */}
-            {!isOnline && (
-                <Alert variant="warning" className="mb-4">
-                    <WifiOff className="me-2" />
-                    <strong>Mode offline activé</strong> - Les présences seront synchronisées automatiquement lors du retour en ligne.
-                    {syncStats.pendingAttendances > 0 && (
-                        <span className="ms-2">
-                            ({syncStats.pendingAttendances} présence(s) en attente)
-                        </span>
-                    )}
-                </Alert>
-            )}
 
             {/* Interface de scan principale */}
             <Row>
                 <Col lg={6} className="mb-4">
                     <Card>
                         <Card.Header className="d-flex justify-content-between align-items-center">
-                            <div>
+                            <div className="d-flex align-items-center">
                                 <QrCodeScan className="me-2" />
-                                Scanner QR Code Enseignant
+                                Scanner QR Code Personnel
                             </div>
                             <ButtonGroup size="sm">
                                 <Button 
@@ -540,7 +431,7 @@ const TeacherAttendanceScanner = () => {
                                         <div className="d-flex gap-2">
                                             <Form.Control
                                                 type="text"
-                                                placeholder="Code QR enseignant"
+                                                placeholder="Code QR personnel"
                                                 value={manualQrCode}
                                                 onChange={(e) => setManualQrCode(e.target.value)}
                                                 onKeyPress={(e) => e.key === 'Enter' && handleManualScan()}
@@ -578,7 +469,7 @@ const TeacherAttendanceScanner = () => {
                                     >
                                         <div className="text-center">
                                             <PersonBadge size={48} className="mb-2" />
-                                            <p>Scanner QR Code Enseignant</p>
+                                            <p>Scanner QR Code Personnel</p>
                                             <small className="text-muted">Cliquez sur "Démarrer Scanner"</small>
                                         </div>
                                     </div>
@@ -613,9 +504,9 @@ const TeacherAttendanceScanner = () => {
                 <Col lg={6} className="mb-4">
                     <Card>
                         <Card.Header className="d-flex justify-content-between align-items-center">
-                            <div>
+                            <div className="d-flex align-items-center">
                                 <Calendar className="me-2" />
-                                Présences Enseignants du jour
+                                Présences Personnel du jour
                             </div>
                             <div>
                                 {isSyncing && <Spinner animation="border" size="sm" className="me-2" />}
@@ -627,18 +518,6 @@ const TeacherAttendanceScanner = () => {
                                 >
                                     Actualiser
                                 </Button>
-                                {!isOnline && syncStats.pendingAttendances > 0 && (
-                                    <Button 
-                                        variant="warning" 
-                                        size="sm"
-                                        onClick={handleForceSync}
-                                        disabled={isSyncing}
-                                        className="ms-2"
-                                    >
-                                        <CloudArrowUp className="me-1" />
-                                        Sync ({syncStats.pendingAttendances})
-                                    </Button>
-                                )}
                             </div>
                         </Card.Header>
                         
@@ -648,7 +527,7 @@ const TeacherAttendanceScanner = () => {
                                     <thead>
                                         <tr>
                                             <th>Heure</th>
-                                            <th>Enseignant</th>
+                                            <th>Personnel</th>
                                             <th>Type</th>
                                             <th>Statut</th>
                                         </tr>
@@ -666,23 +545,20 @@ const TeacherAttendanceScanner = () => {
                                                     </small>
                                                 </td>
                                                 <td>
-                                                    <small>{attendance.teacher?.full_name || attendance.teacherName || 'Inconnu'}</small>
+                                                    <small>
+                                                        {attendance.user?.name || attendance.teacher?.full_name || attendance.teacherName || attendance.staffName || 'Inconnu'}
+                                                        {attendance.user?.role && (
+                                                            <span className="text-muted"> - {getRoleLabel(attendance.user.role)}</span>
+                                                        )}
+                                                    </small>
                                                 </td>
                                                 <td>
                                                     {getAttendanceTypeBadge(attendance.event_type || attendance.eventType)}
                                                 </td>
                                                 <td>
-                                                    {attendance.syncStatus === 'pending' ? (
-                                                        <Badge bg="secondary" size="sm">En attente</Badge>
-                                                    ) : attendance.syncStatus === 'syncing' ? (
-                                                        <Badge bg="info" size="sm">Sync...</Badge>
-                                                    ) : attendance.syncStatus === 'error' ? (
-                                                        <Badge bg="danger" size="sm">Erreur</Badge>
-                                                    ) : (
-                                                        <Badge bg="success" size="sm">
-                                                            <CheckCircleFill size={12} />
-                                                        </Badge>
-                                                    )}
+                                                    <Badge bg="success" size="sm">
+                                                        <CheckCircleFill size={12} />
+                                                    </Badge>
                                                 </td>
                                             </tr>
                                         ))}
@@ -691,7 +567,7 @@ const TeacherAttendanceScanner = () => {
                             ) : (
                                 <div className="text-center text-muted py-4">
                                     <PersonX size={32} className="mb-2" />
-                                    <p>Aucune présence enseignant enregistrée aujourd'hui</p>
+                                    <p>Aucune présence personnel enregistrée aujourd'hui</p>
                                 </div>
                             )}
                         </Card.Body>
@@ -699,48 +575,6 @@ const TeacherAttendanceScanner = () => {
                 </Col>
             </Row>
 
-            {/* Modal de statut offline */}
-            <Modal show={showOfflineModal} onHide={() => setShowOfflineModal(false)}>
-                <Modal.Header closeButton>
-                    <Modal.Title>
-                        <InfoCircle className="me-2" />
-                        Statut de Synchronisation
-                    </Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <div className="mb-3">
-                        <strong>Statut réseau:</strong> 
-                        <Badge bg={isOnline ? "success" : "warning"} className="ms-2">
-                            {isOnline ? "En ligne" : "Hors ligne"}
-                        </Badge>
-                    </div>
-                    
-                    <div className="mb-3">
-                        <strong>Présences en attente:</strong> {syncStats.pendingAttendances || 0}
-                    </div>
-                    
-                    <div className="mb-3">
-                        <strong>Enseignants chargés:</strong> {teachersList.length}
-                    </div>
-                    
-                    {isSyncing && (
-                        <div className="mb-3">
-                            <ProgressBar animated now={100} label="Synchronisation en cours..." />
-                        </div>
-                    )}
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowOfflineModal(false)}>
-                        Fermer
-                    </Button>
-                    {isOnline && syncStats.pendingAttendances > 0 && (
-                        <Button variant="primary" onClick={handleForceSync} disabled={isSyncing}>
-                            <CloudArrowUp className="me-1" />
-                            Synchroniser
-                        </Button>
-                    )}
-                </Modal.Footer>
-            </Modal>
 
             {/* Toasts de notification */}
             <ToastContainer position="top-end" className="p-3">

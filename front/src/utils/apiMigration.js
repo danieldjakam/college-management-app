@@ -255,6 +255,37 @@ export const secureApiEndpoints = {
         configureForSeries: (seriesId, data) => secureApi.post(`/subjects/series/${seriesId}/configure`, data)
     },
 
+    // === STAFF ATTENDANCE ===
+    staff: {
+        scanQR: (data) => secureApi.post('/staff-attendance/scan-qr', data),
+        getDailyAttendance: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/staff-attendance/daily-attendance${queryString ? '?' + queryString : ''}`);
+        },
+        getEntryExitStats: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/staff-attendance/entry-exit-stats${queryString ? '?' + queryString : ''}`);
+        },
+        generateQRCode: (data) => secureApi.post('/staff-attendance/generate-qr', data),
+        downloadBadgePDF: async (data) => {
+            return secureApi.makeRequest('/staff-attendance/generate-qr', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+        },
+        getStaffWithQR: () => secureApi.get('/staff-attendance/staff-with-qr'),
+        getStaffReport: (staffId, params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/staff-attendance/staff/${staffId}/report${queryString ? '?' + queryString : ''}`);
+        },
+        generateMultipleBadges: async (userIds) => {
+            return secureApi.makeRequest('/staff-attendance/generate-multiple-badges', {
+                method: 'POST',
+                body: JSON.stringify({ user_ids: userIds })
+            });
+        }
+    },
+
     // === STUDENTS ===
     students: {
         getAll: () => secureApi.get('/students'),
@@ -499,7 +530,8 @@ export const secureApiEndpoints = {
         transferToSeries: (id, newSeriesId) => secureApi.post(`/students/${id}/transfer-series`, { class_series_id: newSeriesId }),
         getOrdered: (classId) => secureApi.get(`/students/class/${classId}/ordered`),
         reorder: (data) => secureApi.post('/students/reorder', data),
-        sortAlphabetically: (seriesId, data) => secureApi.post(`/students/class-series/${seriesId}/sort-alphabetically`, data)
+        sortAlphabetically: (seriesId, data) => secureApi.post(`/students/class-series/${seriesId}/sort-alphabetically`, data),
+        bulkUploadPhotos: (formData) => secureApi.post('/students/bulk-upload-photos', formData)
     },
 
     // === CLASSES ===
@@ -689,6 +721,44 @@ export const secureApiEndpoints = {
         calculateWithDate: (studentId, data) => secureApi.post(`/payments/student/${studentId}/calculate-with-date`, data),
         create: (data) => secureApi.post('/payments', data),
         generateReceipt: (paymentId) => secureApi.get(`/payments/${paymentId}/receipt`),
+        downloadReceiptPDF: async (paymentId) => {
+            const token = authService.getToken();
+            const response = await fetch(`${secureApi.baseURL}/payments/${paymentId}/receipt/pdf`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/pdf'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Erreur lors du téléchargement du PDF');
+            }
+
+            // Créer un blob pour le PDF
+            const blob = await response.blob();
+            
+            // Créer un nom de fichier à partir des headers ou par défaut
+            const contentDisposition = response.headers.get('content-disposition');
+            let filename = `Recu_${paymentId}.pdf`;
+            if (contentDisposition && contentDisposition.includes('filename=')) {
+                filename = contentDisposition.split('filename=')[1].replace(/"/g, '');
+            }
+
+            // Créer et déclencher le téléchargement
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            return { success: true, filename };
+        },
         getStats: (params = {}) => {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/payments/stats${queryString ? '?' + queryString : ''}`);
@@ -912,7 +982,25 @@ export const secureApiEndpoints = {
             });
         },
         
-        getUserQR: (id) => secureApi.get(`/user-management/${id}/qr-code`)
+        getUserQR: (id) => secureApi.get(`/user-management/${id}/qr-code`),
+        
+        // Export personnel administratif
+        exportAdministrativeStaffPdf: () => {
+            const token = authService.getToken();
+            return fetch(`${secureApi.baseURL}/user-management/export/administrative-staff/pdf`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/pdf'
+                }
+            }).then(async response => {
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `Erreur ${response.status}`);
+                }
+                return response.blob();
+            });
+        }
     },
 
     // === SUPERVISORS & ATTENDANCE ===
@@ -980,6 +1068,26 @@ export const secureApiEndpoints = {
         updateWorkSchedule: (teacherId, data) => secureApi.put(`/teacher-attendance/teacher/${teacherId}/work-schedule`, data)
     },
 
+
+    // === DEPARTMENTS ===
+    departments: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/departments${queryString ? '?' + queryString : ''}`);
+        },
+        getById: (id) => secureApi.get(`/departments/${id}`),
+        create: (data) => secureApi.post('/departments', data),
+        update: (id, data) => secureApi.put(`/departments/${id}`, data),
+        delete: (id) => secureApi.delete(`/departments/${id}`),
+        assignTeacher: (id, data) => secureApi.post(`/departments/${id}/assign-teacher`, data),
+        removeTeacher: (id, data) => secureApi.post(`/departments/${id}/remove-teacher`, data),
+        setHead: (id, data) => secureApi.post(`/departments/${id}/set-head`, data),
+        exportPdf: async () => {
+            return secureApi.makeRequest('/departments/export/pdf', {
+                method: 'GET'
+            });
+        }
+    },
 
     // === INVENTORY ===
     inventory: {

@@ -20,7 +20,9 @@ class Teacher extends Model
         'qualification',
         'hire_date',
         'is_active',
+        'type_personnel',
         'user_id',
+        'department_id',
         'qr_code',
         'expected_arrival_time',
         'expected_departure_time',
@@ -46,6 +48,14 @@ class Teacher extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Relation avec le département
+     */
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
     }
 
     /**
@@ -232,5 +242,112 @@ class Teacher extends Model
             ->where('event_type', 'exit')
             ->latest('scanned_at')
             ->first()?->scanned_at;
+    }
+
+    /**
+     * Vérifier si l'enseignant est chef de département
+     */
+    public function isDepartmentHead()
+    {
+        return $this->department && $this->department->head_teacher_id === $this->id;
+    }
+
+    /**
+     * Obtenir le nom du département
+     */
+    public function getDepartmentName()
+    {
+        return $this->department?->name ?? 'Aucun département';
+    }
+
+    /**
+     * Obtenir le code du département
+     */
+    public function getDepartmentCode()
+    {
+        return $this->department?->code ?? 'N/A';
+    }
+
+    /**
+     * Scope pour filtrer par département
+     */
+    public function scopeInDepartment($query, $departmentId)
+    {
+        return $query->where('department_id', $departmentId);
+    }
+
+    /**
+     * Scope pour les enseignants sans département
+     */
+    public function scopeWithoutDepartment($query)
+    {
+        return $query->whereNull('department_id');
+    }
+
+    /**
+     * Scope pour les chefs de département
+     */
+    public function scopeDepartmentHeads($query)
+    {
+        return $query->whereHas('department', function($q) {
+            $q->whereColumn('departments.head_teacher_id', 'teachers.id');
+        });
+    }
+
+    // Constantes pour les types de personnel
+    const TYPE_VACATAIRE = 'V';
+    const TYPE_SEMI_PERMANENT = 'SP';
+    const TYPE_PERMANENT = 'P';
+
+    /**
+     * Obtenir tous les types de personnel disponibles
+     */
+    public static function getTypePersonnelOptions()
+    {
+        return [
+            self::TYPE_VACATAIRE => 'Vacataire',
+            self::TYPE_SEMI_PERMANENT => 'Semi-Permanent',
+            self::TYPE_PERMANENT => 'Permanent'
+        ];
+    }
+
+    /**
+     * Obtenir le libellé du type de personnel
+     */
+    public function getTypePersonnelLabelAttribute()
+    {
+        return self::getTypePersonnelOptions()[$this->type_personnel] ?? 'Non défini';
+    }
+
+    /**
+     * Scope pour filtrer par type de personnel
+     */
+    public function scopeByTypePersonnel($query, $type)
+    {
+        return $query->where('type_personnel', $type);
+    }
+
+    /**
+     * Scope pour les enseignants vacataires
+     */
+    public function scopeVacataires($query)
+    {
+        return $query->where('type_personnel', self::TYPE_VACATAIRE);
+    }
+
+    /**
+     * Scope pour les enseignants semi-permanents
+     */
+    public function scopeSemiPermanents($query)
+    {
+        return $query->where('type_personnel', self::TYPE_SEMI_PERMANENT);
+    }
+
+    /**
+     * Scope pour les enseignants permanents
+     */
+    public function scopePermanents($query)
+    {
+        return $query->where('type_personnel', self::TYPE_PERMANENT);
     }
 }

@@ -8,6 +8,7 @@ import {
     Clipboard2PlusFill,
     ClipboardCheckFill,
     QrCodeScan,
+    QrCode,
     Calendar,
     Archive,
     FolderFill,
@@ -81,6 +82,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               icon: <JournalBookmarkFill />,
             },
             { name: "Enseignants", href: "/teachers", icon: <PeopleFill /> },
+            { name: "Départements", href: "/departments", icon: <HospitalFill /> },
             { name: "Affectations & Prof. Principaux", href: "/teacher-assignments", icon: <PeopleFill /> },
             {
               name: "Tranches Paiement",
@@ -176,13 +178,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
     } else if (userRole === "surveillant_general") {
       return [
         {
-          title: "Surveillance",
+          title: "Présence Personnel",
           items: [
             { name: "Scanner QR Étudiants", href: "/attendance", icon: <QrCodeScan /> },
-            { name: "Scanner Offline+", href: "/attendance-offline", icon: <QrCodeScan /> },
-            { name: "Scanner QR Enseignants", href: "/teacher-attendance-scanner", icon: <PeopleFill /> },
-            { name: "Stats Détaillées Enseignants", href: "/teacher-detailed-stats", icon: <BarChartFill /> },
-            { name: "Rapports", href: "/attendance-reports", icon: <FileTextFill /> },
+            { name: "Scanner QR Personnel", href: "/teacher-attendance-scanner", icon: <PeopleFill /> },
+            { name: "Stats Personnel", href: "/teacher-detailed-stats", icon: <BarChartFill /> },
+            { name: "Rapports Présence", href: "/attendance-reports", icon: <FileTextFill /> },
           ],
         },
         {

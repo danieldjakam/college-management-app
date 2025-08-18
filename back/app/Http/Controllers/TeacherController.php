@@ -84,6 +84,7 @@ class TeacherController extends Controller
                 'gender' => 'nullable|in:m,f',
                 'qualification' => 'nullable|string|max:255',
                 'hire_date' => 'nullable|date',
+                'type_personnel' => 'nullable|in:V,SP,P',
                 'is_active' => 'boolean',
                 // Champs pour créer un compte utilisateur
                 'create_user_account' => 'boolean',
@@ -199,6 +200,7 @@ class TeacherController extends Controller
                 'gender' => 'nullable|in:m,f',
                 'qualification' => 'nullable|string|max:255',
                 'hire_date' => 'nullable|date',
+                'type_personnel' => 'nullable|in:V,SP,P',
                 'is_active' => 'boolean'
             ]);
 

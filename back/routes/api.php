@@ -31,6 +31,8 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\DocumentFolderController;
 use App\Http\Controllers\ClassesSeriesController;
 use App\Http\Controllers\TeacherAttendanceController;
+use App\Http\Controllers\StaffAttendanceController;
+use App\Http\Controllers\DepartmentController;
 
 
 // Routes d'authentification
@@ -352,6 +354,9 @@ Route::middleware('auth:api')->group(function () {
         
         // Routes pour cartes d'identité professionnelles
         Route::get('/{id}/qr-code', [UserManagementController::class, 'getUserQR']);
+        
+        // Routes d'export
+        Route::get('/export/administrative-staff/pdf', [UserManagementController::class, 'exportAdministrativeStaffPdf']);
     });
 
     // Routes d'upload de photos
@@ -557,21 +562,54 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{document}/toggle-archive', [DocumentController::class, 'toggleArchive']); // Archiver/désarchiver
     });
 
-    // Routes pour les présences des enseignants
+    // Routes pour les présences du personnel (remplace teacher-attendance)
+    Route::prefix('staff-attendance')->group(function () {
+        // Routes pour scan QR du personnel
+        Route::post('/scan-qr', [StaffAttendanceController::class, 'scanQR'])->middleware(['role:admin,surveillant_general']);
+        Route::get('/daily-attendance', [StaffAttendanceController::class, 'getDailyAttendance'])->middleware(['role:admin,surveillant_general']);
+        Route::get('/entry-exit-stats', [StaffAttendanceController::class, 'getEntryExitStats'])->middleware(['role:admin,surveillant_general']);
+        
+        // Routes pour gestion des QR codes personnel
+        Route::post('/generate-qr', [StaffAttendanceController::class, 'generateQRCode'])->middleware(['role:admin']);
+        Route::get('/staff-with-qr', [StaffAttendanceController::class, 'getStaffWithQR'])->middleware(['role:admin,surveillant_general']);
+        
+        // Routes pour rapports et statistiques
+        Route::get('/staff/{staffId}/report', [StaffAttendanceController::class, 'getStaffReport'])->middleware(['role:admin,surveillant_general']);
+        
+        // Routes pour badges multiples
+        Route::post('/generate-multiple-badges', [StaffAttendanceController::class, 'generateMultipleBadges'])->middleware(['role:admin']);
+    });
+
+    // Routes de compatibilité pour teacher-attendance (à supprimer plus tard)
     Route::prefix('teacher-attendance')->group(function () {
-        // Routes pour scan QR des enseignants
         Route::post('/scan-qr', [TeacherAttendanceController::class, 'scanQR'])->middleware(['role:admin,surveillant_general']);
         Route::get('/daily-attendance', [TeacherAttendanceController::class, 'getDailyAttendance'])->middleware(['role:admin,surveillant_general']);
         Route::get('/entry-exit-stats', [TeacherAttendanceController::class, 'getEntryExitStats'])->middleware(['role:admin,surveillant_general']);
-        
-        // Routes pour gestion des QR codes enseignants
         Route::post('/generate-qr', [TeacherAttendanceController::class, 'generateQRCode'])->middleware(['role:admin']);
         Route::get('/teachers-with-qr', [TeacherAttendanceController::class, 'getTeachersWithQR'])->middleware(['role:admin,surveillant_general']);
-        
-        // Routes pour rapports et statistiques
         Route::get('/teacher/{teacherId}/report', [TeacherAttendanceController::class, 'getTeacherReport'])->middleware(['role:admin,surveillant_general']);
         Route::get('/teacher/{teacherId}/detailed-stats', [TeacherAttendanceController::class, 'getDetailedTeacherStats'])->middleware(['role:admin,surveillant_general']);
         Route::get('/teacher/{teacherId}/day-movements', [TeacherAttendanceController::class, 'getDayMovements'])->middleware(['role:admin,surveillant_general']);
         Route::put('/teacher/{teacherId}/work-schedule', [TeacherAttendanceController::class, 'updateWorkSchedule'])->middleware(['role:admin']);
+    });
+
+    // Routes pour les départements
+    Route::prefix('departments')->group(function () {
+        // Routes de consultation (admin et comptables)
+        Route::get('/', [DepartmentController::class, 'index'])->middleware(['role:admin,accountant']);
+        Route::get('/{department}', [DepartmentController::class, 'show'])->middleware(['role:admin,accountant']);
+
+        // Routes d'export
+        Route::get('/export/pdf', [DepartmentController::class, 'exportPdf'])->middleware(['role:admin,accountant']);
+
+        // Routes de gestion (admin uniquement)
+        Route::post('/', [DepartmentController::class, 'store'])->middleware(['role:admin']);
+        Route::put('/{department}', [DepartmentController::class, 'update'])->middleware(['role:admin']);
+        Route::delete('/{department}', [DepartmentController::class, 'destroy'])->middleware(['role:admin']);
+
+        // Routes pour la gestion des enseignants dans les départements
+        Route::post('/{department}/assign-teacher', [DepartmentController::class, 'assignTeacher'])->middleware(['role:admin']);
+        Route::post('/{department}/remove-teacher', [DepartmentController::class, 'removeTeacher'])->middleware(['role:admin']);
+        Route::post('/{department}/set-head', [DepartmentController::class, 'setHead'])->middleware(['role:admin']);
     });
 });

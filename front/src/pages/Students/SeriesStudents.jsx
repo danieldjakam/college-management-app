@@ -28,6 +28,7 @@ import { secureApiEndpoints } from '../../utils/apiMigration';
 import { useAuth } from '../../hooks/useAuth';
 import { useSchool } from '../../contexts/SchoolContext';
 import ImportExportButton from '../../components/ImportExportButton';
+import BulkPhotoUpload from '../../components/BulkPhotoUpload';
 import StudentCardPrint from '../../components/StudentCardPrint';
 import StudentTransfer from '../../components/StudentTransfer';
 import StudentActionsDropdown from '../../components/StudentActionsDropdown';
@@ -1189,6 +1190,9 @@ const SeriesStudents = () => {
                                     onImportSuccess={loadStudents}
                                     templateFileName="template_eleves.csv"
                                     seriesId={seriesId}
+                                />
+                                <BulkPhotoUpload
+                                    onUploadSuccess={loadStudents}
                                 />
                                 <button
                                     className="btn btn-primary d-flex align-items-center gap-2"

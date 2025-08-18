@@ -748,7 +748,7 @@ class PaymentController extends Controller
             $schoolSettings = \App\Models\SchoolSetting::getSettings();
 
             // Générer le HTML du reçu
-            $receiptHtml = $this->generateReceiptHtml($payment, $schoolSettings);
+            $receiptHtml = $this->generateReceiptHtmlForPDF($payment, $schoolSettings);
 
             return response()->json([
                 'success' => true,
@@ -811,6 +811,25 @@ class PaymentController extends Controller
      */
     private function generateReceiptHtml($payment, $schoolSettings)
     {
+        // Convertir le logo en base64 pour DOMPDF
+        $logoBase64 = '';
+        
+        if ($schoolSettings->school_logo) {
+            // Le chemin stocké peut être avec ou sans le préfixe 'public/'
+            $logoPath = storage_path('app/public/' . $schoolSettings->school_logo);
+            
+            if (file_exists($logoPath)) {
+                $logoData = base64_encode(file_get_contents($logoPath));
+                $logoMimeType = mime_content_type($logoPath);
+                $logoBase64 = "data:{$logoMimeType};base64,{$logoData}";
+                \Log::info('Logo base64 generated successfully from: ' . $schoolSettings->school_logo);
+            } else {
+                \Log::info('Logo file not found at: ' . $logoPath);
+            }
+        } else {
+            \Log::info('No school logo configured');
+        }
+
         $student = $payment->student;
         $schoolClass = $student->classSeries->schoolClass ?? null;
 
@@ -953,7 +972,7 @@ class PaymentController extends Controller
                 </div>
 
                 <div class='header'>
-                    " . ($schoolSettings->school_logo ? "<img src='" . url('storage/' . $schoolSettings->school_logo) . "' alt='Logo école' class='logo'>" : "") . "
+                    " . ($logoBase64 ? "<img src='" . $logoBase64 . "' alt='Logo école' class='logo'>" : "") . "
                     <div class='school-name'>{$schoolSettings->school_name}</div>
                     <div class='academic-year'>Année académique : " . $workingYear->name . "</div>
                     <div class='receipt-title'>REÇU PENSION/FRAIS DIVERS</div>

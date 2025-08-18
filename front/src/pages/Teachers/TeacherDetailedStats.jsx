@@ -1,5 +1,5 @@
 /**
- * Statistiques détaillées d'un enseignant individuel
+ * Statistiques détaillées du personnel (enseignants, comptables, surveillants, etc.)
  * Affichage complet des heures de travail, mouvements et analyses
  */
 
@@ -70,8 +70,8 @@ ChartJS.register(
 );
 
 const TeacherDetailedStats = () => {
-    const [teachers, setTeachers] = useState([]);
-    const [selectedTeacher, setSelectedTeacher] = useState('');
+    const [staffMembers, setStaffMembers] = useState([]);
+    const [selectedStaff, setSelectedStaff] = useState('');
     const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 30)));
     const [endDate, setEndDate] = useState(new Date());
     const [detailedStats, setDetailedStats] = useState(null);
@@ -84,32 +84,32 @@ const TeacherDetailedStats = () => {
     const { user } = useAuth();
 
     useEffect(() => {
-        loadTeachers();
+        loadStaffMembers();
     }, []);
 
     useEffect(() => {
-        if (selectedTeacher) {
+        if (selectedStaff) {
             loadDetailedStats();
         }
-    }, [selectedTeacher, startDate, endDate]);
+    }, [selectedStaff, startDate, endDate]);
 
-    const loadTeachers = async () => {
+    const loadStaffMembers = async () => {
         try {
-            const response = await secureApiEndpoints.teacherAttendance.getTeachersWithQR();
+            const response = await secureApiEndpoints.staff.getStaffWithQR();
             if (response.success) {
-                setTeachers(response.data.teachers || []);
+                setStaffMembers(response.data || []);
             }
         } catch (error) {
-            console.error('Erreur lors du chargement des enseignants:', error);
+            console.error('Erreur lors du chargement du personnel:', error);
         }
     };
 
     const loadDetailedStats = async () => {
-        if (!selectedTeacher) return;
+        if (!selectedStaff) return;
 
         try {
             setIsLoading(true);
-            const response = await secureApiEndpoints.teacherAttendance.getDetailedTeacherStats(selectedTeacher, {
+            const response = await secureApiEndpoints.staff.getStaffReport(selectedStaff, {
                 start_date: startDate.toISOString().split('T')[0],
                 end_date: endDate.toISOString().split('T')[0]
             });
@@ -126,12 +126,26 @@ const TeacherDetailedStats = () => {
 
     const loadDayMovements = async (date) => {
         try {
-            const response = await secureApiEndpoints.teacherAttendance.getDayMovements(selectedTeacher, {
-                date: date
-            });
-
-            if (response.success) {
-                setDayMovements(response.data);
+            // Pour l'instant, on utilise les données des mouvements récents depuis les statistiques détaillées
+            // car l'API staff n'a pas encore d'endpoint spécifique pour les mouvements du jour
+            const dayData = detailedStats?.attendances?.find(a => a.attendance_date === date);
+            if (dayData) {
+                setDayMovements({
+                    movements_count: 1,
+                    timeline: [{
+                        id: dayData.id,
+                        time: dayData.scanned_at ? new Date(dayData.scanned_at).toLocaleTimeString('fr-FR') : '-',
+                        type: dayData.event_type || 'entry',
+                        type_label: dayData.event_type === 'exit' ? 'Sortie' : 'Entrée',
+                        status: {
+                            is_late: dayData.late_minutes > 0,
+                            is_early_departure: false
+                        },
+                        late_minutes: dayData.late_minutes || 0,
+                        supervisor: 'Système',
+                        time_until_next: null
+                    }]
+                });
                 setSelectedDate(date);
                 setShowMovementsModal(true);
             }
@@ -142,12 +156,12 @@ const TeacherDetailedStats = () => {
 
     // Configuration des graphiques
     const getWorkHoursChartData = () => {
-        if (!detailedStats?.daily_details) return null;
+        if (!detailedStats?.attendances) return null;
 
-        const last14Days = detailedStats.daily_details.slice(-14);
+        const last14Days = detailedStats.attendances.slice(-14);
         
         return {
-            labels: last14Days.map(day => new Date(day.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })),
+            labels: last14Days.map(day => new Date(day.attendance_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })),
             datasets: [
                 {
                     label: 'Heures travaillées',
@@ -158,7 +172,7 @@ const TeacherDetailedStats = () => {
                 },
                 {
                     label: 'Heures attendues',
-                    data: last14Days.map(day => day.expected_hours || 8),
+                    data: last14Days.map(day => 8), // Valeur par défaut de 8h
                     backgroundColor: 'rgba(156, 163, 175, 0.3)',
                     borderColor: 'rgba(156, 163, 175, 1)',
                     borderWidth: 1,
@@ -169,12 +183,30 @@ const TeacherDetailedStats = () => {
     };
 
     const getWeekdayAnalysisData = () => {
-        if (!detailedStats?.weekday_analysis) return null;
+        if (!detailedStats?.attendances) return null;
 
-        const weekdays = Object.keys(detailedStats.weekday_analysis);
+        // Calculer les statistiques par jour de la semaine
+        const weekdayStats = {};
+        const weekdays = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+        
+        detailedStats.attendances.forEach(attendance => {
+            const date = new Date(attendance.attendance_date);
+            const dayName = date.toLocaleDateString('fr-FR', { weekday: 'long' });
+            const dayCapitalized = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+            
+            if (!weekdayStats[dayCapitalized]) {
+                weekdayStats[dayCapitalized] = { present: 0, total: 0 };
+            }
+            
+            weekdayStats[dayCapitalized].total++;
+            if (attendance.is_present) {
+                weekdayStats[dayCapitalized].present++;
+            }
+        });
+
         const attendanceRates = weekdays.map(day => {
-            const stats = detailedStats.weekday_analysis[day];
-            return stats.total_days > 0 ? (stats.present_days / stats.total_days) * 100 : 0;
+            const stats = weekdayStats[day];
+            return stats ? (stats.present / stats.total) * 100 : 0;
         });
 
         return {
@@ -235,7 +267,7 @@ const TeacherDetailedStats = () => {
         return hours > 0 ? `${hours}h ${mins}min` : `${mins}min`;
     };
 
-    const selectedTeacherData = teachers.find(t => t.id === parseInt(selectedTeacher));
+    const selectedStaffData = staffMembers.find(s => s.id === parseInt(selectedStaff));
 
     return (
         <Container fluid className="py-4">
@@ -244,12 +276,12 @@ const TeacherDetailedStats = () => {
                 <Col>
                     <div className="d-flex justify-content-between align-items-center">
                         <div>
-                            <h2>
+                            <h2 className="mb-0 d-flex align-items-center">
                                 <Activity className="me-2" />
-                                Statistiques Détaillées Enseignant
+                                Statistiques Détaillées Personnel
                             </h2>
                             <p className="text-muted mb-0">
-                                Analyse complète des heures et mouvements
+                                Analyse complète des heures et mouvements du personnel
                             </p>
                         </div>
                         
@@ -265,7 +297,7 @@ const TeacherDetailedStats = () => {
             <Row className="mb-4">
                 <Col>
                     <Card>
-                        <Card.Header>
+                        <Card.Header className="d-flex align-items-center">
                             <Filter className="me-2" />
                             Sélection et période
                         </Card.Header>
@@ -273,15 +305,15 @@ const TeacherDetailedStats = () => {
                             <Row>
                                 <Col md={4}>
                                     <Form.Group className="mb-3">
-                                        <Form.Label>Enseignant</Form.Label>
+                                        <Form.Label>Membre du personnel</Form.Label>
                                         <Form.Select 
-                                            value={selectedTeacher} 
-                                            onChange={(e) => setSelectedTeacher(e.target.value)}
+                                            value={selectedStaff} 
+                                            onChange={(e) => setSelectedStaff(e.target.value)}
                                         >
-                                            <option value="">Sélectionner un enseignant</option>
-                                            {teachers.map(teacher => (
-                                                <option key={teacher.id} value={teacher.id}>
-                                                    {teacher.full_name}
+                                            <option value="">Sélectionner un membre du personnel</option>
+                                            {staffMembers.map(staff => (
+                                                <option key={staff.id} value={staff.id}>
+                                                    {staff.name} ({staff.role})
                                                 </option>
                                             ))}
                                         </Form.Select>
@@ -313,7 +345,7 @@ const TeacherDetailedStats = () => {
                                     <Button 
                                         variant="primary"
                                         onClick={loadDetailedStats}
-                                        disabled={!selectedTeacher || isLoading}
+                                        disabled={!selectedStaff || isLoading}
                                         className="mb-3"
                                     >
                                         Analyser
@@ -326,27 +358,30 @@ const TeacherDetailedStats = () => {
             </Row>
 
             {/* Contenu principal */}
-            {detailedStats && selectedTeacherData ? (
+            {detailedStats && selectedStaffData ? (
                 <Tabs activeKey={activeTab} onSelect={setActiveTab} className="mb-4">
                     {/* Onglet Vue d'ensemble */}
                     <Tab eventKey="overview" title="Vue d'ensemble">
                         <Row className="mb-4">
-                            {/* Informations enseignant */}
+                            {/* Informations personnel */}
                             <Col md={4}>
                                 <Card>
-                                    <Card.Header>
+                                    <Card.Header className="d-flex align-items-center">
                                         <PersonCheck className="me-2" />
-                                        Informations Enseignant
+                                        Informations Personnel
                                     </Card.Header>
                                     <Card.Body>
-                                        <h5>{selectedTeacherData.full_name}</h5>
-                                        <p className="text-muted mb-2">{selectedTeacherData.email}</p>
+                                        <h5>{selectedStaffData.name}</h5>
+                                        <p className="text-muted mb-2">{selectedStaffData.email}</p>
+                                        {selectedStaffData.contact && (
+                                            <p className="text-muted mb-2">Contact: {selectedStaffData.contact}</p>
+                                        )}
                                         <hr />
                                         <p className="mb-1">
-                                            <strong>Horaires:</strong> {selectedTeacherData.expected_arrival_time || '08:00'} - {selectedTeacherData.expected_departure_time || '17:00'}
+                                            <strong>Rôle:</strong> {selectedStaffData.role}
                                         </p>
                                         <p className="mb-1">
-                                            <strong>Heures/jour:</strong> {selectedTeacherData.daily_work_hours || 8}h
+                                            <strong>Type:</strong> {selectedStaffData.staff_type}
                                         </p>
                                         <p className="mb-0">
                                             <strong>Période:</strong> {startDate.toLocaleDateString()} - {endDate.toLocaleDateString()}
@@ -358,26 +393,26 @@ const TeacherDetailedStats = () => {
                             {/* Statistiques résumées */}
                             <Col md={8}>
                                 <Card>
-                                    <Card.Header>
+                                    <Card.Header className="d-flex align-items-center">
                                         <BarChart className="me-2" />
                                         Statistiques de la période
                                     </Card.Header>
                                     <Card.Body>
                                         <Row>
                                             <Col md={3} className="text-center">
-                                                <h4 className="text-success">{detailedStats.summary_stats.present_days}</h4>
+                                                <h4 className="text-success">{detailedStats.stats?.present_days || detailedStats.attendances?.filter(a => a.is_present).length || 0}</h4>
                                                 <small className="text-muted">Jours présents</small>
                                             </Col>
                                             <Col md={3} className="text-center">
-                                                <h4 className="text-danger">{detailedStats.summary_stats.absent_days}</h4>
+                                                <h4 className="text-danger">{detailedStats.stats?.absent_days || detailedStats.attendances?.filter(a => !a.is_present).length || 0}</h4>
                                                 <small className="text-muted">Jours absents</small>
                                             </Col>
                                             <Col md={3} className="text-center">
-                                                <h4 className="text-info">{detailedStats.summary_stats.total_work_hours}h</h4>
+                                                <h4 className="text-info">{detailedStats.stats?.total_work_hours || detailedStats.attendances?.reduce((sum, a) => sum + (a.work_hours || 0), 0) || 0}h</h4>
                                                 <small className="text-muted">Heures travaillées</small>
                                             </Col>
                                             <Col md={3} className="text-center">
-                                                <h4 className="text-warning">{detailedStats.summary_stats.average_work_hours}h</h4>
+                                                <h4 className="text-warning">{detailedStats.stats?.average_work_hours || (detailedStats.attendances?.length > 0 ? Math.round(detailedStats.attendances.reduce((sum, a) => sum + (a.work_hours || 0), 0) / detailedStats.attendances.length * 10) / 10 : 0)}h</h4>
                                                 <small className="text-muted">Moyenne/jour</small>
                                             </Col>
                                         </Row>
@@ -385,22 +420,31 @@ const TeacherDetailedStats = () => {
                                         <Row>
                                             <Col md={6}>
                                                 <div className="text-center">
-                                                    <h5 className="text-primary">{detailedStats.summary_stats.attendance_rate}%</h5>
-                                                    <small className="text-muted">Taux de présence</small>
-                                                    <ProgressBar 
-                                                        now={detailedStats.summary_stats.attendance_rate} 
-                                                        variant={detailedStats.summary_stats.attendance_rate >= 90 ? 'success' : detailedStats.summary_stats.attendance_rate >= 70 ? 'warning' : 'danger'}
-                                                        className="mt-2"
-                                                    />
+                                                    {(() => {
+                                                        const presentDays = detailedStats.attendances?.filter(a => a.is_present).length || 0;
+                                                        const totalDays = detailedStats.attendances?.length || 1;
+                                                        const rate = Math.round((presentDays / totalDays) * 100);
+                                                        return (
+                                                            <>
+                                                                <h5 className="text-primary">{rate}%</h5>
+                                                                <small className="text-muted">Taux de présence</small>
+                                                                <ProgressBar 
+                                                                    now={rate} 
+                                                                    variant={rate >= 90 ? 'success' : rate >= 70 ? 'warning' : 'danger'}
+                                                                    className="mt-2"
+                                                                />
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </Col>
                                             <Col md={6}>
                                                 <div className="text-center">
-                                                    <h5 className="text-info">{detailedStats.summary_stats.total_movements}</h5>
-                                                    <small className="text-muted">Total mouvements</small>
+                                                    <h5 className="text-info">{detailedStats.attendances?.length || 0}</h5>
+                                                    <small className="text-muted">Total enregistrements</small>
                                                     <div className="mt-2">
                                                         <small className="text-muted">
-                                                            Retard moyen: {detailedStats.summary_stats.average_late_minutes} min
+                                                            Retard moyen: {Math.round(detailedStats.attendances?.reduce((sum, a) => sum + (a.late_minutes || 0), 0) / (detailedStats.attendances?.length || 1)) || 0} min
                                                         </small>
                                                     </div>
                                                 </div>
@@ -439,101 +483,89 @@ const TeacherDetailedStats = () => {
                     {/* Onglet Détails quotidiens */}
                     <Tab eventKey="daily" title="Détails quotidiens">
                         <Card>
-                            <Card.Header>
+                            <Card.Header className="d-flex align-items-center">
                                 <Calendar className="me-2" />
-                                Détails par jour
+                                Détails par jour - Toutes les entrées et sorties
                             </Card.Header>
                             <Card.Body>
                                 {isLoading ? (
                                     <div className="text-center py-4">
                                         <Spinner animation="border" />
                                     </div>
-                                ) : (
-                                    <Table responsive>
-                                        <thead>
-                                            <tr>
-                                                <th>Date</th>
-                                                <th>Présence</th>
-                                                <th>Heure d'arrivée</th>
-                                                <th>Heure de départ</th>
-                                                <th>Heures travaillées</th>
-                                                <th>Retard</th>
-                                                <th>Ponctualité</th>
-                                                <th>Mouvements</th>
-                                                <th>Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {detailedStats.daily_details.map((day, index) => (
-                                                <tr key={index}>
-                                                    <td>
-                                                        {new Date(day.date).toLocaleDateString('fr-FR', { 
-                                                            weekday: 'short', 
+                                ) : detailedStats.daily_details ? (
+                                    <div>
+                                        {detailedStats.daily_details.map((dayDetail, dayIndex) => (
+                                            <Card key={dayIndex} className="mb-3">
+                                                <Card.Header className="d-flex justify-content-between align-items-center">
+                                                    <h6 className="mb-0">
+                                                        {new Date(dayDetail.date).toLocaleDateString('fr-FR', { 
+                                                            weekday: 'long', 
                                                             day: 'numeric', 
-                                                            month: 'short' 
+                                                            month: 'long' 
                                                         })}
-                                                    </td>
-                                                    <td>
-                                                        {day.is_present ? (
-                                                            <Badge bg="success"><CheckCircleFill /></Badge>
-                                                        ) : (
-                                                            <Badge bg="danger"><XCircleFill /></Badge>
-                                                        )}
-                                                    </td>
-                                                    <td>
-                                                        <div>
-                                                            {day.actual_start || '-'}
-                                                            {day.actual_start && (
-                                                                <small className="text-muted d-block">
-                                                                    Attendu: {day.expected_start}
-                                                                </small>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <div>
-                                                            {day.actual_end || '-'}
-                                                            {day.actual_end && (
-                                                                <small className="text-muted d-block">
-                                                                    Attendu: {day.expected_end}
-                                                                </small>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <div>
-                                                            <strong>{day.work_hours}h</strong>
-                                                            <small className="text-muted d-block">
-                                                                / {day.expected_hours}h
-                                                            </small>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        {day.late_minutes > 0 ? (
-                                                            <Badge bg="warning">{day.late_minutes} min</Badge>
-                                                        ) : (
-                                                            <Badge bg="success">À l'heure</Badge>
-                                                        )}
-                                                    </td>
-                                                    <td>{getPunctualityBadge(day.punctuality_status)}</td>
-                                                    <td>
-                                                        <Badge bg="info">
-                                                            {day.total_movements} mouvements
+                                                    </h6>
+                                                    <div>
+                                                        <Badge bg="primary" className="me-2">
+                                                            {dayDetail.work_pairs.length} session{dayDetail.work_pairs.length > 1 ? 's' : ''}
                                                         </Badge>
-                                                    </td>
-                                                    <td>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline-info"
-                                                            onClick={() => loadDayMovements(day.date)}
-                                                        >
-                                                            <Eye />
-                                                        </Button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </Table>
+                                                        <Badge bg="success">
+                                                            Total: {dayDetail.total_formatted}
+                                                        </Badge>
+                                                    </div>
+                                                </Card.Header>
+                                                <Card.Body>
+                                                    {dayDetail.work_pairs.length > 0 ? (
+                                                        <div>
+                                                            {dayDetail.work_pairs.map((pair, pairIndex) => (
+                                                                <div key={pairIndex} className="d-flex justify-content-between align-items-center py-2 border-bottom">
+                                                                    <div className="d-flex align-items-center">
+                                                                        <ArrowRightCircle className="text-success me-2" />
+                                                                        <span className="me-3">
+                                                                            <strong>Entrée:</strong> {pair.entry_time}
+                                                                        </span>
+                                                                        {pair.exit_time ? (
+                                                                            <>
+                                                                                <ArrowLeftCircle className="text-warning me-2" />
+                                                                                <span>
+                                                                                    <strong>Sortie:</strong> {pair.exit_time}
+                                                                                </span>
+                                                                            </>
+                                                                        ) : (
+                                                                            <Badge bg="info">En cours...</Badge>
+                                                                        )}
+                                                                    </div>
+                                                                    <div>
+                                                                        <Badge bg="outline-primary">
+                                                                            {pair.duration_formatted}
+                                                                        </Badge>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center text-muted py-3">
+                                                            <XCircleFill className="mb-2" size={24} />
+                                                            <p className="mb-0">Absent ce jour</p>
+                                                        </div>
+                                                    )}
+                                                </Card.Body>
+                                            </Card>
+                                        ))}
+                                        
+                                        {detailedStats.daily_details.length === 0 && (
+                                            <Alert variant="info" className="text-center">
+                                                <Calendar size={48} className="mb-3" />
+                                                <h5>Aucune donnée de présence</h5>
+                                                <p>Aucun enregistrement de présence trouvé pour cette période.</p>
+                                            </Alert>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <Alert variant="warning" className="text-center">
+                                        <Clock size={48} className="mb-3" />
+                                        <h5>Données non disponibles</h5>
+                                        <p>Les détails quotidiens ne sont pas disponibles pour cette sélection.</p>
+                                    </Alert>
                                 )}
                             </Card.Body>
                         </Card>
@@ -542,35 +574,42 @@ const TeacherDetailedStats = () => {
                     {/* Onglet Mouvements récents */}
                     <Tab eventKey="movements" title="Mouvements récents">
                         <Card>
-                            <Card.Header>
+                            <Card.Header className="d-flex align-items-center">
                                 <ClockHistory className="me-2" />
                                 20 derniers mouvements
                             </Card.Header>
                             <Card.Body>
                                 <ListGroup>
-                                    {detailedStats.recent_movements.map((movement, index) => (
+                                    {detailedStats.attendances?.slice(-20).reverse().map((attendance, index) => (
                                         <ListGroup.Item key={index} className="d-flex justify-content-between align-items-center">
                                             <div>
                                                 <div className="d-flex align-items-center">
-                                                    {movement.type === 'entry' ? (
-                                                        <ArrowRightCircle className="text-success me-2" />
-                                                    ) : (
+                                                    {attendance.event_type === 'exit' ? (
                                                         <ArrowLeftCircle className="text-warning me-2" />
+                                                    ) : (
+                                                        <ArrowRightCircle className="text-success me-2" />
                                                     )}
                                                     <div>
                                                         <strong>
-                                                            {new Date(movement.date).toLocaleDateString('fr-FR')} à {movement.time}
+                                                            {new Date(attendance.attendance_date).toLocaleDateString('fr-FR')} 
+                                                            {attendance.scanned_at && ' à ' + new Date(attendance.scanned_at).toLocaleTimeString('fr-FR')}
                                                         </strong>
                                                         <small className="text-muted d-block">
-                                                            {movement.type === 'entry' ? 'Entrée' : 'Sortie'} - Superviseur: {movement.supervisor}
+                                                            {attendance.event_type === 'exit' ? 'Sortie' : 'Entrée'} - 
+                                                            Personnel: {selectedStaffData?.name}
                                                         </small>
                                                     </div>
                                                 </div>
                                             </div>
                                             <div>
-                                                {movement.late_minutes > 0 && (
+                                                {(attendance.late_minutes || 0) > 0 && (
                                                     <Badge bg="warning" className="me-1">
-                                                        {movement.late_minutes} min retard
+                                                        {attendance.late_minutes} min retard
+                                                    </Badge>
+                                                )}
+                                                {attendance.is_present && (
+                                                    <Badge bg="success" className="me-1">
+                                                        Présent
                                                     </Badge>
                                                 )}
                                             </div>
@@ -581,11 +620,11 @@ const TeacherDetailedStats = () => {
                         </Card>
                     </Tab>
                 </Tabs>
-            ) : !selectedTeacher ? (
+            ) : !selectedStaff ? (
                 <Alert variant="info" className="text-center">
                     <PersonCheck size={48} className="mb-3" />
-                    <h5>Sélectionnez un enseignant</h5>
-                    <p>Choisissez un enseignant dans la liste ci-dessus pour voir ses statistiques détaillées.</p>
+                    <h5>Sélectionnez un membre du personnel</h5>
+                    <p>Choisissez un membre du personnel dans la liste ci-dessus pour voir ses statistiques détaillées.</p>
                 </Alert>
             ) : isLoading ? (
                 <div className="text-center py-5">

@@ -126,19 +126,19 @@ const AttendanceReports = () => {
       if (data.success) {
         console.log("✅ Classes trouvées:", data.data?.length || 0);
         setClasses(data.data || []);
-        setMessage(
-          `${data.data?.length || 0} classe(s) assignée(s) trouvée(s)`
-        );
-        setMessageType("success");
+        // setMessage(
+        //   `${data.data?.length || 0} classe(s) assignée(s) trouvée(s)`
+        // );
+        // setMessageType("success");
       } else {
         console.log("❌ Échec chargement classes:", data.message);
-        setMessage(data.message || "Erreur lors du chargement des classes");
-        setMessageType("warning");
+        // setMessage(data.message || "Erreur lors du chargement des classes");
+        // setMessageType("warning");
       }
     } catch (error) {
-      console.error("🚨 Erreur lors du chargement des classes:", error);
-      setMessage("Erreur réseau lors du chargement des classes");
-      setMessageType("danger");
+      // console.error("🚨 Erreur lors du chargement des classes:", error);
+      // setMessage("Erreur réseau lors du chargement des classes");
+      // setMessageType("danger");
     }
   };
 
@@ -187,15 +187,15 @@ const AttendanceReports = () => {
         const attendanceCount = data.data?.attendances?.length || 0;
         console.log("✅ Attendances trouvées:", attendanceCount);
         setAttendances(data.data.attendances || []);
-        if (attendanceCount === 0) {
-          setMessage("Aucune donnée de présence trouvée pour cette période");
-          setMessageType("info");
-        } else {
-          setMessage(
-            `${attendanceCount} enregistrement(s) de présence trouvé(s)`
-          );
-          setMessageType("success");
-        }
+        // if (attendanceCount === 0) {
+        //   // setMessage("Aucune donnée de présence trouvée pour cette période");
+        //   // setMessageType("info");
+        // } else {
+        //   setMessage(
+        //     `${attendanceCount} enregistrement(s) de présence trouvé(s)`
+        //   );
+        //   setMessageType("success");
+        // }
       } else {
         console.log("❌ Échec chargement attendance:", data.message);
         setMessage(data.message || "Erreur lors du chargement");
@@ -498,7 +498,7 @@ const AttendanceReports = () => {
     <Container fluid className="py-4">
       <Row>
         <Col>
-          <h2 className="mb-4">
+          <h2 className="mb-4 d-flex align-items-center">
             <FileEarmarkText className="me-2" />
             Rapports de Présences
           </h2>
@@ -551,7 +551,7 @@ const AttendanceReports = () => {
         <Col>
           <Card>
             <Card.Header>
-              <h5 className="mb-0">
+              <h5 className="mb-0 d-flex align-items-center">
                 <Filter className="me-2" />
                 Filtres de Recherche
               </h5>
@@ -751,7 +751,7 @@ const AttendanceReports = () => {
               </Button>
             )}
             {!filters.classId && (
-              <small className="text-muted">
+              <small className="text-muted d-flex align-items-center">
                 <PersonXFill className="me-1" />
                 Sélectionnez une classe pour marquer les absents
               </small>
@@ -777,7 +777,7 @@ const AttendanceReports = () => {
         <Col>
           <Card>
             <Card.Header>
-              <h5 className="mb-0">
+              <h5 className="mb-0 d-flex align-items-center">
                 <Calendar className="me-2" />
                 Résultats
                 <Badge bg="secondary" className="ms-2">
@@ -843,7 +843,7 @@ const AttendanceReports = () => {
                               )}
                             </Badge>
                           </td>
-                          <td>
+                          <td className="d-flex align-items-center">
                             <Clock size={14} className="me-1" />
                             {formatTime(attendance.scanned_at)}
                           </td>

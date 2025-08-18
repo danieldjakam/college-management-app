@@ -57,13 +57,15 @@ import Teachers from "./pages/Teachers/Teachers";
 import TeacherAssignments from "./pages/Teachers/TeacherAssignments";
 import TeacherAssignmentManagement from "./pages/Teachers/TeacherAssignmentManagement";
 
+// Departments
+import DepartmentManagement from "./pages/Departments/DepartmentManagement";
+
 // Needs
 import MyNeeds from "./pages/Needs/MyNeeds";
 import NeedsManagement from "./pages/Needs/NeedsManagement";
 
 // Attendance
 import AttendanceScanner from "./pages/Attendance/AttendanceScanner";
-import AttendanceScannerOffline from "./pages/Attendance/AttendanceScannerOffline";
 import TeacherAttendanceScanner from "./pages/Attendance/TeacherAttendanceScanner";
 import AttendanceReports from "./pages/Attendance/AttendanceReports";
 import TeacherDetailedStats from "./pages/Teachers/TeacherDetailedStats";
@@ -248,20 +250,12 @@ const AppContent = () => {
               <Route
                 path="/attendance"
                 element={
-                  <ProtectedRoute requiredRoles={['surveillant_general']}>
+                  <ProtectedRoute requiredRoles={['surveillant_general', 'admin']}>
                     <AttendanceScanner />
                   </ProtectedRoute>
                 }
               />
 
-              <Route
-                path="/attendance-offline"
-                element={
-                  <ProtectedRoute requiredRoles={['surveillant_general']}>
-                    <AttendanceScannerOffline />
-                  </ProtectedRoute>
-                }
-              />
 
               <Route
                 path="/teacher-attendance-scanner"
@@ -271,6 +265,7 @@ const AppContent = () => {
                   </ProtectedRoute>
                 }
               />
+
 
               <Route
                 path="/teacher-detailed-stats"
@@ -284,7 +279,7 @@ const AppContent = () => {
               <Route
                 path="/attendance-reports"
                 element={
-                  <ProtectedRoute requiredRoles={['surveillant_general']}>
+                  <ProtectedRoute requiredRoles={['surveillant_general', 'admin']}>
                     <AttendanceReports />
                   </ProtectedRoute>
                 }
@@ -405,6 +400,15 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <TeacherAssignments />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/departments"
+                element={
+                  <AdminRoute>
+                    <DepartmentManagement />
                   </AdminRoute>
                 }
               />

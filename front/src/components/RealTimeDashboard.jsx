@@ -377,13 +377,6 @@ const RealTimeDashboard = ({
                 </Card.Header>
             </Card>
 
-            {/* Mode offline warning */}
-            {!isOnline && (
-                <Alert variant="warning" className="mb-4">
-                    <WifiOff className="me-2" />
-                    Mode offline activé. Les données affichées peuvent ne pas être à jour.
-                </Alert>
-            )}
 
             {/* Cartes de statistiques */}
             <Row className="mb-4">

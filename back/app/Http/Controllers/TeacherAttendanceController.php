@@ -189,13 +189,13 @@ class TeacherAttendanceController extends Controller
             }
 
             // Générer l'image QR code
-            $qrCodeImage = QrCode::format('png')
+            $qrCodeImage = QrCode::format('svg')
                 ->size(300)
                 ->margin(1)
                 ->generate($teacher->qr_code);
 
             // Sauvegarder l'image
-            $fileName = "teacher_qr_codes/teacher_{$teacher->id}_qr.png";
+            $fileName = "teacher_qr_codes/teacher_{$teacher->id}_qr.svg";
             Storage::disk('public')->put($fileName, $qrCodeImage);
 
             return response()->json([

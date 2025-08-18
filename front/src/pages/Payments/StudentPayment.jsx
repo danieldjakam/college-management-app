@@ -64,6 +64,9 @@ const StudentPayment = () => {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
+  const [printWindow, setPrintWindow] = useState(null);
+  const [currentPaymentId, setCurrentPaymentId] = useState(null);
 
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
@@ -754,13 +757,17 @@ const StudentPayment = () => {
   };
 
   const handlePrintReceipt = async (paymentId) => {
+    if (isPrintingReceipt) return; // Éviter les appels multiples
+    
     try {
+      setIsPrintingReceipt(true);
       const response = await secureApiEndpoints.payments.generateReceipt(
         paymentId
       );
 
       if (response.success) {
         setReceiptHtml(response.data.html);
+        setCurrentPaymentId(paymentId);
         setShowReceiptModal(true);
       } else {
         setError("Erreur lors de la génération du reçu");
@@ -768,6 +775,8 @@ const StudentPayment = () => {
     } catch (error) {
       setError("Erreur lors de la génération du reçu");
       console.error("Error generating receipt:", error);
+    } finally {
+      setIsPrintingReceipt(false);
     }
   };
 
@@ -775,8 +784,62 @@ const StudentPayment = () => {
     await handlePrintReceipt(paymentId);
   };
 
+  const handleDownloadPDFFromHistory = async (paymentId) => {
+    if (isPrintingReceipt) return;
+
+    try {
+      setIsPrintingReceipt(true);
+      await secureApiEndpoints.payments.downloadReceiptPDF(paymentId);
+      setSuccess("Le reçu PDF a été téléchargé avec succès");
+    } catch (error) {
+      console.error('Erreur lors du téléchargement PDF:', error);
+      setError('Erreur lors du téléchargement du PDF: ' + error.message);
+    } finally {
+      setIsPrintingReceipt(false);
+    }
+  };
+
+  const downloadReceiptPDF = async () => {
+    if (isPrintingReceipt) return;
+
+    try {
+      setIsPrintingReceipt(true);
+      
+      if (!currentPaymentId) {
+        setError("Impossible de déterminer l'ID du paiement");
+        return;
+      }
+
+      await secureApiEndpoints.payments.downloadReceiptPDF(currentPaymentId);
+      setSuccess("Le reçu PDF a été téléchargé avec succès");
+      
+    } catch (error) {
+      console.error('Erreur lors du téléchargement PDF:', error);
+      setError('Erreur lors du téléchargement du PDF: ' + error.message);
+    } finally {
+      setIsPrintingReceipt(false);
+    }
+  };
+
   const printReceipt = () => {
-    const printWindow = window.open("", "_blank");
+    if (isPrintingReceipt) return; // Éviter les doubles ouvertures
+    
+    // Fermer la fenêtre précédente si elle existe
+    if (printWindow && !printWindow.closed) {
+      printWindow.close();
+    }
+    
+    setIsPrintingReceipt(true);
+    const newPrintWindow = window.open("", "_blank");
+    
+    // Vérifier si la fenêtre a pu être créée (popups non bloqués)
+    if (!newPrintWindow) {
+      setIsPrintingReceipt(false);
+      setError("Impossible d'ouvrir la fenêtre d'impression. Veuillez autoriser les popups pour ce site.");
+      return;
+    }
+    
+    setPrintWindow(newPrintWindow);
     // Extraire le numéro de reçu depuis le HTML pour un titre unique
     const receiptNumberMatch = receiptHtml.match(/Reçu N° :\s*([^<]+)/);
     const receiptNumber = receiptNumberMatch
@@ -787,7 +850,8 @@ const StudentPayment = () => {
           .replace(/[-:]/g, "")
           .replace("T", "_");
 
-    printWindow.document.write(`
+    try {
+      newPrintWindow.document.write(`
             <html>
                 <head>
                     <title>Reçu_${receiptNumber}</title>
@@ -837,8 +901,8 @@ const StudentPayment = () => {
                         ${receiptHtml}
                     </div>
                     <div class="no-print" style="text-align: center; margin-top: 30px; background: white; padding: 20px;">
-                        <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">📄 Imprimer A4 Paysage</button>
-                        <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer;">✖️ Fermer</button>
+                        <button onclick="window.print(); setTimeout(() => window.close(), 2000);" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">📄 Imprimer & Fermer</button>
+                        <button onclick="window.close()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer;">✖️ Fermer Maintenant</button>
                         <div style="margin-top: 15px; font-size: 12px; color: #666;">
                             <p>📋 <strong>Instructions :</strong></p>
                             <ul style="text-align: left; max-width: 500px; margin: 0 auto;">
@@ -853,8 +917,38 @@ const StudentPayment = () => {
                 </body>
             </html>
         `);
-    printWindow.document.close();
+      newPrintWindow.document.close();
+      
+      // Libérer le verrou après un délai pour permettre l'ouverture de la fenêtre
+      setTimeout(() => {
+        setIsPrintingReceipt(false);
+      }, 1000);
+      
+      // Écouter la fermeture de la fenêtre pour libérer le verrou plus tôt si possible
+      if (newPrintWindow) {
+        const checkClosed = setInterval(() => {
+          if (newPrintWindow.closed) {
+            setIsPrintingReceipt(false);
+            setPrintWindow(null);
+            clearInterval(checkClosed);
+          }
+        }, 500);
+        
+        // Nettoyer l'intervalle après 30 secondes au maximum
+        setTimeout(() => {
+          clearInterval(checkClosed);
+          setIsPrintingReceipt(false);
+          setPrintWindow(null);
+        }, 30000);
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'ouverture de la fenêtre d\'impression:', error);
+      setError('Erreur lors de l\'ouverture de la fenêtre d\'impression. Veuillez réessayer.');
+      setIsPrintingReceipt(false);
+      setPrintWindow(null);
+    }
   };
+
 
   const formatAmount = (amount) => {
     return formatCurrency(parseInt(amount));
@@ -1400,15 +1494,38 @@ const StudentPayment = () => {
                             </div>
                           )}
                         </div>
-                        <Button
-                          variant="outline-primary"
-                          size="sm"
-                          onClick={() =>
-                            handlePrintReceiptFromHistory(payment.id)
-                          }
-                        >
-                          <Receipt size={14} />
-                        </Button>
+                        <div className="d-flex gap-1">
+                          <Button
+                            variant="outline-success"
+                            size="sm"
+                            disabled={isPrintingReceipt}
+                            onClick={() =>
+                              handleDownloadPDFFromHistory(payment.id)
+                            }
+                            title={isPrintingReceipt ? "Téléchargement en cours..." : "Télécharger le PDF"}
+                          >
+                            {isPrintingReceipt ? (
+                              <Spinner size="sm" />
+                            ) : (
+                              <>📄</>
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline-primary"
+                            size="sm"
+                            disabled={isPrintingReceipt}
+                            onClick={() =>
+                              handlePrintReceiptFromHistory(payment.id)
+                            }
+                            title={isPrintingReceipt ? "Impression en cours..." : "Imprimer le reçu"}
+                          >
+                            {isPrintingReceipt ? (
+                              <Spinner size="sm" />
+                            ) : (
+                              <Receipt size={14} />
+                            )}
+                          </Button>
+                        </div>
                       </div>
                       {payment.notes && (
                         <small className="text-muted d-block mt-1">
@@ -1716,10 +1833,40 @@ const StudentPayment = () => {
           >
             Fermer
           </Button>
-          <Button variant="primary" onClick={printReceipt}>
-            <Printer size={16} className="me-2" />
-            Imprimer
+          <Button 
+            variant="success" 
+            onClick={downloadReceiptPDF}
+            disabled={isPrintingReceipt}
+            className="me-2"
+          >
+            {isPrintingReceipt ? (
+              <>
+                <Spinner size="sm" className="me-2" />
+                Téléchargement...
+              </>
+            ) : (
+              <>
+                📄 PDF
+              </>
+            )}
           </Button>
+          {/* <Button 
+            variant="primary" 
+            onClick={printReceipt}
+            disabled={isPrintingReceipt}
+          >
+            {isPrintingReceipt ? (
+              <>
+                <Spinner size="sm" className="me-2" />
+                Ouverture...
+              </>
+            ) : (
+              <>
+                <Printer size={16} className="me-2" />
+                Imprimer
+              </>
+            )}
+          </Button> */}
         </Modal.Footer>
       </Modal>
     </Container>

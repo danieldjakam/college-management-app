@@ -24,6 +24,7 @@ const Teachers = () => {
         gender: '',
         qualification: '',
         hire_date: '',
+        type_personnel: 'V',
         is_active: true,
         create_user_account: false,
         username: '',
@@ -99,6 +100,7 @@ const Teachers = () => {
                 gender: teacher.gender || '',
                 qualification: teacher.qualification || '',
                 hire_date: teacher.hire_date || '',
+                type_personnel: teacher.type_personnel || 'V',
                 is_active: teacher.is_active,
                 create_user_account: false,
                 username: '',
@@ -116,6 +118,7 @@ const Teachers = () => {
                 gender: '',
                 qualification: '',
                 hire_date: new Date().toISOString().split('T')[0],
+                type_personnel: 'V',
                 is_active: true,
                 create_user_account: false,
                 username: '',
@@ -139,6 +142,7 @@ const Teachers = () => {
             gender: '',
             qualification: '',
             hire_date: '',
+            type_personnel: 'V',
             is_active: true,
             create_user_account: false,
             username: '',
@@ -317,6 +321,22 @@ const Teachers = () => {
         );
     };
 
+    const getTypePersonnelBadge = (typePersonnel) => {
+        const typeConfig = {
+            'V': { label: 'Vacataire', bg: 'warning' },
+            'SP': { label: 'Semi-Permanent', bg: 'info' },
+            'P': { label: 'Permanent', bg: 'primary' }
+        };
+        
+        const config = typeConfig[typePersonnel] || { label: 'Non défini', bg: 'secondary' };
+        
+        return (
+            <Badge bg={config.bg} className="text-white">
+                {config.label}
+            </Badge>
+        );
+    };
+
     const getGenderText = (gender) => {
         switch (gender) {
             case 'm': return 'Masculin';
@@ -391,6 +411,7 @@ const Teachers = () => {
                             <th>Contact</th>
                             <th>Qualification</th>
                             <th>Date d'embauche</th>
+                            <th>Type de personnel</th>
                             <th>Statut</th>
                             <th width="150">Actions</th>
                         </tr>
@@ -436,6 +457,9 @@ const Teachers = () => {
                                                 : '-'
                                             }
                                         </small>
+                                    </td>
+                                    <td>
+                                        {getTypePersonnelBadge(teacher.type_personnel)}
                                     </td>
                                     <td>
                                         {getStatusBadge(teacher.is_active)}
@@ -642,6 +666,20 @@ const Teachers = () => {
                                                 value={formData.hire_date}
                                                 onChange={handleInputChange}
                                             />
+                                        </Form.Group>
+                                    </div>
+                                    <div className="col-md-6">
+                                        <Form.Group>
+                                            <Form.Label>Type de personnel</Form.Label>
+                                            <Form.Select
+                                                name="type_personnel"
+                                                value={formData.type_personnel}
+                                                onChange={handleInputChange}
+                                            >
+                                                <option value="V">Vacataire</option>
+                                                <option value="SP">Semi-Permanent</option>
+                                                <option value="P">Permanent</option>
+                                            </Form.Select>
                                         </Form.Group>
                                     </div>
                                     <div className="col-12">

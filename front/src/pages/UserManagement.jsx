@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Container,
     Row,
@@ -25,7 +25,9 @@ import {
     EyeFill,
     PersonCheck,
     CreditCard2Back,
-    QrCode
+    QrCode,
+    PrinterFill,
+    FileEarmarkPdf
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../utils/apiMigration';
 import Swal from 'sweetalert2';
@@ -44,6 +46,10 @@ const UserManagement = () => {
     const [showQRModal, setShowQRModal] = useState(false);
     const [selectedUserQR, setSelectedUserQR] = useState(null);
     
+    // États pour la sélection multiple
+    const [selectedUsers, setSelectedUsers] = useState([]);
+    const [isGeneratingMultipleBadges, setIsGeneratingMultipleBadges] = useState(false);
+    
     // États pour la recherche et les filtres
     const [searchTerm, setSearchTerm] = useState('');
     const [roleFilter, setRoleFilter] = useState('all');
@@ -59,7 +65,7 @@ const UserManagement = () => {
         generate_password: true
     });
 
-    const roleLabels = {
+    const roleLabels = useMemo(() => ({
         admin: 'Administrateur',
         surveillant_general: 'Surveillant Général',
         general_accountant: 'Comptable Général',
@@ -69,9 +75,9 @@ const UserManagement = () => {
         enseignant: 'Enseignant',
         teacher: 'Enseignant',
         accountant: 'Comptable'
-    };
+    }), []);
 
-    const roleColors = {
+    const roleColors = useMemo(() => ({
         admin: 'danger',
         surveillant_general: 'primary',
         general_accountant: 'warning',
@@ -81,7 +87,7 @@ const UserManagement = () => {
         enseignant: 'warning',
         teacher: 'warning',
         accountant: 'success'
-    };
+    }), []);
 
     const getFieldLabel = (fieldName) => {
         const fieldLabels = {
@@ -567,22 +573,190 @@ const UserManagement = () => {
         }
     };
 
-    const handleShowQRCode = async (user) => {
+
+    const handlePrintBadge = async (user) => {
         try {
             setLoading(true);
-            const response = await secureApiEndpoints.userManagement.getUserQR(user.id);
             
-            if (response.success) {
-                setSelectedUserQR(response.data);
-                setShowQRModal(true);
-            } else {
-                Swal.fire('Erreur', response.message, 'error');
+            // Vérifier que l'utilisateur est un membre du personnel
+            const staffRoles = ['teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire'];
+            if (!staffRoles.includes(user.role)) {
+                await Swal.fire({
+                    title: 'Information',
+                    text: 'L\'impression de badges QR n\'est disponible que pour les membres du personnel (enseignants, comptables, surveillants, etc.)',
+                    icon: 'info',
+                    confirmButtonText: 'Compris'
+                });
+                return;
             }
+
+            // Utiliser l'API du StaffAttendanceController pour générer le badge
+            const response = await secureApiEndpoints.staff.downloadBadgePDF({
+                user_id: user.id
+            });
+
+            // Télécharger le PDF
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `badge_${user.name.replace(/\s+/g, '_')}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(downloadUrl);
+            
+            await Swal.fire({
+                title: 'Badge généré !',
+                text: `Badge PDF téléchargé pour ${user.name}`,
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+            
         } catch (error) {
-            console.error('Error fetching QR code:', error);
-            Swal.fire('Erreur', 'Erreur lors de la génération du QR code: ' + error.message, 'error');
+            console.error('Error generating badge:', error);
+            await Swal.fire({
+                title: 'Erreur',
+                text: 'Erreur lors de la génération du badge: ' + (error.message || 'Une erreur inattendue s\'est produite'),
+                icon: 'error',
+                confirmButtonText: 'Fermer'
+            });
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Fonctions pour la sélection multiple
+    const handleSelectUser = (userId, isSelected) => {
+        if (isSelected) {
+            setSelectedUsers(prev => [...prev, userId]);
+        } else {
+            setSelectedUsers(prev => prev.filter(id => id !== userId));
+        }
+    };
+
+    const handleSelectAll = () => {
+        const staffRoles = ['teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire'];
+        const eligibleUsers = filteredUsers.filter(user => staffRoles.includes(user.role));
+        
+        if (selectedUsers.length === eligibleUsers.length) {
+            // Tout désélectionner
+            setSelectedUsers([]);
+        } else {
+            // Tout sélectionner
+            setSelectedUsers(eligibleUsers.map(user => user.id));
+        }
+    };
+
+    const handlePrintMultipleBadges = async () => {
+        if (selectedUsers.length === 0) {
+            await Swal.fire({
+                title: 'Aucune sélection',
+                text: 'Veuillez sélectionner au moins un utilisateur pour imprimer les badges.',
+                icon: 'warning',
+                confirmButtonText: 'OK'
+            });
+            return;
+        }
+
+        const result = await Swal.fire({
+            title: 'Confirmer l\'impression',
+            text: `Voulez-vous imprimer les badges de ${selectedUsers.length} utilisateur(s) sélectionné(s) ?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Oui, imprimer',
+            cancelButtonText: 'Annuler'
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            setIsGeneratingMultipleBadges(true);
+
+            const response = await secureApiEndpoints.staff.generateMultipleBadges(selectedUsers);
+
+            // Télécharger le PDF
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `badges_multiples_${new Date().toISOString().split('T')[0]}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(downloadUrl);
+            
+            await Swal.fire({
+                title: 'Badges générés !',
+                text: `PDF avec ${selectedUsers.length} badge(s) téléchargé avec succès.`,
+                icon: 'success',
+                timer: 3000,
+                showConfirmButton: false
+            });
+
+            // Réinitialiser la sélection
+            setSelectedUsers([]);
+            
+        } catch (error) {
+            console.error('Error generating multiple badges:', error);
+            await Swal.fire({
+                title: 'Erreur',
+                text: 'Erreur lors de la génération des badges: ' + (error.message || 'Une erreur inattendue s\'est produite'),
+                icon: 'error',
+                confirmButtonText: 'Fermer'
+            });
+        } finally {
+            setIsGeneratingMultipleBadges(false);
+        }
+    };
+
+    const handleExportAdministrativeStaff = async () => {
+        const result = await Swal.fire({
+            title: 'Confirmer l\'export',
+            text: 'Voulez-vous exporter la liste du personnel administratif en PDF ?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Oui, exporter',
+            cancelButtonText: 'Annuler'
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const response = await secureApiEndpoints.userManagement.exportAdministrativeStaffPdf();
+
+            // Télécharger le PDF
+            const blob = await response;
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `Fichier_Personnel_Administratif_${new Date().toISOString().split('T')[0]}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(downloadUrl);
+            
+            await Swal.fire({
+                title: 'Export réussi !',
+                text: 'Le fichier du personnel administratif a été téléchargé avec succès.',
+                icon: 'success',
+                timer: 3000,
+                showConfirmButton: false
+            });
+            
+        } catch (error) {
+            console.error('Error exporting administrative staff:', error);
+            await Swal.fire({
+                title: 'Erreur',
+                text: 'Erreur lors de l\'export: ' + (error.message || 'Une erreur inattendue s\'est produite'),
+                icon: 'error',
+                confirmButtonText: 'Fermer'
+            });
         }
     };
 
@@ -802,14 +976,25 @@ const UserManagement = () => {
                                 Gérer les comptes des surveillants généraux, comptables et secrétaires (enseignants créés via gestion des utilisateurs)
                             </p>
                         </div>
-                        <Button
-                            variant="primary"
-                            onClick={() => handleShowModal('create')}
-                            className="d-flex align-items-center"
-                        >
-                            <PersonPlus className="me-2" />
-                            Nouvel Utilisateur
-                        </Button>
+                        <ButtonGroup>
+                            <Button
+                                variant="success"
+                                onClick={handleExportAdministrativeStaff}
+                                className="d-flex align-items-center"
+                                title="Exporter le personnel administratif"
+                            >
+                                <FileEarmarkPdf className="me-2" />
+                                Export Personnel Admin
+                            </Button>
+                            <Button
+                                variant="primary"
+                                onClick={() => handleShowModal('create')}
+                                className="d-flex align-items-center"
+                            >
+                                <PersonPlus className="me-2" />
+                                Nouvel Utilisateur
+                            </Button>
+                        </ButtonGroup>
                     </div>
                 </Col>
             </Row>
@@ -871,20 +1056,75 @@ const UserManagement = () => {
                         </Col>
                     </Row>
                     <div className="d-flex justify-content-between align-items-center">
-                        <small className="text-muted">
-                            {filteredUsers.length} utilisateur(s) trouvé(s) sur {users.length} total
-                        </small>
-                        <Button
-                            variant="outline-secondary"
-                            size="sm"
-                            onClick={() => {
-                                setSearchTerm('');
-                                setRoleFilter('all');
-                                setStatusFilter('all');
-                            }}
-                        >
-                            Réinitialiser les filtres
-                        </Button>
+                        <div className="d-flex align-items-center gap-3">
+                            <small className="text-muted">
+                                {filteredUsers.length} utilisateur(s) trouvé(s) sur {users.length} total
+                            </small>
+                            {selectedUsers.length > 0 && (
+                                <Badge bg="primary" className="d-flex align-items-center gap-1">
+                                    <i className="bi bi-check-square"></i>
+                                    {selectedUsers.length} sélectionné(s)
+                                </Badge>
+                            )}
+                        </div>
+                        <div className="d-flex gap-2">
+                            {/* Boutons de sélection multiple */}
+                            {(() => {
+                                const staffRoles = ['teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire'];
+                                const eligibleUsers = filteredUsers.filter(user => staffRoles.includes(user.role));
+                                
+                                if (eligibleUsers.length > 0) {
+                                    return (
+                                        <>
+                                            <Button
+                                                variant="outline-info"
+                                                size="sm"
+                                                onClick={handleSelectAll}
+                                                className="d-flex align-items-center gap-1"
+                                            >
+                                                <i className={`bi bi-${selectedUsers.length === eligibleUsers.length ? 'square' : 'check-square'}`}></i>
+                                                {selectedUsers.length === eligibleUsers.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+                                            </Button>
+                                            {selectedUsers.length > 0 && (
+                                                <Button
+                                                    variant="success"
+                                                    size="sm"
+                                                    onClick={handlePrintMultipleBadges}
+                                                    disabled={isGeneratingMultipleBadges}
+                                                    className="d-flex align-items-center gap-1"
+                                                >
+                                                    {isGeneratingMultipleBadges ? (
+                                                        <>
+                                                            <Spinner animation="border" size="sm" />
+                                                            Génération...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <PrinterFill />
+                                                            Imprimer badges ({selectedUsers.length})
+                                                        </>
+                                                    )}
+                                                </Button>
+                                            )}
+                                        </>
+                                    );
+                                }
+                                return null;
+                            })()}
+                            
+                            <Button
+                                variant="outline-secondary"
+                                size="sm"
+                                onClick={() => {
+                                    setSearchTerm('');
+                                    setRoleFilter('all');
+                                    setStatusFilter('all');
+                                    setSelectedUsers([]);
+                                }}
+                            >
+                                Réinitialiser les filtres
+                            </Button>
+                        </div>
                     </div>
                 </Card.Body>
             </Card>
@@ -902,6 +1142,24 @@ const UserManagement = () => {
                         <Table responsive hover>
                             <thead>
                                 <tr>
+                                    <th style={{ width: '40px' }}>
+                                        {(() => {
+                                            const staffRoles = ['teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire'];
+                                            const eligibleUsers = filteredUsers.filter(user => staffRoles.includes(user.role));
+                                            
+                                            if (eligibleUsers.length > 0) {
+                                                return (
+                                                    <Form.Check
+                                                        type="checkbox"
+                                                        checked={selectedUsers.length === eligibleUsers.length && eligibleUsers.length > 0}
+                                                        onChange={handleSelectAll}
+                                                        title="Sélectionner/Désélectionner tout"
+                                                    />
+                                                );
+                                            }
+                                            return null;
+                                        })()}
+                                    </th>
                                     <th>Photo</th>
                                     <th>Nom</th>
                                     <th>Email</th>
@@ -913,11 +1171,37 @@ const UserManagement = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredUsers.map(user => (
-                                    <tr key={user.id}>
-                                        <td style={{ textAlign: 'center' }}>
-                                            {getUserAvatar(user, 35)}
-                                        </td>
+                                {filteredUsers.map(user => {
+                                    const staffRoles = ['teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire'];
+                                    const isStaff = staffRoles.includes(user.role);
+                                    const isSelected = selectedUsers.includes(user.id);
+                                    
+                                    return (
+                                        <tr key={user.id}>
+                                            <td style={{ textAlign: 'center' }}>
+                                                {isStaff ? (
+                                                    <Form.Check
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={(e) => handleSelectUser(user.id, e.target.checked)}
+                                                        title={`Sélectionner ${user.name}`}
+                                                    />
+                                                ) : (
+                                                    <span 
+                                                        style={{ 
+                                                            color: '#6c757d', 
+                                                            fontSize: '12px',
+                                                            cursor: 'help'
+                                                        }}
+                                                        title="Non éligible pour l'impression de badges"
+                                                    >
+                                                        N/A
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td style={{ textAlign: 'center' }}>
+                                                {getUserAvatar(user, 35)}
+                                            </td>
                                         <td>{user.name}</td>
                                         <td>{user.email}</td>
                                         <td>{user.contact || '-'}</td>
@@ -968,7 +1252,7 @@ const UserManagement = () => {
                                                         {user.is_active ? 'Désactiver' : 'Activer'}
                                                     </Dropdown.Item>
                                                     <Dropdown.Divider />
-                                                    <Dropdown.Item 
+                                                    {/* <Dropdown.Item 
                                                         onClick={() => handleShowQRCode(user)}
                                                         className="text-info"
                                                     >
@@ -981,6 +1265,13 @@ const UserManagement = () => {
                                                     >
                                                         <CreditCard2Back className="me-2" />
                                                         Générer carte professionnelle
+                                                    </Dropdown.Item> */}
+                                                    <Dropdown.Item 
+                                                        onClick={() => handlePrintBadge(user)}
+                                                        className="text-primary"
+                                                    >
+                                                        <PrinterFill className="me-2" />
+                                                        Imprimer badge QR
                                                     </Dropdown.Item>
                                                     {user.role !== 'admin' && (
                                                         <>
@@ -998,7 +1289,8 @@ const UserManagement = () => {
                                             </Dropdown>
                                         </td>
                                     </tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </Table>
                     )}

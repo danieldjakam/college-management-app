@@ -371,7 +371,7 @@ const AttendanceScanner = () => {
     <Container fluid className="py-4">
       <Row>
         <Col>
-          <h2 className="mb-4">
+          <h2 className="mb-4 d-flex align-items-center">
             <QrCodeScan className="me-2" />
             Scanner de Présences
           </h2>
@@ -383,7 +383,7 @@ const AttendanceScanner = () => {
         <Col lg={6}>
           <Card>
             <Card.Header>
-              <h5 className="mb-0">
+              <h5 className="mb-0 d-flex align-items-center">
                 <QrCodeScan className="me-2" />
                 Scanner QR
               </h5>
@@ -598,7 +598,7 @@ const AttendanceScanner = () => {
                       backgroundColor: '#f8f9fa'
                     }}
                   >
-                    <div className="text-center text-muted">
+                    <div className="text-center text-muted d-flex flex-column align-items-center">
                       <QrCodeScan size={48} />
                       <p className="mt-2 mb-0">Cliquez sur "Démarrer le Scanner"</p>
                     </div>
@@ -614,7 +614,7 @@ const AttendanceScanner = () => {
           <Row className="mb-3">
             <Col>
               <Card className="border-info">
-                <Card.Header className="bg-info text-white">
+                <Card.Header className="bg-info">
                   <h6 className="mb-0">📊 Statistiques du Jour</h6>
                 </Card.Header>
                 <Card.Body>
@@ -677,7 +677,7 @@ const AttendanceScanner = () => {
           {/* Today's Attendance List */}
           <Card>
             <Card.Header>
-              <h5 className="mb-0">
+              <h5 className="mb-0 d-flex align-items-center">
                 <Calendar className="me-2" />
                 Présences d'Aujourd'hui
                 <Badge bg="primary" className="ms-2">
