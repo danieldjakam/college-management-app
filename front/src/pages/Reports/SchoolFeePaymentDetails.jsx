@@ -85,6 +85,65 @@ const SchoolFeePaymentDetails = () => {
         }
     };
 
+    const exportToCsv = async () => {
+        if (!filters.start_date || !filters.end_date) {
+            setError('Veuillez d\'abord charger les données avec des dates valides');
+            return;
+        }
+
+        try {
+            setLoading(true);
+
+            // Créer le contenu CSV
+            const csvHeaders = [
+                'Matricule',
+                'Nom', 
+                'Prénom',
+                'Classe',
+                'Type Paiement',
+                'Date Validation', 
+                'Montant',
+                'Reste à payer'
+            ];
+
+            const csvRows = paymentDetails.map(detail => [
+                detail.matricule,
+                detail.nom,
+                detail.prenom, 
+                detail.classe,
+                detail.type_paiement,
+                detail.date_validation,
+                detail.montant,
+                detail.reste_a_payer || 0
+            ]);
+
+            // Créer le contenu CSV
+            const csvContent = [
+                csvHeaders.join(','),
+                ...csvRows.map(row => row.join(','))
+            ].join('\n');
+
+            // Créer et télécharger le fichier
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', `detail_paiements_${filters.start_date}_${filters.end_date}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            setSuccess('Export CSV téléchargé avec succès');
+        } catch (error) {
+            setError(extractErrorMessage(error));
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const exportToPdf = async () => {
         if (!filters.start_date || !filters.end_date) {
             setError('Veuillez d\'abord charger les données avec des dates valides');
@@ -172,6 +231,14 @@ const SchoolFeePaymentDetails = () => {
                             </p>
                         </div>
                         <div className="d-flex gap-2">
+                            <Button
+                                variant="outline-success"
+                                onClick={exportToCsv}
+                                disabled={loading || paymentDetails.length === 0}
+                            >
+                                <Download className="me-2" />
+                                Exporter CSV
+                            </Button>
                             <Button
                                 variant="outline-danger"
                                 onClick={exportToPdf}
@@ -368,6 +435,7 @@ const SchoolFeePaymentDetails = () => {
                                             <th>Type Paiement</th>
                                             <th>Date Validation</th>
                                             <th className="text-end">Montant</th>
+                                            <th className="text-end">Reste à payer</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -399,6 +467,11 @@ const SchoolFeePaymentDetails = () => {
                                                         {formatAmount(detail.montant)}
                                                     </strong>
                                                 </td>
+                                                <td className="text-end">
+                                                    <strong className={detail.reste_a_payer > 0 ? "text-warning" : "text-success"}>
+                                                        {formatAmount(detail.reste_a_payer || 0)}
+                                                    </strong>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -410,6 +483,11 @@ const SchoolFeePaymentDetails = () => {
                                             <th className="text-end">
                                                 <strong className="text-success fs-5">
                                                     {formatAmount(summary.total_amount)}
+                                                </strong>
+                                            </th>
+                                            <th className="text-end">
+                                                <strong className="text-warning fs-5">
+                                                    {formatAmount(paymentDetails.reduce((sum, detail) => sum + (detail.reste_a_payer || 0), 0))}
                                                 </strong>
                                             </th>
                                         </tr>

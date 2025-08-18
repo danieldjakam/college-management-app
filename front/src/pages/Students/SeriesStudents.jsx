@@ -242,6 +242,7 @@ const SeriesStudents = () => {
     const [showImportModal, setShowImportModal] = useState(false);
     const [showCardPrint, setShowCardPrint] = useState(false);
     const [showTransferModal, setShowTransferModal] = useState(false);
+    const [showStudentsListModal, setShowStudentsListModal] = useState(false);
     const [selectedStudent, setSelectedStudent] = useState(null);
     const [newStudentForCard, setNewStudentForCard] = useState(null);
     const [studentToTransfer, setStudentToTransfer] = useState(null);
@@ -256,6 +257,8 @@ const SeriesStudents = () => {
         parent_name: '',
         parent_phone: '',
         parent_email: '',
+        mother_name: '',
+        mother_phone: '',
         address: '',
         class_series_id: seriesId,
         student_status: 'new',
@@ -573,6 +576,8 @@ const SeriesStudents = () => {
             parent_name: student.parent_name || '',
             parent_phone: student.parent_phone || '',
             parent_email: student.parent_email || '',
+            mother_name: student.mother_name || '',
+            mother_phone: student.mother_phone || '',
             address: student.address || '',
             class_series_id: seriesId,
             student_status: student.student_status || 'new',
@@ -1107,6 +1112,8 @@ const SeriesStudents = () => {
             parent_name: '',
             parent_phone: '',
             parent_email: '',
+            mother_name: '',
+            mother_phone: '',
             address: '',
             class_series_id: seriesId,
             student_status: 'new',
@@ -1194,6 +1201,13 @@ const SeriesStudents = () => {
                                 <BulkPhotoUpload
                                     onUploadSuccess={loadStudents}
                                 />
+                                <button
+                                    className="btn btn-info d-flex align-items-center gap-2 me-2"
+                                    onClick={() => setShowStudentsListModal(true)}
+                                >
+                                    <List size={16} />
+                                    Liste des élèves
+                                </button>
                                 <button
                                     className="btn btn-primary d-flex align-items-center gap-2"
                                     onClick={() => setShowAddModal(true)}
@@ -1720,6 +1734,32 @@ const SeriesStudents = () => {
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Informations mère */}
+                                    <div className="row">
+                                        <div className="col-md-6">
+                                            <div className="mb-3">
+                                                <label className="form-label">Nom de la mère</label>
+                                                <input
+                                                    type="text"
+                                                    className="form-control"
+                                                    value={formData.mother_name}
+                                                    onChange={(e) => setFormData({...formData, mother_name: e.target.value})}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="col-md-6">
+                                            <div className="mb-3">
+                                                <label className="form-label">Téléphone mère</label>
+                                                <input
+                                                    type="tel"
+                                                    className="form-control"
+                                                    value={formData.mother_phone}
+                                                    onChange={(e) => setFormData({...formData, mother_phone: e.target.value})}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
                                     
                                     <div className="mb-3">
                                         <label className="form-label">Adresse</label>
@@ -1912,6 +1952,146 @@ const SeriesStudents = () => {
                     }}
                     onTransferSuccess={handleTransferSuccess}
                 />
+            )}
+
+            {/* Modal Liste des élèves */}
+            {showStudentsListModal && (
+                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                    <div className="modal-dialog modal-xl">
+                        <div className="modal-content">
+                            <div className="modal-header">
+                                <h5 className="modal-title">
+                                    <List className="me-2" />
+                                    Liste des élèves - {series?.name}
+                                </h5>
+                                <button
+                                    type="button"
+                                    className="btn-close"
+                                    onClick={() => setShowStudentsListModal(false)}
+                                ></button>
+                            </div>
+                            <div className="modal-body">
+                                <div className="table-responsive">
+                                    <table className="table table-striped table-hover">
+                                        <thead className="table-dark">
+                                            <tr>
+                                                <th>Numéro</th>
+                                                <th>Nom et Prénom</th>
+                                                <th>Date de naissance</th>
+                                                <th>Nom du père avec numéro</th>
+                                                <th>Nom de la mère avec numéro</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {students.map((student, index) => (
+                                                <tr key={student.id}>
+                                                    <td>
+                                                        <span className="badge bg-primary">
+                                                            {student.student_number || `N°${index + 1}`}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <div className="d-flex align-items-center">
+                                                            <StudentPhoto student={student} size={32} className="me-2" />
+                                                            <div>
+                                                                <div className="fw-bold">
+                                                                    {student.last_name || student.subname} {student.first_name || student.name}
+                                                                </div>
+                                                                {student.gender && (
+                                                                    <small className={`text-${student.gender === 'M' ? 'info' : 'pink'}`}>
+                                                                        {student.gender === 'M' ? 'Masculin' : 'Féminin'}
+                                                                    </small>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        {student.date_of_birth ? (
+                                                            <div>
+                                                                <Calendar size={14} className="me-1 text-muted" />
+                                                                {new Date(student.date_of_birth).toLocaleDateString('fr-FR')}
+                                                                {student.place_of_birth && (
+                                                                    <div>
+                                                                        <small className="text-muted">
+                                                                            <GeoAlt size={12} className="me-1" />
+                                                                            {student.place_of_birth}
+                                                                        </small>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-muted">Non renseigné</span>
+                                                        )}
+                                                    </td>
+                                                    <td>
+                                                        {student.parent_name || student.father_name ? (
+                                                            <div>
+                                                                <div className="fw-medium">
+                                                                    <Person size={14} className="me-1 text-primary" />
+                                                                    {student.parent_name || student.father_name}
+                                                                </div>
+                                                                {student.parent_phone && (
+                                                                    <div>
+                                                                        <small className="text-success">
+                                                                            <Telephone size={12} className="me-1" />
+                                                                            {student.parent_phone}
+                                                                        </small>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-muted">Non renseigné</span>
+                                                        )}
+                                                    </td>
+                                                    <td>
+                                                        {student.mother_name ? (
+                                                            <div>
+                                                                <div className="fw-medium">
+                                                                    <Person size={14} className="me-1 text-danger" />
+                                                                    {student.mother_name}
+                                                                </div>
+                                                                {student.mother_phone && (
+                                                                    <div>
+                                                                        <small className="text-success">
+                                                                            <Telephone size={12} className="me-1" />
+                                                                            {student.mother_phone}
+                                                                        </small>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-muted">Non renseigné</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {students.length === 0 && (
+                                    <div className="text-center py-4">
+                                        <Person size={48} className="text-muted mb-3" />
+                                        <p className="text-muted">Aucun élève trouvé dans cette série.</p>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="modal-footer">
+                                <div className="me-auto">
+                                    <small className="text-muted">
+                                        Total: {students.length} élève{students.length > 1 ? 's' : ''}
+                                    </small>
+                                </div>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() => setShowStudentsListModal(false)}
+                                >
+                                    Fermer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

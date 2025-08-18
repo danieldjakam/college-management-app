@@ -652,6 +652,14 @@ export const secureApiEndpoints = {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/reports/school-fee-payment-details?${queryString}`);
         },
+        getRecoveryStatus: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/recovery-status?${queryString}`);
+        },
+        generateSchoolCertificates: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/school-certificates?${queryString}`);
+        },
         getDetailedCollectionReport: (params) => {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/reports/detailed-collection?${queryString}`);

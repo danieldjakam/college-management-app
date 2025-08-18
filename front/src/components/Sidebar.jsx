@@ -12,6 +12,7 @@ import {
     Calendar,
     Archive,
     FolderFill,
+    Award,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -161,6 +162,16 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               name: "Paiement Frais par Classe",
               href: "/reports/class-school-fees",
               icon: <Receipt />,
+            },
+            {
+              name: "État de Recouvrement",
+              href: "/reports/recovery-status",
+              icon: <BarChartFill />,
+            },
+            {
+              name: "Certificats de Scolarité",
+              href: "/reports/school-certificates",
+              icon: <Award />,
             },
           ],
         },

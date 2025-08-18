@@ -45,6 +45,8 @@ import Reports from "./pages/Reports";
 import SchoolFeePaymentDetails from "./pages/Reports/SchoolFeePaymentDetails";
 import DetailedCollectionReport from "./pages/Reports/DetailedCollectionReport";
 import ClassSchoolFeesReport from "./pages/Reports/ClassSchoolFeesReport";
+import RecoveryStatus from "./pages/Reports/RecoveryStatus";
+import SchoolCertificates from "./pages/Reports/SchoolCertificates";
 
 
 // User Management
@@ -497,6 +499,22 @@ const AppContent = () => {
                 element={
                   <AccountantRoute>
                     <ClassSchoolFeesReport />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/reports/recovery-status"
+                element={
+                  <AccountantRoute>
+                    <RecoveryStatus />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/reports/school-certificates"
+                element={
+                  <AccountantRoute>
+                    <SchoolCertificates />
                   </AccountantRoute>
                 }
               />

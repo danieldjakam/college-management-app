@@ -332,6 +332,14 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/school-fee-payment-details', [ReportsController::class, 'getSchoolFeePaymentDetails']);
         Route::get('/school-fee-payment-details/export-pdf', [ReportsController::class, 'exportSchoolFeePaymentDetailsPdf']);
         
+        // Rapport d'état de recouvrement
+        Route::get('/recovery-status', [ReportsController::class, 'getRecoveryStatus']);
+        
+        // Certificats de scolarité
+        Route::get('/school-certificates', [ReportsController::class, 'generateSchoolCertificates']);
+        Route::get('/school-certificate/preview/{studentId}', [ReportsController::class, 'previewSchoolCertificate']);
+        Route::get('/school-certificates/download', [ReportsController::class, 'downloadSchoolCertificates']);
+        
         // Nouveaux rapports financiers
         Route::get('/detailed-collection', [ReportsController::class, 'getDetailedCollectionReport']);
         Route::get('/class-school-fees', [ReportsController::class, 'getClassSchoolFeesReport']);
