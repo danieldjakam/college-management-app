@@ -27,6 +27,7 @@ import {
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import { useAuth } from '../../hooks/useAuth';
 import { useSchool } from '../../contexts/SchoolContext';
+import { authService } from '../../services/authService';
 import ImportExportButton from '../../components/ImportExportButton';
 import BulkPhotoUpload from '../../components/BulkPhotoUpload';
 import StudentCardPrint from '../../components/StudentCardPrint';
@@ -322,7 +323,7 @@ const SeriesStudents = () => {
             const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8000/api/students/export/pdf/${seriesId}`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${JSON.parse(localStorage.getItem('auth_token'))}`,
+                    'Authorization': `Bearer ${authService.getToken()}`,
                     'Accept': 'application/pdf'
                 }
             });
