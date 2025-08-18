@@ -632,5 +632,9 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/school-certificates', [ReportsController::class, 'generateSchoolCertificates']);
         Route::get('/school-certificate/preview/{studentId}', [ReportsController::class, 'previewSchoolCertificate']);
         Route::get('/school-certificates/download', [ReportsController::class, 'downloadSchoolCertificates']);
+        
+        // Rapports PDF supplémentaires
+        Route::get('/detailed-collection/export-pdf', [ReportsController::class, 'exportDetailedCollectionPdf']);
+        Route::get('/class-school-fees/export-pdf', [ReportsController::class, 'exportClassSchoolFeesPdf']);
     });
 });

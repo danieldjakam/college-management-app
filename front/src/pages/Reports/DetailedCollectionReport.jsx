@@ -17,10 +17,13 @@ import {
     CurrencyDollar,
     Collection,
     Search,
-    List
+    List,
+    Download,
+    FiletypePdf
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import { extractErrorMessage } from '../../utils/errorHandler';
+import { authService } from '../../services/authService';
 
 const DetailedCollectionReport = () => {
     const [encaissements, setEncaissements] = useState([]);
@@ -111,6 +114,50 @@ const DetailedCollectionReport = () => {
         return new Date(dateString).toLocaleDateString('fr-FR');
     };
 
+    const exportToPdf = async () => {
+        try {
+            setLoading(true);
+
+            const exportParams = {
+                start_date: filters.start_date,
+                end_date: filters.end_date,
+                section_id: filters.section_id
+            };
+
+            const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8000/api/reports/detailed-collection/export-pdf?${new URLSearchParams(exportParams).toString()}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authService.getToken()}`,
+                    'Accept': 'application/pdf'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const pdfBlob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(pdfBlob);
+            
+            // Créer un lien de téléchargement
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `encaissement_detaille_${filters.start_date}_${filters.end_date}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+            setSuccess('Rapport téléchargé avec succès');
+            
+        } catch (error) {
+            console.error('Error exporting PDF:', error);
+            setError('Erreur lors de l\'export PDF');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <Container fluid className="py-4">
             {/* Header */}
@@ -196,6 +243,14 @@ const DetailedCollectionReport = () => {
                             >
                                 <Search className="me-2" />
                                 {loading ? 'Chargement...' : 'Générer'}
+                            </Button>
+                            <Button
+                                variant="danger"
+                                onClick={exportToPdf}
+                                disabled={loading || encaissements.length === 0}
+                            >
+                                <FiletypePdf className="me-2" />
+                                Export PDF
                             </Button>
                         </Col>
                     </Row>

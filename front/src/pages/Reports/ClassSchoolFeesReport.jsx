@@ -18,10 +18,13 @@ import {
     Collection,
     Search,
     List,
-    BuildingsFill
+    BuildingsFill,
+    Download,
+    FiletypePdf
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import { extractErrorMessage } from '../../utils/errorHandler';
+import { authService } from '../../services/authService';
 
 const ClassSchoolFeesReport = () => {
     const [payments, setPayments] = useState([]);
@@ -91,7 +94,7 @@ const ClassSchoolFeesReport = () => {
             const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8000/api/reports/class-school-fees/export-pdf?class_id=${filters.class_id}`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Authorization': `Bearer ${authService.getToken()}`,
                     'Accept': 'application/pdf',
                 },
             });
@@ -201,18 +204,14 @@ const ClassSchoolFeesReport = () => {
                                 <Search className="me-2" />
                                 {loading ? 'Chargement...' : 'Générer'}
                             </Button>
-                            {/* Export PDF temporairement désactivé
-                            {payments.length > 0 && (
-                                <Button
-                                    variant="danger"
-                                    onClick={exportToPdf}
-                                    className="me-2"
-                                >
-                                    <FileEarmarkPdf className="me-1" />
-                                    PDF
-                                </Button>
-                            )}
-                            */}
+                            <Button
+                                variant="danger"
+                                onClick={exportToPdf}
+                                disabled={loading || payments.length === 0}
+                            >
+                                <FiletypePdf className="me-2" />
+                                Export PDF
+                            </Button>
                         </Col>
                     </Row>
                 </Card.Body>

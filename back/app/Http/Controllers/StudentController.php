@@ -696,6 +696,18 @@ class StudentController extends Controller
      */
     private function generateStudentListHtml($students, $series, $schoolYear)
     {
+        $schoolSettings = \App\Models\SchoolSetting::getSettings();
+        
+        // Obtenir le logo en base64 pour DOMPDF
+        $logoBase64 = '';
+        if ($schoolSettings->logo) {
+            $logoPath = storage_path('app/public/logos/' . $schoolSettings->logo);
+            if (file_exists($logoPath)) {
+                $logoData = file_get_contents($logoPath);
+                $logoBase64 = 'data:image/' . pathinfo($logoPath, PATHINFO_EXTENSION) . ';base64,' . base64_encode($logoData);
+            }
+        }
+
         $html = '<!DOCTYPE html>
 <html>
 <head>
@@ -706,6 +718,7 @@ class StudentController extends Controller
         .header { text-align: center; margin-bottom: 30px; }
         .header h1 { color: #2c3e50; margin-bottom: 5px; }
         .header p { color: #7f8c8d; margin: 5px 0; }
+        .logo { max-width: 80px; max-height: 80px; margin-bottom: 10px; }
         .info-box { background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
         .info-row { display: flex; justify-content: space-between; margin: 5px 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -725,7 +738,8 @@ class StudentController extends Controller
 </head>
 <body>
     <div class="header">
-        <h1>COLLEGE POLYVALENT BILINGUE DE DOUALA</h1>
+        ' . ($logoBase64 ? "<img src='{$logoBase64}' class='logo' alt='Logo'>" : "") . '
+        <h1>' . ($schoolSettings->school_name ?? 'COLLEGE POLYVALENT BILINGUE DE DOUALA') . '</h1>
         <p>Liste des Élèves</p>
     </div>
 

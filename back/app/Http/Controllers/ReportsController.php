@@ -3027,24 +3027,37 @@ class ReportsController extends Controller
     public function exportClassSchoolFeesPdf(Request $request)
     {
         try {
-            // Test simple pour vérifier le fonctionnement
-            $classId = $request->get('class_id', 'N/A');
-            $html = "<!DOCTYPE html><html><head><title>Rapport PDF</title></head><body>";
-            $html .= "<h1>COLLÈGE POLYVALENT BILINGUE DE DOUALA</h1>";
-            $html .= "<h2>Paiement des Frais de Scolarité par Classe</h2>";
-            $html .= "<p>Classe ID: " . $classId . "</p>";
-            $html .= "<p>Date de génération: " . date('d/m/Y H:i:s') . "</p>";
-            $html .= "<p>Rapport généré avec succès !</p>";
-            $html .= "</body></html>";
+            $workingYear = $this->getUserWorkingYear();
+            if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            $classId = $request->get('class_id');
+            if (!$classId) {
+                return response()->json(['success' => false, 'message' => 'La classe est obligatoire'], 400);
+            }
+
+            // Obtenir les données du rapport de paiement par classe
+            $classInfo = \App\Models\SchoolClass::with(['level.section'])->find($classId);
+            if (!$classInfo) {
+                return response()->json(['success' => false, 'message' => 'Classe non trouvée'], 404);
+            }
+
+            $html = $this->generateClassSchoolFeesPdfHtml([], [], $classInfo, $workingYear);
             
-            return response($html, 200, [
-                'Content-Type' => 'text/html',
-            ]);
+            // Générer le PDF avec DomPDF
+            $pdf = \PDF::loadHTML($html);
+            $pdf->setPaper('A4', 'landscape');
+            
+            $filename = "paiement_frais_scolarite_" . str_replace(' ', '_', $classInfo->name) . ".pdf";
+            return $pdf->stream($filename);
 
         } catch (\Exception $e) {
+            Log::error('Error in ReportsController@exportClassSchoolFeesPdf: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur: ' . $e->getMessage()
+                'message' => 'Erreur lors de l\'export PDF',
+                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -3784,5 +3797,170 @@ class ReportsController extends Controller
             'total_students' => $totalStudents,
             'paid_students' => $paidStudents
         ];
+    }
+
+    /**
+     * Export PDF du rapport d'encaissement détaillé
+     */
+    public function exportDetailedCollectionPdf(Request $request)
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+            if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            $startDate = $request->get('start_date');
+            $endDate = $request->get('end_date');
+            $sectionId = $request->get('section_id');
+
+            if (!$startDate || !$endDate) {
+                return response()->json(['success' => false, 'message' => 'Les dates sont obligatoires'], 400);
+            }
+
+            // Obtenir les données du rapport d'encaissement détaillé
+            $encaissements = $this->getDetailedCollectionData($startDate, $endDate, $sectionId, $workingYear);
+            $summary = $this->calculateDetailedCollectionSummary($encaissements);
+            $sectionInfo = $sectionId ? \App\Models\Section::find($sectionId) : null;
+
+            $html = $this->generateDetailedCollectionPdfHtml($encaissements, $summary, $sectionInfo, $workingYear, $startDate, $endDate);
+            
+            // Générer le PDF avec DomPDF
+            $pdf = \PDF::loadHTML($html);
+            $pdf->setPaper('A4', 'landscape');
+            
+            $filename = "encaissement_detaille_{$startDate}_{$endDate}.pdf";
+            return $pdf->stream($filename);
+
+        } catch (\Exception $e) {
+            Log::error('Error in ReportsController@exportDetailedCollectionPdf: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export PDF',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    // Méthodes utilitaires pour les rapports PDF (à implémenter)
+    private function getDetailedCollectionData($startDate, $endDate, $sectionId, $workingYear)
+    {
+        // Implémentation temporaire - retourner un tableau vide pour éviter les erreurs
+        return [];
+    }
+
+    private function calculateDetailedCollectionSummary($encaissements)
+    {
+        return ['total' => 0, 'count' => 0];
+    }
+
+    private function getClassSchoolFeesData($classId, $workingYear)
+    {
+        // Implémentation temporaire - retourner un tableau vide pour éviter les erreurs
+        return [];
+    }
+
+    private function calculateClassSchoolFeesSummary($students)
+    {
+        return ['total_students' => 0, 'total_paid' => 0];
+    }
+
+    private function generateDetailedCollectionPdfHtml($encaissements, $summary, $sectionInfo, $workingYear, $startDate, $endDate)
+    {
+        $schoolSettings = \App\Models\SchoolSetting::getSettings();
+        
+        // Obtenir le logo en base64
+        $logoBase64 = '';
+        if ($schoolSettings->logo) {
+            $logoPath = storage_path('app/public/logos/' . $schoolSettings->logo);
+            if (file_exists($logoPath)) {
+                $logoData = file_get_contents($logoPath);
+                $logoBase64 = 'data:image/' . pathinfo($logoPath, PATHINFO_EXTENSION) . ';base64,' . base64_encode($logoData);
+            }
+        }
+
+        return "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='utf-8'>
+            <title>Encaissement Détaillé de la Période</title>
+            <style>
+                @page { size: A4 landscape; margin: 1.5cm; }
+                body { font-family: Arial, sans-serif; font-size: 12px; color: #000; margin: 0; padding: 0; }
+                .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 15px; }
+                .logo { max-width: 60px; max-height: 60px; margin-bottom: 8px; }
+                .school-name { font-size: 16px; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; }
+                .report-title { font-size: 18px; font-weight: bold; margin: 20px 0; text-align: center; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px; }
+                th, td { border: 1px solid #000; padding: 8px; text-align: left; }
+                th { background-color: #34495e; color: white; font-weight: bold; text-align: center; }
+                .footer { margin-top: 30px; text-align: center; font-size: 10px; }
+            </style>
+        </head>
+        <body>
+            <div class='header'>
+                " . ($logoBase64 ? "<img src='{$logoBase64}' class='logo' alt='Logo'>" : "") . "
+                <div class='school-name'>{$schoolSettings->school_name}</div>
+                <div>Année scolaire: {$workingYear->name}</div>
+            </div>
+            <div class='report-title'>ENCAISSEMENT DÉTAILLÉ DE LA PÉRIODE</div>
+            <p>Période: du " . date('d/m/Y', strtotime($startDate)) . " au " . date('d/m/Y', strtotime($endDate)) . "</p>
+            <div class='footer'>
+                <p>Rapport généré le " . now()->format('d/m/Y à H:i') . "</p>
+                <p>{$schoolSettings->school_name} - Système de Gestion Scolaire</p>
+            </div>
+        </body>
+        </html>";
+    }
+
+    private function generateClassSchoolFeesPdfHtml($students, $summary, $classInfo, $workingYear)
+    {
+        $schoolSettings = \App\Models\SchoolSetting::getSettings();
+        
+        // Obtenir le logo en base64
+        $logoBase64 = '';
+        if ($schoolSettings->logo) {
+            $logoPath = storage_path('app/public/logos/' . $schoolSettings->logo);
+            if (file_exists($logoPath)) {
+                $logoData = file_get_contents($logoPath);
+                $logoBase64 = 'data:image/' . pathinfo($logoPath, PATHINFO_EXTENSION) . ';base64,' . base64_encode($logoData);
+            }
+        }
+
+        return "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='utf-8'>
+            <title>Paiement des Frais de Scolarité par Classe</title>
+            <style>
+                @page { size: A4 landscape; margin: 1.5cm; }
+                body { font-family: Arial, sans-serif; font-size: 12px; color: #000; margin: 0; padding: 0; }
+                .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 15px; }
+                .logo { max-width: 60px; max-height: 60px; margin-bottom: 8px; }
+                .school-name { font-size: 16px; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; }
+                .report-title { font-size: 18px; font-weight: bold; margin: 20px 0; text-align: center; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px; }
+                th, td { border: 1px solid #000; padding: 8px; text-align: left; }
+                th { background-color: #34495e; color: white; font-weight: bold; text-align: center; }
+                .footer { margin-top: 30px; text-align: center; font-size: 10px; }
+            </style>
+        </head>
+        <body>
+            <div class='header'>
+                " . ($logoBase64 ? "<img src='{$logoBase64}' class='logo' alt='Logo'>" : "") . "
+                <div class='school-name'>{$schoolSettings->school_name}</div>
+                <div>Année scolaire: {$workingYear->name}</div>
+            </div>
+            <div class='report-title'>PAIEMENT DES FRAIS DE SCOLARITÉ PAR CLASSE</div>
+            <p>Classe: {$classInfo->name} - {$classInfo->level->section->name}</p>
+            <div class='footer'>
+                <p>Rapport généré le " . now()->format('d/m/Y à H:i') . "</p>
+                <p>{$schoolSettings->school_name} - Système de Gestion Scolaire</p>
+            </div>
+        </body>
+        </html>";
     }
 }
