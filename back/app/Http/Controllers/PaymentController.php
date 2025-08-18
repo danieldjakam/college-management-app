@@ -795,7 +795,6 @@ class PaymentController extends Controller
 
             // Retourner le PDF en téléchargement
             return $pdf->download($filename);
-
         } catch (\Exception $e) {
             \Log::error('Error generating PDF receipt: ' . $e->getMessage());
             return response()->json([
@@ -813,11 +812,11 @@ class PaymentController extends Controller
     {
         // Convertir le logo en base64 pour DOMPDF
         $logoBase64 = '';
-        
+
         if ($schoolSettings->school_logo) {
             // Le chemin stocké peut être avec ou sans le préfixe 'public/'
             $logoPath = storage_path('app/public/' . $schoolSettings->school_logo);
-            
+
             if (file_exists($logoPath)) {
                 $logoData = base64_encode(file_get_contents($logoPath));
                 $logoMimeType = mime_content_type($logoPath);
@@ -859,11 +858,13 @@ class PaymentController extends Controller
             $rameAmount = '0';
         }
 
+        $ramePaymentValidationDate = \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y');
         $paymentDetailsRows .= "
             <tr>
                 <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$operationNumber}</td>
                 <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$rameBankName}</td>
                 <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$rameValidationDate}</td>
+                <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$ramePaymentValidationDate}</td>
                 <td style='border: 1px solid #000; padding: 4px; text-align: center;'>RAME</td>
                 <td style='border: 1px solid #000; padding: 4px; text-align: right;'>{$rameAmount}</td>
             </tr>
@@ -873,7 +874,8 @@ class PaymentController extends Controller
         // Ensuite, ajouter les autres détails de paiement
         foreach ($payment->paymentDetails as $detail) {
             $trancheName = $detail->paymentTranche->name;
-            $validationDate = \Carbon\Carbon::parse($payment->versement_date)->format('d/m/Y');
+            $versementDate = \Carbon\Carbon::parse($payment->versement_date)->format('d/m/Y');
+            $validationDate = \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y');
             $paymentType = $trancheName; // Afficher la tranche affectée
             $bankName = $schoolSettings->bank_name ?? 'N/A';
             $amount = $formatAmount($detail->amount_allocated);
@@ -882,6 +884,7 @@ class PaymentController extends Controller
                 <tr>
                     <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$operationNumber}</td>
                     <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$bankName}</td>
+                    <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$versementDate}</td>
                     <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$validationDate}</td>
                     <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$paymentType}</td>
                     <td style='border: 1px solid #000; padding: 4px; text-align: right;'>{$amount}</td>
@@ -993,6 +996,7 @@ class PaymentController extends Controller
                             <th>N° Op</th>
                             <th>Banque</th>
                             <th>Date versement</th>
+                            <th>Date de validation</th>
                             <th>Tranche affectée</th>
                             <th>Montant payé</th>
                         </tr>
@@ -1818,11 +1822,13 @@ class PaymentController extends Controller
             $rameAmount = '0';
         }
 
+        $ramePaymentValidationDate = \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y');
         $paymentDetailsRows .= "
             <tr>
                 <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$operationNumber}</td>
                 <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$rameBankName}</td>
                 <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$rameValidationDate}</td>
+                <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$ramePaymentValidationDate}</td>
                 <td style='border: 1px solid #000; padding: 4px; text-align: center;'>RAME</td>
                 <td style='border: 1px solid #000; padding: 4px; text-align: right;'>{$rameAmount}</td>
             </tr>
@@ -1832,7 +1838,8 @@ class PaymentController extends Controller
         // Ensuite, ajouter les autres détails de paiement
         foreach ($payment->paymentDetails as $detail) {
             $trancheName = $detail->paymentTranche->name;
-            $validationDate = \Carbon\Carbon::parse($payment->versement_date)->format('d/m/Y');
+            $versementDate = \Carbon\Carbon::parse($payment->versement_date)->format('d/m/Y');
+            $validationDate = \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y');
             $paymentType = $trancheName; // Afficher la tranche affectée
             $bankName = $schoolSettings->bank_name ?? 'N/A';
             $amount = $formatAmount($detail->amount_allocated);
@@ -1841,6 +1848,7 @@ class PaymentController extends Controller
                 <tr>
                     <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$operationNumber}</td>
                     <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$bankName}</td>
+                    <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$versementDate}</td>
                     <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$validationDate}</td>
                     <td style='border: 1px solid #000; padding: 4px; text-align: center;'>{$paymentType}</td>
                     <td style='border: 1px solid #000; padding: 4px; text-align: right;'>{$amount}</td>
@@ -1938,7 +1946,7 @@ class PaymentController extends Controller
                 </div>
 
                 <div class='student-info'>
-                    <h4>Informations Étudiant</h4>
+                    <h4>Informations de l'Eleve</h4>
                     <div><strong>Matricule :</strong> " . ($student->student_number ?? 'N/A') . "</div>
                     <div><strong>Nom :</strong> {$student->last_name} {$student->first_name}</div>
                     <div><strong>Classe :</strong> " . ($schoolClass ? $schoolClass->name : 'Non défini') . "</div>
@@ -1955,6 +1963,7 @@ class PaymentController extends Controller
                                 <th>N°</th>
                                 <th>Banque</th>
                                 <th>Date versement</th>
+                                <th>Date de validation</th>
                                 <th>Tranche</th>
                                 <th>Montant (FCFA)</th>
                             </tr>
@@ -1986,8 +1995,9 @@ class PaymentController extends Controller
                 </div>
 
                 <div class='footer-info'>
-                    <div><strong>Important :</strong> Vos dossiers ne seront transmis qu'après paiement complet.</div>
-                    <div>Les frais ne sont pas remboursables en cas d'abandon ou d'exclusion.</div>
+                    <div><strong>N.B :</strong> Vos dossiers d'examen ne seront transmis qu'après paiement de la totalite des frais de scolarite.</div>
+                    <div>Les frais d'inscription et d'etude de dossier ne sont pas remboursables, ni substituables.</div>
+                    <div>Registration and studying documents fees are not refundable or transferable</div>
 
                     <div class='contact-info'>
                         <div class='contact-left'>
@@ -2299,7 +2309,7 @@ class PaymentController extends Controller
                     </div>
 
                     <div class='student-info'>
-                        <h4>Informations Étudiant</h4>
+                        <h4>Informations de l'Eleve</h4>
                         <div><strong>Matricule :</strong> " . ($student->student_number ?? 'N/A') . "</div>
                         <div><strong>Nom :</strong> {$student->last_name} {$student->first_name}</div>
                         <div><strong>Classe :</strong> " . ($schoolClass ? $schoolClass->name : 'Non défini') . "</div>
@@ -2316,6 +2326,7 @@ class PaymentController extends Controller
                                     <th>N°</th>
                                     <th>Banque</th>
                                     <th>Date versement</th>
+                                    <th>Date de validation</th>
                                     <th>Tranche</th>
                                     <th>Montant (FCFA)</th>
                                 </tr>
@@ -2347,8 +2358,9 @@ class PaymentController extends Controller
                     </div>
 
                     <div class='footer-info'>
-                        <div><strong>Important :</strong> Vos dossiers ne seront transmis qu'après paiement complet.</div>
-                        <div>Les frais ne sont pas remboursables en cas d'abandon ou d'exclusion.</div>
+                    <div><strong>N.B :</strong> Vos dossiers d'examen ne seront transmis qu'après paiement de la totalite des frais de scolarite.</div>
+                    <div>Les frais d'inscription et d'etude de dossier ne sont pas remboursables, ni substituables.</div>
+                    <div>Registration and studying documents fees are not refundable or transferable</div>
 
                         <div class='contact-info'>
                             <div class='contact-left'>
