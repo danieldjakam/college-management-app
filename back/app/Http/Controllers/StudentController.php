@@ -675,17 +675,13 @@ class StudentController extends Controller
             // Générer le HTML pour le PDF
             $html = $this->generateStudentListHtml($students, $series, $workingYear);
 
-            $filename = 'eleves_' . str_replace(' ', '_', $series->name) . '_' . date('Y-m-d') . '.pdf';
+            $filename = 'liste_eleves_' . str_replace(' ', '_', $series->name) . '_' . date('Y-m-d') . '.pdf';
 
-            // Générer le HTML optimisé pour impression/PDF
-            $optimizedHtml = $this->generatePdfFromHtml($html, $filename);
-
-            // Retourner le HTML formaté que le navigateur peut imprimer en PDF
-            return response($optimizedHtml, 200, [
-                'Content-Type' => 'text/html',
-                'Content-Disposition' => "inline; filename=\"students_list.html\"",
-                'X-Suggested-Filename' => $filename
-            ]);
+            // Générer le PDF avec DomPDF
+            $pdf = \PDF::loadHTML($html);
+            $pdf->setPaper('A4', 'portrait');
+            
+            return $pdf->stream($filename);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -760,27 +756,34 @@ class StudentController extends Controller
     <table>
         <thead>
             <tr>
-                <th style="width: 8%;">N°</th>
-                <th style="width: 25%;">Nom & Prénom</th>
-                <th style="width: 12%;">Date naiss.</th>
-                <th style="width: 15%;">Lieu naiss.</th>
-                <th style="width: 8%;">Sexe</th>
-                <th style="width: 20%;">Parent</th>
-                <th style="width: 12%;">Téléphone</th>
+                <th style="width: 10%;">Numéro</th>
+                <th style="width: 25%;">Nom et Prénom</th>
+                <th style="width: 15%;">Date de naissance</th>
+                <th style="width: 25%;">Nom du père avec numéro</th>
+                <th style="width: 25%;">Nom de la mère avec numéro</th>
             </tr>
         </thead>
         <tbody>';
 
         foreach ($students as $index => $student) {
+            // Formatage nom du père avec numéro
+            $fatherInfo = ($student->parent_name ?: 'Non renseigné');
+            if ($student->parent_phone) {
+                $fatherInfo .= '<br><small style="color: #27ae60;">📞 ' . $student->parent_phone . '</small>';
+            }
+            
+            // Formatage nom de la mère avec numéro  
+            $motherInfo = ($student->mother_name ?: 'Non renseigné');
+            if ($student->mother_phone) {
+                $motherInfo .= '<br><small style="color: #27ae60;">📞 ' . $student->mother_phone . '</small>';
+            }
+            
             $html .= '<tr>
-                <td class="student-number">' . ($index + 1) . '</td>
-                <td><strong>' . $student->last_name . ' ' . $student->first_name . '</strong></td>
-                <td>' . ($student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : '') . '</td>
-                <td>' . $student->place_of_birth . '</td>
-                <td class="' . ($student->gender === 'M' ? 'gender-m' : 'gender-f') . '">' .
-                ($student->gender === 'M' ? 'M' : 'F') . '</td>
-                <td>' . $student->parent_name . '</td>
-                <td>' . $student->parent_phone . '</td>
+                <td class="student-number">' . ($student->student_number ?: 'N°' . ($index + 1)) . '</td>
+                <td><strong>' . ($student->last_name ?: $student->name ?: '') . ' ' . ($student->first_name ?: $student->subname ?: '') . '</strong></td>
+                <td>' . ($student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : ($student->birthday ? date('d/m/Y', strtotime($student->birthday)) : 'Non renseigné')) . '</td>
+                <td>' . $fatherInfo . '</td>
+                <td>' . $motherInfo . '</td>
             </tr>';
         }
 
