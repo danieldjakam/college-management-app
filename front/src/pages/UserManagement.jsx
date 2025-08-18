@@ -61,6 +61,7 @@ const UserManagement = () => {
         contact: '',
         photo: '',
         role: 'accountant',
+        qualification: '',
         is_active: true,
         generate_password: true
     });
@@ -74,7 +75,18 @@ const UserManagement = () => {
         secretaire: 'Secrétaire',
         enseignant: 'Enseignant',
         teacher: 'Enseignant',
-        accountant: 'Comptable'
+        accountant: 'Comptable',
+        // Nouveaux rôles du fichier k.png
+        responsable_pedagogique: 'Responsable Pédagogique',
+        dean_of_studies: 'Dean of Studies',
+        censeur_esg: 'Censeur ESG',
+        censeur: 'Censeur',
+        surveillant_secteur: 'Surveillant de Secteur',
+        caissiere: 'Caissière',
+        bibliothecaire: 'Bibliothécaire',
+        chef_travaux: 'Chef des Travaux',
+        chef_securite: 'Chef de Sécurité',
+        reprographe: 'Reprographe'
     }), []);
 
     const roleColors = useMemo(() => ({
@@ -86,8 +98,27 @@ const UserManagement = () => {
         secretaire: 'info',
         enseignant: 'warning',
         teacher: 'warning',
-        accountant: 'success'
+        accountant: 'success',
+        // Nouveaux rôles du fichier k.png
+        responsable_pedagogique: 'primary',
+        dean_of_studies: 'secondary',
+        censeur_esg: 'info',
+        censeur: 'info',
+        surveillant_secteur: 'primary',
+        caissiere: 'warning',
+        bibliothecaire: 'secondary',
+        chef_travaux: 'dark',
+        chef_securite: 'danger',
+        reprographe: 'light'
     }), []);
+
+    // Liste complète des rôles du personnel (incluant tous les nouveaux rôles)
+    const staffRoles = useMemo(() => [
+        'teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire',
+        // Nouveaux rôles
+        'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 
+        'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe'
+    ], []);
 
     const getFieldLabel = (fieldName) => {
         const fieldLabels = {
@@ -245,6 +276,7 @@ const UserManagement = () => {
                 contact: '',
                 photo: '',
                 role: 'accountant',
+                qualification: '',
                 is_active: true,
                 generate_password: true
             });
@@ -255,6 +287,7 @@ const UserManagement = () => {
                 contact: user.contact || '',
                 photo: user.photo || '',
                 role: user.role,
+                qualification: user.qualification || '',
                 is_active: user.is_active,
                 generate_password: false
             });
@@ -579,7 +612,6 @@ const UserManagement = () => {
             setLoading(true);
             
             // Vérifier que l'utilisateur est un membre du personnel
-            const staffRoles = ['teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire'];
             if (!staffRoles.includes(user.role)) {
                 await Swal.fire({
                     title: 'Information',
@@ -637,7 +669,6 @@ const UserManagement = () => {
     };
 
     const handleSelectAll = () => {
-        const staffRoles = ['teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire'];
         const eligibleUsers = filteredUsers.filter(user => staffRoles.includes(user.role));
         
         if (selectedUsers.length === eligibleUsers.length) {
@@ -902,14 +933,43 @@ const UserManagement = () => {
                                     required
                                     disabled={modalMode === 'view'}
                                 >
-                                    <option value="surveillant_general">Surveillant Général</option>
-                                    <option value="general_accountant">Comptable Général</option>
-                                    <option value="comptable_superieur">Comptable Supérieur</option>
-                                    <option value="accountant">Comptable</option>
-                                    <option value="secretaire">Secrétaire</option>
+                                    <optgroup label="Rôles administratifs principaux">
+                                        <option value="surveillant_general">Surveillant Général</option>
+                                        <option value="general_accountant">Comptable Général</option>
+                                        <option value="comptable_superieur">Comptable Supérieur</option>
+                                        <option value="accountant">Comptable</option>
+                                        <option value="secretaire">Secrétaire</option>
+                                    </optgroup>
+                                    <optgroup label="Nouveaux rôles">
+                                        <option value="responsable_pedagogique">Responsable Pédagogique</option>
+                                        <option value="dean_of_studies">Dean of Studies</option>
+                                        <option value="censeur_esg">Censeur ESG</option>
+                                        <option value="censeur">Censeur</option>
+                                        <option value="surveillant_secteur">Surveillant de Secteur</option>
+                                        <option value="caissiere">Caissière</option>
+                                        <option value="bibliothecaire">Bibliothécaire</option>
+                                        <option value="chef_travaux">Chef des Travaux</option>
+                                        <option value="chef_securite">Chef de Sécurité</option>
+                                        <option value="reprographe">Reprographe</option>
+                                    </optgroup>
                                 </Form.Select>
                             </Form.Group>
                         </Col>
+                        <Col md={6}>
+                            <Form.Group className="mb-3">
+                                <Form.Label>Qualification</Form.Label>
+                                <Form.Control
+                                    type="text"
+                                    placeholder="Ex: BAC, BTS, Licence, Maîtrise..."
+                                    value={formData.qualification}
+                                    onChange={(e) => setFormData({...formData, qualification: e.target.value})}
+                                    disabled={modalMode === 'view'}
+                                />
+                            </Form.Group>
+                        </Col>
+                    </Row>
+                    
+                    <Row>
                         <Col md={6}>
                             <Form.Group className="mb-3">
                                 <Form.Label>Statut</Form.Label>
@@ -1030,14 +1090,28 @@ const UserManagement = () => {
                                     onChange={(e) => setRoleFilter(e.target.value)}
                                 >
                                     <option value="all">Tous les rôles</option>
-                                    <option value="surveillant_general">Surveillants Généraux</option>
-                                    <option value="general_accountant">Comptables Généraux</option>
-                                    <option value="comptable_superieur">Comptables Supérieurs</option>
-                                    <option value="comptable">Comptables</option>
-                                    <option value="secretaire">Secrétaires</option>
-                                    <option value="enseignant">Enseignants</option>
-                                    <option value="teacher">Enseignants (anciens)</option>
-                                    <option value="accountant">Comptables (anciens)</option>
+                                    <optgroup label="Rôles principaux">
+                                        <option value="surveillant_general">Surveillants Généraux</option>
+                                        <option value="general_accountant">Comptables Généraux</option>
+                                        <option value="comptable_superieur">Comptables Supérieurs</option>
+                                        <option value="comptable">Comptables</option>
+                                        <option value="secretaire">Secrétaires</option>
+                                        <option value="enseignant">Enseignants</option>
+                                        <option value="teacher">Enseignants (anciens)</option>
+                                        <option value="accountant">Comptables (anciens)</option>
+                                    </optgroup>
+                                    <optgroup label="Nouveaux rôles">
+                                        <option value="responsable_pedagogique">Responsables Pédagogiques</option>
+                                        <option value="dean_of_studies">Dean of Studies</option>
+                                        <option value="censeur_esg">Censeurs ESG</option>
+                                        <option value="censeur">Censeurs</option>
+                                        <option value="surveillant_secteur">Surveillants de Secteur</option>
+                                        <option value="caissiere">Caissières</option>
+                                        <option value="bibliothecaire">Bibliothécaires</option>
+                                        <option value="chef_travaux">Chefs des Travaux</option>
+                                        <option value="chef_securite">Chefs de Sécurité</option>
+                                        <option value="reprographe">Reprographes</option>
+                                    </optgroup>
                                 </Form.Select>
                             </Form.Group>
                         </Col>
@@ -1070,7 +1144,6 @@ const UserManagement = () => {
                         <div className="d-flex gap-2">
                             {/* Boutons de sélection multiple */}
                             {(() => {
-                                const staffRoles = ['teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire'];
                                 const eligibleUsers = filteredUsers.filter(user => staffRoles.includes(user.role));
                                 
                                 if (eligibleUsers.length > 0) {
@@ -1144,7 +1217,6 @@ const UserManagement = () => {
                                 <tr>
                                     <th style={{ width: '40px' }}>
                                         {(() => {
-                                            const staffRoles = ['teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire'];
                                             const eligibleUsers = filteredUsers.filter(user => staffRoles.includes(user.role));
                                             
                                             if (eligibleUsers.length > 0) {
@@ -1165,6 +1237,7 @@ const UserManagement = () => {
                                     <th>Email</th>
                                     <th>Contact</th>
                                     <th>Rôle</th>
+                                    <th>Qualification</th>
                                     <th>Statut</th>
                                     <th>Date de création</th>
                                     <th>Actions</th>
@@ -1172,7 +1245,6 @@ const UserManagement = () => {
                             </thead>
                             <tbody>
                                 {filteredUsers.map(user => {
-                                    const staffRoles = ['teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire'];
                                     const isStaff = staffRoles.includes(user.role);
                                     const isSelected = selectedUsers.includes(user.id);
                                     
@@ -1210,6 +1282,7 @@ const UserManagement = () => {
                                                 {roleLabels[user.role]}
                                             </Badge>
                                         </td>
+                                        <td>{user.qualification || '-'}</td>
                                         <td>
                                             <Badge bg={user.is_active ? 'success' : 'secondary'}>
                                                 {user.is_active ? 'Actif' : 'Inactif'}

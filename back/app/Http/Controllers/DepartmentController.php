@@ -338,11 +338,23 @@ class DepartmentController extends Controller
 
             // Récupérer les paramètres de l'école
             $schoolSettings = SchoolSetting::getSettings();
+            
+            // Convertir le logo en base64 pour DOMPDF
+            $logoBase64 = '';
+            $schoolSettingsModel = SchoolSetting::first();
+            if ($schoolSettingsModel && $schoolSettingsModel->school_logo) {
+                $logoPath = storage_path('app/public/' . $schoolSettingsModel->school_logo);
+                if (file_exists($logoPath)) {
+                    $logoContent = file_get_contents($logoPath);
+                    $logoBase64 = 'data:image/' . pathinfo($logoPath, PATHINFO_EXTENSION) . ';base64,' . base64_encode($logoContent);
+                }
+            }
 
             // Préparer les données pour le PDF
             $data = [
                 'departments' => $departments,
                 'schoolSettings' => $schoolSettings,
+                'logoBase64' => $logoBase64,
                 'currentDate' => now()->format('d/m/Y'),
                 'academicYear' => now()->year . '/' . (now()->year + 1),
                 'totalTeachers' => $departments->sum(function($dept) {
@@ -377,6 +389,7 @@ class DepartmentController extends Controller
     {
         $departments = $data['departments'];
         $schoolSettings = $data['schoolSettings'];
+        $logoBase64 = $data['logoBase64'];
         $currentDate = $data['currentDate'];
         $academicYear = $data['academicYear'];
         $totalTeachers = $data['totalTeachers'];
@@ -406,6 +419,20 @@ class DepartmentController extends Controller
                     margin-bottom: 20px;
                     border-bottom: 2px solid #000;
                     padding-bottom: 10px;
+                    position: relative;
+                }
+                
+                .header-content {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 20px;
+                }
+                
+                .school-logo {
+                    width: 60px;
+                    height: 60px;
+                    object-fit: contain;
                 }
                 
                 .school-name {
@@ -529,11 +556,16 @@ class DepartmentController extends Controller
         </head>
         <body>
             <div class="header">
-                <div class="school-name">' . strtoupper($schoolSettings['school_name'] ?? 'COLLEGE POLYVALENT BILINGUE DE DOUALA') . '</div>
-                <div class="school-details">BP : 4100 Tél : 233-43-25-47</div>
-                <div class="school-details">DOUALA</div>
-                <div class="school-details">Autorisation de création : N°185/MINESE/SG/DWESTVO/SDPES/SEPTC DU 16 JUIN 2015</div>
-                <div class="school-details">Autorisation d\'ouverture : N°210 MINESE/SG/DWESTVO/SDPES/SEPTC DU 06 NOVEMBRE 2015</div>
+                <div class="header-content">
+                    ' . ($logoBase64 ? "<img src='{$logoBase64}' alt='Logo École' class='school-logo'>" : '') . '
+                    <div>
+                        <div class="school-name">' . strtoupper($schoolSettings['school_name'] ?? 'COLLEGE POLYVALENT BILINGUE DE DOUALA') . '</div>
+                        <div class="school-details">BP : 4100 Tél : 233-43-25-47</div>
+                        <div class="school-details">DOUALA</div>
+                        <div class="school-details">Autorisation de création : N°185/MINESE/SG/DWESTVO/SDPES/SEPTC DU 16 JUIN 2015</div>
+                        <div class="school-details">Autorisation d\'ouverture : N°210 MINESE/SG/DWESTVO/SDPES/SEPTC DU 06 NOVEMBRE 2015</div>
+                    </div>
+                </div>
                 
                 <div class="academic-year">Année scolaire ' . $academicYear . '</div>
                 <div class="title">Liste du Personnel Enseignant CPBD</div>

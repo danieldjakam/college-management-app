@@ -18,8 +18,8 @@ class UserManagementController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = User::select('id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'is_active', 'created_at')
-                ->whereIn('role', ['surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'accountant']); // Tous les rôles gérables (enseignants créés ailleurs)
+            $query = User::select('id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'qualification', 'is_active', 'created_at')
+                ->whereIn('role', ['surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'accountant', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe']); // Tous les rôles gérables
 
             // Système de recherche
             if ($request->has('search') && !empty($request->search)) {
@@ -68,7 +68,8 @@ class UserManagementController extends Controller
                 'email' => 'required|email|unique:users,email',
                 'contact' => 'nullable|string|max:20',
                 'photo' => 'nullable|string|max:500',
-                'role' => 'required|in:surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant',
+                'role' => 'required|in:surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe',
+                'qualification' => 'nullable|string|max:100',
                 'generate_password' => 'boolean'
             ], [
                 'name.required' => 'Le nom complet est obligatoire.',
@@ -79,7 +80,8 @@ class UserManagementController extends Controller
                 'contact.string' => 'Le numéro de téléphone doit être une chaîne de caractères.',
                 'contact.max' => 'Le numéro de téléphone ne peut pas dépasser 20 caractères.',
                 'role.required' => 'Le rôle est obligatoire.',
-                'role.in' => 'Le rôle sélectionné n\'est pas valide.'
+                'role.in' => 'Le rôle sélectionné n\'est pas valide.',
+                'qualification.max' => 'La qualification ne peut pas dépasser 100 caractères.'
             ]);
 
             if ($validator->fails()) {
@@ -108,6 +110,7 @@ class UserManagementController extends Controller
                 'photo' => $request->photo,
                 'password' => Hash::make($password),
                 'role' => $request->role,
+                'qualification' => $request->qualification,
                 'is_active' => true,
                 'email_verified_at' => now()
             ]);
@@ -115,7 +118,7 @@ class UserManagementController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'user' => $user->only(['id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'is_active', 'created_at']),
+                    'user' => $user->only(['id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'qualification', 'is_active', 'created_at']),
                     'password' => $password // Retourner le mot de passe généré pour l'admin
                 ],
                 'message' => 'Utilisateur créé avec succès'
@@ -136,7 +139,7 @@ class UserManagementController extends Controller
     public function show($id)
     {
         try {
-            $user = User::select('id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'is_active', 'created_at')
+            $user = User::select('id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'qualification', 'is_active', 'created_at')
                 ->findOrFail($id);
 
             return response()->json([
@@ -165,7 +168,8 @@ class UserManagementController extends Controller
                 'email' => 'required|email|unique:users,email,' . $id,
                 'contact' => 'nullable|string|max:20',
                 'photo' => 'nullable|string|max:500', // Nullable en update
-                'role' => 'required|in:surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant',
+                'role' => 'required|in:surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe',
+                'qualification' => 'nullable|string|max:100',
                 'is_active' => 'boolean'
             ], [
                 'name.required' => 'Le nom complet est obligatoire.',
@@ -176,7 +180,8 @@ class UserManagementController extends Controller
                 'contact.string' => 'Le numéro de téléphone doit être une chaîne de caractères.',
                 'contact.max' => 'Le numéro de téléphone ne peut pas dépasser 20 caractères.',
                 'role.required' => 'Le rôle est obligatoire.',
-                'role.in' => 'Le rôle sélectionné n\'est pas valide.'
+                'role.in' => 'Le rôle sélectionné n\'est pas valide.',
+                'qualification.max' => 'La qualification ne peut pas dépasser 100 caractères.'
             ]);
 
             if ($validator->fails()) {
@@ -197,6 +202,7 @@ class UserManagementController extends Controller
                 'email' => $request->email,
                 'contact' => $request->contact,
                 'role' => $request->role,
+                'qualification' => $request->qualification,
                 'is_active' => $request->is_active ?? $user->is_active
             ];
 
@@ -209,7 +215,7 @@ class UserManagementController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $user->only(['id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'is_active', 'created_at']),
+                'data' => $user->only(['id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'qualification', 'is_active', 'created_at']),
                 'message' => 'Utilisateur mis à jour avec succès'
             ]);
 
@@ -267,7 +273,7 @@ class UserManagementController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $user->only(['id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'is_active']),
+                'data' => $user->only(['id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'qualification', 'is_active']),
                 'message' => $user->is_active ? 'Utilisateur activé' : 'Utilisateur désactivé'
             ]);
 
@@ -447,18 +453,31 @@ class UserManagementController extends Controller
     {
         try {
             // Récupérer le personnel administratif (users sauf teachers)
-            $administrativeStaff = User::where('is_active', true)
-                ->whereIn('role', ['surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'accountant', 'admin'])
+            $administrativeStaff = User::select('id', 'name', 'role', 'qualification', 'contact', 'created_at')
+                ->where('is_active', true)
+                ->whereIn('role', ['surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'accountant', 'admin', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe'])
                 ->orderBy('name')
                 ->get();
 
             // Récupérer les paramètres de l'école
             $schoolSettings = SchoolSetting::getSettings();
+            
+            // Convertir le logo en base64 pour DOMPDF
+            $logoBase64 = '';
+            $schoolSettingsModel = SchoolSetting::first();
+            if ($schoolSettingsModel && $schoolSettingsModel->school_logo) {
+                $logoPath = storage_path('app/public/' . $schoolSettingsModel->school_logo);
+                if (file_exists($logoPath)) {
+                    $logoContent = file_get_contents($logoPath);
+                    $logoBase64 = 'data:image/' . pathinfo($logoPath, PATHINFO_EXTENSION) . ';base64,' . base64_encode($logoContent);
+                }
+            }
 
             // Préparer les données pour le PDF
             $data = [
                 'staff' => $administrativeStaff,
                 'schoolSettings' => $schoolSettings,
+                'logoBase64' => $logoBase64,
                 'currentDate' => now()->format('d/m/Y'),
                 'academicYear' => now()->year . '/' . (now()->year + 1),
                 'totalStaff' => $administrativeStaff->count()
@@ -491,6 +510,7 @@ class UserManagementController extends Controller
     {
         $staff = $data['staff'];
         $schoolSettings = $data['schoolSettings'];
+        $logoBase64 = $data['logoBase64'];
         $currentDate = $data['currentDate'];
         $academicYear = $data['academicYear'];
         $totalStaff = $data['totalStaff'];
@@ -527,6 +547,12 @@ class UserManagementController extends Controller
                 .logo-section {
                     width: 120px;
                     text-align: center;
+                }
+                
+                .school-logo {
+                    width: 80px;
+                    height: 80px;
+                    object-fit: contain;
                 }
                 
                 .school-info {
@@ -646,7 +672,7 @@ class UserManagementController extends Controller
                 
                 <div class="header">
                     <div class="logo-section">
-                        <!-- Logo placeholder -->
+                        ' . ($logoBase64 ? "<img src='{$logoBase64}' alt='Logo École' class='school-logo'>" : '') . '
                     </div>
                     <div class="school-info">
                         <div class="school-name">' . strtoupper($schoolSettings['school_name'] ?? 'COLLEGE POLYVALENT BILINGUE DE DOUALA') . '</div>
@@ -686,8 +712,8 @@ class UserManagementController extends Controller
                 $seniority = '-';
             }
             
-            // Qualification (peut être étendu avec un champ dédié plus tard)
-            $qualification = $this->getQualificationForRole($user->role);
+            // Utiliser la qualification de l'utilisateur ou trait si vide
+            $qualification = $user->qualification ?: '-';
             
             $html .= '
                 <tr>
@@ -724,6 +750,7 @@ class UserManagementController extends Controller
     private function getPositionLabel($role): string
     {
         $positions = [
+            // Rôles existants dans l'application
             'admin' => 'PRINCIPAL',
             'surveillant_general' => 'SURVEILLANT GÉNÉRAL',
             'general_accountant' => 'COMPTABLE GÉNÉRAL',
@@ -731,7 +758,20 @@ class UserManagementController extends Controller
             'comptable' => 'COMPTABLE',
             'accountant' => 'COMPTABLE',
             'secretaire' => 'SECRÉTAIRE',
-            'teacher' => 'ENSEIGNANT', // Au cas où
+            'teacher' => 'ENSEIGNANT',
+            
+            // Rôles additionnels du fichier k.png (peuvent ne pas avoir accès à l'app)
+            'principal' => 'PRINCIPAL',
+            'responsable_pedagogique' => 'RESPONSABLE PÉDAGOGIQUE',
+            'dean_of_studies' => 'DEAN OF STUDIES',
+            'censeur_esg' => 'CENSEUR ESG',
+            'censeur' => 'CENSEUR',
+            'surveillant_secteur' => 'SURVEILLANT DE SECTEUR',
+            'caissiere' => 'CAISSIÈRE',
+            'bibliothecaire' => 'BIBLIOTHÉCAIRE',
+            'chef_travaux' => 'CHEF DES TRAVAUX',
+            'chef_securite' => 'CHEFS DE SÉCURITÉ',
+            'reprographe' => 'REPROGRAPHE',
         ];
         
         return $positions[$role] ?? strtoupper($role);
@@ -743,6 +783,7 @@ class UserManagementController extends Controller
     private function getQualificationForRole($role): string
     {
         $qualifications = [
+            // Rôles existants dans l'application
             'admin' => 'Maîtrise',
             'surveillant_general' => 'Licence',
             'general_accountant' => 'BTS Comptabilité',
@@ -751,6 +792,19 @@ class UserManagementController extends Controller
             'accountant' => 'BTS',
             'secretaire' => 'BAC + 2',
             'teacher' => 'Licence',
+            
+            // Rôles additionnels du fichier k.png
+            'principal' => 'Maîtrise',
+            'responsable_pedagogique' => 'Licence',
+            'dean_of_studies' => 'GCE A+1',
+            'censeur_esg' => 'TMSI (bac +2)',
+            'censeur' => 'BAC + 2',
+            'surveillant_secteur' => 'PROBATOIRE',
+            'caissiere' => 'PROBATOIRE',
+            'bibliothecaire' => 'BAC A4',
+            'chef_travaux' => 'BP',
+            'chef_securite' => 'BAC',
+            'reprographe' => 'BAC',
         ];
         
         return $qualifications[$role] ?? 'BAC';
