@@ -816,6 +816,7 @@ export const secureApiEndpoints = {
 
             return { success: true, filename };
         },
+        create: (data) => secureApi.post('/payments', data),
         downloadReceiptPDF: async (paymentId) => {
             const token = authService.getToken();
             const response = await fetch(`${secureApi.baseURL}/payments/${paymentId}/receipt/pdf`, {
