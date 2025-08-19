@@ -25,6 +25,7 @@ import {
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import { authService } from '../../services/authService';
+import { host } from '../../utils/fetch';
 
 const ClassSchoolFeesReport = () => {
     const [payments, setPayments] = useState([]);
@@ -91,7 +92,7 @@ const ClassSchoolFeesReport = () => {
         }
 
         try {
-            const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8000/api/reports/class-school-fees/export-pdf?class_id=${filters.class_id}`, {
+            const response = await fetch(`${host}/api/reports/class-school-fees/export-pdf?class_id=${filters.class_id}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authService.getToken()}`,

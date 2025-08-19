@@ -26,6 +26,7 @@ import { secureApiEndpoints } from '../../utils/apiMigration';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import { authService } from '../../services/authService';
 import Swal from 'sweetalert2';
+import { host } from '../../utils/fetch';
 
 const SchoolCertificates = () => {
     const [certificates, setCertificates] = useState([]);
@@ -132,7 +133,7 @@ const SchoolCertificates = () => {
         try {
             setLoading(true);
 
-            const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8000/api/reports/school-certificate/preview/${studentId}`, {
+            const response = await fetch(`${host}/api/reports/school-certificate/preview/${studentId}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authService.getToken()}`,
@@ -166,7 +167,7 @@ const SchoolCertificates = () => {
                 ...filters
             };
 
-            const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8000/api/reports/school-certificates/download?${new URLSearchParams(exportParams).toString()}`, {
+            const response = await fetch(`${host}/api/reports/school-certificates/download?${new URLSearchParams(exportParams).toString()}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authService.getToken()}`,

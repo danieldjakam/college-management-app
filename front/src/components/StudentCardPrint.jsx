@@ -4,6 +4,7 @@ import { Printer } from 'react-bootstrap-icons';
 import StudentCard from './StudentCard';
 import { useSchool } from '../contexts/SchoolContext';
 import Swal from 'sweetalert2';
+import { host } from '../utils/fetch';
 
 const StudentCardPrint = ({ student, schoolYear, show, onHide, onPrintSuccess }) => {
     const [printing, setPrinting] = useState(false);
@@ -48,8 +49,7 @@ const StudentCardPrint = ({ student, schoolYear, show, onHide, onPrintSuccess })
         if (student.photo_url) return student.photo_url;
         if (student.photo) {
             if (student.photo.startsWith('http')) return student.photo;
-            const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-            return `${baseUrl}/storage/${student.photo}`;
+            return `${host}/storage/${student.photo}`;
         }
         // Retourner l'image par défaut en utilisant un chemin absolu
         return `${window.location.origin}/static/media/1.png`;

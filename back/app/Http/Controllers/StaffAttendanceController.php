@@ -305,10 +305,10 @@ class StaffAttendanceController extends Controller
                 $photoContent = null;
                 if (str_starts_with($user->photo, 'http')) {
                     // Corriger l'URL pour pointer vers localhost/serveur local
-                    $correctedUrl = str_replace(['127.0.0.1:8000', 'localhost:8000'], '192.168.1.229:8000', $user->photo);
+                    $correctedUrl = str_replace(['127.0.0.1:8000', 'localhost:8000', '192.168.1.229:8000'], $_ENV['APP_URL'], $user->photo);
 
                     // Pour les URLs, essayer d'abord l'accès direct au fichier
-                    $relativePath = str_replace(['http://127.0.0.1:8000/', 'http://localhost:8000/', 'http://192.168.1.229:8000/'], '', $user->photo);
+                    $relativePath = str_replace(['http://127.0.0.1:8000/', 'http://localhost:8000/', 'http://192.168.1.229:8000/', $_ENV['APP_URL']], '', $user->photo);
                     // Enlever "storage/" du début si présent car storage_path('app/public/') inclut déjà le chemin vers public
                     $relativePath = ltrim($relativePath, '/');
                     if (str_starts_with($relativePath, 'storage/')) {
@@ -974,7 +974,7 @@ class StaffAttendanceController extends Controller
             try {
                 $photoContent = null;
                 if (str_starts_with($user->photo, 'http')) {
-                    $relativePath = str_replace(['http://127.0.0.1:8000/', 'http://localhost:8000/', 'http://192.168.1.229:8000/'], '', $user->photo);
+                    $relativePath = str_replace(['http://127.0.0.1:8000/', 'http://localhost:8000/', 'http://192.168.1.229:8000/', $_ENV['APP_URL']], '', $user->photo);
                     $relativePath = ltrim($relativePath, '/');
                     if (str_starts_with($relativePath, 'storage/')) {
                         $relativePath = substr($relativePath, 8);

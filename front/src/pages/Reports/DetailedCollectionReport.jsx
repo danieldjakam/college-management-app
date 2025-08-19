@@ -24,6 +24,7 @@ import {
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import { authService } from '../../services/authService';
+import { host } from '../../utils/fetch';
 
 const DetailedCollectionReport = () => {
     const [encaissements, setEncaissements] = useState([]);
@@ -124,7 +125,7 @@ const DetailedCollectionReport = () => {
                 section_id: filters.section_id
             };
 
-            const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8000/api/reports/detailed-collection/export-pdf?${new URLSearchParams(exportParams).toString()}`, {
+            const response = await fetch(`${host}/api/reports/detailed-collection/export-pdf?${new URLSearchParams(exportParams).toString()}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authService.getToken()}`,
