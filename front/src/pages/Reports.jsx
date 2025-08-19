@@ -45,10 +45,7 @@ const Reports = () => {
 
   // États pour les filtres
   const [filters, setFilters] = useState({
-    // Filtre principal
-    filterType: "section", // section, class, series
-
-    // Filtres spécifiques
+    // Filtres spécifiques (peuvent être utilisés simultanément)
     sectionId: "",
     classId: "",
     seriesId: "",
@@ -70,10 +67,10 @@ const Reports = () => {
 
   const loadAvailableOptions = async () => {
     try {
-      // Charger les sections, classes disponibles
+      // Charger les sections, classes et toutes les séries
       const [sectionsRes, classesRes] = await Promise.all([
         secureApiEndpoints.sections.getAll(),
-        secureApiEndpoints.schoolClasses.getAll(),
+        secureApiEndpoints.accountant.getClasses(), // Utilise getClasses qui donne plus d'infos
       ]);
 
       // S'assurer que les données sont des tableaux
@@ -81,31 +78,30 @@ const Reports = () => {
         sectionsRes.success && Array.isArray(sectionsRes.data)
           ? sectionsRes.data
           : [];
-      const classes =
-        classesRes.success && Array.isArray(classesRes.data)
-          ? classesRes.data
-          : [];
+      
+      // Classes avec leurs relations complètes
+      const classesData = classesRes.success && classesRes.data ? classesRes.data : {};
+      const classes = Array.isArray(classesData.classes) ? classesData.classes : [];
 
-      // Charger toutes les séries de toutes les classes
+      // Extraire toutes les séries des classes
       let allSeries = [];
-      if (classes.length > 0) {
-        try {
-          const seriesPromises = classes.map((schoolClass) =>
-            secureApiEndpoints.accountant.getClassSeries(schoolClass.id)
-          );
-          const seriesResults = await Promise.all(seriesPromises);
-
-          seriesResults.forEach((result, index) => {
-            if (result.success && result.data) {
-              // S'assurer que result.data est un tableau
-              const seriesData = Array.isArray(result.data) ? result.data : [];
-              allSeries = [...allSeries, ...seriesData];
-            }
+      classes.forEach(schoolClass => {
+        if (schoolClass.series && Array.isArray(schoolClass.series)) {
+          schoolClass.series.forEach(series => {
+            allSeries.push({
+              ...series,
+              section_id: schoolClass?.level?.section?.id,
+              section_name: schoolClass?.level?.section?.name,
+              class_id: schoolClass?.id,
+              class_name: schoolClass?.name,
+              full_name: `${schoolClass?.level?.section?.name || ''} - ${schoolClass?.name || ''} - ${series.name || ''}`
+            });
           });
-        } catch (seriesError) {
-          console.error("Error loading series:", seriesError);
         }
-      }
+      });
+
+      console.log('Loaded options:', { sections: sections.length, classes: classes.length, series: allSeries.length });
+      console.log('Series data:', allSeries);
 
       setAvailableOptions({
         sections,
@@ -718,75 +714,79 @@ const Reports = () => {
         <Row>
           <Col md={3}>
             <Form.Group className="mb-3">
-              <Form.Label>Filtrer par</Form.Label>
+              <Form.Label>Section</Form.Label>
               <Form.Select
-                value={filters.filterType}
+                value={filters.sectionId}
                 onChange={(e) => {
                   setFilters({
                     ...filters,
-                    filterType: e.target.value,
-                    sectionId: "",
+                    sectionId: e.target.value,
+                    // Réinitialiser classe et série si section change
                     classId: "",
                     seriesId: "",
                   });
                 }}
               >
-                <option value="section">Section</option>
-                <option value="class">Classe</option>
-                <option value="series">Série</option>
+                <option value="">Toutes les sections</option>
+                {availableOptions.sections.map((section) => (
+                  <option key={section.id} value={section.id}>
+                    {section.name}
+                  </option>
+                ))}
               </Form.Select>
             </Form.Group>
           </Col>
           <Col md={3}>
             <Form.Group className="mb-3">
-              <Form.Label>
-                {filters.filterType === "section"
-                  ? "Section"
-                  : filters.filterType === "class"
-                  ? "Classe"
-                  : "Série"}
-              </Form.Label>
+              <Form.Label>Classe</Form.Label>
               <Form.Select
-                value={
-                  filters.filterType === "section"
-                    ? filters.sectionId
-                    : filters.filterType === "class"
-                    ? filters.classId
-                    : filters.seriesId
-                }
+                value={filters.classId}
                 onChange={(e) => {
-                  const newFilters = { ...filters };
-                  if (filters.filterType === "section") {
-                    newFilters.sectionId = e.target.value;
-                  } else if (filters.filterType === "class") {
-                    newFilters.classId = e.target.value;
-                  } else {
-                    newFilters.seriesId = e.target.value;
-                  }
-                  setFilters(newFilters);
+                  setFilters({
+                    ...filters,
+                    classId: e.target.value,
+                    // Réinitialiser série si classe change
+                    seriesId: "",
+                  });
                 }}
               >
-                <option value="">
-                  {filters.filterType === "section"
-                    ? "Toutes les sections"
-                    : filters.filterType === "class"
-                    ? "Toutes les classes"
-                    : "Toutes les séries"}
-                </option>
-                {filters.filterType === "section" &&
-                  availableOptions.sections.map((section) => (
-                    <option key={section.id} value={section.id}>
-                      {section.name}
-                    </option>
-                  ))}
-                {filters.filterType === "class" &&
-                  availableOptions.classes.map((schoolClass) => (
+                <option value="">Toutes les classes</option>
+                {availableOptions.classes
+                  .filter(schoolClass => {
+                    // Si une section est sélectionnée, filtrer les classes de cette section
+                    if (!filters.sectionId) return true;
+                    return schoolClass.level?.section?.id == filters.sectionId;
+                  })
+                  .map((schoolClass) => (
                     <option key={schoolClass.id} value={schoolClass.id}>
                       {schoolClass.name}
                     </option>
                   ))}
-                {filters.filterType === "series" &&
-                  availableOptions.series.map((series) => (
+              </Form.Select>
+            </Form.Group>
+          </Col>
+          <Col md={3}>
+            <Form.Group className="mb-3">
+              <Form.Label>Série</Form.Label>
+              <Form.Select
+                value={filters.seriesId}
+                onChange={(e) => {
+                  setFilters({
+                    ...filters,
+                    seriesId: e.target.value,
+                  });
+                }}
+              >
+                <option value="">Toutes les séries</option>
+                {availableOptions.series
+                  .filter(series => {
+                    // Filtrer par section si sélectionnée
+                    if (filters.sectionId && series.section_id != filters.sectionId) return false;
+                    // Filtrer par classe si sélectionnée
+                    if (filters.classId && series.class_id != filters.classId) return false;
+                    return true;
+                  })
+                  .map((series) => (
                     <option key={series.id} value={series.id}>
                       {series.name}
                     </option>
@@ -809,6 +809,8 @@ const Reports = () => {
               />
             </Form.Group>
           </Col>
+        </Row>
+        <Row>
           <Col md={3}>
             <Form.Group className="mb-3">
               <Form.Label>Date de fin</Form.Label>
@@ -861,6 +863,14 @@ const Reports = () => {
                   Exporter Excel
                 </Button>
               </>
+            )}
+            {(filters.sectionId || filters.classId || filters.seriesId) && (
+              <Button
+                variant="outline-secondary"
+                onClick={() => setFilters({ sectionId: "", classId: "", seriesId: "", startDate: "", endDate: "" })}
+              >
+                Réinitialiser filtres
+              </Button>
             )}
           </Col>
         </Row>
@@ -1041,110 +1051,147 @@ const Reports = () => {
     <Card>
       <Card.Header>
         <h5 className="mb-0">
-          État des RAME - Détails par élève (espèces/physique/pas payé)
+          État RAME - Liste des élèves avec statut RAME
         </h5>
       </Card.Header>
       <Card.Body>
-        {reportData ? (
+        {paginatedReportData ? (
           <>
             <div className="mb-3">
               <Row>
                 <Col md={3}>
-                  <Badge bg="info">
-                    Total élèves: {reportData?.summary?.total_students || 0}
-                  </Badge>
+                  <Card className="text-center border-primary">
+                    <Card.Body>
+                      <h4 className="text-primary mb-0">
+                        {paginatedReportData?.summary?.total_students || 0}
+                      </h4>
+                      <p className="text-muted mb-0">Total Étudiants</p>
+                    </Card.Body>
+                  </Card>
                 </Col>
                 <Col md={3}>
-                  <Badge bg="success">
-                    Payés: {reportData?.summary?.paid_count || 0}
-                  </Badge>
+                  <Card className="text-center border-success">
+                    <Card.Body>
+                      <h4 className="text-success mb-0">
+                        {paginatedReportData?.summary?.paid_count || 0}
+                      </h4>
+                      <p className="text-muted mb-0">RAME Payée</p>
+                    </Card.Body>
+                  </Card>
                 </Col>
                 <Col md={3}>
-                  <Badge bg="primary">
-                    Banque: {reportData?.summary?.cash_count || 0}
-                  </Badge>
+                  <Card className="text-center border-info">
+                    <Card.Body>
+                      <h4 className="text-info mb-0">
+                        {paginatedReportData?.summary?.physical_count || 0}
+                      </h4>
+                      <p className="text-muted mb-0">RAME Physique</p>
+                    </Card.Body>
+                  </Card>
                 </Col>
                 <Col md={3}>
-                  <Badge bg="secondary">
-                    Physique: {reportData?.summary?.physical_count || 0}
-                  </Badge>
-                </Col>
-              </Row>
-              <Row className="mb-3">
-                <Col md={6}>
-                  <Badge bg="info">
-                    Quantité attendue:{" "}
-                    {reportData?.summary?.total_quantity_expected || 0}
-                  </Badge>
-                </Col>
-                <Col md={6}>
-                  <Badge bg="success">
-                    Quantité reçue:{" "}
-                    {reportData?.summary?.total_quantity_received || 0}
-                  </Badge>
+                  <Card className="text-center border-danger">
+                    <Card.Body>
+                      <h4 className="text-danger mb-0">
+                        {paginatedReportData?.summary?.unpaid_count || 0}
+                      </h4>
+                      <p className="text-muted mb-0">Non Payée</p>
+                    </Card.Body>
+                  </Card>
                 </Col>
               </Row>
             </div>
+            
             <Table responsive striped size="sm">
               <thead>
                 <tr>
-                  <th>Étudiant</th>
-                  <th>Classe/Série</th>
-                  <th>Quantité</th>
-                  <th>Statut</th>
-                  <th>Date de Dépôt</th>
+                  <SortableHeader sortKey="student.full_name">
+                    Étudiant
+                  </SortableHeader>
+                  <SortableHeader sortKey="student.class_series">
+                    Classe/Série
+                  </SortableHeader>
+                  <th>Statut RAME</th>
+                  <SortableHeader sortKey="rame_details.payment_status">
+                    Statut
+                  </SortableHeader>
+                  <SortableHeader sortKey="rame_details.payment_type">
+                    Type
+                  </SortableHeader>
+                  <SortableHeader sortKey="rame_details.payment_date">
+                    Date
+                  </SortableHeader>
                   <th>Notes</th>
                 </tr>
               </thead>
               <tbody>
-                {reportData.students?.map((studentData, studentIndex) => (
+                {paginatedReportData.students?.map((studentData, studentIndex) => (
                   <tr key={studentIndex}>
                     <td>{studentData?.student?.full_name}</td>
                     <td>{studentData?.student?.class_series}</td>
                     <td className="text-center">
+                      {studentData?.rame_details?.has_brought_rame && (
+                        <Badge bg="info" className="me-1">
+                          Physique
+                        </Badge>
+                      )}
+                      {studentData?.rame_details?.has_paid_rame && (
+                        <Badge bg="warning">
+                          Payée
+                        </Badge>
+                      )}
+                      {!studentData?.rame_details?.has_brought_rame && !studentData?.rame_details?.has_paid_rame && (
+                        <Badge bg="secondary">
+                          Aucun
+                        </Badge>
+                      )}
+                    </td>
+                    <td>
                       <Badge
                         bg={
-                          studentData?.rame_details?.quantity === 1
+                          studentData?.rame_details?.payment_status === 'paid'
                             ? "success"
+                            : "danger"
+                        }
+                      >
+                        {studentData?.rame_details?.payment_status === 'paid' ? 'Payé' : 'Non payé'}
+                      </Badge>
+                    </td>
+                    <td>
+                      <Badge
+                        bg={
+                          studentData?.rame_details?.payment_type === 'physical'
+                            ? "info"
+                            : studentData?.rame_details?.payment_type === 'cash'
+                            ? "warning"
                             : "secondary"
                         }
                       >
-                        {studentData?.rame_details?.quantity || 0}
+                        {studentData?.rame_details?.payment_type === 'physical' 
+                          ? 'Physique' 
+                          : studentData?.rame_details?.payment_type === 'cash'
+                          ? 'Espèces'
+                          : 'Non payé'}
                       </Badge>
                     </td>
                     <td>
-                      <Badge
-                        bg={
-                          studentData?.rame_details?.payment_status === "paid"
-                            ? "success"
-                            : "warning"
-                        }
-                      >
-                        {studentData?.rame_details?.payment_status === "paid"
-                          ? "Payé"
-                          : "En attente"}
-                      </Badge>
-                    </td>
-                    <td>
-                      {studentData?.rame_details?.deposit_date
-                        ? new Date(
-                            studentData.rame_details.deposit_date
-                          ).toLocaleDateString("fr-FR")
-                        : studentData?.rame_details?.marked_date
-                        ? new Date(
-                            studentData.rame_details.marked_date
-                          ).toLocaleDateString("fr-FR")
-                        : "-"}
+                      {studentData?.rame_details?.payment_date
+                        ? new Date(studentData.rame_details.payment_date).toLocaleDateString('fr-FR')
+                        : '-'}
                     </td>
                     <td>
                       <small className="text-muted">
-                        {studentData?.rame_details?.notes || "-"}
+                        {studentData?.rame_details?.notes || '-'}
                       </small>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </Table>
+            <PaginationControls
+              dataArray={sortedReportData?.students}
+              dataType="élèves"
+            />
           </>
         ) : (
           <p className="text-muted text-center">
@@ -1154,6 +1201,7 @@ const Reports = () => {
       </Card.Body>
     </Card>
   );
+
 
   // Fonction pour filtrer les données des bourses et rabais
   const getScholarshipsFilteredData = useCallback(() => {

@@ -774,6 +774,31 @@ export const secureApiEndpoints = {
         generateListingReport: (data) => secureApi.post('/payments/listing-report', data),
         generateTrancheListsReport: (data) => secureApi.post('/payments/tranche-lists-report', data),
         getTranches: () => secureApi.get('/payments/tranches'),
+    },
+
+    // === STUDENT RAME (pour RameStatusToggle) ===
+    studentRame: {
+        getStatus: (studentId) => secureApi.get(`/student-rame/student/${studentId}/status`),
+        updateStatus: (studentId, data) => secureApi.post(`/student-rame/student/${studentId}/update`, data),
+        getClassStatus: (classSeriesId) => secureApi.get(`/student-rame/class-series/${classSeriesId}`)
+    },
+
+    // === PAYMENTS ===
+    payments: {
+        getStudentInfo: (studentId) => secureApi.get(`/payments/student/${studentId}/info`),
+        getStudentInfoWithDiscount: (studentId) => secureApi.get(`/payments/student/${studentId}/info-with-discount`),
+        getStudentHistory: (studentId) => secureApi.get(`/payments/student/${studentId}/history`),
+        calculateWithDate: (studentId, data) => secureApi.post(`/payments/student/${studentId}/calculate-with-date`, data),
+        store: (data) => secureApi.post('/payments', data),
+        generateReceipt: (paymentId) => secureApi.get(`/payments/${paymentId}/receipt`),
+        downloadReceipt: (paymentId) => secureApi.get(`/payments/${paymentId}/receipt/pdf`),
+        getStats: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/payments/stats${queryString ? '?' + queryString : ''}`);
+        },
+        generateListingReport: (data) => secureApi.post('/payments/listing-report', data),
+        generateTrancheListsReport: (data) => secureApi.post('/payments/tranche-lists-report', data),
+        getTranches: () => secureApi.get('/payments/tranches'),
         downloadListingReportPDF: async (data) => {
             const token = authService.getToken();
             const response = await fetch(`${secureApi.baseURL}/payments/listing-report`, {
@@ -844,12 +869,6 @@ export const secureApiEndpoints = {
         }
     },
 
-    // === STUDENT RAME (Simplified) ===
-    studentRame: {
-        getStatus: (studentId) => secureApi.get(`/student-rame/student/${studentId}/status`),
-        updateStatus: (studentId, data) => secureApi.post(`/student-rame/student/${studentId}/update`, data),
-        getClassStatus: (classSeriesId) => secureApi.get(`/student-rame/class-series/${classSeriesId}`)
-    },
 
     // === SCHOOL SETTINGS ===
     schoolSettings: {

@@ -33,28 +33,31 @@ const SchoolCertificates = () => {
     const [students, setStudents] = useState([]);
     const [classes, setClasses] = useState([]);
     const [sections, setSections] = useState([]);
+    const [series, setSeries] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
-    const [generationType, setGenerationType] = useState('by-class');
+    const [generationType, setGenerationType] = useState('by-series');
 
     // Filtres
     const [filters, setFilters] = useState({
+        section_id: '',
         class_id: '',
-        student_id: '',
-        section_id: ''
+        series_id: '',
+        student_id: ''
     });
 
     useEffect(() => {
-        loadClasses();
         loadSections();
+        loadClasses();
+        loadSeries();
     }, []);
 
     useEffect(() => {
-        if (filters.class_id && generationType === 'by-student') {
-            loadStudentsByClass();
+        if (filters.series_id && generationType === 'by-student') {
+            loadStudentsBySeries();
         }
-    }, [filters.class_id, generationType]);
+    }, [filters.series_id, generationType]);
 
     const loadClasses = async () => {
         try {
@@ -78,13 +81,39 @@ const SchoolCertificates = () => {
         }
     };
 
-    const loadStudentsByClass = async () => {
-        if (!filters.class_id) return;
+    const loadSeries = async () => {
+        try {
+            const response = await secureApiEndpoints.accountant.getClasses();
+            if (response.success && response.data && response.data.classes) {
+                const allSeries = [];
+                response.data.classes.forEach(schoolClass => {
+                    if (schoolClass.series && Array.isArray(schoolClass.series)) {
+                        schoolClass.series.forEach(serie => {
+                            allSeries.push({
+                                ...serie,
+                                section_id: schoolClass?.level?.section?.id,
+                                section_name: schoolClass?.level?.section?.name,
+                                class_id: schoolClass?.id,
+                                class_name: schoolClass?.name,
+                                full_name: `${schoolClass?.level?.section?.name || ''} - ${schoolClass?.name || ''} - ${serie.name || ''}`
+                            });
+                        });
+                    }
+                });
+                setSeries(allSeries);
+            }
+        } catch (error) {
+            console.error('Error loading series:', error);
+        }
+    };
+
+    const loadStudentsBySeries = async () => {
+        if (!filters.series_id) return;
         
         try {
-            const response = await secureApiEndpoints.students.getByClass(filters.class_id);
+            const response = await secureApiEndpoints.students.getByClassSeries(filters.series_id);
             if (response.success) {
-                setStudents(response.data);
+                setStudents(response.data.students || []);
             }
         } catch (error) {
             console.error('Error loading students:', error);
@@ -92,18 +121,23 @@ const SchoolCertificates = () => {
     };
 
     const generateCertificates = async () => {
+        if (generationType === 'by-section' && !filters.section_id) {
+            setError('Veuillez sélectionner une section');
+            return;
+        }
+        
         if (generationType === 'by-class' && !filters.class_id) {
             setError('Veuillez sélectionner une classe');
             return;
         }
         
-        if (generationType === 'by-student' && !filters.student_id) {
-            setError('Veuillez sélectionner un élève');
+        if (generationType === 'by-series' && !filters.series_id) {
+            setError('Veuillez sélectionner une série');
             return;
         }
         
-        if (generationType === 'by-section' && !filters.section_id) {
-            setError('Veuillez sélectionner une section');
+        if (generationType === 'by-student' && !filters.student_id) {
+            setError('Veuillez sélectionner un élève');
             return;
         }
 
@@ -259,34 +293,44 @@ const SchoolCertificates = () => {
                             <Form.Label><strong>Type de génération</strong></Form.Label>
                             <ButtonGroup className="d-flex">
                                 <Button
+                                    variant={generationType === 'by-section' ? 'primary' : 'outline-primary'}
+                                    onClick={() => {
+                                        setGenerationType('by-section');
+                                        setFilters({ section_id: '', class_id: '', series_id: '', student_id: '' });
+                                    }}
+                                >
+                                    <PeopleFill className="me-2" />
+                                    Par Section
+                                </Button>
+                                <Button
                                     variant={generationType === 'by-class' ? 'primary' : 'outline-primary'}
                                     onClick={() => {
                                         setGenerationType('by-class');
-                                        setFilters({ class_id: '', student_id: '', section_id: '' });
+                                        setFilters({ section_id: '', class_id: '', series_id: '', student_id: '' });
                                     }}
                                 >
                                     <BookFill className="me-2" />
                                     Par Classe
                                 </Button>
                                 <Button
+                                    variant={generationType === 'by-series' ? 'primary' : 'outline-primary'}
+                                    onClick={() => {
+                                        setGenerationType('by-series');
+                                        setFilters({ section_id: '', class_id: '', series_id: '', student_id: '' });
+                                    }}
+                                >
+                                    <Award className="me-2" />
+                                    Par Série
+                                </Button>
+                                <Button
                                     variant={generationType === 'by-student' ? 'primary' : 'outline-primary'}
                                     onClick={() => {
                                         setGenerationType('by-student');
-                                        setFilters({ class_id: '', student_id: '', section_id: '' });
+                                        setFilters({ section_id: '', class_id: '', series_id: '', student_id: '' });
                                     }}
                                 >
                                     <PersonFill className="me-2" />
                                     Par Élève
-                                </Button>
-                                <Button
-                                    variant={generationType === 'by-section' ? 'primary' : 'outline-primary'}
-                                    onClick={() => {
-                                        setGenerationType('by-section');
-                                        setFilters({ class_id: '', student_id: '', section_id: '' });
-                                    }}
-                                >
-                                    <PeopleFill className="me-2" />
-                                    Par Section
                                 </Button>
                             </ButtonGroup>
                         </Col>
@@ -294,52 +338,8 @@ const SchoolCertificates = () => {
 
                     {/* Filtres selon le type */}
                     <Row>
-                        {(generationType === 'by-class' || generationType === 'by-student') && (
-                            <Col md={4}>
-                                <Form.Group>
-                                    <Form.Label>
-                                        Classe <span className="text-danger">*</span>
-                                    </Form.Label>
-                                    <Form.Select
-                                        value={filters.class_id}
-                                        onChange={(e) => setFilters({ ...filters, class_id: e.target.value, student_id: '' })}
-                                        required
-                                    >
-                                        <option value="">Sélectionner une classe</option>
-                                        {classes.map(cls => (
-                                            <option key={cls.id} value={cls.id}>
-                                                {cls.name}
-                                            </option>
-                                        ))}
-                                    </Form.Select>
-                                </Form.Group>
-                            </Col>
-                        )}
-
-                        {generationType === 'by-student' && filters.class_id && (
-                            <Col md={4}>
-                                <Form.Group>
-                                    <Form.Label>
-                                        Élève <span className="text-danger">*</span>
-                                    </Form.Label>
-                                    <Form.Select
-                                        value={filters.student_id}
-                                        onChange={(e) => setFilters({ ...filters, student_id: e.target.value })}
-                                        required
-                                    >
-                                        <option value="">Sélectionner un élève</option>
-                                        {students.map(student => (
-                                            <option key={student.id} value={student.id}>
-                                                {student.last_name} {student.first_name} ({student.student_number})
-                                            </option>
-                                        ))}
-                                    </Form.Select>
-                                </Form.Group>
-                            </Col>
-                        )}
-
                         {generationType === 'by-section' && (
-                            <Col md={4}>
+                            <Col md={3}>
                                 <Form.Group>
                                     <Form.Label>
                                         Section <span className="text-danger">*</span>
@@ -360,7 +360,96 @@ const SchoolCertificates = () => {
                             </Col>
                         )}
 
-                        <Col md={4} className="d-flex align-items-end">
+                        {generationType === 'by-class' && (
+                            <Col md={3}>
+                                <Form.Group>
+                                    <Form.Label>
+                                        Classe <span className="text-danger">*</span>
+                                    </Form.Label>
+                                    <Form.Select
+                                        value={filters.class_id}
+                                        onChange={(e) => setFilters({ ...filters, class_id: e.target.value })}
+                                        required
+                                    >
+                                        <option value="">Sélectionner une classe</option>
+                                        {classes.map(cls => (
+                                            <option key={cls.id} value={cls.id}>
+                                                {cls.name}
+                                            </option>
+                                        ))}
+                                    </Form.Select>
+                                </Form.Group>
+                            </Col>
+                        )}
+
+                        {generationType === 'by-series' && (
+                            <Col md={3}>
+                                <Form.Group>
+                                    <Form.Label>
+                                        Série <span className="text-danger">*</span>
+                                    </Form.Label>
+                                    <Form.Select
+                                        value={filters.series_id}
+                                        onChange={(e) => setFilters({ ...filters, series_id: e.target.value })}
+                                        required
+                                    >
+                                        <option value="">Sélectionner une série</option>
+                                        {series.map(serie => (
+                                            <option key={serie.id} value={serie.id}>
+                                                {serie.full_name}
+                                            </option>
+                                        ))}
+                                    </Form.Select>
+                                </Form.Group>
+                            </Col>
+                        )}
+
+                        {generationType === 'by-student' && (
+                            <>
+                                <Col md={3}>
+                                    <Form.Group>
+                                        <Form.Label>
+                                            Série <span className="text-danger">*</span>
+                                        </Form.Label>
+                                        <Form.Select
+                                            value={filters.series_id}
+                                            onChange={(e) => setFilters({ ...filters, series_id: e.target.value, student_id: '' })}
+                                            required
+                                        >
+                                            <option value="">Sélectionner une série</option>
+                                            {series.map(serie => (
+                                                <option key={serie.id} value={serie.id}>
+                                                    {serie.full_name}
+                                                </option>
+                                            ))}
+                                        </Form.Select>
+                                    </Form.Group>
+                                </Col>
+                                {filters.series_id && (
+                                    <Col md={3}>
+                                        <Form.Group>
+                                            <Form.Label>
+                                                Élève <span className="text-danger">*</span>
+                                            </Form.Label>
+                                            <Form.Select
+                                                value={filters.student_id}
+                                                onChange={(e) => setFilters({ ...filters, student_id: e.target.value })}
+                                                required
+                                            >
+                                                <option value="">Sélectionner un élève</option>
+                                                {students.map(student => (
+                                                    <option key={student.id} value={student.id}>
+                                                        {student.last_name} {student.first_name}
+                                                    </option>
+                                                ))}
+                                            </Form.Select>
+                                        </Form.Group>
+                                    </Col>
+                                )}
+                            </>
+                        )}
+
+                        <Col md={3} className="d-flex align-items-end">
                             <Button
                                 variant="success"
                                 onClick={generateCertificates}
