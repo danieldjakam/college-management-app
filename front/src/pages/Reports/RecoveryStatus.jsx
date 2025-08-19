@@ -26,6 +26,8 @@ import { secureApiEndpoints } from '../../utils/apiMigration';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import { authService } from '../../services/authService';
 import Swal from 'sweetalert2';
+import { Hospital } from 'lucide-react';
+import { host } from '../../utils/fetch';
 
 const RecoveryStatus = () => {
     const [recoveryData, setRecoveryData] = useState([]);
@@ -105,7 +107,7 @@ const RecoveryStatus = () => {
                 ...filters
             };
 
-            const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8000/api/reports/recovery-status/export-pdf?${new URLSearchParams(exportParams).toString()}`, {
+            const response = await fetch(`${host}/api/reports/recovery-status/export-pdf?${new URLSearchParams(exportParams).toString()}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authService.getToken()}`,
