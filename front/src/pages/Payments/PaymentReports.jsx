@@ -13,7 +13,7 @@ import {
   Tab,
   Table,
 } from "react-bootstrap";
-import { Building, FileText, Printer, Search } from "react-bootstrap-icons";
+import { Building, FileText, Printer, Search, CheckSquare } from "react-bootstrap-icons";
 import { secureApiEndpoints } from "../../utils/apiMigration";
 import SeriesCollectionSummary from "../Reports/SeriesCollectionSummary";
 
@@ -404,6 +404,18 @@ const PaymentReports = () => {
               Paiements Détaillés
             </Nav.Link>
           </Nav.Item>
+          <Nav.Item>
+            <Nav.Link eventKey="payment-listing">
+              <Printer className="me-2" size={16} />
+              Listing des Paiements
+            </Nav.Link>
+          </Nav.Item>
+          <Nav.Item>
+            <Nav.Link eventKey="tranche-lists">
+              <CheckSquare className="me-2" size={16} />
+              Listes par Tranches
+            </Nav.Link>
+          </Nav.Item>
         </Nav>
 
         <Tab.Content>
@@ -657,9 +669,572 @@ const PaymentReports = () => {
               </Card>
             )}
           </Tab.Pane>
+
+          <Tab.Pane eventKey="payment-listing">
+            <PaymentListingReport />
+          </Tab.Pane>
+
+          <Tab.Pane eventKey="tranche-lists">
+            <TrancheListsReport />
+          </Tab.Pane>
         </Tab.Content>
       </Tab.Container>
     </Container>
+  );
+};
+
+// Composant pour le listing des paiements
+const PaymentListingReport = () => {
+  const [listingData, setListingData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [classes, setClasses] = useState([]);
+
+  const [listingFilters, setListingFilters] = useState({
+    start_date: new Date().toISOString().split("T")[0],
+    end_date: new Date().toISOString().split("T")[0],
+    class_id: "",
+  });
+
+  useEffect(() => {
+    loadClasses();
+  }, []);
+
+  const loadClasses = async () => {
+    try {
+      const response = await secureApiEndpoints.accountant.getClasses();
+      if (response.success && response.data && response.data.classes) {
+        // L'API retourne: { success: true, data: { classes: [...], grouped_classes: {...} } }
+        setClasses(response.data.classes);
+      } else {
+        setClasses([]);
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des classes:", error);
+      setClasses([]); // Assurer que classes est toujours un tableau
+    }
+  };
+
+  const generateListing = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await secureApiEndpoints.payments.generateListingReport({
+        ...listingFilters,
+        format: "html"
+      });
+
+      if (response.success) {
+        setListingData(response.data);
+      } else {
+        setError(response.message || "Erreur lors de la génération du listing");
+      }
+    } catch (error) {
+      setError("Erreur lors de la génération du listing");
+      console.error("Erreur:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadPDF = async () => {
+    try {
+      setLoading(true);
+      await secureApiEndpoints.payments.downloadListingReportPDF(listingFilters);
+    } catch (error) {
+      setError("Erreur lors du téléchargement PDF");
+      console.error("Erreur:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const printReport = () => {
+    if (listingData?.html) {
+      const printWindow = window.open("", "_blank");
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Listing des Paiements</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+            @media print { 
+              body { margin: 0; }
+              .no-print { display: none !important; }
+            }
+          </style>
+        </head>
+        <body>
+          ${listingData.html}
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
+  };
+
+  return (
+    <div>
+      <Card className="mb-4">
+        <Card.Header>
+          <h5 className="mb-0">Paramètres du Listing</h5>
+        </Card.Header>
+        <Card.Body>
+          <Row>
+            <Col md={3}>
+              <Form.Group className="mb-3">
+                <Form.Label>Date de début</Form.Label>
+                <Form.Control
+                  type="date"
+                  value={listingFilters.start_date}
+                  onChange={(e) =>
+                    setListingFilters(prev => ({
+                      ...prev,
+                      start_date: e.target.value
+                    }))
+                  }
+                />
+              </Form.Group>
+            </Col>
+            <Col md={3}>
+              <Form.Group className="mb-3">
+                <Form.Label>Date de fin</Form.Label>
+                <Form.Control
+                  type="date"
+                  value={listingFilters.end_date}
+                  onChange={(e) =>
+                    setListingFilters(prev => ({
+                      ...prev,
+                      end_date: e.target.value
+                    }))
+                  }
+                />
+              </Form.Group>
+            </Col>
+            <Col md={3}>
+              <Form.Group className="mb-3">
+                <Form.Label>Classe (optionnel)</Form.Label>
+                <Form.Select
+                  value={listingFilters.class_id}
+                  onChange={(e) =>
+                    setListingFilters(prev => ({
+                      ...prev,
+                      class_id: e.target.value
+                    }))
+                  }
+                >
+                  <option value="">Toutes les classes</option>
+                  {classes.map((classe) => (
+                    <option key={classe.id} value={classe.id}>
+                      {classe.name}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={3}>
+              <Form.Group className="mb-3">
+                <Form.Label>&nbsp;</Form.Label>
+                <div className="d-grid gap-2">
+                  <Button
+                    variant="primary"
+                    onClick={generateListing}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <Spinner animation="border" size="sm" />
+                    ) : (
+                      <>
+                        <Search className="me-2" size={16} />
+                        Générer
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </Form.Group>
+            </Col>
+          </Row>
+
+          {listingData && (
+            <Row className="mt-3">
+              <Col>
+                <div className="d-flex gap-2">
+                  <Button variant="success" onClick={downloadPDF} disabled={loading}>
+                    <FileText className="me-2" size={16} />
+                    Télécharger PDF
+                  </Button>
+                  <Button variant="info" onClick={printReport}>
+                    <Printer className="me-2" size={16} />
+                    Imprimer
+                  </Button>
+                </div>
+              </Col>
+            </Row>
+          )}
+        </Card.Body>
+      </Card>
+
+      {error && (
+        <Alert variant="danger" className="mb-4">
+          {error}
+        </Alert>
+      )}
+
+      {listingData && (
+        <Card>
+          <Card.Header className="d-flex justify-content-between align-items-center">
+            <h5 className="mb-0">Résultats du Listing</h5>
+            <div>
+              <Badge bg="primary" className="me-2">
+                {listingData.summary.total_students} étudiant(s)
+              </Badge>
+              <Badge bg="success">
+                {new Intl.NumberFormat('fr-FR').format(listingData.summary.total_amount)} FCFA
+              </Badge>
+            </div>
+          </Card.Header>
+          <Card.Body>
+            <div 
+              dangerouslySetInnerHTML={{ __html: listingData.html }}
+              style={{ 
+                maxHeight: '600px', 
+                overflowY: 'auto',
+                border: '1px solid #dee2e6',
+                padding: '15px'
+              }}
+            />
+          </Card.Body>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+// Composant pour les listes de tranches
+const TrancheListsReport = () => {
+  const [listingData, setListingData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [classes, setClasses] = useState([]);
+  const [tranches, setTranches] = useState([]);
+
+  const [filters, setFilters] = useState({
+    start_date: new Date().toISOString().split("T")[0],
+    end_date: new Date().toISOString().split("T")[0],
+    class_id: "",
+    tranche_ids: []
+  });
+
+  useEffect(() => {
+    loadClasses();
+    loadTranches();
+  }, []);
+
+  const loadClasses = async () => {
+    try {
+      const response = await secureApiEndpoints.accountant.getClasses();
+      if (response.success && response.data && response.data.classes) {
+        setClasses(response.data.classes);
+      } else {
+        setClasses([]);
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des classes:", error);
+      setClasses([]);
+    }
+  };
+
+  const loadTranches = async () => {
+    try {
+      const response = await secureApiEndpoints.payments.getTranches();
+      if (response.success && response.data) {
+        setTranches(response.data);
+        // Sélectionner toutes les tranches par défaut
+        setFilters(prev => ({
+          ...prev,
+          tranche_ids: response.data.map(t => t.id)
+        }));
+      } else {
+        setTranches([]);
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des tranches:", error);
+      setTranches([]);
+    }
+  };
+
+  const handleTrancheToggle = (trancheId) => {
+    setFilters(prev => ({
+      ...prev,
+      tranche_ids: prev.tranche_ids.includes(trancheId)
+        ? prev.tranche_ids.filter(id => id !== trancheId)
+        : [...prev.tranche_ids, trancheId]
+    }));
+  };
+
+  const selectAllTranches = () => {
+    setFilters(prev => ({
+      ...prev,
+      tranche_ids: tranches.map(t => t.id)
+    }));
+  };
+
+  const deselectAllTranches = () => {
+    setFilters(prev => ({
+      ...prev,
+      tranche_ids: []
+    }));
+  };
+
+  const generateListing = async () => {
+    if (filters.tranche_ids.length === 0) {
+      setError("Veuillez sélectionner au moins une tranche");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await secureApiEndpoints.payments.generateTrancheListsReport({
+        ...filters,
+        format: "html"
+      });
+
+      if (response.success) {
+        setListingData(response.data);
+      } else {
+        setError(response.message || "Erreur lors de la génération du listing");
+      }
+    } catch (error) {
+      setError("Erreur lors de la génération du listing");
+      console.error("Erreur:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadPDF = async () => {
+    if (filters.tranche_ids.length === 0) {
+      setError("Veuillez sélectionner au moins une tranche");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await secureApiEndpoints.payments.downloadTrancheListsReportPDF(filters);
+    } catch (error) {
+      setError("Erreur lors du téléchargement PDF");
+      console.error("Erreur:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const printReport = () => {
+    if (listingData?.html) {
+      const printWindow = window.open("", "_blank");
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Listes des Tranches</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+            @media print { 
+              body { margin: 0; }
+              .no-print { display: none !important; }
+            }
+          </style>
+        </head>
+        <body>
+          ${listingData.html}
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
+  };
+
+  return (
+    <div>
+      <Card className="mb-4">
+        <Card.Header>
+          <h5 className="mb-0">Paramètres des Listes par Tranches</h5>
+        </Card.Header>
+        <Card.Body>
+          <Row>
+            <Col md={3}>
+              <Form.Group className="mb-3">
+                <Form.Label>Date de début</Form.Label>
+                <Form.Control
+                  type="date"
+                  value={filters.start_date}
+                  onChange={(e) =>
+                    setFilters(prev => ({
+                      ...prev,
+                      start_date: e.target.value
+                    }))
+                  }
+                />
+              </Form.Group>
+            </Col>
+            <Col md={3}>
+              <Form.Group className="mb-3">
+                <Form.Label>Date de fin</Form.Label>
+                <Form.Control
+                  type="date"
+                  value={filters.end_date}
+                  onChange={(e) =>
+                    setFilters(prev => ({
+                      ...prev,
+                      end_date: e.target.value
+                    }))
+                  }
+                />
+              </Form.Group>
+            </Col>
+            <Col md={3}>
+              <Form.Group className="mb-3">
+                <Form.Label>Classe (optionnel)</Form.Label>
+                <Form.Select
+                  value={filters.class_id}
+                  onChange={(e) =>
+                    setFilters(prev => ({
+                      ...prev,
+                      class_id: e.target.value
+                    }))
+                  }
+                >
+                  <option value="">Toutes les classes</option>
+                  {classes.map((classe) => (
+                    <option key={classe.id} value={classe.id}>
+                      {classe.name}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={3}>
+              <Form.Group className="mb-3">
+                <Form.Label>&nbsp;</Form.Label>
+                <div className="d-grid gap-2">
+                  <Button
+                    variant="primary"
+                    onClick={generateListing}
+                    disabled={loading || filters.tranche_ids.length === 0}
+                  >
+                    {loading ? (
+                      <Spinner animation="border" size="sm" />
+                    ) : (
+                      <>
+                        <Search className="me-2" size={16} />
+                        Générer
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </Form.Group>
+            </Col>
+          </Row>
+
+          {/* Sélection des tranches */}
+          <Row>
+            <Col>
+              <Form.Group className="mb-3">
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <Form.Label><strong>Tranches à inclure :</strong> <small className="text-muted">(Seuls les étudiants ayant payé ces tranches dans la période seront affichés)</small></Form.Label>
+                  <div>
+                    <Button variant="outline-primary" size="sm" onClick={selectAllTranches} className="me-2">
+                      Tout sélectionner
+                    </Button>
+                    <Button variant="outline-secondary" size="sm" onClick={deselectAllTranches}>
+                      Tout désélectionner
+                    </Button>
+                  </div>
+                </div>
+                <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #dee2e6', padding: '10px', borderRadius: '5px' }}>
+                  <Row>
+                    {tranches.map((tranche) => (
+                      <Col md={4} key={tranche.id} className="mb-2">
+                        <Form.Check
+                          type="checkbox"
+                          id={`tranche-${tranche.id}`}
+                          label={tranche.name}
+                          checked={filters.tranche_ids.includes(tranche.id)}
+                          onChange={() => handleTrancheToggle(tranche.id)}
+                        />
+                      </Col>
+                    ))}
+                  </Row>
+                </div>
+                {filters.tranche_ids.length > 0 && (
+                  <div className="mt-2">
+                    <Badge bg="info">
+                      {filters.tranche_ids.length} tranche(s) sélectionnée(s)
+                    </Badge>
+                  </div>
+                )}
+              </Form.Group>
+            </Col>
+          </Row>
+
+          {listingData && (
+            <Row className="mt-3">
+              <Col>
+                <div className="d-flex gap-2">
+                  <Button variant="success" onClick={downloadPDF} disabled={loading}>
+                    <FileText className="me-2" size={16} />
+                    Télécharger PDF
+                  </Button>
+                  <Button variant="info" onClick={printReport}>
+                    <Printer className="me-2" size={16} />
+                    Imprimer
+                  </Button>
+                </div>
+              </Col>
+            </Row>
+          )}
+        </Card.Body>
+      </Card>
+
+      {error && (
+        <Alert variant="danger" className="mb-4">
+          {error}
+        </Alert>
+      )}
+
+      {listingData && (
+        <Card>
+          <Card.Header className="d-flex justify-content-between align-items-center">
+            <h5 className="mb-0">Résultats du Listing par Tranches</h5>
+            <div>
+              <Badge bg="primary" className="me-2">
+                {listingData.summary.total_students} étudiant(s)
+              </Badge>
+              <Badge bg="success">
+                {listingData.summary.selected_tranches.join(', ')}
+              </Badge>
+            </div>
+          </Card.Header>
+          <Card.Body>
+            <div 
+              dangerouslySetInnerHTML={{ __html: listingData.html }}
+              style={{ 
+                maxHeight: '600px', 
+                overflowY: 'auto',
+                border: '1px solid #dee2e6',
+                padding: '15px'
+              }}
+            />
+          </Card.Body>
+        </Card>
+      )}
+    </div>
   );
 };
 

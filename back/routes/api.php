@@ -294,6 +294,9 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{paymentId}/receipt', [PaymentController::class, 'generateReceipt']);
         Route::get('/{paymentId}/receipt/pdf', [PaymentController::class, 'downloadReceiptPDF']);
         Route::get('/stats', [PaymentController::class, 'getPaymentStats']);
+        Route::post('/listing-report', [PaymentController::class, 'generatePaymentListingReport']);
+        Route::post('/tranche-lists-report', [PaymentController::class, 'generateTrancheListsReport']);
+        Route::get('/tranches', [PaymentController::class, 'getPaymentTranches']);
     });
 
     // Routes pour les paramètres de l'école

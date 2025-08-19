@@ -770,6 +770,77 @@ export const secureApiEndpoints = {
         getStats: (params = {}) => {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/payments/stats${queryString ? '?' + queryString : ''}`);
+        },
+        generateListingReport: (data) => secureApi.post('/payments/listing-report', data),
+        generateTrancheListsReport: (data) => secureApi.post('/payments/tranche-lists-report', data),
+        getTranches: () => secureApi.get('/payments/tranches'),
+        downloadListingReportPDF: async (data) => {
+            const token = authService.getToken();
+            const response = await fetch(`${secureApi.baseURL}/payments/listing-report`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/pdf'
+                },
+                body: JSON.stringify({...data, format: 'pdf'})
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const blob = await response.blob();
+            
+            // Créer un nom de fichier
+            const filename = `listing_paiements_${data.start_date}_${data.end_date}.pdf`;
+
+            // Créer et déclencher le téléchargement
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            return { success: true, filename };
+        },
+        downloadTrancheListsReportPDF: async (data) => {
+            const token = authService.getToken();
+            const response = await fetch(`${secureApi.baseURL}/payments/tranche-lists-report`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/pdf'
+                },
+                body: JSON.stringify({...data, format: 'pdf'})
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const blob = await response.blob();
+            
+            // Créer un nom de fichier
+            const filename = `liste_tranches_${data.start_date}_${data.end_date}.pdf`;
+
+            // Créer et déclencher le téléchargement
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            return { success: true, filename };
         }
     },
 
