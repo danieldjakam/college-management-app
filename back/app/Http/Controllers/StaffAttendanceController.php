@@ -803,7 +803,6 @@ class StaffAttendanceController extends Controller
                     border: none;
                 }
 
-
                 .photo-cell {
                     width: 25%;
                     text-align: center;
@@ -818,16 +817,14 @@ class StaffAttendanceController extends Controller
                     background: #f9f9f9;
                 }
 
-                /* Colonne 2 - Informations (50%) */
                 .info-cell {
-                    width: 40%;
+                    width: 50%;
                     padding-left: 8px;
                     padding-right: 8px;
                 }
 
-                .id-number-label {
-                    font-size: 10px;
-                    color: {$staffConfig['color']};
+                .id-number-label, .name-label, .role-label {
+                    font-size: 6px;
                     font-weight: bold;
                     text-transform: uppercase;
                     margin-bottom: 1px;
@@ -836,25 +833,14 @@ class StaffAttendanceController extends Controller
                 }
 
                 .id-number {
-                    font-size: 18px;
-                    color: {$staffConfig['color']};
+                    font-size: 10px;
                     font-weight: bold;
                     margin-bottom: 4px;
                     display: block;
                 }
 
-                .name-label {
-                    font-size: 10px;
-                    color: {$staffConfig['color']};
-                    font-weight: bold;
-                    text-transform: uppercase;
-                    margin-bottom: 1px;
-                    letter-spacing: 0.5px;
-                    display: block;
-                }
-
                 .staff-name {
-                    font-size: 10px;
+                    font-size: 9px;
                     color: #2c2c2c;
                     font-weight: bold;
                     margin-bottom: 4px;
@@ -862,25 +848,14 @@ class StaffAttendanceController extends Controller
                     display: block;
                 }
 
-                .role-label {
-                    font-size: 10px;
-                    color: {$staffConfig['color']};
-                    font-weight: bold;
-                    text-transform: uppercase;
-                    margin-bottom: 1px;
-                    letter-spacing: 0.5px;
-                    display: block;
-                }
-
                 .staff-role {
-                    font-size: 10px;
+                    font-size: 8px;
                     color: #2c2c2c;
                     font-weight: normal;
                     line-height: 1.1;
                     display: block;
                 }
 
-                /* Colonne 3 - QR Code (25%) */
                 .qr-cell {
                     width: 25%;
                     text-align: center;
@@ -893,14 +868,11 @@ class StaffAttendanceController extends Controller
                     border: 1px solid #ddd;
                 }
 
-                /* Footer Section */
                 .badge-footer {
                     position: absolute;
                     bottom: 0;
                     left: 0;
                     right: 0;
-                    background: " . $this->adjustBrightness($staffConfig['color'], 60) . ";
-                    color: {$staffConfig['color']};
                     padding: 3px 12px;
                     text-align: center;
                     font-size: 7px;

@@ -228,4 +228,73 @@ class DiscountCalculatorService
     {
         return $this->schoolSettings->reduction_percentage ?? 0;
     }
+
+    /**
+     * Calculer les montants avec réduction appliquée depuis les dernières tranches
+     * 
+     * @param Student $student
+     * @param \Illuminate\Support\Collection $paymentTranches Collection des tranches triées par ordre
+     * @return array ['tranches' => [...], 'total_reduction' => 0]
+     */
+    public function calculateAmountsWithLastTrancheReduction($student, $paymentTranches): array
+    {
+        $discountPercentage = $this->getDiscountPercentage();
+        
+        if ($discountPercentage <= 0) {
+            // Pas de réduction, retourner les montants normaux
+            return [
+                'tranches' => $paymentTranches->map(function($tranche) use ($student) {
+                    return [
+                        'tranche' => $tranche,
+                        'normal_amount' => $tranche->getAmountForStudent($student, false, false, false, false),
+                        'reduced_amount' => $tranche->getAmountForStudent($student, false, false, false, false),
+                        'reduction_applied' => 0
+                    ];
+                })->toArray(),
+                'total_reduction' => 0
+            ];
+        }
+
+        // Calculer le montant total et la réduction totale
+        $totalAmount = 0;
+        $trancheAmounts = [];
+        
+        foreach ($paymentTranches as $tranche) {
+            $amount = $tranche->getAmountForStudent($student, false, false, false, false);
+            $totalAmount += $amount;
+            $trancheAmounts[] = [
+                'tranche' => $tranche,
+                'normal_amount' => $amount,
+                'reduced_amount' => $amount, // Sera modifié ci-dessous
+                'reduction_applied' => 0
+            ];
+        }
+        
+        $totalReduction = round($totalAmount * ($discountPercentage / 100), 0);
+        $remainingReduction = $totalReduction;
+        
+        // Trier les tranches par ordre décroissant (dernière → première)
+        $sortedIndices = array_keys($trancheAmounts);
+        usort($sortedIndices, function($a, $b) use ($trancheAmounts) {
+            return $trancheAmounts[$b]['tranche']->order <=> $trancheAmounts[$a]['tranche']->order;
+        });
+        
+        // Appliquer la réduction depuis les dernières tranches
+        foreach ($sortedIndices as $index) {
+            if ($remainingReduction <= 0) break;
+            
+            $normalAmount = $trancheAmounts[$index]['normal_amount'];
+            $reductionOnThisTranche = min($remainingReduction, $normalAmount);
+            
+            $trancheAmounts[$index]['reduced_amount'] = $normalAmount - $reductionOnThisTranche;
+            $trancheAmounts[$index]['reduction_applied'] = $reductionOnThisTranche;
+            
+            $remainingReduction -= $reductionOnThisTranche;
+        }
+        
+        return [
+            'tranches' => $trancheAmounts,
+            'total_reduction' => $totalReduction
+        ];
+    }
 }

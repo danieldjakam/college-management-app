@@ -22,9 +22,44 @@ class PaymentStatusService
     {
         $paymentTranches = $this->getApplicableTranches($student);
         $existingPayments = $this->getExistingPayments($student->id, $schoolYear->id);
+        
+        return $this->calculateStatusForStudent($student, $schoolYear, $paymentTranches, $existingPayments);
+    }
 
-        // Calculer les totaux et le statut par tranche avec montants NORMAUX
-        $trancheDetails = $this->calculateTrancheDetails($student, $paymentTranches, $existingPayments);
+    /**
+     * Obtenir le statut pour un étudiant avec des paiements spécifiques (pour les reçus)
+     */
+    public function getStatusForStudentWithPayments(Student $student, SchoolYear $schoolYear, $existingPayments): object
+    {
+        $paymentTranches = $this->getApplicableTranches($student);
+        
+        return $this->calculateStatusForStudent($student, $schoolYear, $paymentTranches, $existingPayments);
+    }
+
+    /**
+     * Méthode commune pour calculer le statut d'un étudiant
+     */
+    private function calculateStatusForStudent(Student $student, SchoolYear $schoolYear, $paymentTranches, $existingPayments): object
+    {
+
+        // Utiliser la logique de réduction par dernières tranches pour les étudiants avec paiements réduits
+        $hasAnyReduction = false;
+        foreach ($existingPayments as $payment) {
+            foreach ($payment->paymentDetails as $detail) {
+                if ($detail->was_reduced && (strpos($detail->reduction_context, 'Réduction globale') !== false || strpos($detail->reduction_context, 'Nouvelle réduction') !== false)) {
+                    $hasAnyReduction = true;
+                    break 2;
+                }
+            }
+        }
+        
+        if ($hasAnyReduction) {
+            // Utiliser la logique de réduction par dernières tranches
+            $trancheDetails = $this->calculateTrancheDetailsWithLastTrancheReduction($student, $paymentTranches, $existingPayments);
+        } else {
+            // Par défaut, afficher les montants normaux
+            $trancheDetails = $this->calculateTrancheDetails($student, $paymentTranches, $existingPayments);
+        }
         
         // Calculer le montant total des bourses disponibles (pour information)
         $totalScholarshipAmount = $this->calculateTotalScholarshipAmount($student, $paymentTranches);
@@ -52,7 +87,7 @@ class PaymentStatusService
             // Montants normaux affichés partout
             'total_required' => $totalRequired,
             'total_paid' => $totalPaid,
-            'total_remaining' => max(0, $totalEffectiveRequired - $totalPaid),
+            'total_remaining' => max(0, $totalEffectiveRequired - $totalPaid), // Tenir compte des réductions appliquées
             // Informations sur les bourses (pour calcul de répartition)
             'total_scholarship_amount' => $totalScholarshipAmount,
             'has_scholarships' => $totalScholarshipAmount > 0,
@@ -112,7 +147,7 @@ class PaymentStatusService
                 $paidPerTranche[$detail->payment_tranche_id] += $detail->amount_allocated;
                 
                 // Vérifier si ce détail a une réduction globale
-                if ($detail->was_reduced && strpos($detail->reduction_context, 'Réduction globale') !== false) {
+                if ($detail->was_reduced && (strpos($detail->reduction_context, 'Réduction globale') !== false || strpos($detail->reduction_context, 'Nouvelle réduction') !== false)) {
                     $schoolSettings = \App\Models\SchoolSetting::getSettings();
                     $discountPercentage = $schoolSettings->reduction_percentage ?? 0;
                     
@@ -132,44 +167,88 @@ class PaymentStatusService
         // Récupérer les informations de bourse et réduction
         $discountCalculator = new \App\Services\DiscountCalculatorService();
         $scholarship = $discountCalculator->getClassScholarship($student);
+        $discountPercentage = $this->schoolSettings->reduction_percentage ?? 0;
+        
+        // Détecter si l'étudiant a bénéficié d'une réduction globale intégrale
+        $hasGlobalReduction = false;
+        $totalRequiredForCalculation = 0;
+        $totalPaidWithoutDiscount = 0;
+        
+        foreach ($paymentTranches as $tranche) {
+            $amount = $tranche->getAmountForStudent($student, false, false, false);
+            if ($amount > 0) {
+                $totalRequiredForCalculation += $amount;
+            }
+        }
+        
+        // Calculer le total payé et vérifier si cela correspond à un paiement intégral avec réduction
+        foreach ($existingPayments as $payment) {
+            foreach ($payment->paymentDetails as $detail) {
+                $totalPaidWithoutDiscount += $detail->amount_allocated;
+            }
+        }
+        
+        // Si le montant payé correspond exactement au montant total avec réduction globale, 
+        // alors toutes les tranches bénéficient de la réduction
+        $expectedAmountWithDiscount = $totalRequiredForCalculation * (1 - $discountPercentage / 100);
+        if (abs($totalPaidWithoutDiscount - $expectedAmountWithDiscount) < 1 && $discountPercentage > 0) {
+            $hasGlobalReduction = true;
+        }
 
         foreach ($paymentTranches as $tranche) {
             $requiredAmount = $tranche->getAmountForStudent($student, false, false, false); // Montants NORMAUX
             if ($requiredAmount <= 0) continue;
 
             $paidAmount = $paidPerTranche[$tranche->id] ?? 0;
-            $remainingAmount = max(0, $requiredAmount - $paidAmount);
 
             // Vérifier si cette tranche bénéficie d'une bourse
             $scholarshipAmount = 0;
             $hasScholarship = false;
             $globalDiscountAmount = 0;
             $hasGlobalDiscount = false;
+            $remainingAmount = 0;
+            $isFullyPaid = false;
             
             if ($scholarship && $scholarship->payment_tranche_id == $tranche->id && $discountCalculator->isEligibleForScholarship(now())) {
                 // Cas avec bourse
                 $scholarshipAmount = $scholarship->amount;
                 $hasScholarship = true;
                 
-                // Pour le statut, considérer qu'une tranche est "complète" si: montant payé + bourse >= montant normal
+                // Calculer le restant en tenant compte de la bourse
+                $effectiveRequired = max(0, $requiredAmount - $scholarshipAmount);
+                $remainingAmount = max(0, $effectiveRequired - $paidAmount);
                 $isFullyPaid = ($paidAmount + $scholarshipAmount) >= $requiredAmount;
             } else {
-                // Cas normal - utiliser les informations de réduction stockées
-                $discountInfo = $discountPerTranche[$tranche->id] ?? ['has_discount' => false, 'discount_amount' => 0];
-                
-                if ($discountInfo['has_discount']) {
+                // Cas normal - vérifier d'abord si réduction globale intégrale
+                if ($hasGlobalReduction) {
+                    // L'étudiant a fait un paiement intégral avec réduction globale
                     $hasGlobalDiscount = true;
-                    $globalDiscountAmount = $discountInfo['discount_amount'];
-                    $isFullyPaid = true; // Si il y a une réduction, c'est que c'est complet
+                    $globalDiscountAmount = round($requiredAmount * ($discountPercentage / 100), 0);
+                    $remainingAmount = 0;
+                    $isFullyPaid = true;
                 } else {
-                    $hasGlobalDiscount = false;
-                    $globalDiscountAmount = 0;
-                    $isFullyPaid = $paidAmount >= $requiredAmount;
+                    // Utiliser les informations de réduction stockées pour cette tranche spécifique
+                    $discountInfo = $discountPerTranche[$tranche->id] ?? ['has_discount' => false, 'discount_amount' => 0];
+                    
+                    if ($discountInfo['has_discount']) {
+                        $hasGlobalDiscount = true;
+                        $globalDiscountAmount = $discountInfo['discount_amount'];
+                        // Si une réduction globale a été appliquée, la tranche est considérée comme payée intégralement
+                        $remainingAmount = 0;
+                        $isFullyPaid = true;
+                    } else {
+                        $hasGlobalDiscount = false;
+                        $globalDiscountAmount = 0;
+                        $remainingAmount = max(0, $requiredAmount - $paidAmount);
+                        $isFullyPaid = $paidAmount >= $requiredAmount;
+                    }
                 }
             }
 
             $trancheStatus[] = [
-                'tranche' => $tranche,
+                'tranche_id' => $tranche->id,
+                'tranche_name' => $tranche->name,
+                'tranche_order' => $tranche->order,
                 'required_amount' => $requiredAmount,
                 'paid_amount' => $paidAmount,
                 'remaining_amount' => $remainingAmount,
@@ -179,6 +258,17 @@ class PaymentStatusService
                 'has_global_discount' => $hasGlobalDiscount,
                 'global_discount_amount' => $globalDiscountAmount,
                 'discount_percentage' => $hasGlobalDiscount ? $discountPercentage : 0,
+                // Propriétés par défaut pour compatibilité
+                'is_physical_only' => false,
+                'is_optional' => false,
+                'rame_paid' => false,
+                // Objet tranche pour compatibilité avec le frontend existant
+                'tranche' => [
+                    'id' => $tranche->id,
+                    'name' => $tranche->name,
+                    'order' => $tranche->order,
+                    'description' => $tranche->description ?? ''
+                ]
             ];
 
             $totalRequired += $requiredAmount;
@@ -223,7 +313,7 @@ class PaymentStatusService
     }
 
     /**
-     * Obtenir les détails des tranches avec réduction appliquée
+     * Obtenir les détails des tranches avec réduction appliquée depuis les dernières tranches
      */
     public function getTranchesWithDiscount(Student $student, SchoolYear $schoolYear): array
     {
@@ -231,23 +321,28 @@ class PaymentStatusService
         $existingPayments = $this->getExistingPayments($student->id, $schoolYear->id);
         $discountPercentage = $this->schoolSettings->reduction_percentage ?? 0;
         
+        // Utiliser la nouvelle logique de réduction depuis les dernières tranches
+        $discountCalculator = new \App\Services\DiscountCalculatorService();
+        $reductionResult = $discountCalculator->calculateAmountsWithLastTrancheReduction($student, $paymentTranches);
+        
         $trancheDetails = [];
         $totalRequired = 0;
         $totalRequiredWithDiscount = 0;
         
-        foreach ($paymentTranches as $tranche) {
-            $normalAmount = $tranche->getAmountForStudent($student, false, false, false, false);
-            if ($normalAmount <= 0) continue;
+        foreach ($reductionResult['tranches'] as $trancheData) {
+            $tranche = $trancheData['tranche'];
+            $normalAmount = $trancheData['normal_amount'];
+            $reducedAmount = $trancheData['reduced_amount'];
+            $reductionApplied = $trancheData['reduction_applied'];
             
-            $discountAmount = round($normalAmount * ($discountPercentage / 100), 0);
-            $reducedAmount = $normalAmount - $discountAmount;
+            if ($normalAmount <= 0) continue;
             
             $trancheDetails[] = [
                 'tranche' => $tranche,
                 'normal_amount' => $normalAmount,
-                'discount_amount' => $discountAmount,
+                'discount_amount' => $reductionApplied,
                 'reduced_amount' => $reducedAmount,
-                'discount_percentage' => $discountPercentage
+                'discount_percentage' => $normalAmount > 0 ? round(($reductionApplied / $normalAmount) * 100, 2) : 0
             ];
             
             $totalRequired += $normalAmount;
@@ -258,8 +353,103 @@ class PaymentStatusService
             'tranches' => $trancheDetails,
             'total_normal' => $totalRequired,
             'total_with_discount' => $totalRequiredWithDiscount,
-            'total_discount_amount' => $totalRequired - $totalRequiredWithDiscount,
+            'total_discount_amount' => $reductionResult['total_reduction'],
             'discount_percentage' => $discountPercentage
+        ];
+    }
+
+    /**
+     * Nouvelle méthode qui calcule les détails des tranches avec la logique de réduction par dernières tranches
+     */
+    private function calculateTrancheDetailsWithLastTrancheReduction(Student $student, $paymentTranches, $existingPayments)
+    {
+        $trancheStatus = [];
+        $totalRequired = 0;
+        $totalPaid = 0;
+        $totalEffectiveRequired = 0;
+
+        // Calculer les montants avec la nouvelle logique de réduction
+        $discountCalculator = new \App\Services\DiscountCalculatorService();
+        $reductionResult = $discountCalculator->calculateAmountsWithLastTrancheReduction($student, $paymentTranches);
+
+        // Calculer ce qui a été payé par tranche
+        $paidPerTranche = [];
+        foreach ($existingPayments as $payment) {
+            foreach ($payment->paymentDetails as $detail) {
+                if (!isset($paidPerTranche[$detail->payment_tranche_id])) {
+                    $paidPerTranche[$detail->payment_tranche_id] = 0;
+                }
+                $paidPerTranche[$detail->payment_tranche_id] += $detail->amount_allocated;
+            }
+        }
+
+        // Traiter chaque tranche avec les nouveaux montants
+        foreach ($reductionResult['tranches'] as $trancheData) {
+            $tranche = $trancheData['tranche'];
+            $normalAmount = $trancheData['normal_amount'];
+            $reducedAmount = $trancheData['reduced_amount'];
+            $reductionApplied = $trancheData['reduction_applied'];
+
+            if ($normalAmount <= 0) continue;
+
+            $paidAmount = $paidPerTranche[$tranche->id] ?? 0;
+            
+            // Utiliser le montant réduit pour calculer ce qui reste à payer
+            $remainingAmount = max(0, $reducedAmount - $paidAmount);
+
+            // Calculer les informations de bourse pour cette tranche
+            $scholarshipAmount = 0;
+            $hasScholarship = false;
+            $discountCalculator = new \App\Services\DiscountCalculatorService();
+            $scholarship = $discountCalculator->getClassScholarship($student);
+            if ($scholarship && $scholarship->payment_tranche_id == $tranche->id && $discountCalculator->isEligibleForScholarship(now())) {
+                $scholarshipAmount = min($scholarship->amount, $normalAmount);
+                $hasScholarship = true;
+            }
+
+            $trancheStatus[] = [
+                'tranche_id' => $tranche->id,
+                'tranche_name' => $tranche->name,
+                'tranche_order' => $tranche->order,
+                'required_amount' => $normalAmount, // Montant normal pour affichage
+                'effective_required_amount' => $reducedAmount, // Montant effectif à payer
+                'paid_amount' => $paidAmount,
+                'remaining_amount' => $remainingAmount,
+                'is_fully_paid' => $remainingAmount <= 0,
+                'reduction_applied' => $reductionApplied,
+                'has_reduction' => $reductionApplied > 0,
+                'reduction_percentage' => $normalAmount > 0 ? round(($reductionApplied / $normalAmount) * 100, 2) : 0,
+                // Propriétés pour compatibilité frontend
+                'has_global_discount' => $reductionApplied > 0,
+                'global_discount_amount' => $reductionApplied,
+                'discount_percentage' => $normalAmount > 0 ? round(($reductionApplied / $normalAmount) * 100, 2) : 0,
+                // Propriétés de bourse
+                'has_scholarship' => $hasScholarship,
+                'scholarship_amount' => $scholarshipAmount,
+                // Propriétés par défaut pour compatibilité
+                'is_physical_only' => false, // Cette tranche n'est pas physique seulement
+                'is_optional' => false, // Par défaut, les tranches ne sont pas optionnelles
+                'rame_paid' => false, // Pour la RAME, géré séparément
+                // Objet tranche pour compatibilité avec le frontend existant
+                'tranche' => [
+                    'id' => $tranche->id,
+                    'name' => $tranche->name,
+                    'order' => $tranche->order,
+                    'description' => $tranche->description ?? ''
+                ]
+            ];
+
+            $totalRequired += $normalAmount;
+            $totalPaid += $paidAmount;
+            $totalEffectiveRequired += $reducedAmount;
+        }
+
+        return [
+            'status' => $trancheStatus,
+            'totalRequired' => $totalRequired,
+            'totalPaid' => $totalPaid,
+            'totalEffectiveRequired' => $totalEffectiveRequired,
+            'totalReduction' => $reductionResult['total_reduction']
         ];
     }
 
