@@ -722,59 +722,8 @@ export const secureApiEndpoints = {
     },
 
     // === PAYMENTS ===
-    payments: {
-        getStudentInfo: (studentId) => secureApi.get(`/payments/student/${studentId}/info`),
-        getStudentInfoWithDiscount: (studentId) => secureApi.get(`/payments/student/${studentId}/info-with-discount`),
-        getStudentHistory: (studentId) => secureApi.get(`/payments/student/${studentId}/history`),
-        calculateWithDate: (studentId, data) => secureApi.post(`/payments/student/${studentId}/calculate-with-date`, data),
-        create: (data) => secureApi.post('/payments', data),
-        generateReceipt: (paymentId) => secureApi.get(`/payments/${paymentId}/receipt`),
-        downloadReceiptPDF: async (paymentId) => {
-            const token = authService.getToken();
-            const response = await fetch(`${secureApi.baseURL}/payments/${paymentId}/receipt/pdf`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/pdf'
-                }
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || 'Erreur lors du téléchargement du PDF');
-            }
-
-            // Créer un blob pour le PDF
-            const blob = await response.blob();
-            
-            // Créer un nom de fichier à partir des headers ou par défaut
-            const contentDisposition = response.headers.get('content-disposition');
-            let filename = `Recu_${paymentId}.pdf`;
-            if (contentDisposition && contentDisposition.includes('filename=')) {
-                filename = contentDisposition.split('filename=')[1].replace(/"/g, '');
-            }
-
-            // Créer et déclencher le téléchargement
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-
-            return { success: true, filename };
-        },
-        getStats: (params = {}) => {
-            const queryString = new URLSearchParams(params).toString();
-            return secureApi.get(`/payments/stats${queryString ? '?' + queryString : ''}`);
-        },
-        generateListingReport: (data) => secureApi.post('/payments/listing-report', data),
-        generateTrancheListsReport: (data) => secureApi.post('/payments/tranche-lists-report', data),
-        getTranches: () => secureApi.get('/payments/tranches'),
-    },
+    // payments: {
+    // },
 
     // === STUDENT RAME (pour RameStatusToggle) ===
     studentRame: {
@@ -866,7 +815,45 @@ export const secureApiEndpoints = {
             document.body.removeChild(a);
 
             return { success: true, filename };
-        }
+        },
+        downloadReceiptPDF: async (paymentId) => {
+            const token = authService.getToken();
+            const response = await fetch(`${secureApi.baseURL}/payments/${paymentId}/receipt/pdf`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/pdf'
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Erreur lors du téléchargement du PDF');
+            }
+
+            // Créer un blob pour le PDF
+            const blob = await response.blob();
+            
+            // Créer un nom de fichier à partir des headers ou par défaut
+            const contentDisposition = response.headers.get('content-disposition');
+            let filename = `Recu_${paymentId}.pdf`;
+            if (contentDisposition && contentDisposition.includes('filename=')) {
+                filename = contentDisposition.split('filename=')[1].replace(/"/g, '');
+            }
+
+            // Créer et déclencher le téléchargement
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            return { success: true, filename };
+        },
     },
 
 
