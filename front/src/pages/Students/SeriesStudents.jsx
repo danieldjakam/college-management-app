@@ -1476,9 +1476,9 @@ const SeriesStudents = () => {
                         </div>
                     ) : (
                         // Vue en liste (tableau) avec drag & drop
-                        <div className="card">
+                        <div className="card" style={{ overflow: 'visible' }}>
                             <div className="card-body p-0">
-                                <div className="table-responsive">
+                                <div className="table-responsive"  style={{ overflow: 'visible' }}>
                                     <DndContext
                                         sensors={sensors}
                                         collisionDetection={closestCenter}
