@@ -36,7 +36,7 @@ const StudentActionsDropdown = ({
                 <ThreeDotsVertical size={16} />
             </Dropdown.Toggle>
 
-            <Dropdown.Menu className="shadow-sm">
+            <Dropdown.Menu className="shadow-sm z-10">
                 {/* Voir l'élève */}
                 <Dropdown.Item 
                     onClick={() => onViewStudent?.(student)}

@@ -299,6 +299,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/tranches', [PaymentController::class, 'getPaymentTranches']);
     });
 
+
     // Routes pour les paramètres de l'école
     Route::prefix('school-settings')->group(function () {
         Route::get('/', [SchoolSettingsController::class, 'index'])->middleware(['role:admin,accountant,surveillant_general,comptable_superieur']);
@@ -514,7 +515,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/generate-all-qrs', [SupervisorController::class, 'generateAllStudentQRs'])->middleware(['role:admin']);
     });
 
-    // Routes pour la gestion RAME simplifiée
+    // Routes pour la gestion RAME (pour RameStatusToggle)
     Route::prefix('student-rame')->middleware(['role:admin,accountant'])->group(function () {
         Route::get('/student/{studentId}/status', [StudentRameController::class, 'getRameStatus']);
         Route::post('/student/{studentId}/update', [StudentRameController::class, 'updateRameStatus']);
@@ -630,6 +631,9 @@ Route::middleware('auth:api')->group(function () {
         // État de recouvrement
         Route::get('/recovery-status', [ReportsController::class, 'getRecoveryStatus']);
         Route::get('/recovery-status/export-pdf', [ReportsController::class, 'exportRecoveryStatusPdf']);
+        
+        // État général de recouvrement
+        Route::get('/general-recovery-status/export-pdf', [ReportsController::class, 'exportGeneralRecoveryStatusToPdf']);
         
         // Certificats de scolarité
         Route::get('/school-certificates', [ReportsController::class, 'generateSchoolCertificates']);
