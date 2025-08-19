@@ -3313,8 +3313,12 @@ class ReportsController extends Controller
 
         // Obtenir le logo en base64 pour DOMPDF
         $logoBase64 = '';
-        if ($schoolSettings->logo) {
-            $logoPath = storage_path('app/public/logos/' . $schoolSettings->logo);
+        if ($schoolSettings->school_logo) {
+            // Le chemin peut déjà contenir 'logos/' ou non
+            $logoPath = str_starts_with($schoolSettings->school_logo, 'logos/') 
+                ? storage_path('app/public/' . $schoolSettings->school_logo)
+                : storage_path('app/public/logos/' . $schoolSettings->school_logo);
+                
             if (file_exists($logoPath)) {
                 $logoData = file_get_contents($logoPath);
                 $logoBase64 = 'data:image/' . pathinfo($logoPath, PATHINFO_EXTENSION) . ';base64,' . base64_encode($logoData);
@@ -3346,312 +3350,375 @@ class ReportsController extends Controller
             <style>
                 @page {
                     size: A4 landscape;
-                    margin: 1cm;
+                    margin: 0.5cm;
                 }
 
                 body {
-                    font-family: 'Times New Roman', serif;
-                    font-size: 11px;
-                    line-height: 1.3;
+                    font-family: 'Times New Roman', Times, serif;
+                    font-size: 10px;
+                    line-height: 1.1;
                     color: #000;
                     margin: 0;
-                    padding: 15px;
+                    padding: 0;
                     position: relative;
-                    border: 2px solid #000;
-                    min-height: 95vh;
                     width: 100%;
+                    height: 100vh;
+                }
+
+
+                .container {
+                    position: relative;
+                    padding: 15px;
+                    z-index: 10;
+                    background: white;
+                    height: calc(100vh - 30px);
                     box-sizing: border-box;
                 }
 
-                /* Bordure décorative */
-                .border-decoration {
-                    position: absolute;
-                    top: 8px;
-                    left: 8px;
-                    right: 8px;
-                    bottom: 8px;
-                    border: 1px solid #000;
-                    border-style: dashed;
-                }
-
+                /* En-tête avec 3 colonnes */
                 .header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    margin-bottom: 20px;
                     width: 100%;
+                    margin-bottom: 15px;
                 }
 
-                .header-left, .header-right {
-                    width: 35%;
+                .header-row {
+                    width: 100%;
+                    position: relative;
+                }
+
+                .header-left {
+                    float: left;
+                    width: 32%;
                     text-align: center;
-                    font-size: 10px;
+                    font-size: 9px;
+                    line-height: 1.0;
                 }
 
                 .header-center {
-                    width: 30%;
+                    float: left;
+                    width: 36%;
                     text-align: center;
+                    padding: 0 2%;
+                }
+
+                .header-right {
+                    float: right;
+                    width: 32%;
+                    text-align: center;
+                    font-size: 9px;
+                    line-height: 1.0;
+                }
+
+                .clearfix {
+                    clear: both;
+                }
+
+                .logo-container {
+                    margin: 5px auto 8px auto;
+                    width: 70px;
+                    height: 70px;
+                    border: 2px solid #8B0066;
+                    border-radius: 50%;
+                    position: relative;
+                    background: white;
                 }
 
                 .logo {
-                    max-width: 80px;
-                    max-height: 80px;
-                    margin-bottom: 8px;
+                    width: 64px;
+                    height: 64px;
+                    border-radius: 50%;
+                    margin: 3px auto;
+                    display: block;
+                }
+
+                .logo-text {
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    margin-top: -10px;
+                    margin-left: -15px;
+                    font-weight: bold;
+                    font-size: 12px;
+                    color: #8B0066;
+                }
+
+                .logo-bottom {
+                    text-align: center;
+                    font-size: 9px;
+                    font-weight: bold;
+                    margin-top: 5px;
+                    color: #8B0066;
                 }
 
                 .republic-line {
                     font-weight: bold;
                     font-size: 11px;
-                    margin-bottom: 1px;
+                    margin-bottom: 2px;
                 }
 
                 .motto {
                     font-style: italic;
                     font-size: 9px;
-                    margin-bottom: 2px;
+                    margin-bottom: 3px;
+                    text-decoration: underline;
                 }
 
                 .ministry {
                     font-weight: bold;
                     font-size: 9px;
-                    margin-bottom: 3px;
+                    margin-bottom: 2px;
                 }
 
-                .school-info {
+                .school-name {
                     font-weight: bold;
                     font-size: 10px;
-                    margin-bottom: 1px;
+                    margin-bottom: 2px;
                 }
 
                 .school-details {
                     font-size: 8px;
-                    margin-bottom: 8px;
+                    margin-bottom: 3px;
                 }
 
                 .year-info {
                     font-size: 9px;
-                    margin-top: 5px;
+                    margin-top: 8px;
                 }
 
-                .title {
+                /* Titre principal */
+                .main-title {
                     text-align: center;
-                    margin: 25px 0 20px 0;
+                    margin: 15px 0 12px 0;
                 }
 
                 .title-fr {
-                    font-size: 18px;
+                    font-size: 16px;
                     font-weight: bold;
-                    color: #000;
+                    color: #CC0000;
                     margin-bottom: 3px;
+                    letter-spacing: 0.5px;
                 }
 
                 .title-en {
-                    font-size: 14px;
+                    font-size: 12px;
                     font-weight: bold;
                     font-style: italic;
-                    color: #000;
+                    color: #CC0000;
                 }
 
-                .form-section {
-                    margin: 15px 0;
+                /* Contenu principal */
+                .content {
+                    margin: 12px 0;
+                    line-height: 1.2;
                 }
 
                 .form-row {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
                     margin-bottom: 8px;
+                    width: 100%;
                 }
 
-                .form-field {
-                    display: flex;
-                    align-items: center;
-                    margin-bottom: 6px;
+                .form-row-flex {
+                    position: relative;
+                    width: 100%;
+                }
+
+                .form-left {
+                    float: left;
+                    width: 48%;
+                }
+
+                .form-right {
+                    float: right;
+                    width: 48%;
                 }
 
                 .field-label {
-                    margin-right: 8px;
-                    font-size: 9px;
+                    font-size: 10px;
+                    display: inline-block;
+                    margin-right: 6px;
                 }
 
                 .field-input {
-                    border: 1px solid #000;
-                    min-height: 16px;
-                    padding: 2px 6px;
-                    flex: 1;
-                    max-width: 250px;
-                    font-size: 9px;
-                    background-color: transparent;
+                    border: none;
+                    border-bottom: 1px solid #000;
+                    min-height: 14px;
+                    padding: 2px 0;
+                    display: inline-block;
+                    min-width: 150px;
+                    font-size: 10px;
+                    background: transparent;
+                    vertical-align: middle;
+                    text-decoration: underline;
                 }
 
-                .principal-section {
-                    margin: 20px 0;
+                .text-line {
+                    margin: 8px 0;
+                    font-size: 10px;
+                    line-height: 1.2;
+                }
+
+                .text-italic {
+                    font-style: italic;
+                    margin: 2px 0;
                     font-size: 9px;
                 }
 
-                .signature-section {
+                .inline-field {
+                    display: inline-block;
+                    margin: 0 3px;
+                    min-width: 100px;
+                }
+
+                .signature-area {
                     position: absolute;
-                    bottom: 60px;
-                    right: 80px;
+                    bottom: 40px;
+                    right: 60px;
                     text-align: center;
+                    font-size: 10px;
                 }
 
                 .signature-title {
                     font-weight: bold;
-                    font-size: 10px;
-                    margin-bottom: 30px;
-                }
-
-                .underline {
-                    text-decoration: underline;
-                }
-
-                .content-main {
-                    width: 100%;
-                    max-width: 100%;
-                    overflow: hidden;
-                }
-
-                .compact-spacing {
-                    margin: 8px 0;
-                }
-
-                .mini-spacing {
-                    margin: 4px 0;
+                    margin-bottom: 25px;
                 }
             </style>
         </head>
         <body>
-            <div class='border-decoration'></div>
-            
-            <div class='header'>
-                <div class='header-left'>
-                    <div class='republic-line'>REPUBLIQUE DU CAMEROUN</div>
-                    <div class='motto'><u>Paix-Travail-Patrie</u></div>
-                    <div class='ministry'>MINISTERE ES ENSEIGNEMENTS SECONDAIRES</div>
-                    <div class='school-info'>COLLEGE POLYVALENT BILINGUE DE DOUALA</div>
-                    <div class='school-details'>
-                        <u>BP:</u>4100 Douala Téléphone : 233 43 25 47<br>
-                        <strong>YASSA</strong>
+            <div class='container'>
+                <div class='header'>
+                    <div class='header-row'>
+                        <div class='header-left'>
+                            <div class='republic-line'>REPUBLIQUE DU CAMEROUN</div>
+                            <div class='motto'>Paix-Travail-Patrie</div>
+                            <div class='ministry'>MINISTERE ES ENSEIGNEMENTS SECONDAIRES</div>
+                            <div class='school-name'>COLLEGE POLYVALENT BILINGUE DE DOUALA</div>
+                            <div class='school-details'>
+                                <u>BP:</u>4100 Douala Téléphone : 233 43 25 47<br>
+                                <strong>YASSA</strong>
+                            </div>
+                            <div class='year-info'>Année scolaire : {$workingYear->name}</div>
+                        </div>
+
+                        <div class='header-center'>
+                            <div class='logo-container'>
+                                " . ($logoBase64 ? "<img src='{$logoBase64}' class='logo' alt='Logo'>" : "<div class='logo-text'>CPBD</div>") . "
+                            </div>
+                            <div class='logo-bottom'>DE DOUALA</div>
+                        </div>
+
+                        <div class='header-right'>
+                            <div class='republic-line'>REPUBLIC OF CAMEROON</div>
+                            <div class='motto'>Peace-Work-Fatherland</div>
+                            <div class='ministry'>MINISTRY OF SECONDARY EDUCATION</div>
+                            <div class='school-name'>COMPREHENSIVE BILINGUAL COLLEGE DOUALA</div>
+                            <div class='school-details'>
+                                PO BOX:4100 &nbsp;&nbsp;&nbsp;&nbsp; Douala Phone : 233 43 25 47<br>
+                                <strong>YASSA</strong>
+                            </div>
+                            <div class='year-info'><u>Academic year</u> : {$workingYear->name}</div>
+                        </div>
+                        <div class='clearfix'></div>
                     </div>
-                    <div class='year-info'>Année scolaire : {$workingYear->name}</div>
                 </div>
 
-                <div class='header-center'>
-                    " . ($logoBase64 ? "<img src='{$logoBase64}' class='logo' alt='Logo'>" : "<div style='width: 80px; height: 80px; border: 2px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto;'><span style='font-weight: bold; color: #000; font-size: 12px;'>CPBD</span></div>") . "
-                    <div style='margin-top: 8px; font-size: 9px;'><strong>DE DOUALA</strong></div>
+                <div class='main-title'>
+                    <div class='title-fr'>CERTIFICAT DE SCOLARITE</div>
+                    <div class='title-en'><em>SCHOOL ATTENDANCE CERTIFICATE</em></div>
                 </div>
 
-                <div class='header-right'>
-                    <div class='republic-line'>REPUBLIC OF CAMEROON</div>
-                    <div class='motto'><u>Peace-Work-Fatherland</u></div>
-                    <div class='ministry'>MINISTRY OF SECONDARY EDUCATION</div>
-                    <div class='school-info'>COMPREHENSIVE BILINGUAL COLLEGE DOUALA</div>
-                    <div class='school-details'>
-                        PO BOX:4100 &nbsp;&nbsp;&nbsp;&nbsp; Yassa Phone : 233 43 25 47<br>
-                        <strong>YASSA</strong>
-                    </div>
-                    <div class='year-info'><u>Academic year</u> : {$workingYear->name}</div>
-                </div>
-            </div>
-
-            <div class='title'>
-                <div class='title-fr'>CERTIFICAT DE SCOLARITE</div>
-                <div class='title-en'><em>SCHOOL ATTENDANCE CERTIFICATE</em></div>
-            </div>
-
-            <div class='content-main'>
-                <div class='form-section'>
+                <div class='content'>
+                    <!-- Première ligne avec Nom du parent et Allocation -->
                     <div class='form-row'>
-                        <div class='form-field' style='width: 40%;'>
-                            <span class='field-label'>Nom du parent / <em>Parent'sname</em></span>
-                            <div class='field-input'>{$parentName}</div>
-                        </div>
-                        <div style='width: 5%;'></div>
-                        <div class='form-field' style='width: 40%;'>
-                            <span class='field-label'>Allocation N° / N° <em>Allocation</em></span>
-                            <div class='field-input'>" . ($student->student_number ?? $student->matricule ?? '') . "</div>
-                        </div>
-                    </div>
-
-                    <div class='principal-section compact-spacing'>
-                        <div class='mini-spacing'>Je soussigné(e), ........................................................................</div>
-                        <div class='mini-spacing'><em>I the undersigned</em></div>
-                        <div style='margin: 8px 0;'></div>
-                        <div class='mini-spacing'>Principal du <strong>COLLEGE POLYVALENT BILINGUE DE DOUALA</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; certifie que,</div>
-                        <div class='mini-spacing'><em>Principal of COMPREHENSIVE BILINGUAL COLLEGE DOUALA</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>certified that,</em></div>
-                        <div style='margin: 8px 0;'></div>
-                        <div class='mini-spacing'>L'élève</div>
-                        <div class='mini-spacing'><em>The student</em></div>
-                    </div>
-
-                    <div class='form-row compact-spacing'>
-                        <div class='form-field' style='width: 30%;'>
-                            <span class='field-label'>Né(e) le:</span>
-                            <div class='field-input'>{$dateNaissance}</div>
-                        </div>
-                        <div style='width: 3%;'></div>
-                        <div class='form-field' style='width: 30%;'>
-                            <span class='field-label'>à</span>
-                            <div class='field-input'>" . ($student->place_of_birth ?? $student->birthday_place ?? '') . "</div>
+                        <div class='form-row-flex'>
+                            <div class='form-left'>
+                                <span class='field-label'>Nom du parent / <em>Parent'sname</em></span>
+                                <div class='field-input'>{$parentName}</div>
+                            </div>
+                            <div class='form-right'>
+                                <span class='field-label'>Allocation N° /<em> N° Allocation</em></span>
+                                <div class='field-input'>" . ($student->student_number ?? $student->matricule ?? '') . "</div>
+                            </div>
+                            <div class='clearfix'></div>
                         </div>
                     </div>
 
-                    <div class='form-row mini-spacing'>
-                        <span class='field-label'><em>Born on the</em></span>
-                        <div style='width: 30%;'></div>
-                        <span class='field-label'><em>at</em></span>
+                    <!-- Section Je soussigné -->
+                    <div class='text-line'>
+                        Je soussigné(e), ........................................................................
+                    </div>
+                    <div class='text-italic'>
+                        <em>I the undersigned</em>
                     </div>
 
-                    <div class='form-row compact-spacing'>
-                        <div class='form-field' style='width: 40%;'>
-                            <span class='field-label'>Fils ou Fille de :</span>
-                            <div class='field-input'>{$parentName}</div>
-                        </div>
-                        <div style='width: 5%;'></div>
-                        <div class='form-field' style='width: 40%;'>
-                            <span class='field-label'>Et de</span>
-                            <div class='field-input'>" . ($student->mother_name ?? '') . "</div>
-                        </div>
+                    <div class='text-line' style='margin-top: 10px;'>
+                        Principal du <strong>COLLEGE POLYVALENT BILINGUE DE DOUALA</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; certifie que,
+                    </div>
+                    <div class='text-italic'>
+                        <em>Principal of COMPREHENSIVE BILINGUAL COLLEGE DOUALA</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>certified that,</em>
                     </div>
 
-                    <div class='form-row mini-spacing'>
-                        <span class='field-label'><em>Son/Daughter of</em></span>
-                        <div style='width: 30%;'></div>
-                        <span class='field-label'><em>and</em></span>
+                    <div class='text-line' style='margin-top: 10px;'>
+                        L'élève <span style='text-decoration: underline; font-weight: bold;'>{$student->last_name} {$student->first_name}</span>
+                    </div>
+                    <div class='text-italic'>
+                        <em>The student</em>
                     </div>
 
-                    <div class='compact-spacing'>
-                        <div class='form-field' style='margin-bottom: 4px;'>
-                            <span class='field-label'>Est inscrit(e) sur les registres de mon établissement pour l'année académique</span>
-                            <div class='field-input' style='max-width: 150px; margin-left: 8px;'>{$workingYear->name}</div>
-                            <span class='field-label' style='margin-left: 15px;'>sous le numéro matricule :</span>
-                        </div>
-                        <div class='mini-spacing'>
-                            <span class='field-label'><em>Is registered in my college for the academic year</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>with matriculation number</em></span>
-                        </div>
-                    </div>
-
-                    <div class='compact-spacing'>
-                        <div class='form-field' style='margin-bottom: 4px;'>
-                            <span class='field-label'>Et suit régulièrement les cours en classe de :</span>
-                            <div class='field-input' style='max-width: 200px; margin-left: 8px;'>{$classeComplete}</div>
-                        </div>
-                        <div class='mini-spacing'>
-                            <span class='field-label'><em>To study in</em></span>
+                    <!-- Ligne Né(e) le et à -->
+                    <div class='form-row' style='margin-top: 12px;'>
+                        <div class='form-row-flex'>
+                            <div class='form-left'>
+                                <span class='field-label'>Né(e) le:</span>
+                                <div class='field-input inline-field'>{$dateNaissance}</div>
+                                <span class='field-label'>à</span>
+                                <div class='field-input inline-field'>" . ($student->place_of_birth ?? $student->birthday_place ?? '') . "</div>
+                            </div>
+                            <div class='clearfix'></div>
                         </div>
                     </div>
+                    <div class='text-italic'>
+                        <em>Born on the</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>at</em>
+                    </div>
 
-                    <div style='margin-top: 30px; text-align: right;'>
-                        <div style='font-size: 9px;'>Douala le</div>
-                        <div style='font-size: 8px;'><em>Issued in Douala on the</em></div>
+                    <!-- Ligne Fils ou Fille de et Et de -->
+                    <div class='form-row' style='margin-top: 10px;'>
+                        <div class='form-row-flex'>
+                            <div class='form-left'>
+                                <span class='field-label'>Fils ou Fille de :</span>
+                                <div class='field-input'>" . ($student->father_name ?? $parentName ?? '') . "</div>
+                            </div>
+                            <div class='form-right'>
+                                <span class='field-label'>Et de</span>
+                                <div class='field-input'>" . ($student->mother_name ?? '') . "</div>
+                            </div>
+                            <div class='clearfix'></div>
+                        </div>
+                    </div>
+                    <div class='text-italic'>
+                        <em>Son/Daughter of</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>and</em>
+                    </div>
+
+                    <!-- Section inscription -->
+                    <div class='text-line' style='margin-top: 12px;'>
+                        Est inscrit(e) sur les registres de mon établissement pour l'année académique &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; sous le numéro matricule :
+                    </div>
+                    <div class='text-italic'>
+                        <em>Is registered in my college for the academic year</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>with matriculation number</em>
+                    </div>
+
+                    <!-- Section classe -->
+                    <div class='text-line' style='margin-top: 10px;'>
+                        Et suit régulièrement les cours en classe de : &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Douala le
+                    </div>
+                    <div class='text-italic'>
+                        <em>To study in</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>Issued in Douala on the</em>
                     </div>
                 </div>
-            </div>
 
-            <div class='signature-section'>
-                <div class='signature-title'>Le Principal</div>
-                <div class='signature-title'><em>/ The Principal</em></div>
+                <div class='signature-area'>
+                    <div class='signature-title'>Le Principal</div>
+                    <div class='signature-title'><em>/ The Principal</em></div>
+                </div>
             </div>
         </body>
         </html>";
@@ -4350,8 +4417,12 @@ class ReportsController extends Controller
 
         // Obtenir le logo en base64
         $logoBase64 = '';
-        if ($schoolSettings->logo) {
-            $logoPath = storage_path('app/public/logos/' . $schoolSettings->logo);
+        if ($schoolSettings->school_logo) {
+            // Le chemin peut déjà contenir 'logos/' ou non
+            $logoPath = str_starts_with($schoolSettings->school_logo, 'logos/') 
+                ? storage_path('app/public/' . $schoolSettings->school_logo)
+                : storage_path('app/public/logos/' . $schoolSettings->school_logo);
+                
             if (file_exists($logoPath)) {
                 $logoData = file_get_contents($logoPath);
                 $logoBase64 = 'data:image/' . pathinfo($logoPath, PATHINFO_EXTENSION) . ';base64,' . base64_encode($logoData);

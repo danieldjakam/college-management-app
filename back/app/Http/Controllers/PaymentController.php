@@ -2516,6 +2516,7 @@ class PaymentController extends Controller
                 'start_date' => 'required|date',
                 'end_date' => 'required|date|after_or_equal:start_date',
                 'class_id' => 'nullable|exists:school_classes,id',
+                'series_id' => 'nullable|exists:class_series,id',
                 'tranche_ids' => 'required|array|min:1',
                 'tranche_ids.*' => 'exists:payment_tranches,id',
                 'format' => 'string|in:html,pdf'
@@ -2537,6 +2538,7 @@ class PaymentController extends Controller
             $startDate = $request->start_date;
             $endDate = $request->end_date;
             $classId = $request->class_id;
+            $seriesId = $request->series_id;
             $trancheIds = $request->tranche_ids;
             $format = $request->get('format', 'html');
 
@@ -2574,6 +2576,13 @@ class PaymentController extends Controller
             if ($classId) {
                 $studentsQuery->whereHas('classSeries.schoolClass', function($query) use ($classId) {
                     $query->where('id', $classId);
+                });
+            }
+
+            // Filtrer par série si spécifié
+            if ($seriesId) {
+                $studentsQuery->whereHas('classSeries', function($query) use ($seriesId) {
+                    $query->where('id', $seriesId);
                 });
             }
 
@@ -2823,6 +2832,9 @@ class PaymentController extends Controller
                 $className = 'N/A';
                 if ($student->classSeries && $student->classSeries->schoolClass) {
                     $className = $student->classSeries->schoolClass->name;
+                    if ($student->classSeries->name) {
+                        $className .= ' - ' . $student->classSeries->name;
+                    }
                 }
 
                 $html .= "
