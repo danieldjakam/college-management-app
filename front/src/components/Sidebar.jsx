@@ -123,12 +123,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Rechercher", href: "/search", icon: <Search /> },
           ],
         },
-        // {
-        //   title: "Personnel",
-        //   items: [
-        //     { name: "Présences Personnel", href: "/staff-attendance-management", icon: <People /> },
-        //   ],
-        // },
+        {
+          title: "Personnel",
+          items: [
+            { name: "Présences Personnel", href: "/staff-attendance-management", icon: <People /> },
+          ],
+        },
         {
           title: "Outils",
           items: [

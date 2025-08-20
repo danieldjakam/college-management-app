@@ -243,6 +243,82 @@ const StaffAttendanceManagement = () => {
         });
     };
 
+    const convertImageToBase64 = (url) => {
+        return new Promise((resolve, reject) => {
+            // Créer un timeout pour éviter les blocages
+            const timeout = setTimeout(() => {
+                reject(new Error('Timeout lors du chargement de l\'image'));
+            }, 5000);
+
+            const img = new Image();
+            
+            // Tenter d'abord sans CORS pour les images locales
+            img.onload = () => {
+                clearTimeout(timeout);
+                try {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Redimensionner à une taille optimale pour l'impression
+                    const maxSize = 150;
+                    let { width, height } = img;
+                    
+                    if (width > height) {
+                        if (width > maxSize) {
+                            height = (height * maxSize) / width;
+                            width = maxSize;
+                        }
+                    } else {
+                        if (height > maxSize) {
+                            width = (width * maxSize) / height;
+                            height = maxSize;
+                        }
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    const dataURL = canvas.toDataURL('image/png', 0.9);
+                    resolve(dataURL);
+                } catch (error) {
+                    console.error('Erreur lors de la conversion canvas:', error);
+                    reject(error);
+                }
+            };
+            
+            img.onerror = () => {
+                clearTimeout(timeout);
+                console.warn('Échec du chargement de l\'image:', url);
+                reject(new Error('Impossible de charger l\'image'));
+            };
+            
+            // Charger l'image
+            img.src = url;
+        });
+    };
+
+    const createDefaultLogo = () => {
+        // Créer un logo SVG par défaut plus visible encodé en base64
+        const svgLogo = `
+            <svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#0d6efd;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#0a58ca;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                <rect width="60" height="60" fill="url(#grad1)" rx="12"/>
+                <circle cx="30" cy="18" r="9" fill="white" stroke="#0d6efd" stroke-width="1"/>
+                <path d="M12 48 C12 38, 18 32, 30 32 C42 32, 48 38, 48 48 L48 58 L12 58 Z" fill="white"/>
+                <rect x="10" y="40" width="40" height="3" fill="#0d6efd"/>
+                <text x="30" y="52" font-family="Arial, sans-serif" font-size="6" fill="#0d6efd" text-anchor="middle" font-weight="bold">ÉCOLE</text>
+                <text x="30" y="57" font-family="Arial, sans-serif" font-size="5" fill="#0d6efd" text-anchor="middle">CPBD</text>
+            </svg>
+        `;
+        return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgLogo)));
+    };
+
     const exportToCSV = () => {
         if (filteredAttendanceData.length === 0) return;
 
@@ -283,19 +359,39 @@ const StaffAttendanceManagement = () => {
         document.body.removeChild(link);
     };
 
-    const handlePrint = () => {
-        const printContent = generatePrintContent();
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(printContent);
-        printWindow.document.close();
-        printWindow.print();
+    const handlePrint = async () => {
+        try {
+            const printContent = await generatePrintContent();
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(printContent);
+            printWindow.document.close();
+            printWindow.print();
+        } catch (error) {
+            console.error('Erreur lors de la génération du rapport:', error);
+        }
     };
 
-    const generatePrintContent = () => {
+    const generatePrintContent = async () => {
         const currentDate = new Date().toLocaleDateString('fr-FR');
         const periodText = `Du ${formatDate(startDate)} au ${formatDate(endDate)}`;
         const schoolName = schoolSettings?.school_name || 'COLLÈGE POLYVALENT BILINGUE DE DOUALA';
-        const logoUrl = getLogoUrl();
+        
+        // Récupérer le logo en base64 comme le fait le backend
+        let logoBase64 = '';
+        if (schoolSettings?.school_logo) {
+            try {
+                // Utiliser l'URL complète du logo
+                const logoUrl = getLogoUrl();
+                if (logoUrl) {
+                    logoBase64 = await convertImageToBase64(logoUrl);
+                }
+            } catch (error) {
+                console.warn('Impossible de convertir le logo:', error);
+                logoBase64 = createDefaultLogo();
+            }
+        } else {
+            logoBase64 = createDefaultLogo();
+        }
         
         let tableRows = '';
         filteredAttendanceData.forEach((staff, index) => {
@@ -378,6 +474,23 @@ const StaffAttendanceManagement = () => {
                         width: 60px;
                         height: 60px;
                         object-fit: contain;
+                        border: 2px solid #ddd;
+                        border-radius: 8px;
+                        background: #f8f9fa;
+                    }
+                    .logo-fallback {
+                        width: 60px;
+                        height: 60px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        background: linear-gradient(135deg, #0d6efd, #0a58ca);
+                        color: white;
+                        font-weight: bold;
+                        font-size: 12px;
+                        border-radius: 8px;
+                        text-align: center;
+                        line-height: 1.2;
                     }
                     .title-section {
                         flex: 1;
@@ -458,11 +571,9 @@ const StaffAttendanceManagement = () => {
             </head>
             <body>
                 <div class="header">
-                    ${logoUrl ? `
-                        <div class="logo-section">
-                            <img src="${logoUrl}" alt="Logo École" class="logo" onerror="this.style.display='none'">
-                        </div>
-                    ` : ''}
+                    <div class="logo-section">
+                        <img src="${logoBase64}" alt="Logo École" class="logo">
+                    </div>
                     <div class="title-section">
                         <h1>${schoolName.toUpperCase()}</h1>
                         <h2>Rapport des Présences du Personnel</h2>
