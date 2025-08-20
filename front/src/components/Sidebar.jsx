@@ -34,8 +34,8 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
   // Debug pour le logo
   const getLogoSrc = () => {
     const logoUrl = getLogoUrl();
-    console.log("School logo path:", schoolSettings.school_logo);
-    console.log("Generated logo URL:", logoUrl);
+    // console.log("School logo path:", schoolSettings.school_logo);
+    // console.log("Generated logo URL:", logoUrl);
     return logoUrl || logo;
   };
 
@@ -137,6 +137,11 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               name: "États de Paiements",
               href: "/payment-reports",
               icon: <Receipt />,
+            },
+            {
+              name: "Frais de Dossiers",
+              href: "/payments/documentary-fees",
+              icon: <FileTextFill />,
             },
           ],
         },

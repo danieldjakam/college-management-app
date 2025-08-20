@@ -614,7 +614,7 @@ class ReportsController extends Controller
             $rameStudentsData = [];
             foreach ($students as $student) {
                 $rameStatus = $student->rameStatus; // Relation vers student_rame_status
-                
+
                 // Déterminer le statut basé sur student_rame_status
                 $hasRame = false;
                 $rameType = 'unpaid';
@@ -3315,10 +3315,10 @@ class ReportsController extends Controller
         $logoBase64 = '';
         if ($schoolSettings->school_logo) {
             // Le chemin peut déjà contenir 'logos/' ou non
-            $logoPath = str_starts_with($schoolSettings->school_logo, 'logos/') 
+            $logoPath = str_starts_with($schoolSettings->school_logo, 'logos/')
                 ? storage_path('app/public/' . $schoolSettings->school_logo)
                 : storage_path('app/public/logos/' . $schoolSettings->school_logo);
-                
+
             if (file_exists($logoPath)) {
                 $logoData = file_get_contents($logoPath);
                 $logoBase64 = 'data:image/' . pathinfo($logoPath, PATHINFO_EXTENSION) . ';base64,' . base64_encode($logoData);
@@ -3636,7 +3636,7 @@ class ReportsController extends Controller
                             </div>
                             <div class='form-right'>
                                 <span class='field-label'>Allocation N° /<em> N° Allocation</em></span>
-                                <div class='field-input'>" . ($student->student_number ?? $student->matricule ?? '') . "</div>
+                                <div class='field-input'>" . '' . "</div>
                             </div>
                             <div class='clearfix'></div>
                         </div>
@@ -3665,19 +3665,21 @@ class ReportsController extends Controller
                     </div>
 
                     <!-- Ligne Né(e) le et à -->
-                    <div class='form-row' style='margin-top: 12px;'>
+                    <div class='form-row' style='margin-top: 10px;'>
                         <div class='form-row-flex'>
                             <div class='form-left'>
-                                <span class='field-label'>Né(e) le:</span>
-                                <div class='field-input inline-field'>{$dateNaissance}</div>
-                                <span class='field-label'>à</span>
-                                <div class='field-input inline-field'>" . ($student->place_of_birth ?? $student->birthday_place ?? '') . "</div>
+                                <span class='field-label'>Fils ou Fille de :</span>
+                                <div class='field-input'>" . ($dateNaissance) . "</div>
+                            </div>
+                            <div class='form-right'>
+                                <span class='field-label'>Et de</span>
+                                <div class='field-input'>" . ($student->place_of_birth ?? $student->birthday_place ?? '') . "</div>
                             </div>
                             <div class='clearfix'></div>
                         </div>
                     </div>
                     <div class='text-italic'>
-                        <em>Born on the</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>at</em>
+                        <em>Born on the</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>at</em>
                     </div>
 
                     <!-- Ligne Fils ou Fille de et Et de -->
@@ -3697,19 +3699,40 @@ class ReportsController extends Controller
                     <div class='text-italic'>
                         <em>Son/Daughter of</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>and</em>
                     </div>
+                    <div class='form-row' style='margin-top: 10px;'>
+                        <div class='form-row-flex'>
+                            <div class='form-left'>
+                                <span class='field-label'>Est inscrit(e) sur les registres de mon établissement pour l'année académique :</span>
+                                <div class='field-input'>" . ($workingYear->name) . "</div>
+                            </div>
+                            <div class='form-right'>
+                                <span class='field-label'>sous le numéro matricule </span>
+                                <div class='field-input'>" . ($student->student_number) . "</div>
+                            </div>
+                            <div class='clearfix'></div>
+                        </div>
+                    </div>
+                    <div class='form-row' style='margin-top: 10px;'>
+                        <div class='form-row-flex'>
+                            <div class='form-left'>
+                                <span class='field-label'>Et suit régulièrement les cours en classe de:</span>
+                                <div class='field-input'>" . ($student->classSeries->schoolClass->name??''). " - " . ($student->classSeries->name??'') . "</div>
+                            </div>
+                            <div class='clearfix'></div>
+                        </div>
+                    </div>
+                    <div class='text-line' style='margin-top: 10px;'>
+                        Douala le, <span style='text-decoration: underline; font-weight: bold;'>" . date('d/m/Y') . "</span>
+                    </div>
+                    <div class='text-italic'>
+                        <em>Douala the,</em>
+                    </div>
 
                     <!-- Section inscription -->
-                    <div class='text-line' style='margin-top: 12px;'>
-                        Est inscrit(e) sur les registres de mon établissement pour l'année académique &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; sous le numéro matricule :
-                    </div>
                     <div class='text-italic'>
                         <em>Is registered in my college for the academic year</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>with matriculation number</em>
                     </div>
 
-                    <!-- Section classe -->
-                    <div class='text-line' style='margin-top: 10px;'>
-                        Et suit régulièrement les cours en classe de : &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Douala le
-                    </div>
                     <div class='text-italic'>
                         <em>To study in</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>Issued in Douala on the</em>
                     </div>
@@ -3973,26 +3996,26 @@ class ReportsController extends Controller
             // Calculs basés sur les données existantes et simulés pour correspondre au modèle
             $totalStudents = $item['total_students'] ?? 0;
             $paidStudents = $item['paid_students'] ?? 0;
-            
+
             // Simulation des données manquantes basée sur les patterns de l'image
             $anciens = (int) ($totalStudents * 0.6); // 60% anciens
-            $nouveaux = $totalStudents - $anciens; // 40% nouveaux  
+            $nouveaux = $totalStudents - $anciens; // 40% nouveaux
             $demission = (int) ($totalStudents * 0.05); // 5% démissions
             $effReel = $totalStudents - $demission;
-            
+
             $collectedAmount = $item['collected_amount'] ?? 0;
             $remainingAmount = $item['remaining_amount'] ?? 0;
             $totalAmount = $collectedAmount + $remainingAmount;
-            
+
             // Simulation des montants spéciaux
             $insPercu = (int) ($totalAmount * 0.15); // Inscription perçue
             $percepDem = (int) ($demission * 50000); // Perception démission
             $perteDem = (int) ($demission * 100000); // Perte démission
             $bourse = (int) ($totalAmount * 0.05); // 5% bourses
             $rabais = (int) ($totalAmount * 0.10); // 10% rabais (avant 15 août)
-            
+
             $recoveryRate = $totalAmount > 0 ? round(($collectedAmount / $totalAmount) * 100, 1) : 0;
-            
+
             $className = '';
             if ($type === 'by-class') {
                 $className = ($item['class_name'] ?? '') . ' - ' . ($item['series_name'] ?? '');
@@ -4279,23 +4302,23 @@ class ReportsController extends Controller
             foreach ($classSeries as $series) {
                 // Vérifier que la série a une classe associée
                 if (!$series->schoolClass) continue;
-                
+
                 $className = $series->schoolClass->name . ' ' . $series->name;
-                
+
                 // Effectif de départ
                 $anciens = $series->students->whereIn('student_status', ['ancien', 'old'])->count();
                 $nouveaux = $series->students->whereIn('student_status', ['nouveau', 'new'])->count();
                 $effDepart = $anciens + $nouveaux;
-                
+
                 // Si aucun étudiant, on passe
                 if ($effDepart === 0) continue;
-                
+
                 // Démissionnés
                 $demissionnes = $series->students->where('is_active', false)->count();
-                
+
                 // Effectif réel
                 $effReel = $effDepart - $demissionnes;
-                
+
                 // Calculs financiers
                 $insPercu = 0; // Montant spécifique de la tranche inscription
                 $percepDem = 0;
@@ -4303,73 +4326,73 @@ class ReportsController extends Controller
                 $realisation = 0;
                 $bourse = 0;
                 $rabais = 0; // 10% pour ceux qui ont payé avant le 15 août
-                
+
                 // Obtenir la tranche inscription (celle avec l'ordre le plus petit)
                 $inscriptionTranche = PaymentTranche::where('is_active', true)
                     ->orderBy('order')
                     ->first();
-                
+
                 foreach ($series->students as $student) {
                     try {
                         // Calculer seulement pour les étudiants actifs dans les calculs financiers
                         if (!$student->is_active) continue;
-                        
+
                         // Montant attendu pour cet étudiant
                         $studentRequired = $this->getStudentTotalRequired($student->id, $workingYear->id);
                         $recetteAttendue += $studentRequired;
-                        
+
                         // Obtenir les paiements validés de l'étudiant
                         $studentPayments = $student->payments()
                             ->where('school_year_id', $workingYear->id)
                             ->whereNotNull('validation_date')
                             ->with('paymentDetails.paymentTranche')
                             ->get();
-                        
+
                         $studentPaid = 0;
                         $studentInscription = 0;
-                        
+
                         foreach ($studentPayments as $payment) {
                             // Bourses (basé sur les paiements avec bourses)
                             if ($payment->has_scholarship && $payment->scholarship_amount) {
                                 $bourse += $payment->scholarship_amount;
                             }
-                            
+
                             // Calculer le montant payé et identifier l'inscription
                             foreach ($payment->paymentDetails as $detail) {
                                 $amount = $detail->amount_allocated ?? 0;
                                 $studentPaid += $amount;
-                                
+
                                 // Si c'est la tranche inscription, l'ajouter à insPercu
-                                if ($inscriptionTranche && 
+                                if ($inscriptionTranche &&
                                     $detail->payment_tranche_id == $inscriptionTranche->id) {
                                     $studentInscription += $amount;
                                 }
                             }
-                            
+
                             // Rabais 10% pour paiement avant le 15 août
-                            if ($payment->payment_date && 
+                            if ($payment->payment_date &&
                                 Carbon::parse($payment->payment_date)->format('m-d') <= '08-15') {
                                 $rabais += $studentRequired * 0.1;
                             }
                         }
-                        
+
                         $realisation += $studentPaid;
                         $insPercu += $studentInscription;
-                        
+
                     } catch (\Exception $e) {
                         Log::warning("Erreur calcul étudiant {$student->id}: " . $e->getMessage());
                         continue;
                     }
                 }
-                
+
                 // Perte démission (estimation basée sur les démissionnés)
                 $perteDemission = $demissionnes * ($recetteAttendue / max($effDepart, 1));
-                
+
                 // Reste à recouvrer
                 $resteARecouvrer = max(0, $recetteAttendue - $realisation - $bourse - $rabais);
-                
+
                 // Pourcentage de recouvrement
-                $pourcentageRecouv = $recetteAttendue > 0 ? 
+                $pourcentageRecouv = $recetteAttendue > 0 ?
                     round(($realisation / $recetteAttendue) * 100, 1) : 0;
 
                 $recoveryData[] = [
@@ -4393,7 +4416,7 @@ class ReportsController extends Controller
             }
 
             $html = $this->generateGeneralRecoveryStatusPdfHtml($recoveryData, $workingYear);
-            
+
             return response($html)
                 ->header('Content-Type', 'text/html')
                 ->header('Content-Disposition', 'inline; filename="etat_general_recouvrement.html"');
@@ -4419,10 +4442,10 @@ class ReportsController extends Controller
         $logoBase64 = '';
         if ($schoolSettings->school_logo) {
             // Le chemin peut déjà contenir 'logos/' ou non
-            $logoPath = str_starts_with($schoolSettings->school_logo, 'logos/') 
+            $logoPath = str_starts_with($schoolSettings->school_logo, 'logos/')
                 ? storage_path('app/public/' . $schoolSettings->school_logo)
                 : storage_path('app/public/logos/' . $schoolSettings->school_logo);
-                
+
             if (file_exists($logoPath)) {
                 $logoData = file_get_contents($logoPath);
                 $logoBase64 = 'data:image/' . pathinfo($logoPath, PATHINFO_EXTENSION) . ';base64,' . base64_encode($logoData);
@@ -4445,8 +4468,8 @@ class ReportsController extends Controller
             'rabais' => array_sum(array_column($recoveryData, 'rabais')),
             'reste_recouvrer' => array_sum(array_column($recoveryData, 'reste_recouvrer')),
         ];
-        
-        $totals['pourcentage_recouv'] = $totals['recette_attendue'] > 0 ? 
+
+        $totals['pourcentage_recouv'] = $totals['recette_attendue'] > 0 ?
             round(($totals['realisation'] / $totals['recette_attendue']) * 100, 1) : 0;
 
         $tableRows = '';
@@ -4500,9 +4523,9 @@ class ReportsController extends Controller
                 <div>BP: 4100 Douala - Téléphone: 233 43 25 47</div>
                 <div>Année scolaire: {$workingYear->name}</div>
             </div>
-            
+
             <div class='report-title'>ÉTAT DES RECOUVREMENTS</div>
-            
+
             <table>
                 <thead>
                     <tr>
@@ -4548,7 +4571,7 @@ class ReportsController extends Controller
                     </tr>
                 </tbody>
             </table>
-            
+
             <div class='footer'>
                 <p>Rapport généré le " . now()->format('d/m/Y à H:i') . "</p>
                 <p>{$schoolSettings->school_name} - Système de Gestion Scolaire</p>
