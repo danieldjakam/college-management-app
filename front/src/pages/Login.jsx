@@ -75,6 +75,8 @@ const Login = () => {
                 return '/';
             case 'accountant':
                 return '/class-comp';
+            case 'secretaire':
+                return '/class-comp';
             case 'teacher':
                 return '/students';
             default:

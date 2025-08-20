@@ -96,6 +96,9 @@ import TestInventory from "./pages/Inventory/TestInventory";
 // Documents
 import DocumentsManager from "./pages/Documents/DocumentsManager";
 
+// Staff Attendance
+import StaffAttendanceManagement from "./pages/Staff/StaffAttendanceManagement";
+
 
 // Components
 import Sidebar from "./components/Sidebar";
@@ -239,6 +242,16 @@ const AppContent = () => {
                 element={
                   <ProtectedRoute>
                     <DocumentsManager />
+                  </ProtectedRoute>
+                }
+              />
+              
+              {/* Route pour la gestion des présences du personnel - Secrétaires et Comptables Supérieurs */}
+              <Route
+                path="/staff-attendance-management"
+                element={
+                  <ProtectedRoute requiredRoles={['secretaire', 'comptable_superieur', 'accountant', 'admin']}>
+                    <StaffAttendanceManagement />
                   </ProtectedRoute>
                 }
               />

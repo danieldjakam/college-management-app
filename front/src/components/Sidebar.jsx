@@ -113,6 +113,49 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
       ];
+    } else if (userRole === "secretaire") {
+      return [
+        {
+          title: "Comptabilité",
+          items: [
+            { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
+            // { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
+            { name: "Rechercher", href: "/search", icon: <Search /> },
+          ],
+        },
+        {
+          title: "Personnel",
+          items: [
+            { name: "Présences Personnel", href: "/staff-attendance-management", icon: <People /> },
+          ],
+        },
+        {
+          title: "Outils",
+          items: [
+            { name: "Documents", href: "/documents", icon: <FolderFill /> },
+          ],
+        },
+        {
+          title: "Paiements",
+          items: [
+            {
+              name: "Frais de Dossiers",
+              href: "/payments/documentary-fees",
+              icon: <FileTextFill />,
+            },
+          ],
+        },
+        {
+          title: "Compte",
+          items: [
+            { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
+            ...(userRole === "comptable_superieur" ? [
+              { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> }
+            ] : []),
+            { name: "Profil", href: "/profile", icon: <PersonCircle /> }
+          ],
+        },
+      ];
     } else if (userRole === "accountant" || userRole === "comptable_superieur") {
       return [
         {
@@ -121,6 +164,14 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
             { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
+          ],
+        },
+        {
+          title: "Personnel",
+          items: [
+            ...((userRole === "comptable_superieur" || userRole === "accountant") ? [
+              { name: "Présences Personnel", href: "/staff-attendance-management", icon: <People /> }
+            ] : []),
           ],
         },
         {
@@ -274,6 +325,8 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         return "Comptable";
       case "comptable_superieur":
         return "Comptable Supérieur";
+      case "secretaire":
+        return "Secretaire";
       case "teacher":
         return "Enseignant";
       case "surveillant_general":

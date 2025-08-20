@@ -36,7 +36,7 @@ const StudentActionsDropdown = ({
                 <ThreeDotsVertical size={16} />
             </Dropdown.Toggle>
 
-            <Dropdown.Menu className="shadow-sm z-10">
+            <Dropdown.Menu className="shadow-sm">
                 {/* Voir l'élève */}
                 <Dropdown.Item 
                     onClick={() => onViewStudent?.(student)}
@@ -45,6 +45,16 @@ const StudentActionsDropdown = ({
                     <Eye size={16} className="me-2 text-info" />
                     Voir l'élève
                 </Dropdown.Item>
+                {/* Paiements (pour les comptables/admins) */}
+                {(userRole === 'secretaire') && (
+                    <Dropdown.Item 
+                        onClick={() => onViewPayments?.(student)}
+                        className="d-flex align-items-center"
+                    >
+                        <CashCoin size={16} className="me-2 text-success" />
+                        Voir paiements
+                    </Dropdown.Item>
+                )}
 
                 <Dropdown.Divider />
 
@@ -58,46 +68,40 @@ const StudentActionsDropdown = ({
                 </Dropdown.Item>
 
                 {/* Transférer */}
-                <Dropdown.Item 
-                    onClick={() => onTransfer?.(student)}
-                    className="d-flex align-items-center"
-                >
-                    <ArrowRightCircle size={16} className="me-2 text-warning" />
-                    Transférer
-                </Dropdown.Item>
 
-                <Dropdown.Divider />
+                {(userRole === 'admin' || userRole === 'secretaire') && (
+                    <>
+                        <Dropdown.Divider />
+                        <Dropdown.Item 
+                            onClick={() => onTransfer?.(student)}
+                            className="d-flex align-items-center"
+                        >
+                            <ArrowRightCircle size={16} className="me-2 text-warning" />
+                            Transférer
+                        </Dropdown.Item>
 
-                {/* Modifier */}
-                <Dropdown.Item 
-                    onClick={() => onEdit?.(student)}
-                    className="d-flex align-items-center"
-                >
-                    <PencilSquare size={16} className="me-2 text-primary" />
-                    Modifier
-                </Dropdown.Item>
 
-                {/* Paiements (pour les comptables/admins) */}
-                {(userRole === 'admin' || userRole === 'accountant') && (
-                    <Dropdown.Item 
-                        onClick={() => onViewPayments?.(student)}
-                        className="d-flex align-items-center"
-                    >
-                        <CashCoin size={16} className="me-2 text-success" />
-                        Voir paiements
-                    </Dropdown.Item>
+                        {/* Modifier */}
+                        <Dropdown.Item 
+                            onClick={() => onEdit?.(student)}
+                            className="d-flex align-items-center"
+                        >
+                            <PencilSquare size={16} className="me-2 text-primary" />
+                            Modifier
+                        </Dropdown.Item>
+                        <Dropdown.Divider />
+                        <Dropdown.Item 
+                            onClick={() => onDelete?.(student)}
+                            className="d-flex align-items-center text-danger"
+                        >
+                            <Trash size={16} className="me-2" />
+                            Supprimer
+                        </Dropdown.Item>
+                    </>
                 )}
 
-                <Dropdown.Divider />
 
                 {/* Supprimer */}
-                <Dropdown.Item 
-                    onClick={() => onDelete?.(student)}
-                    className="d-flex align-items-center text-danger"
-                >
-                    <Trash size={16} className="me-2" />
-                    Supprimer
-                </Dropdown.Item>
             </Dropdown.Menu>
         </Dropdown>
     );

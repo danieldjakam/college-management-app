@@ -36,6 +36,7 @@ import Swal from "sweetalert2";
 import { useSchool } from "../../contexts/SchoolContext";
 import { secureApi } from "../../utils/apiMigration";
 import { host } from "../../utils/fetch";
+import { useAuth } from "../../hooks/useAuth";
 
 // Service API pour les frais de dossiers
 const documentaryFeesApi = {
@@ -296,6 +297,7 @@ const DocumentaryFees = () => {
            { label: status, color: "secondary" };
   };
 
+    const { user } = useAuth();
   return (
     <Container fluid className="py-4">
       <Row className="mb-4">
@@ -342,13 +344,13 @@ const DocumentaryFees = () => {
                 <FileEarmarkPdf className="me-1" />
                 Rapport PDF
               </Button>
-              <Button
+              {user.role === "secretaire" && <Button
                 variant="primary"
                 onClick={() => navigate("/payments/documentary-fees/create")}
               >
                 <Plus className="me-1" />
-                Nouveau Frais
-              </Button>
+                Encaisser
+              </Button>}
             </div>
           </div>
         </Col>
