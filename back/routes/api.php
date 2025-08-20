@@ -33,6 +33,7 @@ use App\Http\Controllers\DocumentFolderController;
 use App\Http\Controllers\ClassesSeriesController;
 use App\Http\Controllers\TeacherAttendanceController;
 use App\Http\Controllers\StaffAttendanceController;
+use App\Http\Controllers\StudentAttendanceController;
 use App\Http\Controllers\DepartmentController;
 
 
@@ -162,6 +163,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/dashboard', [LevelController::class, 'dashboard'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
         Route::get('/', [LevelController::class, 'index'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
         Route::get('/{level}', [LevelController::class, 'show'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
+        Route::get('/{level}/series', [LevelController::class, 'getSeries'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
 
         // Export routes
         Route::get('/export/excel', [LevelController::class, 'exportExcel'])->middleware(['role:admin,secretaire,accountant']);
@@ -596,6 +598,7 @@ Route::middleware('auth:api')->group(function () {
         // Routes pour scan QR du personnel
         Route::post('/scan-qr', [StaffAttendanceController::class, 'scanQR'])->middleware(['role:admin,surveillant_general']);
         Route::get('/daily-attendance', [StaffAttendanceController::class, 'getDailyAttendance'])->middleware(['role:admin,surveillant_general,secretaire,comptable_superieur,accountant']);
+        Route::get('/daily', [StaffAttendanceController::class, 'getDailyStaffAttendance'])->middleware(['role:admin,surveillant_general,secretaire,comptable_superieur,accountant']);
         Route::get('/entry-exit-stats', [StaffAttendanceController::class, 'getEntryExitStats'])->middleware(['role:admin,surveillant_general,secretaire,comptable_superieur,accountant']);
 
         // Routes pour gestion des QR codes personnel
@@ -607,6 +610,9 @@ Route::middleware('auth:api')->group(function () {
 
         // Routes pour badges multiples
         Route::post('/generate-multiple-badges', [StaffAttendanceController::class, 'generateMultipleBadges'])->middleware(['role:admin']);
+
+        // Routes d'export PDF
+        Route::get('/export/pdf', [StaffAttendanceController::class, 'exportStaffAttendancePDF'])->middleware(['role:admin,accountant,comptable_superieur']);
     });
 
     // Routes de compatibilité pour teacher-attendance (à supprimer plus tard)
@@ -622,14 +628,21 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/teacher/{teacherId}/work-schedule', [TeacherAttendanceController::class, 'updateWorkSchedule'])->middleware(['role:admin']);
     });
 
+    // Routes pour les présences étudiants - Comptables
+    Route::prefix('attendance')->group(function () {
+        Route::get('/students', [StudentAttendanceController::class, 'getStudentAttendance'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/students/stats', [StudentAttendanceController::class, 'getAttendanceStats'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/students/export/pdf', [StudentAttendanceController::class, 'exportStudentAttendancePDF'])->middleware(['role:admin,accountant,comptable_superieur']);
+    });
+
     // Routes pour les départements
     Route::prefix('departments')->group(function () {
         // Routes de consultation (admin et comptables)
-        Route::get('/', [DepartmentController::class, 'index'])->middleware(['role:admin,secretaire,accountant']);
-        Route::get('/{department}', [DepartmentController::class, 'show'])->middleware(['role:admin,secretaire,accountant']);
+        Route::get('/', [DepartmentController::class, 'index'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
+        Route::get('/{department}', [DepartmentController::class, 'show'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
 
         // Routes d'export
-        Route::get('/export/pdf', [DepartmentController::class, 'exportPdf'])->middleware(['role:admin,secretaire,accountant']);
+        Route::get('/export/pdf', [DepartmentController::class, 'exportPdf'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
 
         // Routes de gestion (admin uniquement)
         Route::post('/', [DepartmentController::class, 'store'])->middleware(['role:admin']);

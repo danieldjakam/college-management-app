@@ -119,6 +119,8 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           title: "Comptabilité",
           items: [
             { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
+            { name: "Suivi Présences Élèves", href: "/student-attendance-tracking", icon: <ClipboardCheckFill /> },
+            { name: "Suivi Présences Personnel", href: "/staff-daily-attendance", icon: <PeopleFill /> },
             // { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
           ],
@@ -162,6 +164,8 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           title: "Comptabilité",
           items: [
             { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
+            { name: "Suivi Présences Élèves", href: "/student-attendance-tracking", icon: <ClipboardCheckFill /> },
+            { name: "Suivi Présences Personnel", href: "/staff-daily-attendance", icon: <PeopleFill /> },
             { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
           ],

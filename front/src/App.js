@@ -35,6 +35,7 @@ import ClassCompt from "./pages/comptables/Class";
 import ParamsCompt from "./pages/comptables/Params";
 import StudentsComp from "./pages/comptables/Students";
 import StudentsByClass from "./pages/comptables/StudentsByClass";
+import StudentAttendanceTracking from "./pages/comptables/StudentAttendanceTracking";
 
 // Payment Pages
 import StudentPayment from "./pages/Payments/StudentPayment";
@@ -98,6 +99,7 @@ import DocumentsManager from "./pages/Documents/DocumentsManager";
 
 // Staff Attendance
 import StaffAttendanceManagement from "./pages/Staff/StaffAttendanceManagement";
+import StaffDailyAttendance from "./pages/Staff/StaffDailyAttendance";
 
 
 // Components
@@ -253,6 +255,26 @@ const AppContent = () => {
                   <ProtectedRoute requiredRoles={['secretaire', 'comptable_superieur', 'accountant', 'admin']}>
                     <StaffAttendanceManagement />
                   </ProtectedRoute>
+                }
+              />
+
+              {/* Route pour le suivi des présences élèves - Comptables */}
+              <Route
+                path="/student-attendance-tracking"
+                element={
+                  <AccountantRoute>
+                    <StudentAttendanceTracking />
+                  </AccountantRoute>
+                }
+              />
+
+              {/* Route pour le suivi des présences personnel - Comptables */}
+              <Route
+                path="/staff-daily-attendance"
+                element={
+                  <AccountantRoute>
+                    <StaffDailyAttendance />
+                  </AccountantRoute>
                 }
               />
 
