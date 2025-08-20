@@ -18,6 +18,8 @@ class Student extends Model
         'parent_name',
         'parent_phone',
         'parent_email',
+        'mother_name',
+        'mother_phone',
         'address',
         'photo',
         'class_series_id',
