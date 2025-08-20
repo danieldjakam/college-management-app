@@ -210,6 +210,311 @@ class StaffAttendanceController extends Controller
     /**
      * Générer un QR code pour un membre du personnel
      */
+    public function getDailyStaffAttendance(Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date',
+            'role' => 'sometimes|string',
+        ]);
+
+        $date = $request->input('date');
+        $role = $request->input('role');
+
+        try {
+            // Récupérer tous les membres du personnel actifs
+            $staffQuery = User::select([
+                'users.id',
+                'users.name',
+                'users.username',
+                'users.role',
+                'teachers.first_name',
+                'teachers.last_name',
+                'teachers.type_personnel'
+            ])
+            ->leftJoin('teachers', 'users.id', '=', 'teachers.user_id')
+            ->whereIn('users.role', ['teacher', 'accountant', 'admin', 'secretaire', 'surveillant_general', 'comptable_superieur'])
+            ->where('users.is_active', true);
+
+            // Appliquer les filtres
+            if ($role) {
+                $staffQuery->where('users.role', $role);
+            }
+
+            $staff = $staffQuery->get();
+
+            // Récupérer toutes les présences pour la date donnée
+            $attendances = StaffAttendance::select([
+                'user_id',
+                'scanned_at',
+                'event_type'
+            ])
+            ->whereDate('attendance_date', $date)
+            ->orderBy('scanned_at', 'asc')
+            ->get()
+            ->groupBy('user_id');
+
+            // Combiner les données
+            $result = $staff->map(function ($member) use ($attendances) {
+                $memberAttendances = $attendances->get($member->id, collect());
+                
+                // Organiser les entrées et sorties par paires
+                $entryExitPairs = [];
+                $totalWorkingMinutes = 0;
+                $isPresent = false;
+
+                if ($memberAttendances->count() > 0) {
+                    $events = $memberAttendances->toArray();
+                    $currentEntry = null;
+
+                    foreach ($events as $event) {
+                        if ($event['event_type'] === 'entry') {
+                            $currentEntry = $event;
+                            $isPresent = true;
+                        } elseif ($event['event_type'] === 'exit' && $currentEntry) {
+                            $entryTime = Carbon::parse($currentEntry['scanned_at']);
+                            $exitTime = Carbon::parse($event['scanned_at']);
+                            $workingMinutes = $entryTime->diffInMinutes($exitTime);
+                            $totalWorkingMinutes += $workingMinutes;
+
+                            $entryExitPairs[] = [
+                                'entry_time' => $currentEntry['scanned_at'],
+                                'exit_time' => $event['scanned_at'],
+                                'working_minutes' => $workingMinutes,
+                                'working_hours' => $this->formatWorkingTime($workingMinutes)
+                            ];
+                            $currentEntry = null;
+                        }
+                    }
+
+                    // Si il y a une entrée sans sortie (encore présent)
+                    if ($currentEntry) {
+                        $entryExitPairs[] = [
+                            'entry_time' => $currentEntry['scanned_at'],
+                            'exit_time' => null,
+                            'working_minutes' => null,
+                            'working_hours' => 'En cours'
+                        ];
+                    }
+                }
+
+                // Première entrée et dernière sortie
+                $firstEntry = $memberAttendances->where('event_type', 'entry')->first();
+                $lastExit = $memberAttendances->where('event_type', 'exit')->last();
+
+                return [
+                    'id' => $member->id,
+                    'name' => $member->name,
+                    'username' => $member->username,
+                    'first_name' => $member->first_name,
+                    'last_name' => $member->last_name,
+                    'role' => $member->role,
+                    'employment_type' => $member->role === 'teacher' ? ($member->type_personnel ?: 'P') : 'P',
+                    'is_present' => $isPresent,
+                    'first_arrival' => $firstEntry ? $firstEntry->scanned_at : null,
+                    'last_exit' => $lastExit ? $lastExit->scanned_at : null,
+                    'entry_exit_pairs' => $entryExitPairs,
+                    'total_working_minutes' => $totalWorkingMinutes,
+                    'total_working_hours' => $this->formatWorkingTime($totalWorkingMinutes),
+                    'attendance_count' => $memberAttendances->count()
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+                'message' => 'Données de présence récupérées avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Erreur lors de la récupération des données de présence',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Formater le temps de travail en heures et minutes
+     */
+    private function formatWorkingTime($minutes)
+    {
+        if ($minutes === null || $minutes === 0) {
+            return '0h 0min';
+        }
+        
+        $hours = floor($minutes / 60);
+        $remainingMinutes = $minutes % 60;
+        
+        return $hours . 'h ' . $remainingMinutes . 'min';
+    }
+
+    public function exportStaffAttendancePDF(Request $request)
+    {
+        $request->validate([
+            'date' => 'required|date',
+            'role' => 'sometimes|string',
+        ]);
+
+        $date = $request->input('date');
+        $role = $request->input('role');
+
+        try {
+            // Réutiliser la même logique que getDailyStaffAttendance
+            $staffQuery = User::select([
+                'users.id',
+                'users.name',
+                'users.username',
+                'users.role',
+                'teachers.first_name',
+                'teachers.last_name',
+                'teachers.type_personnel'
+            ])
+            ->leftJoin('teachers', 'users.id', '=', 'teachers.user_id')
+            ->whereIn('users.role', ['teacher', 'accountant', 'admin', 'secretaire', 'surveillant_general', 'comptable_superieur'])
+            ->where('users.is_active', true);
+
+            // Appliquer les filtres
+            if ($role) {
+                $staffQuery->where('users.role', $role);
+            }
+
+            $staffQuery->orderBy('users.role')
+                       ->orderBy('teachers.last_name')
+                       ->orderBy('teachers.first_name');
+
+            $staff = $staffQuery->get();
+
+            // Récupérer toutes les présences pour la date donnée
+            $attendances = StaffAttendance::select([
+                'user_id',
+                'scanned_at',
+                'event_type'
+            ])
+            ->whereDate('attendance_date', $date)
+            ->orderBy('scanned_at', 'asc')
+            ->get()
+            ->groupBy('user_id');
+
+            // Combiner les données avec la même logique que getDailyStaffAttendance
+            $attendanceData = $staff->map(function ($member) use ($attendances) {
+                $memberAttendances = $attendances->get($member->id, collect());
+                
+                // Organiser les entrées et sorties par paires
+                $entryExitPairs = [];
+                $totalWorkingMinutes = 0;
+                $isPresent = false;
+
+                if ($memberAttendances->count() > 0) {
+                    $events = $memberAttendances->toArray();
+                    $currentEntry = null;
+
+                    foreach ($events as $event) {
+                        if ($event['event_type'] === 'entry') {
+                            $currentEntry = $event;
+                            $isPresent = true;
+                        } elseif ($event['event_type'] === 'exit' && $currentEntry) {
+                            $entryTime = Carbon::parse($currentEntry['scanned_at']);
+                            $exitTime = Carbon::parse($event['scanned_at']);
+                            $workingMinutes = $entryTime->diffInMinutes($exitTime);
+                            $totalWorkingMinutes += $workingMinutes;
+
+                            $entryExitPairs[] = [
+                                'entry_time' => $currentEntry['scanned_at'],
+                                'exit_time' => $event['scanned_at'],
+                                'working_minutes' => $workingMinutes,
+                                'working_hours' => $this->formatWorkingTime($workingMinutes)
+                            ];
+                            $currentEntry = null;
+                        }
+                    }
+
+                    // Si il y a une entrée sans sortie (encore présent)
+                    if ($currentEntry) {
+                        $entryExitPairs[] = [
+                            'entry_time' => $currentEntry['scanned_at'],
+                            'exit_time' => null,
+                            'working_minutes' => null,
+                            'working_hours' => 'En cours'
+                        ];
+                    }
+                }
+
+                return [
+                    'id' => $member->id,
+                    'name' => $member->name,
+                    'username' => $member->username,
+                    'first_name' => $member->first_name,
+                    'last_name' => $member->last_name,
+                    'role' => $member->role,
+                    'employment_type' => $member->role === 'teacher' ? ($member->type_personnel ?: 'P') : 'P',
+                    'is_present' => $isPresent,
+                    'entry_exit_pairs' => $entryExitPairs,
+                    'total_working_minutes' => $totalWorkingMinutes,
+                    'total_working_hours' => $this->formatWorkingTime($totalWorkingMinutes),
+                    'attendance_count' => $memberAttendances->count()
+                ];
+            });
+
+            // Calculer les statistiques
+            $total = $attendanceData->count();
+            $present = $attendanceData->where('is_present', true)->count();
+            $absent = $total - $present;
+            $attendanceRate = $total > 0 ? round(($present / $total) * 100, 1) : 0;
+
+            // Déterminer le titre du filtre
+            $filterTitle = '';
+            if ($role) {
+                $roleLabels = [
+                    'teacher' => 'Enseignants',
+                    'accountant' => 'Comptables',
+                    'admin' => 'Administrateurs',
+                    'secretaire' => 'Secrétaires',
+                    'surveillant_general' => 'Surveillants Généraux',
+                    'comptable_superieur' => 'Comptables Supérieurs'
+                ];
+                $filterTitle = $roleLabels[$role] ?? $role;
+            }
+            if (!$filterTitle) {
+                $filterTitle = 'Tout le personnel';
+            }
+
+            // Obtenir l'année scolaire actuelle
+            $currentSchoolYear = SchoolYear::where('is_current', true)->first();
+            $schoolYear = $currentSchoolYear ? $currentSchoolYear->name : date('Y') . '-' . (date('Y') + 1);
+
+            // Préparer les données pour la vue PDF
+            $data = [
+                'attendanceData' => $attendanceData,
+                'date' => Carbon::parse($date)->locale('fr')->isoFormat('dddd, D MMMM YYYY'),
+                'filterTitle' => $filterTitle,
+                'schoolYear' => $schoolYear,
+                'stats' => [
+                    'total' => $total,
+                    'present' => $present,
+                    'absent' => $absent,
+                    'attendance_rate' => $attendanceRate
+                ],
+                'generatedAt' => Carbon::now()->locale('fr')->isoFormat('dddd, D MMMM YYYY [à] HH:mm')
+            ];
+
+            // Générer le HTML puis le PDF
+            $html = view('reports.staff-attendance', $data)->render();
+            $pdf = Pdf::loadHTML($html);
+            $pdf->setPaper('A4', 'portrait');
+
+            $filename = 'presences_personnel_' . $date . '.pdf';
+            return $pdf->download($filename);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Erreur lors de la génération du PDF',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function generateQRCode(Request $request)
     {
         try {
