@@ -1749,7 +1749,7 @@ class PaymentController extends Controller
             // Calculer le reste effectif après bourses/réductions
             $effectiveRemaining = $trancheRemaining;
             if ($scholarshipAmount > 0) {
-                $effectiveRemaining = max(0, $trancheRemaining - $scholarshipAmount);
+                // $effectiveRemaining = max(0, $trancheRemaining - $scholarshipAmount);
             } elseif ($discountAmount > 0) {
                 $effectiveRemaining = max(0, $trancheRemaining - $discountAmount);
             }

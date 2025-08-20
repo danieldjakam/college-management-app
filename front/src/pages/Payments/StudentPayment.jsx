@@ -1282,10 +1282,10 @@ const StudentPayment = () => {
                                       {formatAmount(
                                         Math.max(
                                           0,
-                                          parseFloat(status.remaining_amount) -
-                                            parseFloat(
-                                              status.scholarship_amount
-                                            )
+                                          parseFloat(status.remaining_amount) 
+                                            // parseFloat(
+                                            //   status.scholarship_amount
+                                            // )
                                         )
                                       )}
                                       )
