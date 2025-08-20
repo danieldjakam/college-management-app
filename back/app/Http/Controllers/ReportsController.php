@@ -3449,8 +3449,8 @@ class ReportsController extends Controller
                 }
 
                 .logo {
-                    width: 64px;
-                    height: 64px;
+                    width: 100px;
+                    height: 100px;
                     border-radius: 50%;
                     margin: 3px auto;
                     display: block;
@@ -3478,31 +3478,31 @@ class ReportsController extends Controller
                 .republic-line {
                     font-weight: bold;
                     font-size: 11px;
-                    margin-bottom: 2px;
+                    margin-bottom: 5px;
                 }
 
                 .motto {
                     font-style: italic;
                     font-size: 9px;
-                    margin-bottom: 3px;
+                    margin-bottom: 8px;
                     text-decoration: underline;
                 }
 
                 .ministry {
                     font-weight: bold;
                     font-size: 9px;
-                    margin-bottom: 2px;
+                    margin-bottom: 5px;
                 }
 
                 .school-name {
                     font-weight: bold;
                     font-size: 10px;
-                    margin-bottom: 2px;
+                    margin-bottom: 8px;
                 }
 
                 .school-details {
                     font-size: 8px;
-                    margin-bottom: 3px;
+                    margin-bottom: 8px;
                 }
 
                 .year-info {
@@ -3557,7 +3557,6 @@ class ReportsController extends Controller
                 }
 
                 .form-row {
-                    margin-bottom: 8px;
                     width: 100%;
                 }
 
@@ -3568,16 +3567,16 @@ class ReportsController extends Controller
 
                 .form-left {
                     float: left;
-                    width: 48%;
+                    width: 58%;
                 }
 
                 .form-right {
                     float: right;
-                    width: 48%;
+                    width: 38%;
                 }
 
                 .field-label {
-                    font-size: 10px;
+                    font-size: 13px;
                     display: inline-block;
                     margin-right: 6px;
                 }
@@ -3586,25 +3585,27 @@ class ReportsController extends Controller
                     border: none;
                     border-bottom: 1px solid #000;
                     min-height: 14px;
-                    // padding: 2px 0;
                     display: inline-block;
                     min-width: 150px;
-                    font-size: 10px;
+                    font-size: 13px;
+                    font-weight: bold;
                     background: transparent;
                     vertical-align: middle;
-                    text-decoration: underline;
+                    // text-decoration: underline;
+                }
+                .long{
+                    width: 300px;
                 }
 
-                .text-line {
-                    margin: 8px 0;
-                    font-size: 10px;
-                    line-height: 1.2;
+                .text-line {;
+                    font-size: 14px;
+                    margin-bottom: 4px;
                 }
 
                 .text-italic {
                     font-style: italic;
-                    margin: 2px 0;
-                    font-size: 9px;
+                    font-size: 12px;
+                    margin-bottom: 15px;
                 }
 
                 .inline-field {
@@ -3615,15 +3616,10 @@ class ReportsController extends Controller
 
                 .signature-area {
                     position: fixed;
-                    bottom: 100px;
+                    bottom: 40px;
                     right: 80px;
-                    // text-align: center;
                     font-size: 10px;
-                    // background: white;
                     padding: 15px 25px;
-                    // border: 2px solid #8B0066;
-                    // border-radius: 15px;
-                    // box-shadow: 0 2px 8px rgba(139, 0, 102, 0.15);
                     min-width: 180px;
                 }
 
@@ -3634,7 +3630,6 @@ class ReportsController extends Controller
                     left: -5px;
                     right: -5px;
                     bottom: -5px;
-                    // border: 1px solid #CC0000;
                     border-radius: 18px;
                     z-index: -1;
                 }
@@ -3697,11 +3692,11 @@ class ReportsController extends Controller
 
                 <div class='content'>
                     <!-- Première ligne avec Nom du parent et Allocation -->
-                    <div class='form-row'>
+                    <div class='form-row' style='margin-bottom: 15px;'>
                         <div class='form-row-flex'>
                             <div class='form-left'>
                                 <span class='field-label'>Nom du parent / <em>Parent'sname</em></span>
-                                <div class='field-input'>{$parentName}</div>
+                                <div class='field-input long'></div>
                             </div>
                             <div class='form-right'>
                                 <span class='field-label'>Allocation N° /<em> N° Allocation</em></span>
@@ -3713,7 +3708,7 @@ class ReportsController extends Controller
 
                     <!-- Section Je soussigné -->
                     <div class='text-line'>
-                        Je soussigné(e), " . ($schoolSettings->principal_name ? "<strong>{$schoolSettings->principal_name}</strong>" : "........................................................................") . "
+                        Je soussigné(e), <div class='field-input long'></div>
                     </div>
                     <div class='text-italic'>
                         <em>I the undersigned</em>
@@ -3727,7 +3722,7 @@ class ReportsController extends Controller
                     </div>
 
                     <div class='text-line' style='margin-top: 10px;'>
-                        L'élève <span style='text-decoration: underline; font-weight: bold;'>{$student->last_name} {$student->first_name}</span>
+                        L'élève <span style='text-decoration: underline;text-transform: uppercase; font-weight: bold; margin-left: 20px;'>{$student->last_name} {$student->first_name}</span>
                     </div>
                     <div class='text-italic'>
                         <em>The student</em>
@@ -3737,18 +3732,18 @@ class ReportsController extends Controller
                     <div class='form-row' style='margin-top: 10px;'>
                         <div class='form-row-flex'>
                             <div class='form-left'>
-                                <span class='field-label'>Fils ou Fille de :</span>
+                                <span class='field-label'>Né(e) le :</span>
                                 <div class='field-input'>" . ($dateNaissance) . "</div>
                             </div>
                             <div class='form-right'>
-                                <span class='field-label'>Et de</span>
+                                <span class='field-label'>à :</span>
                                 <div class='field-input'>" . ($student->place_of_birth ?? $student->birthday_place ?? '') . "</div>
                             </div>
                             <div class='clearfix'></div>
                         </div>
                     </div>
                     <div class='text-italic'>
-                        <em>Born on the</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>at</em>
+                        <em>Born on the</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>at</em>
                     </div>
 
                     <!-- Ligne Fils ou Fille de et Et de -->
@@ -3766,13 +3761,13 @@ class ReportsController extends Controller
                         </div>
                     </div>
                     <div class='text-italic'>
-                        <em>Son/Daughter of</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em>and</em>
+                        <em>Son/Daughter of</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em>and</em>
                     </div>
                     <div class='form-row' style='margin-top: 10px;'>
                         <div class='form-row-flex'>
                             <div class='form-left'>
                                 <span class='field-label'>Est inscrit(e) sur les registres de mon établissement pour l'année académique :</span>
-                                <div class='field-input'>" . ($workingYear->name) . "</div>
+                                <span style='text-decoration: underline'>".($workingYear->name) ."</span>
                             </div>
                             <div class='form-right'>
                                 <span class='field-label'>sous le numéro matricule </span>
@@ -3783,7 +3778,7 @@ class ReportsController extends Controller
                     </div>
                     <!-- Section inscription -->
                     <div class='text-italic'>
-                        <em>Is registered in my college for the academic year</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>with matriculation number</em>
+                        <em>Is registered in my college for the academic year</em>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>with matriculation number</em>
                     </div>
                     <div class='form-row' style='margin-top: 10px;'>
                         <div class='form-row-flex'>
@@ -3793,9 +3788,6 @@ class ReportsController extends Controller
                             </div>
                             <div class='clearfix'></div>
                         </div>
-                    </div>
-                    <div class='text-line' style='margin-top: 10px;'>
-                        Douala le, <span style='text-decoration: underline; font-weight: bold;'>" . date('d/m/Y') . "</span>
                     </div>
                 </div>
 
