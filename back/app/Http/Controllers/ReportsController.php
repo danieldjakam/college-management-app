@@ -3339,511 +3339,475 @@ class ReportsController extends Controller
             if ($student->classSeries->name) {
                 $classeComplete .= ' - ' . $student->classSeries->name;
             }
-        }$html = "
-            <!DOCTYPE html>
+        }
+        $html = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='utf-8'>
+            <title>Certificat de Scolarité - {$student->last_name} {$student->first_name}</title>
+            <style>
+                @page {
+                    size: A4 landscape;
+                    margin: 0.5cm;
+                }
 
-<html>
-<head>
-  <style>@page {
-  margin: 0;
-}
+                body {
+                    font-family: 'Times New Roman', Times, serif;
+                    font-size: 15px;
+                    line-height: 1.1;
+                    color: #000;
+                    margin: 0;
+                    padding: 0;
+                    position: relative;
+                    width: 100%;
+                    height: 100%;
+                    background: #f8f9fa;
+                }
 
-body {
-  margin: 0;
-}
+                .container {
+                    position: relative;
+                    padding: 25px;
+                    z-index: 10;
+                    background: white;
+                    box-sizing: border-box;
+                    border: 8px double #8B0066;
+                    border-radius: 15px;
+                    box-shadow: 0 0 20px rgba(139, 0, 102, 0.3);
+                    // height: calc(210mm - 20mm);
+                    // width: calc(297mm - 20mm);
+                    margin: 10mm;
+                }
 
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-    }
+                /* Bordures décoratives internes */
+                .container::before {
+                    content: '';
+                    position: absolute;
+                    top: 15px;
+                    left: 15px;
+                    right: 15px;
+                    bottom: 15px;
+                    pointer-events: none;
+                    z-index: 1;
+                }
 
-    .container {
-      border: 5px solid black;
-      height: 100%;
-      box-sizing: border-box;
-    }
-  </style>
-</head>
-<body>
-  <div class='container'>
-    <h1>Mon contenu</h1>
-    <p>Le conteneur prend toute la hauteur de la page PDF.</p>
-  </div>
-</body>
-</html>
+                .container::after {
+                    content: '';
+                    position: absolute;
+                    top: 10px;
+                    left: 10px;
+                    right: 10px;
+                    bottom: 10px;
+                    pointer-events: none;
+                    z-index: 1;
+                }
 
-        ";
+                /* En-tête avec 3 colonnes */
+                .header {
+                    width: 100%;
+                    margin-bottom: 15px;
+                }
 
+                .header-row {
+                    width: 100%;
+                    position: relative;
+                }
 
-        // $html = "
-        // <!DOCTYPE html>
-        // <html>
-        // <head>
-        //     <meta charset='utf-8'>
-        //     <title>Certificat de Scolarité - {$student->last_name} {$student->first_name}</title>
-        //     <style>
-        //         @page {
-        //             size: A4 landscape;
-        //             margin: 0.5cm;
-        //         }
+                .header-left {
+                    float: left;
+                    width: 32%;
+                    text-align: center;
+                    font-size: 9px;
+                    line-height: 1.0;
+                }
 
-        //         body {
-        //             font-family: 'Times New Roman', Times, serif;
-        //             font-size: 15px;
-        //             line-height: 1.1;
-        //             color: #000;
-        //             margin: 0;
-        //             padding: 0;
-        //             position: relative;
-        //             width: 100%;
-        //             height: 100%;
-        //             background: #f8f9fa;
-        //         }
+                .header-center {
+                    float: left;
+                    width: 36%;
+                    text-align: center;
+                    padding: 0 2%;
+                }
 
-        //         .container {
-        //             position: relative;
-        //             padding: 25px;
-        //             z-index: 10;
-        //             background: white;
-        //             box-sizing: border-box;
-        //             border: 8px double #8B0066;
-        //             border-radius: 15px;
-        //             box-shadow: 0 0 20px rgba(139, 0, 102, 0.3);
-        //             height: calc(210mm - 20mm);
-        //             width: calc(297mm - 20mm);
-        //             margin: 10mm;
-        //         }
+                .header-right {
+                    float: right;
+                    width: 32%;
+                    text-align: center;
+                    font-size: 9px;
+                    line-height: 1.0;
+                }
 
-        //         /* Bordures décoratives internes */
-        //         .container::before {
-        //             content: '';
-        //             position: absolute;
-        //             top: 15px;
-        //             left: 15px;
-        //             right: 15px;
-        //             bottom: 15px;
-        //             pointer-events: none;
-        //             z-index: 1;
-        //         }
+                .clearfix {
+                    clear: both;
+                }
 
-        //         .container::after {
-        //             content: '';
-        //             position: absolute;
-        //             top: 10px;
-        //             left: 10px;
-        //             right: 10px;
-        //             bottom: 10px;
-        //             pointer-events: none;
-        //             z-index: 1;
-        //         }
+                .logo-container {
+                    margin: 5px auto 8px auto;
+                    width: 70px;
+                    height: 70px;
+                    position: relative;
+                    background: white;
+                }
 
-        //         /* En-tête avec 3 colonnes */
-        //         .header {
-        //             width: 100%;
-        //             margin-bottom: 15px;
-        //         }
+                .logo {
+                    width: 64px;
+                    height: 64px;
+                    border-radius: 50%;
+                    margin: 3px auto;
+                    display: block;
+                }
 
-        //         .header-row {
-        //             width: 100%;
-        //             position: relative;
-        //         }
+                .logo-text {
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    margin-top: -10px;
+                    margin-left: -15px;
+                    font-weight: bold;
+                    font-size: 12px;
+                    color: #8B0066;
+                }
 
-        //         .header-left {
-        //             float: left;
-        //             width: 32%;
-        //             text-align: center;
-        //             font-size: 9px;
-        //             line-height: 1.0;
-        //         }
+                .logo-bottom {
+                    text-align: center;
+                    font-size: 9px;
+                    font-weight: bold;
+                    margin-top: 5px;
+                    color: #8B0066;
+                }
 
-        //         .header-center {
-        //             float: left;
-        //             width: 36%;
-        //             text-align: center;
-        //             padding: 0 2%;
-        //         }
+                .republic-line {
+                    font-weight: bold;
+                    font-size: 11px;
+                    margin-bottom: 2px;
+                }
 
-        //         .header-right {
-        //             float: right;
-        //             width: 32%;
-        //             text-align: center;
-        //             font-size: 9px;
-        //             line-height: 1.0;
-        //         }
+                .motto {
+                    font-style: italic;
+                    font-size: 9px;
+                    margin-bottom: 3px;
+                    text-decoration: underline;
+                }
 
-        //         .clearfix {
-        //             clear: both;
-        //         }
+                .ministry {
+                    font-weight: bold;
+                    font-size: 9px;
+                    margin-bottom: 2px;
+                }
 
-        //         .logo-container {
-        //             margin: 5px auto 8px auto;
-        //             width: 70px;
-        //             height: 70px;
-        //             position: relative;
-        //             background: white;
-        //         }
+                .school-name {
+                    font-weight: bold;
+                    font-size: 10px;
+                    margin-bottom: 2px;
+                }
 
-        //         .logo {
-        //             width: 64px;
-        //             height: 64px;
-        //             border-radius: 50%;
-        //             margin: 3px auto;
-        //             display: block;
-        //         }
+                .school-details {
+                    font-size: 8px;
+                    margin-bottom: 3px;
+                }
 
-        //         .logo-text {
-        //             position: absolute;
-        //             top: 50%;
-        //             left: 50%;
-        //             margin-top: -10px;
-        //             margin-left: -15px;
-        //             font-weight: bold;
-        //             font-size: 12px;
-        //             color: #8B0066;
-        //         }
+                .year-info {
+                    font-size: 9px;
+                    margin-top: 8px;
+                }
 
-        //         .logo-bottom {
-        //             text-align: center;
-        //             font-size: 9px;
-        //             font-weight: bold;
-        //             margin-top: 5px;
-        //             color: #8B0066;
-        //         }
+                /* Titre principal */
+                .main-title {
+                    text-align: center;
+                    margin: 20px 0 15px 0;
+                    position: relative;
+                    z-index: 5;
+                    box-shadow: 0 4px 8px rgba(139, 0, 102, 0.2);
+                }
 
-        //         .republic-line {
-        //             font-weight: bold;
-        //             font-size: 11px;
-        //             margin-bottom: 2px;
-        //         }
+                .main-title::before {
+                    content: '';
+                    position: absolute;
+                    top: -8px;
+                    left: -8px;
+                    right: -8px;
+                    bottom: -8px;
+                    z-index: -1;
+                }
 
-        //         .motto {
-        //             font-style: italic;
-        //             font-size: 9px;
-        //             margin-bottom: 3px;
-        //             text-decoration: underline;
-        //         }
+                .title-fr {
+                    font-size: 18px;
+                    font-weight: bold;
+                    color: #CC0000;
+                    margin-bottom: 5px;
+                    letter-spacing: 1px;
+                    text-shadow: 1px 1px 2px rgba(204, 0, 0, 0.3);
+                }
 
-        //         .ministry {
-        //             font-weight: bold;
-        //             font-size: 9px;
-        //             margin-bottom: 2px;
-        //         }
+                .title-en {
+                    font-size: 14px;
+                    font-weight: bold;
+                    font-style: italic;
+                    color: #8B0066;
+                    letter-spacing: 0.5px;
+                }
 
-        //         .school-name {
-        //             font-weight: bold;
-        //             font-size: 10px;
-        //             margin-bottom: 2px;
-        //         }
+                /* Contenu principal */
+                .content {
+                    margin: 20px 0;
+                    line-height: 1.2;
+                    position: relative;
+                    z-index: 5;
+                    padding: 20px;
+                    box-shadow: inset 0 0 10px rgba(139, 0, 102, 0.1);
+                }
 
-        //         .school-details {
-        //             font-size: 8px;
-        //             margin-bottom: 3px;
-        //         }
+                .form-row {
+                    margin-bottom: 8px;
+                    width: 100%;
+                }
 
-        //         .year-info {
-        //             font-size: 9px;
-        //             margin-top: 8px;
-        //         }
+                .form-row-flex {
+                    position: relative;
+                    width: 100%;
+                }
 
-        //         /* Titre principal */
-        //         .main-title {
-        //             text-align: center;
-        //             margin: 20px 0 15px 0;
-        //             position: relative;
-        //             z-index: 5;
-        //             box-shadow: 0 4px 8px rgba(139, 0, 102, 0.2);
-        //         }
+                .form-left {
+                    float: left;
+                    width: 48%;
+                }
 
-        //         .main-title::before {
-        //             content: '';
-        //             position: absolute;
-        //             top: -8px;
-        //             left: -8px;
-        //             right: -8px;
-        //             bottom: -8px;
-        //             z-index: -1;
-        //         }
+                .form-right {
+                    float: right;
+                    width: 48%;
+                }
 
-        //         .title-fr {
-        //             font-size: 18px;
-        //             font-weight: bold;
-        //             color: #CC0000;
-        //             margin-bottom: 5px;
-        //             letter-spacing: 1px;
-        //             text-shadow: 1px 1px 2px rgba(204, 0, 0, 0.3);
-        //         }
+                .field-label {
+                    font-size: 10px;
+                    display: inline-block;
+                    margin-right: 6px;
+                }
 
-        //         .title-en {
-        //             font-size: 14px;
-        //             font-weight: bold;
-        //             font-style: italic;
-        //             color: #8B0066;
-        //             letter-spacing: 0.5px;
-        //         }
+                .field-input {
+                    border: none;
+                    border-bottom: 1px solid #000;
+                    min-height: 14px;
+                    // padding: 2px 0;
+                    display: inline-block;
+                    min-width: 150px;
+                    font-size: 10px;
+                    background: transparent;
+                    vertical-align: middle;
+                    text-decoration: underline;
+                }
 
-        //         /* Contenu principal */
-        //         .content {
-        //             margin: 20px 0;
-        //             line-height: 1.2;
-        //             position: relative;
-        //             z-index: 5;
-        //             padding: 20px;
-        //             box-shadow: inset 0 0 10px rgba(139, 0, 102, 0.1);
-        //         }
+                .text-line {
+                    margin: 8px 0;
+                    font-size: 10px;
+                    line-height: 1.2;
+                }
 
-        //         .form-row {
-        //             margin-bottom: 8px;
-        //             width: 100%;
-        //         }
+                .text-italic {
+                    font-style: italic;
+                    margin: 2px 0;
+                    font-size: 9px;
+                }
 
-        //         .form-row-flex {
-        //             position: relative;
-        //             width: 100%;
-        //         }
+                .inline-field {
+                    display: inline-block;
+                    margin: 0 3px;
+                    min-width: 100px;
+                }
 
-        //         .form-left {
-        //             float: left;
-        //             width: 48%;
-        //         }
+                .signature-area {
+                    position: fixed;
+                    bottom: 100px;
+                    right: 80px;
+                    // text-align: center;
+                    font-size: 10px;
+                    // background: white;
+                    padding: 15px 25px;
+                    // border: 2px solid #8B0066;
+                    // border-radius: 15px;
+                    // box-shadow: 0 2px 8px rgba(139, 0, 102, 0.15);
+                    min-width: 180px;
+                }
 
-        //         .form-right {
-        //             float: right;
-        //             width: 48%;
-        //         }
+                .signature-area::before {
+                    content: '';
+                    position: relative;
+                    top: -5px;
+                    left: -5px;
+                    right: -5px;
+                    bottom: -5px;
+                    // border: 1px solid #CC0000;
+                    border-radius: 18px;
+                    z-index: -1;
+                }
 
-        //         .field-label {
-        //             font-size: 10px;
-        //             display: inline-block;
-        //             margin-right: 6px;
-        //         }
+                .signature-title {
+                    font-weight: bold;
+                    // color: #8B0066;
+                    font-size: 11px;
+                    margin-bottom: 5px;
+                }
 
-        //         .field-input {
-        //             border: none;
-        //             border-bottom: 1px solid #000;
-        //             min-height: 14px;
-        //             // padding: 2px 0;
-        //             display: inline-block;
-        //             min-width: 150px;
-        //             font-size: 10px;
-        //             background: transparent;
-        //             vertical-align: middle;
-        //             text-decoration: underline;
-        //         }
+                .signature-name {
+                    font-weight: bold;
+                    font-size: 12px;
+                    margin-top: 25px;
+                    text-decoration: underline;
+                    color: #CC0000;
+                }
+            </style>
+        </head>
+        <body>
+            <div class='container'>
+                <div class='header'>
+                    <div class='header-row'>
+                        <div class='header-left'>
+                            <div class='republic-line'>REPUBLIQUE DU CAMEROUN</div>
+                            <div class='motto'>Paix-Travail-Patrie</div>
+                            <div class='ministry'>MINISTERE ES ENSEIGNEMENTS SECONDAIRES</div>
+                            <div class='school-name'>COLLEGE POLYVALENT BILINGUE DE DOUALA</div>
+                            <div class='school-details'>
+                                <u>BP:</u>4100 Douala Téléphone : 233 43 25 47<br>
+                                <strong>YASSA</strong>
+                            </div>
+                            <div class='year-info'>Année scolaire : {$workingYear->name}</div>
+                        </div>
 
-        //         .text-line {
-        //             margin: 8px 0;
-        //             font-size: 10px;
-        //             line-height: 1.2;
-        //         }
+                        <div class='header-center'>
+                                " . ($logoBase64 ? "<img src='{$logoBase64}' class='logo' alt='Logo'>" : "<div class='logo-text'>CPBD</div>") . "
+                        </div>
 
-        //         .text-italic {
-        //             font-style: italic;
-        //             margin: 2px 0;
-        //             font-size: 9px;
-        //         }
+                        <div class='header-right'>
+                            <div class='republic-line'>REPUBLIC OF CAMEROON</div>
+                            <div class='motto'>Peace-Work-Fatherland</div>
+                            <div class='ministry'>MINISTRY OF SECONDARY EDUCATION</div>
+                            <div class='school-name'>COMPREHENSIVE BILINGUAL COLLEGE DOUALA</div>
+                            <div class='school-details'>
+                                PO BOX:4100 &nbsp;&nbsp;&nbsp;&nbsp; Douala Phone : 233 43 25 47<br>
+                                <strong>YASSA</strong>
+                            </div>
+                            <div class='year-info'><u>Academic year</u> : {$workingYear->name}</div>
+                        </div>
+                        <div class='clearfix'></div>
+                    </div>
+                </div>
 
-        //         .inline-field {
-        //             display: inline-block;
-        //             margin: 0 3px;
-        //             min-width: 100px;
-        //         }
+                <div class='main-title'>
+                    <div class='title-fr'>CERTIFICAT DE SCOLARITE</div>
+                    <div class='title-en'><em>SCHOOL ATTENDANCE CERTIFICATE</em></div>
+                </div>
 
-        //         .signature-area {
-        //             position: fixed;
-        //             bottom: 50px;
-        //             right: 80px;
-        //             text-align: center;
-        //             font-size: 10px;
-        //             // background: white;
-        //             padding: 15px 25px;
-        //             // border: 2px solid #8B0066;
-        //             // border-radius: 15px;
-        //             // box-shadow: 0 2px 8px rgba(139, 0, 102, 0.15);
-        //             min-width: 180px;
-        //         }
+                <div class='content'>
+                    <!-- Première ligne avec Nom du parent et Allocation -->
+                    <div class='form-row'>
+                        <div class='form-row-flex'>
+                            <div class='form-left'>
+                                <span class='field-label'>Nom du parent / <em>Parent'sname</em></span>
+                                <div class='field-input'>{$parentName}</div>
+                            </div>
+                            <div class='form-right'>
+                                <span class='field-label'>Allocation N° /<em> N° Allocation</em></span>
+                                <div class='field-input'>" . '' . "</div>
+                            </div>
+                            <div class='clearfix'></div>
+                        </div>
+                    </div>
 
-        //         .signature-area::before {
-        //             content: '';
-        //             position: relative;
-        //             top: -5px;
-        //             left: -5px;
-        //             right: -5px;
-        //             bottom: -5px;
-        //             // border: 1px solid #CC0000;
-        //             border-radius: 18px;
-        //             z-index: -1;
-        //         }
+                    <!-- Section Je soussigné -->
+                    <div class='text-line'>
+                        Je soussigné(e), " . ($schoolSettings->principal_name ? "<strong>{$schoolSettings->principal_name}</strong>" : "........................................................................") . "
+                    </div>
+                    <div class='text-italic'>
+                        <em>I the undersigned</em>
+                    </div>
 
-        //         .signature-title {
-        //             font-weight: bold;
-        //             // color: #8B0066;
-        //             font-size: 11px;
-        //             margin-bottom: 5px;
-        //         }
+                    <div class='text-line' style='margin-top: 10px;'>
+                        Principal du <strong>{$schoolSettings->school_name}</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; certifie que,
+                    </div>
+                    <div class='text-italic'>
+                        <em>Principal of {$schoolSettings->school_name}</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>certified that,</em>
+                    </div>
 
-        //         .signature-name {
-        //             font-weight: bold;
-        //             font-size: 12px;
-        //             margin-top: 25px;
-        //             text-decoration: underline;
-        //             color: #CC0000;
-        //         }
-        //     </style>
-        // </head>
-        // <body>
-        //     <div class='container'>
-        //         <div class='header'>
-        //             <div class='header-row'>
-        //                 <div class='header-left'>
-        //                     <div class='republic-line'>REPUBLIQUE DU CAMEROUN</div>
-        //                     <div class='motto'>Paix-Travail-Patrie</div>
-        //                     <div class='ministry'>MINISTERE ES ENSEIGNEMENTS SECONDAIRES</div>
-        //                     <div class='school-name'>COLLEGE POLYVALENT BILINGUE DE DOUALA</div>
-        //                     <div class='school-details'>
-        //                         <u>BP:</u>4100 Douala Téléphone : 233 43 25 47<br>
-        //                         <strong>YASSA</strong>
-        //                     </div>
-        //                     <div class='year-info'>Année scolaire : {$workingYear->name}</div>
-        //                 </div>
+                    <div class='text-line' style='margin-top: 10px;'>
+                        L'élève <span style='text-decoration: underline; font-weight: bold;'>{$student->last_name} {$student->first_name}</span>
+                    </div>
+                    <div class='text-italic'>
+                        <em>The student</em>
+                    </div>
 
-        //                 <div class='header-center'>
-        //                         " . ($logoBase64 ? "<img src='{$logoBase64}' class='logo' alt='Logo'>" : "<div class='logo-text'>CPBD</div>") . "
-        //                 </div>
+                    <!-- Ligne Né(e) le et à -->
+                    <div class='form-row' style='margin-top: 10px;'>
+                        <div class='form-row-flex'>
+                            <div class='form-left'>
+                                <span class='field-label'>Fils ou Fille de :</span>
+                                <div class='field-input'>" . ($dateNaissance) . "</div>
+                            </div>
+                            <div class='form-right'>
+                                <span class='field-label'>Et de</span>
+                                <div class='field-input'>" . ($student->place_of_birth ?? $student->birthday_place ?? '') . "</div>
+                            </div>
+                            <div class='clearfix'></div>
+                        </div>
+                    </div>
+                    <div class='text-italic'>
+                        <em>Born on the</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>at</em>
+                    </div>
 
-        //                 <div class='header-right'>
-        //                     <div class='republic-line'>REPUBLIC OF CAMEROON</div>
-        //                     <div class='motto'>Peace-Work-Fatherland</div>
-        //                     <div class='ministry'>MINISTRY OF SECONDARY EDUCATION</div>
-        //                     <div class='school-name'>COMPREHENSIVE BILINGUAL COLLEGE DOUALA</div>
-        //                     <div class='school-details'>
-        //                         PO BOX:4100 &nbsp;&nbsp;&nbsp;&nbsp; Douala Phone : 233 43 25 47<br>
-        //                         <strong>YASSA</strong>
-        //                     </div>
-        //                     <div class='year-info'><u>Academic year</u> : {$workingYear->name}</div>
-        //                 </div>
-        //                 <div class='clearfix'></div>
-        //             </div>
-        //         </div>
+                    <!-- Ligne Fils ou Fille de et Et de -->
+                    <div class='form-row' style='margin-top: 10px;'>
+                        <div class='form-row-flex'>
+                            <div class='form-left'>
+                                <span class='field-label'>Fils ou Fille de :</span>
+                                <div class='field-input'>" . ($student->father_name ?? $parentName ?? '') . "</div>
+                            </div>
+                            <div class='form-right'>
+                                <span class='field-label'>Et de</span>
+                                <div class='field-input'>" . ($student->mother_name ?? '') . "</div>
+                            </div>
+                            <div class='clearfix'></div>
+                        </div>
+                    </div>
+                    <div class='text-italic'>
+                        <em>Son/Daughter of</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em>and</em>
+                    </div>
+                    <div class='form-row' style='margin-top: 10px;'>
+                        <div class='form-row-flex'>
+                            <div class='form-left'>
+                                <span class='field-label'>Est inscrit(e) sur les registres de mon établissement pour l'année académique :</span>
+                                <div class='field-input'>" . ($workingYear->name) . "</div>
+                            </div>
+                            <div class='form-right'>
+                                <span class='field-label'>sous le numéro matricule </span>
+                                <div class='field-input'>" . ($student->student_number) . "</div>
+                            </div>
+                            <div class='clearfix'></div>
+                        </div>
+                    </div>
+                    <!-- Section inscription -->
+                    <div class='text-italic'>
+                        <em>Is registered in my college for the academic year</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>with matriculation number</em>
+                    </div>
+                    <div class='form-row' style='margin-top: 10px;'>
+                        <div class='form-row-flex'>
+                            <div class='form-left'>
+                                <span class='field-label'>Et suit régulièrement les cours en classe de:</span>
+                                <div class='field-input'>" . ($student->classSeries->schoolClass->name??''). " - " . ($student->classSeries->name??'') . "</div>
+                            </div>
+                            <div class='clearfix'></div>
+                        </div>
+                    </div>
+                    <div class='text-line' style='margin-top: 10px;'>
+                        Douala le, <span style='text-decoration: underline; font-weight: bold;'>" . date('d/m/Y') . "</span>
+                    </div>
+                </div>
 
-        //         <div class='main-title'>
-        //             <div class='title-fr'>CERTIFICAT DE SCOLARITE</div>
-        //             <div class='title-en'><em>SCHOOL ATTENDANCE CERTIFICATE</em></div>
-        //         </div>
-
-        //         <div class='content'>
-        //             <!-- Première ligne avec Nom du parent et Allocation -->
-        //             <div class='form-row'>
-        //                 <div class='form-row-flex'>
-        //                     <div class='form-left'>
-        //                         <span class='field-label'>Nom du parent / <em>Parent'sname</em></span>
-        //                         <div class='field-input'>{$parentName}</div>
-        //                     </div>
-        //                     <div class='form-right'>
-        //                         <span class='field-label'>Allocation N° /<em> N° Allocation</em></span>
-        //                         <div class='field-input'>" . '' . "</div>
-        //                     </div>
-        //                     <div class='clearfix'></div>
-        //                 </div>
-        //             </div>
-
-        //             <!-- Section Je soussigné -->
-        //             <div class='text-line'>
-        //                 Je soussigné(e), " . ($schoolSettings->principal_name ? "<strong>{$schoolSettings->principal_name}</strong>" : "........................................................................") . "
-        //             </div>
-        //             <div class='text-italic'>
-        //                 <em>I the undersigned</em>
-        //             </div>
-
-        //             <div class='text-line' style='margin-top: 10px;'>
-        //                 Principal du <strong>{$schoolSettings->school_name}</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; certifie que,
-        //             </div>
-        //             <div class='text-italic'>
-        //                 <em>Principal of {$schoolSettings->school_name}</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>certified that,</em>
-        //             </div>
-
-        //             <div class='text-line' style='margin-top: 10px;'>
-        //                 L'élève <span style='text-decoration: underline; font-weight: bold;'>{$student->last_name} {$student->first_name}</span>
-        //             </div>
-        //             <div class='text-italic'>
-        //                 <em>The student</em>
-        //             </div>
-
-        //             <!-- Ligne Né(e) le et à -->
-        //             <div class='form-row' style='margin-top: 10px;'>
-        //                 <div class='form-row-flex'>
-        //                     <div class='form-left'>
-        //                         <span class='field-label'>Fils ou Fille de :</span>
-        //                         <div class='field-input'>" . ($dateNaissance) . "</div>
-        //                     </div>
-        //                     <div class='form-right'>
-        //                         <span class='field-label'>Et de</span>
-        //                         <div class='field-input'>" . ($student->place_of_birth ?? $student->birthday_place ?? '') . "</div>
-        //                     </div>
-        //                     <div class='clearfix'></div>
-        //                 </div>
-        //             </div>
-        //             <div class='text-italic'>
-        //                 <em>Born on the</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>at</em>
-        //             </div>
-
-        //             <!-- Ligne Fils ou Fille de et Et de -->
-        //             <div class='form-row' style='margin-top: 10px;'>
-        //                 <div class='form-row-flex'>
-        //                     <div class='form-left'>
-        //                         <span class='field-label'>Fils ou Fille de :</span>
-        //                         <div class='field-input'>" . ($student->father_name ?? $parentName ?? '') . "</div>
-        //                     </div>
-        //                     <div class='form-right'>
-        //                         <span class='field-label'>Et de</span>
-        //                         <div class='field-input'>" . ($student->mother_name ?? '') . "</div>
-        //                     </div>
-        //                     <div class='clearfix'></div>
-        //                 </div>
-        //             </div>
-        //             <div class='text-italic'>
-        //                 <em>Son/Daughter of</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em>and</em>
-        //             </div>
-        //             <div class='form-row' style='margin-top: 10px;'>
-        //                 <div class='form-row-flex'>
-        //                     <div class='form-left'>
-        //                         <span class='field-label'>Est inscrit(e) sur les registres de mon établissement pour l'année académique :</span>
-        //                         <div class='field-input'>" . ($workingYear->name) . "</div>
-        //                     </div>
-        //                     <div class='form-right'>
-        //                         <span class='field-label'>sous le numéro matricule </span>
-        //                         <div class='field-input'>" . ($student->student_number) . "</div>
-        //                     </div>
-        //                     <div class='clearfix'></div>
-        //                 </div>
-        //             </div>
-        //             <!-- Section inscription -->
-        //             <div class='text-italic'>
-        //                 <em>Is registered in my college for the academic year</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>with matriculation number</em>
-        //             </div>
-        //             <div class='form-row' style='margin-top: 10px;'>
-        //                 <div class='form-row-flex'>
-        //                     <div class='form-left'>
-        //                         <span class='field-label'>Et suit régulièrement les cours en classe de:</span>
-        //                         <div class='field-input'>" . ($student->classSeries->schoolClass->name??''). " - " . ($student->classSeries->name??'') . "</div>
-        //                     </div>
-        //                     <div class='clearfix'></div>
-        //                 </div>
-        //             </div>
-        //             <div class='text-line' style='margin-top: 10px;'>
-        //                 Douala le, <span style='text-decoration: underline; font-weight: bold;'>" . date('d/m/Y') . "</span>
-        //             </div>
-        //         </div>
-
-        //         <div class='signature-area'>
-        //             <div class='signature-title'>Douala le, " . date('d/m/Y') . "</div>
-        //             <div class='text-italic'><em> Issued in Douala on the</em></div>
-        //             <div class='signature-title'>Le Principal</div>
-        //             <div class='text-italic'><em> The Principal</em></div>
-        //         </div>
-        //     </div>
-        // </body>
-        // </html>";
+                <div class='signature-area'>
+                    <div class='signature-title'>Douala le, " . date('d/m/Y') . "</div>
+                    <div class='text-italic'><em> Issued in Douala on the</em></div>
+                    <div class='signature-title'>Le Principal</div>
+                    <div class='text-italic'><em> The Principal</em></div>
+                </div>
+            </div>
+        </body>
+        </html>";
 
         return $html;
     }
