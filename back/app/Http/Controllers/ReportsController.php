@@ -3340,7 +3340,6 @@ class ReportsController extends Controller
                 $classeComplete .= ' - ' . $student->classSeries->name;
             }
         }
-
         $html = "
         <!DOCTYPE html>
         <html>
@@ -3355,24 +3354,52 @@ class ReportsController extends Controller
 
                 body {
                     font-family: 'Times New Roman', Times, serif;
-                    font-size: 10px;
+                    font-size: 15px;
                     line-height: 1.1;
                     color: #000;
                     margin: 0;
                     padding: 0;
                     position: relative;
                     width: 100%;
-                    height: 100vh;
+                    height: 100%;
+                    background: #f8f9fa;
                 }
-
 
                 .container {
                     position: relative;
-                    padding: 15px;
+                    padding: 25px;
                     z-index: 10;
                     background: white;
-                    height: calc(100vh - 30px);
                     box-sizing: border-box;
+                    border: 8px double #8B0066;
+                    border-radius: 15px;
+                    box-shadow: 0 0 20px rgba(139, 0, 102, 0.3);
+                    // height: calc(210mm - 20mm);
+                    // width: calc(297mm - 20mm);
+                    margin: 10mm;
+                }
+
+                /* Bordures décoratives internes */
+                .container::before {
+                    content: '';
+                    position: absolute;
+                    top: 15px;
+                    left: 15px;
+                    right: 15px;
+                    bottom: 15px;
+                    pointer-events: none;
+                    z-index: 1;
+                }
+
+                .container::after {
+                    content: '';
+                    position: absolute;
+                    top: 10px;
+                    left: 10px;
+                    right: 10px;
+                    bottom: 10px;
+                    pointer-events: none;
+                    z-index: 1;
                 }
 
                 /* En-tête avec 3 colonnes */
@@ -3417,8 +3444,6 @@ class ReportsController extends Controller
                     margin: 5px auto 8px auto;
                     width: 70px;
                     height: 70px;
-                    border: 2px solid #8B0066;
-                    border-radius: 50%;
                     position: relative;
                     background: white;
                 }
@@ -3488,28 +3513,47 @@ class ReportsController extends Controller
                 /* Titre principal */
                 .main-title {
                     text-align: center;
-                    margin: 15px 0 12px 0;
+                    margin: 20px 0 15px 0;
+                    position: relative;
+                    z-index: 5;
+                    box-shadow: 0 4px 8px rgba(139, 0, 102, 0.2);
+                }
+
+                .main-title::before {
+                    content: '';
+                    position: absolute;
+                    top: -8px;
+                    left: -8px;
+                    right: -8px;
+                    bottom: -8px;
+                    z-index: -1;
                 }
 
                 .title-fr {
-                    font-size: 16px;
+                    font-size: 18px;
                     font-weight: bold;
                     color: #CC0000;
-                    margin-bottom: 3px;
-                    letter-spacing: 0.5px;
+                    margin-bottom: 5px;
+                    letter-spacing: 1px;
+                    text-shadow: 1px 1px 2px rgba(204, 0, 0, 0.3);
                 }
 
                 .title-en {
-                    font-size: 12px;
+                    font-size: 14px;
                     font-weight: bold;
                     font-style: italic;
-                    color: #CC0000;
+                    color: #8B0066;
+                    letter-spacing: 0.5px;
                 }
 
                 /* Contenu principal */
                 .content {
-                    margin: 12px 0;
+                    margin: 20px 0;
                     line-height: 1.2;
+                    position: relative;
+                    z-index: 5;
+                    padding: 20px;
+                    box-shadow: inset 0 0 10px rgba(139, 0, 102, 0.1);
                 }
 
                 .form-row {
@@ -3542,7 +3586,7 @@ class ReportsController extends Controller
                     border: none;
                     border-bottom: 1px solid #000;
                     min-height: 14px;
-                    padding: 2px 0;
+                    // padding: 2px 0;
                     display: inline-block;
                     min-width: 150px;
                     font-size: 10px;
@@ -3570,16 +3614,44 @@ class ReportsController extends Controller
                 }
 
                 .signature-area {
-                    position: absolute;
-                    bottom: 40px;
-                    right: 60px;
-                    text-align: center;
+                    position: fixed;
+                    bottom: 100px;
+                    right: 80px;
+                    // text-align: center;
                     font-size: 10px;
+                    // background: white;
+                    padding: 15px 25px;
+                    // border: 2px solid #8B0066;
+                    // border-radius: 15px;
+                    // box-shadow: 0 2px 8px rgba(139, 0, 102, 0.15);
+                    min-width: 180px;
+                }
+
+                .signature-area::before {
+                    content: '';
+                    position: relative;
+                    top: -5px;
+                    left: -5px;
+                    right: -5px;
+                    bottom: -5px;
+                    // border: 1px solid #CC0000;
+                    border-radius: 18px;
+                    z-index: -1;
                 }
 
                 .signature-title {
                     font-weight: bold;
-                    margin-bottom: 25px;
+                    // color: #8B0066;
+                    font-size: 11px;
+                    margin-bottom: 5px;
+                }
+
+                .signature-name {
+                    font-weight: bold;
+                    font-size: 12px;
+                    margin-top: 25px;
+                    text-decoration: underline;
+                    color: #CC0000;
                 }
             </style>
         </head>
@@ -3600,10 +3672,7 @@ class ReportsController extends Controller
                         </div>
 
                         <div class='header-center'>
-                            <div class='logo-container'>
                                 " . ($logoBase64 ? "<img src='{$logoBase64}' class='logo' alt='Logo'>" : "<div class='logo-text'>CPBD</div>") . "
-                            </div>
-                            <div class='logo-bottom'>DE DOUALA</div>
                         </div>
 
                         <div class='header-right'>
@@ -3644,17 +3713,17 @@ class ReportsController extends Controller
 
                     <!-- Section Je soussigné -->
                     <div class='text-line'>
-                        Je soussigné(e), ........................................................................
+                        Je soussigné(e), " . ($schoolSettings->principal_name ? "<strong>{$schoolSettings->principal_name}</strong>" : "........................................................................") . "
                     </div>
                     <div class='text-italic'>
                         <em>I the undersigned</em>
                     </div>
 
                     <div class='text-line' style='margin-top: 10px;'>
-                        Principal du <strong>COLLEGE POLYVALENT BILINGUE DE DOUALA</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; certifie que,
+                        Principal du <strong>{$schoolSettings->school_name}</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; certifie que,
                     </div>
                     <div class='text-italic'>
-                        <em>Principal of COMPREHENSIVE BILINGUAL COLLEGE DOUALA</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>certified that,</em>
+                        <em>Principal of {$schoolSettings->school_name}</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>certified that,</em>
                     </div>
 
                     <div class='text-line' style='margin-top: 10px;'>
@@ -3679,7 +3748,7 @@ class ReportsController extends Controller
                         </div>
                     </div>
                     <div class='text-italic'>
-                        <em>Born on the</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>at</em>
+                        <em>Born on the</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>at</em>
                     </div>
 
                     <!-- Ligne Fils ou Fille de et Et de -->
@@ -3697,7 +3766,7 @@ class ReportsController extends Controller
                         </div>
                     </div>
                     <div class='text-italic'>
-                        <em>Son/Daughter of</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>and</em>
+                        <em>Son/Daughter of</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<em>and</em>
                     </div>
                     <div class='form-row' style='margin-top: 10px;'>
                         <div class='form-row-flex'>
@@ -3712,6 +3781,10 @@ class ReportsController extends Controller
                             <div class='clearfix'></div>
                         </div>
                     </div>
+                    <!-- Section inscription -->
+                    <div class='text-italic'>
+                        <em>Is registered in my college for the academic year</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>with matriculation number</em>
+                    </div>
                     <div class='form-row' style='margin-top: 10px;'>
                         <div class='form-row-flex'>
                             <div class='form-left'>
@@ -3724,23 +3797,13 @@ class ReportsController extends Controller
                     <div class='text-line' style='margin-top: 10px;'>
                         Douala le, <span style='text-decoration: underline; font-weight: bold;'>" . date('d/m/Y') . "</span>
                     </div>
-                    <div class='text-italic'>
-                        <em>Douala the,</em>
-                    </div>
-
-                    <!-- Section inscription -->
-                    <div class='text-italic'>
-                        <em>Is registered in my college for the academic year</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>with matriculation number</em>
-                    </div>
-
-                    <div class='text-italic'>
-                        <em>To study in</em> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <em>Issued in Douala on the</em>
-                    </div>
                 </div>
 
                 <div class='signature-area'>
+                    <div class='signature-title'>Douala le, " . date('d/m/Y') . "</div>
+                    <div class='text-italic'><em> Issued in Douala on the</em></div>
                     <div class='signature-title'>Le Principal</div>
-                    <div class='signature-title'><em>/ The Principal</em></div>
+                    <div class='text-italic'><em> The Principal</em></div>
                 </div>
             </div>
         </body>

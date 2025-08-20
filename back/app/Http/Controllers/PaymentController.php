@@ -619,8 +619,8 @@ class PaymentController extends Controller
                     'is_fully_paid' => $newTotalAmount >= $reducedAmount,
                     'required_amount_at_time' => $reducedAmount,
                     'was_reduced' => $reductionApplied > 0,
-                    'reduction_context' => $reductionApplied > 0 
-                        ? "Nouvelle réduction {$discountPercentage}% sur dernières tranches - Normal: " . number_format($normalAmount, 0) . " FCFA, Réduit: " . number_format($reducedAmount, 0) . " FCFA" 
+                    'reduction_context' => $reductionApplied > 0
+                        ? "Nouvelle réduction {$discountPercentage}% sur dernières tranches - Normal: " . number_format($normalAmount, 0) . " FCFA, Réduit: " . number_format($reducedAmount, 0) . " FCFA"
                         : "Montant normal - " . number_format($normalAmount, 0) . " FCFA"
                 ]);
 
@@ -1749,7 +1749,7 @@ class PaymentController extends Controller
             // Calculer le reste effectif après bourses/réductions
             $effectiveRemaining = $trancheRemaining;
             if ($scholarshipAmount > 0) {
-                $effectiveRemaining = max(0, $trancheRemaining - $scholarshipAmount);
+                // $effectiveRemaining = max(0, $trancheRemaining - $scholarshipAmount);
             } elseif ($discountAmount > 0) {
                 $effectiveRemaining = max(0, $trancheRemaining - $discountAmount);
             }
@@ -2292,7 +2292,7 @@ class PaymentController extends Controller
 
             // Récupérer les paiements de la période
             $paymentsQuery = Payment::with([
-                'student.classSeries.schoolClass', 
+                'student.classSeries.schoolClass',
                 'paymentDetails.paymentTranche'
             ])
             ->where('school_year_id', $workingYear->id)
@@ -2339,9 +2339,9 @@ class PaymentController extends Controller
             if ($format === 'pdf') {
                 $pdf = Pdf::loadHtml($html);
                 $pdf->setPaper('A4', 'portrait');
-                
+
                 $filename = 'listing_paiements_' . date('Y-m-d_H-i-s') . '.pdf';
-                
+
                 return $pdf->download($filename);
             }
 
@@ -2429,7 +2429,7 @@ class PaymentController extends Controller
             </div>
 
             <div class='title'>LISTING DES PAIEMENTS DE SCOLARITÉ</div>
-            
+
             <div class='period-info'>
                 <div>Période: du " . \Carbon\Carbon::parse($startDate)->format('d/m/Y') . " au " . \Carbon\Carbon::parse($endDate)->format('d/m/Y') . "</div>
                 <div>Classe: {$className}</div>
@@ -2549,7 +2549,7 @@ class PaymentController extends Controller
 
             // Construire la requête des étudiants - seulement ceux qui ont payé dans la période
             $studentsQuery = Student::with([
-                'classSeries.schoolClass', 
+                'classSeries.schoolClass',
                 'payments.paymentDetails.paymentTranche'
             ])
             ->where('school_year_id', $workingYear->id)
@@ -2589,14 +2589,14 @@ class PaymentController extends Controller
             // Debug - voir la requête SQL générée
             \Illuminate\Support\Facades\Log::info("SQL Query for students: " . $studentsQuery->toSql());
             \Illuminate\Support\Facades\Log::info("Query bindings: " . json_encode($studentsQuery->getBindings()));
-            
+
             $students = $studentsQuery->orderBy('last_name')
                 ->orderBy('first_name')
                 ->get();
-            
+
             // Debug - voir quels étudiants sont récupérés
             \Illuminate\Support\Facades\Log::info("Students found for tranche report: " . $students->pluck('id')->implode(', '));
-            
+
             // Debug spécial pour l'étudiant 40
             $student40 = Student::with('payments.paymentDetails.paymentTranche')->find(40);
             if ($student40) {
@@ -2645,32 +2645,32 @@ class PaymentController extends Controller
                     $paymentDate = \Carbon\Carbon::parse($payment->payment_date)->format('Y-m-d');
                     $startDateFormatted = \Carbon\Carbon::parse($startDate)->format('Y-m-d');
                     $endDateFormatted = \Carbon\Carbon::parse($endDate)->format('Y-m-d');
-                    
+
                     if ($paymentDate >= $startDateFormatted && $paymentDate <= $endDateFormatted) {
                         foreach ($payment->paymentDetails as $detail) {
                             $trancheId = $detail->paymentTranche->id;
                             if (in_array($trancheId, $trancheIds)) {
                                 // Utiliser amount_allocated qui contient le montant effectivement payé
                                 $amountPaid = $detail->amount_allocated;
-                                
+
                                 $studentInfo['payments_by_tranche'][$trancheId]['amount_paid'] += $amountPaid;
                                 $studentInfo['payments_by_tranche'][$trancheId]['payment_count']++;
-                                
+
                                 // Marquer si cette tranche a été payée (même avec réduction)
                                 if ($detail->was_reduced || $amountPaid > 0 || $payment->has_reduction) {
                                     $studentInfo['payments_by_tranche'][$trancheId]['has_payment'] = true;
                                     // Marquer comme réduit si le detail était réduit OU si le paiement global avait une réduction
                                     $studentInfo['payments_by_tranche'][$trancheId]['was_reduced'] = $detail->was_reduced || $payment->has_reduction;
                                 }
-                                
+
                                 $currentDate = $payment->payment_date;
                                 $validationDate = $payment->validation_date;
-                                if (!$studentInfo['payments_by_tranche'][$trancheId]['last_payment_date'] || 
+                                if (!$studentInfo['payments_by_tranche'][$trancheId]['last_payment_date'] ||
                                     $currentDate > $studentInfo['payments_by_tranche'][$trancheId]['last_payment_date']) {
                                     $studentInfo['payments_by_tranche'][$trancheId]['last_payment_date'] = $currentDate;
                                     $studentInfo['payments_by_tranche'][$trancheId]['validation_date'] = $validationDate;
                                 }
-                                
+
                                 // Debug - pour voir tous les paiements
                                 \Illuminate\Support\Facades\Log::info("Student {$student->id} - Tranche {$detail->paymentTranche->name} - Amount: {$amountPaid} - Detail reduced: " . ($detail->was_reduced ? 'Yes' : 'No') . " - Payment has_reduction: " . ($payment->has_reduction ? 'Yes' : 'No') . " - Context: {$detail->reduction_context}");
                             }
@@ -2685,7 +2685,7 @@ class PaymentController extends Controller
                         \Illuminate\Support\Facades\Log::info("  Tranche {$trancheId}: amount={$data['amount_paid']}, has_payment={$data['has_payment']}, was_reduced={$data['was_reduced']}");
                     }
                 }
-                
+
                 $studentData[] = $studentInfo;
             }
 
@@ -2695,9 +2695,9 @@ class PaymentController extends Controller
             if ($format === 'pdf') {
                 $pdf = Pdf::loadHtml($html);
                 $pdf->setPaper('A4', 'landscape'); // Paysage pour accommoder les colonnes
-                
+
                 $filename = 'liste_tranches_' . date('Y-m-d_H-i-s') . '.pdf';
-                
+
                 return $pdf->download($filename);
             }
 
@@ -2792,7 +2792,7 @@ class PaymentController extends Controller
             </div>
 
             <div class='title'>LISTE DES PAIEMENTS PAR TRANCHE</div>
-            
+
             <div class='period-info'>
                 <div>Période: du " . \Carbon\Carbon::parse($startDate)->format('d/m/Y') . " au " . \Carbon\Carbon::parse($endDate)->format('d/m/Y') . "</div>
                 <div>Classe: {$className}</div>
@@ -2814,12 +2814,12 @@ class PaymentController extends Controller
                         <th style='width: 5%;'>N°</th>
                         <th style='width: 20%;'>Nom et Prénom</th>
                         <th style='width: 15%;'>Classe</th>";
-            
+
             // Colonnes pour chaque tranche
             foreach ($selectedTranches as $tranche) {
                 $html .= "<th style='width: {$trancheWidth}%;' class='tranche-header'>{$tranche->name}<br><small>(Montant / Date)</small></th>";
             }
-            
+
             $html .= "
                     </tr>
                 </thead>
@@ -2842,7 +2842,7 @@ class PaymentController extends Controller
                         <td class='center'>{$counter}</td>
                         <td>{$studentName}</td>
                         <td>{$className}</td>";
-                
+
                 // Données pour chaque tranche
                 foreach ($selectedTranches as $tranche) {
                     $trancheData = $data['payments_by_tranche'][$tranche->id];
@@ -2851,16 +2851,16 @@ class PaymentController extends Controller
                     $wasReduced = $trancheData['was_reduced'] ?? false;
                     $lastPaymentDate = $trancheData['last_payment_date'];
                     $validationDate = $trancheData['validation_date'] ?? null;
-                    
+
                     if ($amount > 0) {
                         // Montant payé normalement
-                        $dateStr = $validationDate 
+                        $dateStr = $validationDate
                             ? \Carbon\Carbon::parse($validationDate)->format('d/m/Y')
                             : ($lastPaymentDate ? \Carbon\Carbon::parse($lastPaymentDate)->format('d/m/Y') : '');
                         $html .= "<td class='center'>" . $formatAmount($amount) . " FCFA<br><small>{$dateStr}</small></td>";
                     } elseif ($hasPayment && $wasReduced) {
                         // Payé avec réduction complète (montant = 0)
-                        $dateStr = $validationDate 
+                        $dateStr = $validationDate
                             ? \Carbon\Carbon::parse($validationDate)->format('d/m/Y')
                             : ($lastPaymentDate ? \Carbon\Carbon::parse($lastPaymentDate)->format('d/m/Y') : '');
                         $html .= "<td class='center'><small>Payé (réduction)<br>{$dateStr}</small></td>";
@@ -2869,7 +2869,7 @@ class PaymentController extends Controller
                         $html .= "<td class='center'>-</td>";
                     }
                 }
-                
+
                 $html .= "</tr>";
                 $counter++;
             }
@@ -2958,7 +2958,7 @@ class PaymentController extends Controller
                 $hasRameBrought = $rameStatus && $rameStatus->has_brought_rame;
 
                 $status = $hasRameBrought ? 'brought' : 'not_brought';
-                
+
                 if ($hasRameBrought) {
                     $summary['rame_brought']++;
                 } else {
@@ -2981,9 +2981,9 @@ class PaymentController extends Controller
             if ($format === 'pdf') {
                 $pdf = Pdf::loadHtml($html);
                 $pdf->setPaper('A4', 'portrait');
-                
+
                 $filename = 'etat_rame_' . \Str::slug($series->name) . '_' . date('Y-m-d_H-i-s') . '.pdf';
-                
+
                 return $pdf->download($filename);
             }
 
@@ -3061,7 +3061,7 @@ class PaymentController extends Controller
             </div>
 
             <div class='title'>ÉTAT DES RAMES PAR SÉRIE</div>
-            
+
             <div class='series-info'>
                 <div>Série: {$serieFullName}</div>
                 <div>Année scolaire: {$workingYear->name}</div>
@@ -3109,7 +3109,7 @@ class PaymentController extends Controller
             foreach ($studentData as $data) {
                 $student = $data['student'];
                 $studentName = ($student->last_name ?? '') . ' ' . ($student->first_name ?? '');
-                
+
                 $statusText = '';
                 $statusClass = '';
                 switch ($data['status']) {

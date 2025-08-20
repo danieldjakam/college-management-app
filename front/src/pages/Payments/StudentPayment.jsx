@@ -99,6 +99,8 @@ const StudentPayment = () => {
       console.log(response);
       
       if (response.success) {
+        console.log(response);
+        
         setStudent(response.data.student);
         setPaymentStatus(response.data.payment_status);
         setSchoolYear(response.data.school_year);
@@ -1268,8 +1270,7 @@ const StudentPayment = () => {
                                 {formatAmount(
                                   Math.max(
                                     0,
-                                    parseFloat(status.remaining_amount) -
-                                      parseFloat(status.scholarship_amount)
+                                    parseFloat(status.remaining_amount) 
                                   )
                                 )}
                                 {parseFloat(status.remaining_amount) -
@@ -1281,10 +1282,10 @@ const StudentPayment = () => {
                                       {formatAmount(
                                         Math.max(
                                           0,
-                                          parseFloat(status.remaining_amount) -
-                                            parseFloat(
-                                              status.scholarship_amount
-                                            )
+                                          parseFloat(status.remaining_amount) 
+                                            // parseFloat(
+                                            //   status.scholarship_amount
+                                            // )
                                         )
                                       )}
                                       )
