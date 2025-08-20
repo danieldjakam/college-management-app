@@ -595,15 +595,15 @@ Route::middleware('auth:api')->group(function () {
     Route::prefix('staff-attendance')->group(function () {
         // Routes pour scan QR du personnel
         Route::post('/scan-qr', [StaffAttendanceController::class, 'scanQR'])->middleware(['role:admin,surveillant_general']);
-        Route::get('/daily-attendance', [StaffAttendanceController::class, 'getDailyAttendance'])->middleware(['role:admin,surveillant_general']);
-        Route::get('/entry-exit-stats', [StaffAttendanceController::class, 'getEntryExitStats'])->middleware(['role:admin,surveillant_general']);
+        Route::get('/daily-attendance', [StaffAttendanceController::class, 'getDailyAttendance'])->middleware(['role:admin,surveillant_general,secretaire,comptable_superieur,accountant']);
+        Route::get('/entry-exit-stats', [StaffAttendanceController::class, 'getEntryExitStats'])->middleware(['role:admin,surveillant_general,secretaire,comptable_superieur,accountant']);
 
         // Routes pour gestion des QR codes personnel
         Route::post('/generate-qr', [StaffAttendanceController::class, 'generateQRCode'])->middleware(['role:admin']);
-        Route::get('/staff-with-qr', [StaffAttendanceController::class, 'getStaffWithQR'])->middleware(['role:admin,surveillant_general']);
+        Route::get('/staff-with-qr', [StaffAttendanceController::class, 'getStaffWithQR'])->middleware(['role:admin,surveillant_general,secretaire,comptable_superieur,accountant']);
 
         // Routes pour rapports et statistiques
-        Route::get('/staff/{staffId}/report', [StaffAttendanceController::class, 'getStaffReport'])->middleware(['role:admin,surveillant_general']);
+        Route::get('/staff/{staffId}/report', [StaffAttendanceController::class, 'getStaffReport'])->middleware(['role:admin,surveillant_general,secretaire,comptable_superieur,accountant']);
 
         // Routes pour badges multiples
         Route::post('/generate-multiple-badges', [StaffAttendanceController::class, 'generateMultipleBadges'])->middleware(['role:admin']);

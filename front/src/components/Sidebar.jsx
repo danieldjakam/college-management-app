@@ -123,6 +123,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Rechercher", href: "/search", icon: <Search /> },
           ],
         },
+        // {
+        //   title: "Personnel",
+        //   items: [
+        //     { name: "Présences Personnel", href: "/staff-attendance-management", icon: <People /> },
+        //   ],
+        // },
         {
           title: "Outils",
           items: [
@@ -158,6 +164,14 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
             { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
+          ],
+        },
+        {
+          title: "Personnel",
+          items: [
+            ...((userRole === "comptable_superieur" || userRole === "accountant") ? [
+              { name: "Présences Personnel", href: "/staff-attendance-management", icon: <People /> }
+            ] : []),
           ],
         },
         {
