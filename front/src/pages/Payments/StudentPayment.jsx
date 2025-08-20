@@ -96,6 +96,8 @@ const StudentPayment = () => {
         studentId
       );
 
+      console.log(response);
+      
       if (response.success) {
         setStudent(response.data.student);
         setPaymentStatus(response.data.payment_status);

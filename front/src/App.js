@@ -39,6 +39,9 @@ import StudentsByClass from "./pages/comptables/StudentsByClass";
 // Payment Pages
 import StudentPayment from "./pages/Payments/StudentPayment";
 import PaymentReports from "./pages/Payments/PaymentReports";
+import DocumentaryFees from "./pages/Payments/DocumentaryFees";
+import CreateDocumentaryFee from "./pages/Payments/CreateDocumentaryFee";
+import DocumentaryFeeDetails from "./pages/Payments/DocumentaryFeeDetails";
 
 // Reports
 import Reports from "./pages/Reports";
@@ -524,6 +527,40 @@ const AppContent = () => {
                 element={
                   <AccountantRoute>
                     <StudentPayment />
+                  </AccountantRoute>
+                }
+              />
+
+              {/* Routes pour les frais de dossiers */}
+              <Route
+                path="/payments/documentary-fees"
+                element={
+                  <AccountantRoute>
+                    <DocumentaryFees />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/payments/documentary-fees/create"
+                element={
+                  <AccountantRoute>
+                    <CreateDocumentaryFee />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/payments/documentary-fees/:id"
+                element={
+                  <AccountantRoute>
+                    <DocumentaryFeeDetails />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/payments/documentary-fees/:id/edit"
+                element={
+                  <AccountantRoute>
+                    <CreateDocumentaryFee />
                   </AccountantRoute>
                 }
               />

@@ -12,6 +12,7 @@ use App\Http\Controllers\StudentController;
 use App\Http\Controllers\AccountantController;
 use App\Http\Controllers\SchoolYearController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\DocumentaryFeeController;
 use App\Http\Controllers\SchoolSettingsController;
 use App\Http\Controllers\ClassScholarshipController;
 use App\Http\Controllers\ReportsController;
@@ -299,6 +300,21 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/tranches', [PaymentController::class, 'getPaymentTranches']);
     });
 
+    // Routes pour les frais de dossiers et pénalités (comptables et admins)
+    Route::prefix('documentary-fees')->middleware(['role:admin,accountant,comptable_superieur'])->group(function () {
+        Route::get('/', [DocumentaryFeeController::class, 'index']);
+        Route::post('/', [DocumentaryFeeController::class, 'store']);
+        Route::get('/statistics', [DocumentaryFeeController::class, 'getStatistics']);
+        Route::post('/report/period', [DocumentaryFeeController::class, 'generatePeriodReport']);
+        Route::get('/{id}', [DocumentaryFeeController::class, 'show']);
+        Route::put('/{id}', [DocumentaryFeeController::class, 'update']);
+        Route::delete('/{id}', [DocumentaryFeeController::class, 'destroy']);
+        Route::get('/{id}/receipt', [DocumentaryFeeController::class, 'generateReceipt']);
+    });
+
+    // Route pour la recherche d'étudiants dans les frais de dossiers
+    Route::get('/students/search', [DocumentaryFeeController::class, 'searchStudents'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
 
     // Routes pour les paramètres de l'école
     Route::prefix('school-settings')->group(function () {

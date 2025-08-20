@@ -89,7 +89,7 @@ class DiscountCalculatorService
 
         return true;
     }
-    
+
     /**
      * Calcule le résultat final d'un paiement, en appliquant les réductions si éligible.
      *
@@ -151,18 +151,19 @@ class DiscountCalculatorService
      * Détermine si l'étudiant est éligible aux bourses à la date donnée
      *
      * @param Carbon|string $currentDate
-     * @return bool 
+     * @return bool
      */
     public function isEligibleForScholarship($currentDate): bool
     {
-        $deadline = $this->schoolSettings->scholarship_deadline;
-        
-        if (!$deadline) {
-            return true; // Pas de deadline = toujours éligible
-        }
+        // $deadline = $this->schoolSettings->scholarship_deadline;
 
-        return Carbon::parse($currentDate)->isBefore($deadline) || 
-               Carbon::parse($currentDate)->isSameDay($deadline);
+        // if (!$deadline) {
+        //     return true; // Pas de deadline = toujours éligible
+        // }
+
+        // return Carbon::parse($currentDate)->isBefore($deadline) ||
+        //        Carbon::parse($currentDate)->isSameDay($deadline);
+        return true;
     }
 
     /**
@@ -175,7 +176,7 @@ class DiscountCalculatorService
     public function calculateGlobalDiscount($student, float $originalAmount): array
     {
         $discountPercentage = $this->schoolSettings->reduction_percentage ?? 0;
-        
+
         if ($discountPercentage <= 0) {
             return [
                 'has_discount' => false,
@@ -211,12 +212,12 @@ class DiscountCalculatorService
         if ($this->getClassScholarship($student)) {
             return 'scholarship';
         }
-        
+
         // Vérifier si éligible à la réduction
         if ($this->isEligibleForGlobalDiscount($student, $paymentAmount, $totalRemaining, $versementDate, $hasExistingPayments)) {
             return 'global_discount';
         }
-        
+
         // Cas normal - ni bourse ni réduction
         return 'normal';
     }
@@ -231,7 +232,7 @@ class DiscountCalculatorService
 
     /**
      * Calculer les montants avec réduction appliquée depuis les dernières tranches
-     * 
+     *
      * @param Student $student
      * @param \Illuminate\Support\Collection $paymentTranches Collection des tranches triées par ordre
      * @return array ['tranches' => [...], 'total_reduction' => 0]
@@ -239,7 +240,7 @@ class DiscountCalculatorService
     public function calculateAmountsWithLastTrancheReduction($student, $paymentTranches): array
     {
         $discountPercentage = $this->getDiscountPercentage();
-        
+
         if ($discountPercentage <= 0) {
             // Pas de réduction, retourner les montants normaux
             return [
@@ -258,7 +259,7 @@ class DiscountCalculatorService
         // Calculer le montant total et la réduction totale
         $totalAmount = 0;
         $trancheAmounts = [];
-        
+
         foreach ($paymentTranches as $tranche) {
             $amount = $tranche->getAmountForStudent($student, false, false, false, false);
             $totalAmount += $amount;
@@ -269,29 +270,29 @@ class DiscountCalculatorService
                 'reduction_applied' => 0
             ];
         }
-        
+
         $totalReduction = round($totalAmount * ($discountPercentage / 100), 0);
         $remainingReduction = $totalReduction;
-        
+
         // Trier les tranches par ordre décroissant (dernière → première)
         $sortedIndices = array_keys($trancheAmounts);
         usort($sortedIndices, function($a, $b) use ($trancheAmounts) {
             return $trancheAmounts[$b]['tranche']->order <=> $trancheAmounts[$a]['tranche']->order;
         });
-        
+
         // Appliquer la réduction depuis les dernières tranches
         foreach ($sortedIndices as $index) {
             if ($remainingReduction <= 0) break;
-            
+
             $normalAmount = $trancheAmounts[$index]['normal_amount'];
             $reductionOnThisTranche = min($remainingReduction, $normalAmount);
-            
+
             $trancheAmounts[$index]['reduced_amount'] = $normalAmount - $reductionOnThisTranche;
             $trancheAmounts[$index]['reduction_applied'] = $reductionOnThisTranche;
-            
+
             $remainingReduction -= $reductionOnThisTranche;
         }
-        
+
         return [
             'tranches' => $trancheAmounts,
             'total_reduction' => $totalReduction
