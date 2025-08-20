@@ -314,6 +314,8 @@ class StudentController extends Controller
             'parent_name' => 'required|string|max:255',
             'parent_phone' => 'nullable|string|max:20',
             'parent_email' => 'nullable|email|max:255',
+            'mother_name' => 'nullable|string|max:255',
+            'mother_phone' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:500',
             'class_series_id' => 'required|integer|exists:class_series,id',
             'photo' => 'nullable|image|mimes:jpeg,jpg,png,gif|max:5120' // 5MB max
@@ -397,6 +399,8 @@ class StudentController extends Controller
             'parent_name' => 'required|string|max:255',
             'parent_phone' => 'nullable|string|max:20',
             'parent_email' => 'nullable|email|max:255',
+            'mother_name' => 'nullable|string|max:255',
+            'mother_phone' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:500',
             'class_series_id' => 'required|exists:class_series,id',
             'school_year_id' => 'nullable|exists:school_years,id', // Optionnel lors de la modification
@@ -476,6 +480,8 @@ class StudentController extends Controller
             'parent_name' => 'required|string|max:255',
             'parent_phone' => 'nullable|string|max:20',
             'parent_email' => 'nullable|email|max:255',
+            'mother_name' => 'nullable|string|max:255',
+            'mother_phone' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:500',
             'class_series_id' => 'required|exists:class_series,id',
             'school_year_id' => 'nullable|exists:school_years,id', // Make nullable for update
