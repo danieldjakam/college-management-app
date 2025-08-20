@@ -49,6 +49,7 @@ const SchoolSettings = () => {
     scholarship_deadline: "",
     reduction_percentage: 10,
     primary_color: "#007bff",
+    principal_name: "",
     whatsapp_notification_number: "",
     whatsapp_notifications_enabled: false,
     whatsapp_api_url: "",
@@ -375,6 +376,21 @@ const SchoolSettings = () => {
                     </Form.Group>
                   </Col>
                 </Row>
+
+                <Form.Group className="mb-3">
+                  <Form.Label>Nom du Principal/Directeur</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={settings.principal_name}
+                    onChange={(e) =>
+                      handleInputChange("principal_name", e.target.value)
+                    }
+                    placeholder="Ex: M. Jean DUPONT"
+                  />
+                  <Form.Text className="text-muted">
+                    Ce nom apparaîtra sur les certificats de scolarité
+                  </Form.Text>
+                </Form.Group>
 
                 <Form.Group className="mb-3">
                   <Form.Label className=" d-flex align-items-center gap-1">

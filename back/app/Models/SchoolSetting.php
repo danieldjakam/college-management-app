@@ -22,6 +22,7 @@ class SchoolSetting extends Model
         'scholarship_deadline',
         'reduction_percentage',
         'primary_color',
+        'principal_name',
         'whatsapp_notification_number',
         'whatsapp_notifications_enabled',
         'whatsapp_api_url',
