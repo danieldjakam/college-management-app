@@ -2,6 +2,7 @@ import React from 'react';
 import { useSchool } from '../contexts/SchoolContext';
 import defaultPhoto from '../images/1.png';
 import cameroonFlag from '../images/carte.jpeg'; // On utilisera le drapeau intégré dans l'image de référence
+import { host } from '../utils/fetch';
 
 const StudentCard = ({ student, schoolYear, onPrint }) => {
     const { schoolSettings, getLogoUrl } = useSchool();
@@ -23,8 +24,7 @@ const StudentCard = ({ student, schoolYear, onPrint }) => {
             }
             
             // Si c'est un chemin relatif, construire l'URL complète
-            const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-            const fullUrl = `${baseUrl}/storage/${student.photo}`;
+            const fullUrl = `${host}/storage/${student.photo}`;
             console.log('Constructed photo URL from photo field:', fullUrl);
             return fullUrl;
         }

@@ -919,12 +919,14 @@ const TrancheListsReport = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [classes, setClasses] = useState([]);
+  const [series, setSeries] = useState([]);
   const [tranches, setTranches] = useState([]);
 
   const [filters, setFilters] = useState({
     start_date: new Date().toISOString().split("T")[0],
     end_date: new Date().toISOString().split("T")[0],
     class_id: "",
+    series_id: "",
     tranche_ids: []
   });
 
@@ -932,6 +934,16 @@ const TrancheListsReport = () => {
     loadClasses();
     loadTranches();
   }, []);
+
+  // Charger les séries quand une classe est sélectionnée
+  useEffect(() => {
+    if (filters.class_id) {
+      loadSeriesForClass(filters.class_id);
+    } else {
+      setSeries([]);
+      setFilters(prev => ({ ...prev, series_id: "" }));
+    }
+  }, [filters.class_id]);
 
   const loadClasses = async () => {
     try {
@@ -944,6 +956,23 @@ const TrancheListsReport = () => {
     } catch (error) {
       console.error("Erreur lors du chargement des classes:", error);
       setClasses([]);
+    }
+  };
+
+  const loadSeriesForClass = async (classId) => {
+    try {
+      const response = await secureApiEndpoints.accountant.getClasses();
+      if (response.success && response.data && response.data.classes) {
+        const selectedClass = response.data.classes.find(cls => cls.id == classId);
+        if (selectedClass && selectedClass.series) {
+          setSeries(selectedClass.series);
+        } else {
+          setSeries([]);
+        }
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des séries:", error);
+      setSeries([]);
     }
   };
 
@@ -1121,8 +1150,32 @@ const TrancheListsReport = () => {
             </Col>
             <Col md={3}>
               <Form.Group className="mb-3">
-                <Form.Label>&nbsp;</Form.Label>
-                <div className="d-grid gap-2">
+                <Form.Label>Série (optionnel)</Form.Label>
+                <Form.Select
+                  value={filters.series_id}
+                  onChange={(e) =>
+                    setFilters(prev => ({
+                      ...prev,
+                      series_id: e.target.value
+                    }))
+                  }
+                  disabled={!filters.class_id}
+                >
+                  <option value="">Toutes les séries</option>
+                  {series.map((serie) => (
+                    <option key={serie.id} value={serie.id}>
+                      {serie.name}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+          </Row>
+          
+          <Row>
+            <Col md={12}>
+              <Form.Group className="mb-3">
+                <div className="d-grid gap-2" style={{ maxWidth: '200px' }}>
                   <Button
                     variant="primary"
                     onClick={generateListing}

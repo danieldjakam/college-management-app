@@ -112,7 +112,7 @@ export const TeacherRoute = ({ children, fallbackPath = "/" }) => {
 export const AccountantRoute = ({ children, fallbackPath = "/" }) => {
   return (
     <ProtectedRoute
-      requiredRoles={["admin", "accountant", "comptable_superieur"]}
+      requiredRoles={["admin", "accountant", "comptable_superieur", "secretaire"]}
       fallbackPath={fallbackPath}
     >
       {children}

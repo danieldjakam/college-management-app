@@ -34,8 +34,8 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
   // Debug pour le logo
   const getLogoSrc = () => {
     const logoUrl = getLogoUrl();
-    console.log("School logo path:", schoolSettings.school_logo);
-    console.log("Generated logo URL:", logoUrl);
+    // console.log("School logo path:", schoolSettings.school_logo);
+    // console.log("Generated logo URL:", logoUrl);
     return logoUrl || logo;
   };
 
@@ -113,6 +113,43 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
       ];
+    } else if (userRole === "secretaire") {
+      return [
+        {
+          title: "Comptabilité",
+          items: [
+            { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
+            // { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
+            { name: "Rechercher", href: "/search", icon: <Search /> },
+          ],
+        },
+        {
+          title: "Outils",
+          items: [
+            { name: "Documents", href: "/documents", icon: <FolderFill /> },
+          ],
+        },
+        {
+          title: "Paiements",
+          items: [
+            {
+              name: "Frais de Dossiers",
+              href: "/payments/documentary-fees",
+              icon: <FileTextFill />,
+            },
+          ],
+        },
+        {
+          title: "Compte",
+          items: [
+            { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
+            ...(userRole === "comptable_superieur" ? [
+              { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> }
+            ] : []),
+            { name: "Profil", href: "/profile", icon: <PersonCircle /> }
+          ],
+        },
+      ];
     } else if (userRole === "accountant" || userRole === "comptable_superieur") {
       return [
         {
@@ -121,6 +158,15 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
             { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
+          ],
+        },
+        {
+          title: "Présences",
+          items: [
+            ...((userRole === "comptable_superieur" || userRole === "accountant") ? [
+            { name: "Suivi Présences Élèves", href: "/student-attendance-tracking", icon: <ClipboardCheckFill /> },
+            { name: "Suivi Présences Personnel", href: "/staff-daily-attendance", icon: <PeopleFill /> },
+            ] : []),
           ],
         },
         {
@@ -137,6 +183,11 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               name: "États de Paiements",
               href: "/payment-reports",
               icon: <Receipt />,
+            },
+            {
+              name: "Frais de Dossiers",
+              href: "/payments/documentary-fees",
+              icon: <FileTextFill />,
             },
           ],
         },
@@ -269,6 +320,8 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         return "Comptable";
       case "comptable_superieur":
         return "Comptable Supérieur";
+      case "secretaire":
+        return "Secretaire";
       case "teacher":
         return "Enseignant";
       case "surveillant_general":

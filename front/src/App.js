@@ -35,10 +35,14 @@ import ClassCompt from "./pages/comptables/Class";
 import ParamsCompt from "./pages/comptables/Params";
 import StudentsComp from "./pages/comptables/Students";
 import StudentsByClass from "./pages/comptables/StudentsByClass";
+import StudentAttendanceTracking from "./pages/comptables/StudentAttendanceTracking";
 
 // Payment Pages
 import StudentPayment from "./pages/Payments/StudentPayment";
 import PaymentReports from "./pages/Payments/PaymentReports";
+import DocumentaryFees from "./pages/Payments/DocumentaryFees";
+import CreateDocumentaryFee from "./pages/Payments/CreateDocumentaryFee";
+import DocumentaryFeeDetails from "./pages/Payments/DocumentaryFeeDetails";
 
 // Reports
 import Reports from "./pages/Reports";
@@ -92,6 +96,10 @@ import TestInventory from "./pages/Inventory/TestInventory";
 
 // Documents
 import DocumentsManager from "./pages/Documents/DocumentsManager";
+
+// Staff Attendance
+import StaffAttendanceManagement from "./pages/Staff/StaffAttendanceManagement";
+import StaffDailyAttendance from "./pages/Staff/StaffDailyAttendance";
 
 
 // Components
@@ -237,6 +245,36 @@ const AppContent = () => {
                   <ProtectedRoute>
                     <DocumentsManager />
                   </ProtectedRoute>
+                }
+              />
+              
+              {/* Route pour la gestion des présences du personnel - Secrétaires et Comptables Supérieurs */}
+              <Route
+                path="/staff-attendance-management"
+                element={
+                  <ProtectedRoute requiredRoles={['secretaire', 'comptable_superieur', 'accountant', 'admin']}>
+                    <StaffAttendanceManagement />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Route pour le suivi des présences élèves - Comptables */}
+              <Route
+                path="/student-attendance-tracking"
+                element={
+                  <AccountantRoute>
+                    <StudentAttendanceTracking />
+                  </AccountantRoute>
+                }
+              />
+
+              {/* Route pour le suivi des présences personnel - Comptables */}
+              <Route
+                path="/staff-daily-attendance"
+                element={
+                  <AccountantRoute>
+                    <StaffDailyAttendance />
+                  </AccountantRoute>
                 }
               />
 
@@ -524,6 +562,40 @@ const AppContent = () => {
                 element={
                   <AccountantRoute>
                     <StudentPayment />
+                  </AccountantRoute>
+                }
+              />
+
+              {/* Routes pour les frais de dossiers */}
+              <Route
+                path="/payments/documentary-fees"
+                element={
+                  <AccountantRoute>
+                    <DocumentaryFees />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/payments/documentary-fees/create"
+                element={
+                  <AccountantRoute>
+                    <CreateDocumentaryFee />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/payments/documentary-fees/:id"
+                element={
+                  <AccountantRoute>
+                    <DocumentaryFeeDetails />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/payments/documentary-fees/:id/edit"
+                element={
+                  <AccountantRoute>
+                    <CreateDocumentaryFee />
                   </AccountantRoute>
                 }
               />

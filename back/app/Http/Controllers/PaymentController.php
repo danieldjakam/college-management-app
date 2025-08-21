@@ -425,7 +425,7 @@ class PaymentController extends Controller
     }
 
     /**
-     * Marquer la RAME comme payée physiquement
+     * Marquer la RAME comme apportée physiquement
      */
     public function payRamePhysically(Request $request, $studentId)
     {
@@ -450,90 +450,24 @@ class PaymentController extends Controller
                 return response()->json(['success' => false, 'message' => 'Étudiant non trouvé'], 404);
             }
 
-            // Récupérer la tranche RAME
-            $rameTranche = PaymentTranche::where('name', 'RAME')->first();
-            if (!$rameTranche) {
-                return response()->json(['success' => false, 'message' => 'Tranche RAME non trouvée'], 404);
-            }
+            // Utiliser le système student_rame_status au lieu des tranches de paiement
+            $rameStatus = \App\Models\StudentRameStatus::getOrCreateForStudent($studentId, $workingYear->id);
 
-            // Vérifier si la RAME n'a pas déjà été payée
-            $existingRamePayment = Payment::where('student_id', $studentId)
-                ->where('school_year_id', $workingYear->id)
-                ->where('is_rame_physical', true)
-                ->first();
-
-            if ($existingRamePayment) {
+            // Vérifier si la RAME n'a pas déjà été marquée comme apportée
+            if ($rameStatus->has_brought_rame) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'La RAME a déjà été payée physiquement pour cet étudiant'
+                    'message' => 'La RAME a déjà été marquée comme apportée pour cet étudiant'
                 ], 422);
             }
 
-            // Vérifier si la RAME n'a pas été payée électroniquement
-            $existingElectronicRame = PaymentDetail::whereHas('payment', function ($query) use ($studentId, $workingYear) {
-                $query->where('student_id', $studentId)
-                    ->where('school_year_id', $workingYear->id)
-                    ->where('is_rame_physical', false);
-            })->where('payment_tranche_id', $rameTranche->id)
-                ->where('amount_allocated', '>', 0)
-                ->first();
+            // Marquer la RAME comme apportée dans student_rame_status
+            $rameStatus->markAsBrought(Auth::id(), $request->notes);
 
-            if ($existingElectronicRame) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'La RAME a déjà été payée électroniquement pour cet étudiant'
-                ], 422);
-            }
-
-            DB::beginTransaction();
-
-            $receiptNumber = Payment::generateReceiptNumber($workingYear, $request->payment_date);
-
-            // Créer le paiement RAME physique
-            $payment = Payment::create([
-                'student_id' => $studentId,
-                'school_year_id' => $workingYear->id,
-                'total_amount' => $rameTranche->default_amount,
-                'payment_date' => $request->payment_date,
-                'versement_date' => $request->versement_date,
-                'validation_date' => now(),
-                'payment_method' => 'rame_physical',
-                'reference_number' => null,
-                'notes' => $request->notes ?? 'Paiement RAME physique',
-                'created_by_user_id' => Auth::id(),
-                'receipt_number' => $receiptNumber,
-                'is_rame_physical' => true,
-                'has_scholarship' => false,
-                'scholarship_amount' => 0,
-                'has_reduction' => false,
-                'reduction_amount' => 0,
-                'discount_reason' => null
-            ]);
-
-            // Créer le détail de paiement pour la tranche RAME
-            PaymentDetail::create([
-                'payment_id' => $payment->id,
-                'payment_tranche_id' => $rameTranche->id,
-                'amount_allocated' => $rameTranche->default_amount,
-                'previous_amount' => 0,
-                'new_total_amount' => $rameTranche->default_amount,
-                'is_fully_paid' => true,
-                'required_amount_at_time' => $rameTranche->default_amount,
-                'was_reduced' => false,
-                'reduction_context' => null
-            ]);
-
-            DB::commit();
-
-            // Envoyer la notification WhatsApp
-            try {
-                $whatsAppService = new \App\Services\WhatsAppService();
-                $whatsAppService->sendPaymentNotification($payment);
-            } catch (\Exception $e) {
-                Log::warning('Erreur lors de l\'envoi de la notification WhatsApp pour paiement RAME physique', [
-                    'payment_id' => $payment->id,
-                    'error' => $e->getMessage()
-                ]);
+            // Enregistrer les dates de versement et validation si fournies
+            if ($request->versement_date) {
+                $rameStatus->deposit_date = $request->versement_date;
+                $rameStatus->save();
             }
 
             return response()->json([
@@ -572,65 +506,18 @@ class PaymentController extends Controller
                 return response()->json(['success' => false, 'message' => 'Étudiant non trouvé'], 404);
             }
 
-            // Récupérer la tranche RAME
-            $rameTranche = PaymentTranche::where('name', 'RAME')->first();
-            if (!$rameTranche) {
-                return response()->json([
-                    'success' => true,
-                    'data' => [
-                        'rame_available' => false,
-                        'message' => 'La tranche RAME n\'est pas configurée'
-                    ]
-                ]);
-            }
-
-            // Vérifier si la RAME a été payée physiquement
-            $physicalRamePayment = Payment::where('student_id', $studentId)
-                ->where('school_year_id', $workingYear->id)
-                ->where('is_rame_physical', true)
-                ->first();
-
-            // Vérifier si la RAME a été payée électroniquement
-            $electronicRamePayment = PaymentDetail::whereHas('payment', function ($query) use ($studentId, $workingYear) {
-                $query->where('student_id', $studentId)
-                    ->where('school_year_id', $workingYear->id)
-                    ->where('is_rame_physical', false);
-            })->where('payment_tranche_id', $rameTranche->id)
-                ->where('amount_allocated', '>', 0)
-                ->first();
+            // Utiliser le système student_rame_status
+            $rameStatus = \App\Models\StudentRameStatus::getOrCreateForStudent($studentId, $workingYear->id);
 
             $status = [
                 'rame_available' => true,
-                'amount' => $rameTranche->default_amount,
-                'is_paid' => false,
-                'payment_type' => null,
-                'can_pay_physically' => false,
-                'can_pay_electronically' => false,
-                'payment_details' => null
+                'has_brought_rame' => $rameStatus->has_brought_rame,
+                'marked_date' => $rameStatus->marked_date,
+                'deposit_date' => $rameStatus->deposit_date,
+                'marked_by_user_id' => $rameStatus->marked_by_user_id,
+                'notes' => $rameStatus->notes,
+                'can_mark_as_brought' => !$rameStatus->has_brought_rame
             ];
-
-            if ($physicalRamePayment) {
-                $status['is_paid'] = true;
-                $status['payment_type'] = 'physical';
-                $status['payment_details'] = [
-                    'payment_id' => $physicalRamePayment->id,
-                    'payment_date' => $physicalRamePayment->payment_date,
-                    'receipt_number' => $physicalRamePayment->receipt_number,
-                    'amount' => $physicalRamePayment->total_amount
-                ];
-            } elseif ($electronicRamePayment) {
-                $status['is_paid'] = true;
-                $status['payment_type'] = 'electronic';
-                $status['payment_details'] = [
-                    'payment_id' => $electronicRamePayment->payment_id,
-                    'amount_allocated' => $electronicRamePayment->amount_allocated,
-                    'payment_date' => $electronicRamePayment->payment->payment_date ?? null
-                ];
-            } else {
-                // RAME non payée - les deux options sont disponibles
-                $status['can_pay_physically'] = true;
-                $status['can_pay_electronically'] = true;
-            }
 
             return response()->json([
                 'success' => true,
@@ -732,8 +619,8 @@ class PaymentController extends Controller
                     'is_fully_paid' => $newTotalAmount >= $reducedAmount,
                     'required_amount_at_time' => $reducedAmount,
                     'was_reduced' => $reductionApplied > 0,
-                    'reduction_context' => $reductionApplied > 0 
-                        ? "Nouvelle réduction {$discountPercentage}% sur dernières tranches - Normal: " . number_format($normalAmount, 0) . " FCFA, Réduit: " . number_format($reducedAmount, 0) . " FCFA" 
+                    'reduction_context' => $reductionApplied > 0
+                        ? "Nouvelle réduction {$discountPercentage}% sur dernières tranches - Normal: " . number_format($normalAmount, 0) . " FCFA, Réduit: " . number_format($reducedAmount, 0) . " FCFA"
                         : "Montant normal - " . number_format($normalAmount, 0) . " FCFA"
                 ]);
 
@@ -1862,7 +1749,7 @@ class PaymentController extends Controller
             // Calculer le reste effectif après bourses/réductions
             $effectiveRemaining = $trancheRemaining;
             if ($scholarshipAmount > 0) {
-                $effectiveRemaining = max(0, $trancheRemaining - $scholarshipAmount);
+                // $effectiveRemaining = max(0, $trancheRemaining - $scholarshipAmount);
             } elseif ($discountAmount > 0) {
                 $effectiveRemaining = max(0, $trancheRemaining - $discountAmount);
             }
@@ -2405,7 +2292,7 @@ class PaymentController extends Controller
 
             // Récupérer les paiements de la période
             $paymentsQuery = Payment::with([
-                'student.classSeries.schoolClass', 
+                'student.classSeries.schoolClass',
                 'paymentDetails.paymentTranche'
             ])
             ->where('school_year_id', $workingYear->id)
@@ -2452,9 +2339,9 @@ class PaymentController extends Controller
             if ($format === 'pdf') {
                 $pdf = Pdf::loadHtml($html);
                 $pdf->setPaper('A4', 'portrait');
-                
+
                 $filename = 'listing_paiements_' . date('Y-m-d_H-i-s') . '.pdf';
-                
+
                 return $pdf->download($filename);
             }
 
@@ -2542,7 +2429,7 @@ class PaymentController extends Controller
             </div>
 
             <div class='title'>LISTING DES PAIEMENTS DE SCOLARITÉ</div>
-            
+
             <div class='period-info'>
                 <div>Période: du " . \Carbon\Carbon::parse($startDate)->format('d/m/Y') . " au " . \Carbon\Carbon::parse($endDate)->format('d/m/Y') . "</div>
                 <div>Classe: {$className}</div>
@@ -2629,6 +2516,7 @@ class PaymentController extends Controller
                 'start_date' => 'required|date',
                 'end_date' => 'required|date|after_or_equal:start_date',
                 'class_id' => 'nullable|exists:school_classes,id',
+                'series_id' => 'nullable|exists:class_series,id',
                 'tranche_ids' => 'required|array|min:1',
                 'tranche_ids.*' => 'exists:payment_tranches,id',
                 'format' => 'string|in:html,pdf'
@@ -2650,6 +2538,7 @@ class PaymentController extends Controller
             $startDate = $request->start_date;
             $endDate = $request->end_date;
             $classId = $request->class_id;
+            $seriesId = $request->series_id;
             $trancheIds = $request->tranche_ids;
             $format = $request->get('format', 'html');
 
@@ -2660,7 +2549,7 @@ class PaymentController extends Controller
 
             // Construire la requête des étudiants - seulement ceux qui ont payé dans la période
             $studentsQuery = Student::with([
-                'classSeries.schoolClass', 
+                'classSeries.schoolClass',
                 'payments.paymentDetails.paymentTranche'
             ])
             ->where('school_year_id', $workingYear->id)
@@ -2690,24 +2579,34 @@ class PaymentController extends Controller
                 });
             }
 
+            // Filtrer par série si spécifié
+            if ($seriesId) {
+                $studentsQuery->whereHas('classSeries', function($query) use ($seriesId) {
+                    $query->where('id', $seriesId);
+                });
+            }
+
             // Debug - voir la requête SQL générée
             \Illuminate\Support\Facades\Log::info("SQL Query for students: " . $studentsQuery->toSql());
             \Illuminate\Support\Facades\Log::info("Query bindings: " . json_encode($studentsQuery->getBindings()));
-            
+
             $students = $studentsQuery->orderBy('last_name')
                 ->orderBy('first_name')
                 ->get();
-            
+
             // Debug - voir quels étudiants sont récupérés
             \Illuminate\Support\Facades\Log::info("Students found for tranche report: " . $students->pluck('id')->implode(', '));
-            
-            // Debug spécial pour l'étudiant 15
-            $student15 = Student::with('payments.paymentDetails.paymentTranche')->find(15);
-            if ($student15) {
-                \Illuminate\Support\Facades\Log::info("Student 15 exists - checking payments...");
-                foreach ($student15->payments as $payment) {
-                    $inPeriod = $payment->payment_date >= $startDate && $payment->payment_date <= $endDate;
-                    \Illuminate\Support\Facades\Log::info("Payment {$payment->id} - Date: {$payment->payment_date} - In period: " . ($inPeriod ? 'Yes' : 'No') . " - Has reduction: " . ($payment->has_reduction ? 'Yes' : 'No'));
+
+            // Debug spécial pour l'étudiant 40
+            $student40 = Student::with('payments.paymentDetails.paymentTranche')->find(40);
+            if ($student40) {
+                \Illuminate\Support\Facades\Log::info("Student 40 exists - checking payments...");
+                foreach ($student40->payments as $payment) {
+                    $paymentDate = \Carbon\Carbon::parse($payment->payment_date)->format('Y-m-d');
+                    $startDateFormatted = \Carbon\Carbon::parse($startDate)->format('Y-m-d');
+                    $endDateFormatted = \Carbon\Carbon::parse($endDate)->format('Y-m-d');
+                    $inPeriod = $paymentDate >= $startDateFormatted && $paymentDate <= $endDateFormatted;
+                    \Illuminate\Support\Facades\Log::info("Payment {$payment->id} - Date: {$payment->payment_date} ({$paymentDate}) - Period: {$startDateFormatted} to {$endDateFormatted} - In period: " . ($inPeriod ? 'Yes' : 'No') . " - Has reduction: " . ($payment->has_reduction ? 'Yes' : 'No'));
                     if ($inPeriod) {
                         foreach ($payment->paymentDetails as $detail) {
                             $inSelectedTranches = in_array($detail->payment_tranche_id, $trancheIds);
@@ -2716,7 +2615,7 @@ class PaymentController extends Controller
                     }
                 }
             } else {
-                \Illuminate\Support\Facades\Log::info("Student 15 not found");
+                \Illuminate\Support\Facades\Log::info("Student 40 not found");
             }
 
             // Préparer les données pour chaque étudiant
@@ -2742,32 +2641,36 @@ class PaymentController extends Controller
 
                 // Calculer les paiements par tranche - SEULEMENT les paiements de la période
                 foreach ($student->payments as $payment) {
-                    // Vérifier si le paiement est dans la période
-                    if ($payment->payment_date >= $startDate && $payment->payment_date <= $endDate) {
+                    // Vérifier si le paiement est dans la période (comparison par date uniquement)
+                    $paymentDate = \Carbon\Carbon::parse($payment->payment_date)->format('Y-m-d');
+                    $startDateFormatted = \Carbon\Carbon::parse($startDate)->format('Y-m-d');
+                    $endDateFormatted = \Carbon\Carbon::parse($endDate)->format('Y-m-d');
+
+                    if ($paymentDate >= $startDateFormatted && $paymentDate <= $endDateFormatted) {
                         foreach ($payment->paymentDetails as $detail) {
                             $trancheId = $detail->paymentTranche->id;
                             if (in_array($trancheId, $trancheIds)) {
                                 // Utiliser amount_allocated qui contient le montant effectivement payé
                                 $amountPaid = $detail->amount_allocated;
-                                
+
                                 $studentInfo['payments_by_tranche'][$trancheId]['amount_paid'] += $amountPaid;
                                 $studentInfo['payments_by_tranche'][$trancheId]['payment_count']++;
-                                
+
                                 // Marquer si cette tranche a été payée (même avec réduction)
                                 if ($detail->was_reduced || $amountPaid > 0 || $payment->has_reduction) {
                                     $studentInfo['payments_by_tranche'][$trancheId]['has_payment'] = true;
                                     // Marquer comme réduit si le detail était réduit OU si le paiement global avait une réduction
                                     $studentInfo['payments_by_tranche'][$trancheId]['was_reduced'] = $detail->was_reduced || $payment->has_reduction;
                                 }
-                                
+
                                 $currentDate = $payment->payment_date;
                                 $validationDate = $payment->validation_date;
-                                if (!$studentInfo['payments_by_tranche'][$trancheId]['last_payment_date'] || 
+                                if (!$studentInfo['payments_by_tranche'][$trancheId]['last_payment_date'] ||
                                     $currentDate > $studentInfo['payments_by_tranche'][$trancheId]['last_payment_date']) {
                                     $studentInfo['payments_by_tranche'][$trancheId]['last_payment_date'] = $currentDate;
                                     $studentInfo['payments_by_tranche'][$trancheId]['validation_date'] = $validationDate;
                                 }
-                                
+
                                 // Debug - pour voir tous les paiements
                                 \Illuminate\Support\Facades\Log::info("Student {$student->id} - Tranche {$detail->paymentTranche->name} - Amount: {$amountPaid} - Detail reduced: " . ($detail->was_reduced ? 'Yes' : 'No') . " - Payment has_reduction: " . ($payment->has_reduction ? 'Yes' : 'No') . " - Context: {$detail->reduction_context}");
                             }
@@ -2782,7 +2685,7 @@ class PaymentController extends Controller
                         \Illuminate\Support\Facades\Log::info("  Tranche {$trancheId}: amount={$data['amount_paid']}, has_payment={$data['has_payment']}, was_reduced={$data['was_reduced']}");
                     }
                 }
-                
+
                 $studentData[] = $studentInfo;
             }
 
@@ -2792,9 +2695,9 @@ class PaymentController extends Controller
             if ($format === 'pdf') {
                 $pdf = Pdf::loadHtml($html);
                 $pdf->setPaper('A4', 'landscape'); // Paysage pour accommoder les colonnes
-                
+
                 $filename = 'liste_tranches_' . date('Y-m-d_H-i-s') . '.pdf';
-                
+
                 return $pdf->download($filename);
             }
 
@@ -2889,7 +2792,7 @@ class PaymentController extends Controller
             </div>
 
             <div class='title'>LISTE DES PAIEMENTS PAR TRANCHE</div>
-            
+
             <div class='period-info'>
                 <div>Période: du " . \Carbon\Carbon::parse($startDate)->format('d/m/Y') . " au " . \Carbon\Carbon::parse($endDate)->format('d/m/Y') . "</div>
                 <div>Classe: {$className}</div>
@@ -2911,12 +2814,12 @@ class PaymentController extends Controller
                         <th style='width: 5%;'>N°</th>
                         <th style='width: 20%;'>Nom et Prénom</th>
                         <th style='width: 15%;'>Classe</th>";
-            
+
             // Colonnes pour chaque tranche
             foreach ($selectedTranches as $tranche) {
                 $html .= "<th style='width: {$trancheWidth}%;' class='tranche-header'>{$tranche->name}<br><small>(Montant / Date)</small></th>";
             }
-            
+
             $html .= "
                     </tr>
                 </thead>
@@ -2929,6 +2832,9 @@ class PaymentController extends Controller
                 $className = 'N/A';
                 if ($student->classSeries && $student->classSeries->schoolClass) {
                     $className = $student->classSeries->schoolClass->name;
+                    if ($student->classSeries->name) {
+                        $className .= ' - ' . $student->classSeries->name;
+                    }
                 }
 
                 $html .= "
@@ -2936,7 +2842,7 @@ class PaymentController extends Controller
                         <td class='center'>{$counter}</td>
                         <td>{$studentName}</td>
                         <td>{$className}</td>";
-                
+
                 // Données pour chaque tranche
                 foreach ($selectedTranches as $tranche) {
                     $trancheData = $data['payments_by_tranche'][$tranche->id];
@@ -2945,16 +2851,16 @@ class PaymentController extends Controller
                     $wasReduced = $trancheData['was_reduced'] ?? false;
                     $lastPaymentDate = $trancheData['last_payment_date'];
                     $validationDate = $trancheData['validation_date'] ?? null;
-                    
+
                     if ($amount > 0) {
                         // Montant payé normalement
-                        $dateStr = $validationDate 
+                        $dateStr = $validationDate
                             ? \Carbon\Carbon::parse($validationDate)->format('d/m/Y')
                             : ($lastPaymentDate ? \Carbon\Carbon::parse($lastPaymentDate)->format('d/m/Y') : '');
                         $html .= "<td class='center'>" . $formatAmount($amount) . " FCFA<br><small>{$dateStr}</small></td>";
                     } elseif ($hasPayment && $wasReduced) {
                         // Payé avec réduction complète (montant = 0)
-                        $dateStr = $validationDate 
+                        $dateStr = $validationDate
                             ? \Carbon\Carbon::parse($validationDate)->format('d/m/Y')
                             : ($lastPaymentDate ? \Carbon\Carbon::parse($lastPaymentDate)->format('d/m/Y') : '');
                         $html .= "<td class='center'><small>Payé (réduction)<br>{$dateStr}</small></td>";
@@ -2963,8 +2869,275 @@ class PaymentController extends Controller
                         $html .= "<td class='center'>-</td>";
                     }
                 }
-                
+
                 $html .= "</tr>";
+                $counter++;
+            }
+
+            $html .= "
+                </tbody>
+            </table>";
+        }
+
+        $html .= "
+            <div class='footer'>
+                <div>Document généré le " . now()->format('d/m/Y à H:i') . "</div>
+                <div>Système de Gestion Scolaire - " . ($schoolSettings->school_name ?? 'École') . "</div>
+            </div>
+        </body>
+        </html>";
+
+        return $html;
+    }
+
+    /**
+     * Générer le rapport d'état des RAMEs par série
+     */
+    public function generateRameSeriesReport(Request $request)
+    {
+        try {
+            $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+                'series_id' => 'required|exists:class_series,id',
+                'format' => 'string|in:html,pdf'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Données invalides',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $workingYear = $this->getUserWorkingYear();
+            if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            $seriesId = $request->series_id;
+            $format = $request->get('format', 'html');
+
+            // Récupérer la série avec ses informations
+            $series = \App\Models\ClassSeries::with(['schoolClass.level.section'])
+                ->find($seriesId);
+
+            if (!$series) {
+                return response()->json(['success' => false, 'message' => 'Série non trouvée'], 404);
+            }
+
+            // Récupérer tous les étudiants de la série
+            $students = Student::with([
+                'classSeries.schoolClass',
+                'rameStatus' => function($query) use ($workingYear) {
+                    $query->where('school_year_id', $workingYear->id);
+                }
+            ])
+            ->where('class_series_id', $seriesId)
+            ->where('school_year_id', $workingYear->id)
+            ->where('is_active', true)
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
+
+            // Préparer les données pour chaque étudiant
+            $studentData = [];
+            $summary = [
+                'total_students' => $students->count(),
+                'rame_brought' => 0,
+                'rame_not_brought' => 0,
+                'serie_info' => [
+                    'name' => $series->name,
+                    'class_name' => $series->schoolClass->name,
+                    'level_name' => $series->schoolClass->level->name,
+                    'section_name' => $series->schoolClass->level->section->name
+                ]
+            ];
+
+            foreach ($students as $student) {
+                $rameStatus = $student->rameStatus->first();
+                $hasRameBrought = $rameStatus && $rameStatus->has_brought_rame;
+
+                $status = $hasRameBrought ? 'brought' : 'not_brought';
+
+                if ($hasRameBrought) {
+                    $summary['rame_brought']++;
+                } else {
+                    $summary['rame_not_brought']++;
+                }
+
+                $studentData[] = [
+                    'student' => $student,
+                    'rame_status' => $rameStatus,
+                    'has_rame_brought' => $hasRameBrought,
+                    'status' => $status,
+                    'marked_date' => $rameStatus ? $rameStatus->marked_date : null,
+                    'deposit_date' => $rameStatus ? $rameStatus->deposit_date : null
+                ];
+            }
+
+            $schoolSettings = \App\Models\SchoolSetting::getSettings();
+            $html = $this->generateRameSeriesHtml($studentData, $series, $summary, $schoolSettings, $workingYear);
+
+            if ($format === 'pdf') {
+                $pdf = Pdf::loadHtml($html);
+                $pdf->setPaper('A4', 'portrait');
+
+                $filename = 'etat_rame_' . \Str::slug($series->name) . '_' . date('Y-m-d_H-i-s') . '.pdf';
+
+                return $pdf->download($filename);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'html' => $html,
+                    'summary' => $summary,
+                    'series' => $series
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in PaymentController@generateRameSeriesReport: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du rapport RAME',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Générer le HTML pour le rapport d'état des RAMEs par série
+     */
+    private function generateRameSeriesHtml($studentData, $series, $summary, $schoolSettings, $workingYear)
+    {
+        // Convertir le logo en base64 pour DOMPDF
+        $logoBase64 = '';
+        if ($schoolSettings->school_logo) {
+            $logoPath = storage_path('app/public/' . $schoolSettings->school_logo);
+            if (file_exists($logoPath)) {
+                $logoData = base64_encode(file_get_contents($logoPath));
+                $logoMimeType = mime_content_type($logoPath);
+                $logoBase64 = "data:{$logoMimeType};base64,{$logoData}";
+            }
+        }
+
+        $serieInfo = $summary['serie_info'];
+        $serieFullName = "{$serieInfo['section_name']} - {$serieInfo['level_name']} - {$serieInfo['class_name']} - {$serieInfo['name']}";
+
+        $html = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <title>État des RAMEs - {$series->name}</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 0; padding: 15px; font-size: 11px; }
+                .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 15px; }
+                .logo { max-height: 60px; margin-bottom: 10px; }
+                .school-info { margin-bottom: 5px; font-weight: bold; }
+                .title { font-size: 16px; font-weight: bold; margin: 15px 0; text-decoration: underline; }
+                .series-info { margin: 10px 0; font-weight: bold; }
+                .summary { background-color: #f5f5f5; padding: 10px; margin: 15px 0; border: 1px solid #ddd; }
+                .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
+                .summary-item { text-align: center; padding: 8px; border: 1px solid #ccc; }
+                .status-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                .status-table th, .status-table td { border: 1px solid #000; padding: 4px; text-align: left; }
+                .status-table th { background-color: #e0e0e0; font-weight: bold; text-align: center; font-size: 10px; }
+                .center { text-align: center; }
+                .status-physical { background-color: #d4edda; color: #155724; font-weight: bold; }
+                .status-paid { background-color: #cce5ff; color: #004085; font-weight: bold; }
+                .status-not-paid { background-color: #f8d7da; color: #721c24; font-weight: bold; }
+                .footer { margin-top: 30px; text-align: center; font-size: 10px; }
+                .no-data { text-align: center; padding: 30px; font-style: italic; color: #666; }
+            </style>
+        </head>
+        <body>
+            <div class='header'>
+                " . ($logoBase64 ? "<img src='{$logoBase64}' alt='Logo' class='logo'>" : "") . "
+                <div class='school-info'>" . ($schoolSettings->school_name ?? 'École') . "</div>
+                <div>" . ($schoolSettings->school_address ?? '') . "</div>
+                <div>Tél: " . ($schoolSettings->school_phone ?? '') . " | Email: " . ($schoolSettings->school_email ?? '') . "</div>
+            </div>
+
+            <div class='title'>ÉTAT DES RAMES PAR SÉRIE</div>
+
+            <div class='series-info'>
+                <div>Série: {$serieFullName}</div>
+                <div>Année scolaire: {$workingYear->name}</div>
+            </div>
+
+            <div class='summary'>
+                <strong>Résumé:</strong>
+                <div class='summary-grid'>
+                    <div class='summary-item'>
+                        <div style='font-size: 18px; color: #007bff;'>{$summary['total_students']}</div>
+                        <div>Total Étudiants</div>
+                    </div>
+                    <div class='summary-item'>
+                        <div style='font-size: 18px; color: #28a745;'>{$summary['rame_physical']}</div>
+                        <div>RAME Physique</div>
+                    </div>
+                    <div class='summary-item'>
+                        <div style='font-size: 18px; color: #17a2b8;'>{$summary['rame_paid']}</div>
+                        <div>RAME Payée</div>
+                    </div>
+                    <div class='summary-item'>
+                        <div style='font-size: 18px; color: #dc3545;'>{$summary['rame_not_paid']}</div>
+                        <div>Non Payée</div>
+                    </div>
+                </div>
+            </div>";
+
+        if (empty($studentData)) {
+            $html .= "<div class='no-data'>Aucun étudiant trouvé pour cette série</div>";
+        } else {
+            $html .= "
+            <table class='status-table'>
+                <thead>
+                    <tr>
+                        <th style='width: 8%;'>N°</th>
+                        <th style='width: 35%;'>Nom et Prénom</th>
+                        <th style='width: 20%;'>Statut RAME</th>
+                        <th style='width: 18%;'>Date Marquée</th>
+                        <th style='width: 19%;'>Date Dépôt</th>
+                    </tr>
+                </thead>
+                <tbody>";
+
+            $counter = 1;
+            foreach ($studentData as $data) {
+                $student = $data['student'];
+                $studentName = ($student->last_name ?? '') . ' ' . ($student->first_name ?? '');
+
+                $statusText = '';
+                $statusClass = '';
+                switch ($data['status']) {
+                    case 'physical':
+                        $statusText = 'RAME Physique';
+                        $statusClass = 'status-physical';
+                        break;
+                    case 'paid':
+                        $statusText = 'RAME Payée';
+                        $statusClass = 'status-paid';
+                        break;
+                    default:
+                        $statusText = 'Non Payée';
+                        $statusClass = 'status-not-paid';
+                        break;
+                }
+
+                $markedDate = $data['marked_date'] ? \Carbon\Carbon::parse($data['marked_date'])->format('d/m/Y') : '-';
+                $depositDate = $data['deposit_date'] ? \Carbon\Carbon::parse($data['deposit_date'])->format('d/m/Y') : '-';
+
+                $html .= "
+                    <tr>
+                        <td class='center'>{$counter}</td>
+                        <td>{$studentName}</td>
+                        <td class='{$statusClass} center'>{$statusText}</td>
+                        <td class='center'>{$markedDate}</td>
+                        <td class='center'>{$depositDate}</td>
+                    </tr>";
                 $counter++;
             }
 

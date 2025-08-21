@@ -3,6 +3,7 @@ import { Modal, Button, Spinner, Alert } from 'react-bootstrap';
 import { Printer, Download } from 'react-bootstrap-icons';
 import { useSchool } from '../contexts/SchoolContext';
 import Swal from 'sweetalert2';
+import { host } from '../utils/fetch';
 
 const StaffQRCardPrint = ({ staffMember, qrImageUrl, show, onHide, onPrintSuccess }) => {
     const [printing, setPrinting] = useState(false);
@@ -56,10 +57,10 @@ const StaffQRCardPrint = ({ staffMember, qrImageUrl, show, onHide, onPrintSucces
                 
                 if (photoValue.startsWith('http')) {
                     // URL complète
-                    return photoValue.replace('127.0.0.1:8000', '192.168.1.229:8000');
+                    return photoValue.replace('127.0.0.1:8000', host);
                 } else {
                     // Chemin relatif
-                    const baseUrl = 'http://192.168.1.229:8000';
+                    const baseUrl = host;
                     const photoUrl = photoValue.startsWith('/') ? 
                         `${baseUrl}${photoValue}` : 
                         `${baseUrl}/storage/${photoValue}`;

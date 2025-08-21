@@ -371,4 +371,34 @@ class LevelController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Récupérer les séries d'un niveau (classe)
+     */
+    public function getSeries(Level $level)
+    {
+        try {
+            $series = $level->schoolClasses()
+                ->with(['series' => function($query) {
+                    $query->orderBy('name');
+                }])
+                ->get()
+                ->pluck('series')
+                ->flatten()
+                ->unique('id')
+                ->values();
+
+            return response()->json([
+                'success' => true,
+                'data' => $series,
+                'message' => 'Séries récupérées avec succès'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des séries',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

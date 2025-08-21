@@ -52,6 +52,7 @@ import {
     useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { host } from '../../utils/fetch';
 
 // Composant pour afficher les photos d'élèves avec fallback
 const StudentPhoto = ({ student, size = 40, className = "" }) => {
@@ -320,7 +321,7 @@ const SeriesStudents = () => {
             setLoading(true);
             setError('');
 
-            const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8000/api/students/export/pdf/${seriesId}`, {
+            const response = await fetch(`${host}/api/students/export/pdf/${seriesId}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authService.getToken()}`,
@@ -1475,9 +1476,9 @@ const SeriesStudents = () => {
                         </div>
                     ) : (
                         // Vue en liste (tableau) avec drag & drop
-                        <div className="card">
+                        <div className="card" style={{ overflow: 'visible' }}>
                             <div className="card-body p-0">
-                                <div className="table-responsive">
+                                <div className="table-responsive"  style={{ overflow: 'visible' }}>
                                     <DndContext
                                         sensors={sensors}
                                         collisionDetection={closestCenter}

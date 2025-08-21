@@ -26,6 +26,8 @@ import { secureApiEndpoints } from '../../utils/apiMigration';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import { authService } from '../../services/authService';
 import Swal from 'sweetalert2';
+import { Hospital } from 'lucide-react';
+import { host } from '../../utils/fetch';
 
 const RecoveryStatus = () => {
     const [recoveryData, setRecoveryData] = useState([]);
@@ -105,7 +107,7 @@ const RecoveryStatus = () => {
                 ...filters
             };
 
-            const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8000/api/reports/recovery-status/export-pdf?${new URLSearchParams(exportParams).toString()}`, {
+            const response = await fetch(`${host}/api/reports/recovery-status/export-pdf?${new URLSearchParams(exportParams).toString()}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authService.getToken()}`,
@@ -123,6 +125,35 @@ const RecoveryStatus = () => {
             setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
             
             setSuccess('Export PDF lancé avec succès');
+        } catch (error) {
+            setError(extractErrorMessage(error));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const generateGeneralRecoveryReport = async () => {
+        try {
+            setLoading(true);
+
+            const response = await fetch(`${host}/api/reports/general-recovery-status/export-pdf`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authService.getToken()}`,
+                    'Accept': 'application/pdf'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const htmlBlob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(htmlBlob);
+            window.open(blobUrl, '_blank');
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+            
+            setSuccess('État Général de Recouvrement généré avec succès');
         } catch (error) {
             setError(extractErrorMessage(error));
         } finally {
@@ -228,6 +259,14 @@ const RecoveryStatus = () => {
                             >
                                 <FiletypePdf className="me-2" />
                                 Exporter PDF
+                            </Button>
+                            <Button
+                                variant="primary"
+                                onClick={generateGeneralRecoveryReport}
+                                disabled={loading}
+                            >
+                                <BarChart className="me-2" />
+                                État Général de Recouvrement
                             </Button>
                         </div>
                     </div>

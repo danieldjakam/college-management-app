@@ -23,6 +23,7 @@ import { secureApiEndpoints } from '../../utils/apiMigration';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import { authService } from '../../services/authService';
 import Swal from 'sweetalert2';
+import { host } from '../../utils/fetch';
 
 const SchoolFeePaymentDetails = () => {
     const [paymentDetails, setPaymentDetails] = useState([]);
@@ -160,7 +161,7 @@ const SchoolFeePaymentDetails = () => {
             };
 
             // Utiliser une approche plus directe avec fetch et blob pour PDF
-            const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8000/api/reports/school-fee-payment-details/export-pdf?${new URLSearchParams(exportParams).toString()}`, {
+            const response = await fetch(`${host}/api/reports/school-fee-payment-details/export-pdf?${new URLSearchParams(exportParams).toString()}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authService.getToken()}`,
