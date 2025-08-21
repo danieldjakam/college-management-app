@@ -3063,6 +3063,203 @@ class ReportsController extends Controller
     }
 
     /**
+     * Obtenir les données du rapport d'état des recouvrements
+     */
+    public function getRecoveryStatusReport()
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+            if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            // Obtenir toutes les classes avec leurs données
+            $classes = SchoolClass::with(['level.section'])
+                ->where('school_year_id', $workingYear->id)
+                ->orderBy('name')
+                ->get();
+
+            $recoveryData = [];
+            $summaryTotals = [
+                'total_classes' => 0,
+                'total_ancien' => 0,
+                'total_nouveau' => 0,
+                'total_students' => 0,
+                'total_demissionnaires' => 0,
+                'total_eff_reel' => 0,
+                'total_inscription_percu' => 0,
+                'total_perception_demission' => 0,
+                'total_perte_demission' => 0,
+                'total_expected' => 0,
+                'total_collected' => 0,
+                'total_bourse' => 0,
+                'total_rabais' => 0,
+                'total_remaining' => 0,
+                'recovery_percentage' => 0
+            ];
+
+            foreach ($classes as $index => $class) {
+                // Obtenir tous les étudiants de la classe
+                $students = Student::where('class_id', $class->id)
+                    ->where('school_year_id', $workingYear->id)
+                    ->get();
+
+                // Séparer anciens et nouveaux élèves
+                $anciensEleves = $students->where('statut_etudiant', 'ancien')->count();
+                $nouveauxEleves = $students->where('statut_etudiant', 'nouveau')->count();
+                $totalEleves = $students->count();
+
+                // Élèves démissionnaires (status = 0)
+                $demissionnaires = $students->where('statut', '0')->count();
+                $effReel = $totalEleves - $demissionnaires;
+
+                // Calculs financiers
+                $inscriptionPercu = 0;
+                $perceptionDemission = 0;
+                $realisation = 0;
+                $bourses = 0;
+                $rabais = 0;
+
+                foreach ($students as $student) {
+                    // Inscription perçue
+                    $inscriptionPayments = PaymentDetail::join('payments', 'payment_details.payment_id', '=', 'payments.id')
+                        ->where('payments.student_id', $student->id)
+                        ->where('payment_details.type', 'inscription')
+                        ->sum('payment_details.amount');
+                    $inscriptionPercu += $inscriptionPayments;
+
+                    // Réalisation totale (tous les paiements)
+                    $totalPayments = Payment::where('student_id', $student->id)
+                        ->where('school_year_id', $workingYear->id)
+                        ->sum('amount');
+                    $realisation += $totalPayments;
+
+                    // Bourses et rabais
+                    $studentBourse = ClassScholarship::where('student_id', $student->id)
+                        ->where('school_year_id', $workingYear->id)
+                        ->sum('amount');
+                    $bourses += $studentBourse;
+
+                    // Rabais (10% pour paiement avant le 15 août)
+                    $earlyPayments = Payment::where('student_id', $student->id)
+                        ->where('school_year_id', $workingYear->id)
+                        ->whereDate('created_at', '<=', $workingYear->start_date->copy()->addDays(45)) // Approximation 15 août
+                        ->sum('amount');
+                    $rabais += ($earlyPayments * 0.10);
+                }
+
+                // Perte démission (estimation basée sur les frais attendus des démissionnaires)
+                $perteDemission = $demissionnaires * 200000; // Estimation moyenne
+
+                // Recette attendue (effectif réel * frais moyens)
+                $recetteAttendue = $effReel * 200000; // Estimation des frais totaux
+
+                // Reste à recouvrer
+                $resteARecouvrer = max(0, $recetteAttendue - $realisation);
+
+                // Pourcentage de recouvrement
+                $pourcentageRecouv = $recetteAttendue > 0 ? ($realisation / $recetteAttendue) * 100 : 0;
+
+                $classData = [
+                    'numero' => $index + 1,
+                    'class_name' => $class->name,
+                    'eff_ancien' => $anciensEleves,
+                    'eff_nouveau' => $nouveauxEleves,
+                    'eff_total' => $totalEleves,
+                    'demissionnaires' => $demissionnaires,
+                    'eff_reel' => $effReel,
+                    'inscription_percu' => $inscriptionPercu,
+                    'perception_demission' => $perceptionDemission,
+                    'perte_demission' => $perteDemission,
+                    'recette_attendue' => $recetteAttendue,
+                    'realisation' => $realisation,
+                    'bourse' => $bourses,
+                    'rabais' => $rabais,
+                    'reste_a_recouvrer' => $resteARecouvrer,
+                    'pourcentage_recouv' => $pourcentageRecouv
+                ];
+
+                $recoveryData[] = $classData;
+
+                // Ajouter aux totaux
+                $summaryTotals['total_classes']++;
+                $summaryTotals['total_ancien'] += $anciensEleves;
+                $summaryTotals['total_nouveau'] += $nouveauxEleves;
+                $summaryTotals['total_students'] += $totalEleves;
+                $summaryTotals['total_demissionnaires'] += $demissionnaires;
+                $summaryTotals['total_eff_reel'] += $effReel;
+                $summaryTotals['total_inscription_percu'] += $inscriptionPercu;
+                $summaryTotals['total_perception_demission'] += $perceptionDemission;
+                $summaryTotals['total_perte_demission'] += $perteDemission;
+                $summaryTotals['total_expected'] += $recetteAttendue;
+                $summaryTotals['total_collected'] += $realisation;
+                $summaryTotals['total_bourse'] += $bourses;
+                $summaryTotals['total_rabais'] += $rabais;
+                $summaryTotals['total_remaining'] += $resteARecouvrer;
+            }
+
+            // Pourcentage global de recouvrement
+            $summaryTotals['recovery_percentage'] = $summaryTotals['total_expected'] > 0 ? 
+                ($summaryTotals['total_collected'] / $summaryTotals['total_expected']) * 100 : 0;
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'classes' => $recoveryData,
+                    'summary' => $summaryTotals,
+                    'school_year' => $workingYear
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in ReportsController@getRecoveryStatusReport: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du rapport',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export PDF du rapport d'état des recouvrements
+     */
+    public function exportRecoveryStatusPdf()
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+            if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            // Obtenir les données du rapport
+            $reportResponse = $this->getRecoveryStatusReport();
+            $reportData = $reportResponse->getData(true);
+
+            if (!$reportData['success']) {
+                return response()->json(['success' => false, 'message' => 'Erreur lors de la génération des données'], 500);
+            }
+
+            $html = $this->generateRecoveryStatusPdfHtml($reportData['data']);
+            
+            // Générer le PDF avec DomPDF
+            $pdf = \PDF::loadHTML($html);
+            $pdf->setPaper('A4', 'landscape');
+            
+            $filename = "etat_des_recouvrements_" . date('Y-m-d') . ".pdf";
+            return $pdf->stream($filename);
+
+        } catch (\Exception $e) {
+            Log::error('Error in ReportsController@exportRecoveryStatusPdf: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'export PDF',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Générer un HTML simple pour le rapport de classe
      */
     private function generateSimpleClassSchoolFeesHtml($reportData)
@@ -3121,6 +3318,167 @@ class ReportsController extends Controller
 
         $html .= "</tbody></table>";
         $html .= "<p style='margin-top:20px;'>Document généré le " . $summary['generated_at'] . "</p>";
+        $html .= "</body></html>";
+
+        return $html;
+    }
+
+    /**
+     * Générer le HTML pour le PDF de l'état des recouvrements
+     */
+    private function generateRecoveryStatusPdfHtml($data)
+    {
+        $classes = $data['classes'];
+        $summary = $data['summary'];
+        $schoolYear = $data['school_year'];
+        
+        // Obtenir le logo de l'école
+        $schoolSettings = \App\Models\SchoolSetting::first();
+        $logoBase64 = '';
+        if ($schoolSettings && $schoolSettings->logo_path && file_exists(public_path($schoolSettings->logo_path))) {
+            $logoData = base64_encode(file_get_contents(public_path($schoolSettings->logo_path)));
+            $logoMime = pathinfo($schoolSettings->logo_path, PATHINFO_EXTENSION);
+            $logoBase64 = "data:image/{$logoMime};base64,{$logoData}";
+        }
+        
+        $html = "<!DOCTYPE html>";
+        $html .= "<html><head><meta charset='UTF-8'>";
+        $html .= "<title>État des Recouvrements</title>";
+        $html .= "<style>
+            body { font-family: Arial, sans-serif; font-size: 10px; margin: 10px; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .logo { width: 60px; height: 60px; }
+            .school-name { font-size: 14px; font-weight: bold; margin: 5px 0; }
+            .report-title { font-size: 16px; font-weight: bold; text-decoration: underline; margin: 15px 0; }
+            .info-line { margin: 5px 0; font-size: 11px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 9px; }
+            th, td { border: 1px solid #000; padding: 3px; text-align: center; vertical-align: middle; }
+            th { background-color: #f0f0f0; font-weight: bold; font-size: 8px; }
+            .text-left { text-align: left; }
+            .text-right { text-align: right; }
+            .total-row { background-color: #e0e0e0; font-weight: bold; }
+            .number-col { width: 30px; }
+            .class-col { width: 80px; }
+            .small-col { width: 35px; }
+            .medium-col { width: 70px; }
+            .large-col { width: 90px; }
+            .percentage-badge { 
+                padding: 2px 4px; 
+                border-radius: 3px; 
+                font-weight: bold;
+                font-size: 8px;
+            }
+            .badge-success { background-color: #28a745; color: white; }
+            .badge-warning { background-color: #ffc107; color: black; }
+            .badge-danger { background-color: #dc3545; color: white; }
+        </style>";
+        $html .= "</head><body>";
+        
+        // En-tête du document
+        $html .= "<div class='header'>";
+        if ($logoBase64) {
+            $html .= "<img src='{$logoBase64}' class='logo' /><br>";
+        }
+        $html .= "<div class='school-name'>COLLÈGE POLYVALENT BILINGUE DE DOUALA</div>";
+        $html .= "<div class='info-line'>Tél.: 233 42 26 47</div>";
+        $html .= "<div class='info-line'>Email: cpbdouala@yahoo.fr</div>";
+        $html .= "<div class='report-title'>ÉTAT DES RECOUVREMENTS</div>";
+        $html .= "<div class='info-line'>Année scolaire: " . ($schoolYear['name'] ?? 'N/A') . " | Date: " . date('d/m/Y') . "</div>";
+        $html .= "</div>";
+
+        // Tableau des données
+        $html .= "<table>";
+        
+        // En-tête du tableau avec colspan
+        $html .= "<thead>";
+        $html .= "<tr>";
+        $html .= "<th rowspan='2' class='number-col'>N°</th>";
+        $html .= "<th rowspan='2' class='class-col'>Nom de la Classe</th>";
+        $html .= "<th colspan='3' class='medium-col'>Eff Départ</th>";
+        $html .= "<th rowspan='2' class='small-col'>Dém</th>";
+        $html .= "<th rowspan='2' class='small-col'>Eff Réel</th>";
+        $html .= "<th rowspan='2' class='large-col'>Ins Perçu</th>";
+        $html .= "<th rowspan='2' class='medium-col'>Percep Dém</th>";
+        $html .= "<th rowspan='2' class='medium-col'>Perte Démission</th>";
+        $html .= "<th rowspan='2' class='large-col'>Recette Attendue</th>";
+        $html .= "<th rowspan='2' class='large-col'>Réalisation</th>";
+        $html .= "<th rowspan='2' class='medium-col'>Bourse</th>";
+        $html .= "<th rowspan='2' class='medium-col'>Rabais</th>";
+        $html .= "<th rowspan='2' class='large-col'>Reste à Recouvrer</th>";
+        $html .= "<th rowspan='2' class='small-col'>% Recouv.</th>";
+        $html .= "</tr>";
+        $html .= "<tr>";
+        $html .= "<th class='small-col'>Anc</th>";
+        $html .= "<th class='small-col'>Nouv</th>";
+        $html .= "<th class='small-col'>Total</th>";
+        $html .= "</tr>";
+        $html .= "</thead>";
+
+        // Corps du tableau
+        $html .= "<tbody>";
+        foreach ($classes as $classData) {
+            $pourcentage = $classData['pourcentage_recouv'];
+            $badgeClass = $pourcentage >= 80 ? 'badge-success' : ($pourcentage >= 50 ? 'badge-warning' : 'badge-danger');
+            
+            $html .= "<tr>";
+            $html .= "<td>{$classData['numero']}</td>";
+            $html .= "<td class='text-left'><strong>{$classData['class_name']}</strong></td>";
+            $html .= "<td>{$classData['eff_ancien']}</td>";
+            $html .= "<td>{$classData['eff_nouveau']}</td>";
+            $html .= "<td><strong>{$classData['eff_total']}</strong></td>";
+            $html .= "<td>{$classData['demissionnaires']}</td>";
+            $html .= "<td><strong>{$classData['eff_reel']}</strong></td>";
+            $html .= "<td class='text-right'>" . number_format($classData['inscription_percu'], 0, ',', ' ') . "</td>";
+            $html .= "<td class='text-right'>" . number_format($classData['perception_demission'], 0, ',', ' ') . "</td>";
+            $html .= "<td class='text-right'>" . number_format($classData['perte_demission'], 0, ',', ' ') . "</td>";
+            $html .= "<td class='text-right'><strong>" . number_format($classData['recette_attendue'], 0, ',', ' ') . "</strong></td>";
+            $html .= "<td class='text-right'><strong>" . number_format($classData['realisation'], 0, ',', ' ') . "</strong></td>";
+            $html .= "<td class='text-right'>" . number_format($classData['bourse'], 0, ',', ' ') . "</td>";
+            $html .= "<td class='text-right'>" . number_format($classData['rabais'], 0, ',', ' ') . "</td>";
+            $html .= "<td class='text-right'><strong>" . number_format($classData['reste_a_recouvrer'], 0, ',', ' ') . "</strong></td>";
+            $html .= "<td><span class='percentage-badge {$badgeClass}'>" . number_format($pourcentage, 1) . "%</span></td>";
+            $html .= "</tr>";
+        }
+        $html .= "</tbody>";
+
+        // Ligne de totaux
+        $globalPourcentage = $summary['recovery_percentage'];
+        $globalBadgeClass = $globalPourcentage >= 80 ? 'badge-success' : ($globalPourcentage >= 50 ? 'badge-warning' : 'badge-danger');
+        
+        $html .= "<tfoot>";
+        $html .= "<tr class='total-row'>";
+        $html .= "<td colspan='2'><strong>TOTAL</strong></td>";
+        $html .= "<td><strong>{$summary['total_ancien']}</strong></td>";
+        $html .= "<td><strong>{$summary['total_nouveau']}</strong></td>";
+        $html .= "<td><strong>{$summary['total_students']}</strong></td>";
+        $html .= "<td><strong>{$summary['total_demissionnaires']}</strong></td>";
+        $html .= "<td><strong>{$summary['total_eff_reel']}</strong></td>";
+        $html .= "<td class='text-right'><strong>" . number_format($summary['total_inscription_percu'], 0, ',', ' ') . "</strong></td>";
+        $html .= "<td class='text-right'><strong>" . number_format($summary['total_perception_demission'], 0, ',', ' ') . "</strong></td>";
+        $html .= "<td class='text-right'><strong>" . number_format($summary['total_perte_demission'], 0, ',', ' ') . "</strong></td>";
+        $html .= "<td class='text-right'><strong>" . number_format($summary['total_expected'], 0, ',', ' ') . "</strong></td>";
+        $html .= "<td class='text-right'><strong>" . number_format($summary['total_collected'], 0, ',', ' ') . "</strong></td>";
+        $html .= "<td class='text-right'><strong>" . number_format($summary['total_bourse'], 0, ',', ' ') . "</strong></td>";
+        $html .= "<td class='text-right'><strong>" . number_format($summary['total_rabais'], 0, ',', ' ') . "</strong></td>";
+        $html .= "<td class='text-right'><strong>" . number_format($summary['total_remaining'], 0, ',', ' ') . "</strong></td>";
+        $html .= "<td><span class='percentage-badge {$globalBadgeClass}'><strong>" . number_format($globalPourcentage, 1) . "%</strong></span></td>";
+        $html .= "</tr>";
+        $html .= "</tfoot>";
+        
+        $html .= "</table>";
+        
+        // Pied de page
+        $html .= "<div style='margin-top: 15px; font-size: 9px;'>";
+        $html .= "<p><strong>Légende:</strong></p>";
+        $html .= "<p>Anc = Anciens élèves | Nouv = Nouveaux élèves | Dém = Démissionnaires | Eff = Effectif</p>";
+        $html .= "<p>Ins Perçu = Inscription Perçue | Percep Dém = Perception Démission</p>";
+        $html .= "<p>Rabais = Remise 10% pour paiement avant le 15 août</p>";
+        $html .= "<p style='text-align: right; margin-top: 20px;'>";
+        $html .= "Document généré le " . date('d/m/Y à H:i') . "<br>";
+        $html .= "Total Classes: {$summary['total_classes']} | Total Élèves: {$summary['total_students']}";
+        $html .= "</p>";
+        $html .= "</div>";
+        
         $html .= "</body></html>";
 
         return $html;
