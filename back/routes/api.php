@@ -650,6 +650,19 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{department}/set-head', [DepartmentController::class, 'setHead'])->middleware(['role:admin']);
     });
 
+    // Routes pour les demandes d'explication (D.E)
+    Route::prefix('demandes-explication')->middleware(['role:admin,secretaire,accountant,comptable_superieur'])->group(function () {
+        Route::get('/', [App\Http\Controllers\DemandeExplicationController::class, 'index']);
+        Route::post('/', [App\Http\Controllers\DemandeExplicationController::class, 'store']);
+        Route::get('/personnel', [App\Http\Controllers\DemandeExplicationController::class, 'getPersonnel']);
+        Route::get('/statistiques', [App\Http\Controllers\DemandeExplicationController::class, 'statistiques']);
+        Route::get('/{id}', [App\Http\Controllers\DemandeExplicationController::class, 'show']);
+        Route::put('/{id}', [App\Http\Controllers\DemandeExplicationController::class, 'update']);
+        Route::delete('/{id}', [App\Http\Controllers\DemandeExplicationController::class, 'destroy']);
+        Route::post('/{id}/repondre', [App\Http\Controllers\DemandeExplicationController::class, 'repondre']);
+        Route::post('/{id}/cloturer', [App\Http\Controllers\DemandeExplicationController::class, 'cloturer']);
+    });
+
     // Routes pour les rapports de recouvrement et certificats
     Route::prefix('reports')->middleware(['role:admin,secretaire,accountant,comptable_superieur'])->group(function () {
         // État de recouvrement

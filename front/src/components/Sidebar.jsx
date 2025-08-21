@@ -13,6 +13,7 @@ import {
     Archive,
     FolderFill,
     Award,
+    ExclamationTriangle,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -143,6 +144,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
         {
+          title: "Communication",
+          items: [
+            { name: "Mes Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
+          ],
+        },
+        {
           title: "Rapports",
           items: [
             {
@@ -196,6 +203,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Suivi Présences Personnel", href: "/staff-daily-attendance", icon: <PeopleFill /> },
             { name: "Rapport Présence Personnel", href: "/staff-attendance-report", icon: <BarChartFill /> },
             ] : []),
+          ],
+        },
+        {
+          title: "Communication",
+          items: [
+            { name: "D.E (Demandes d'Explication)", href: "/demandes-explication", icon: <ExclamationTriangle /> },
           ],
         },
         {
@@ -302,6 +315,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
         {
+          title: "Communication",
+          items: [
+            { name: "Mes Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
+          ],
+        },
+        {
           title: "Outils",
           items: [
             { name: "Documents", href: "/documents", icon: <FolderFill /> },
@@ -326,6 +345,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Scanner QR Personnel", href: "/teacher-attendance-scanner", icon: <PeopleFill /> },
             { name: "Stats Personnel", href: "/teacher-detailed-stats", icon: <BarChartFill /> },
             { name: "Rapports Présence", href: "/attendance-reports", icon: <FileTextFill /> },
+          ],
+        },
+        {
+          title: "Communication",
+          items: [
+            { name: "Mes Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
           ],
         },
         {
@@ -354,6 +379,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             },
             { name: "Séquences", href: "/seqs", icon: <List /> },
             { name: "Trimestres", href: "/trims", icon: <BookFill /> },
+          ],
+        },
+        {
+          title: "Communication",
+          items: [
+            { name: "Mes Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
           ],
         },
         {

@@ -103,6 +103,10 @@ import DocumentsManager from "./pages/Documents/DocumentsManager";
 import StaffAttendanceManagement from "./pages/Staff/StaffAttendanceManagement";
 import StaffDailyAttendance from "./pages/Staff/StaffDailyAttendance";
 
+// Demandes d'Explication
+import DemandesExplication from "./pages/comptables/DemandesExplication";
+import NouvelleDemande from "./pages/comptables/NouvelleDemande";
+
 
 // Components
 import Sidebar from "./components/Sidebar";
@@ -579,6 +583,34 @@ const AppContent = () => {
                   <AccountantRoute>
                     <StaffAttendanceReport />
                   </AccountantRoute>
+                }
+              />
+
+              {/* Routes pour les D.E (Demandes d'Explication) - Comptables uniquement */}
+              <Route
+                path="/demandes-explication"
+                element={
+                  <AccountantRoute>
+                    <DemandesExplication />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/demandes-explication/nouvelle"
+                element={
+                  <AccountantRoute>
+                    <NouvelleDemande />
+                  </AccountantRoute>
+                }
+              />
+
+              {/* Routes pour les D.E - Personnel (enseignants, etc.) */}
+              <Route
+                path="/mes-demandes-explication"
+                element={
+                  <ProtectedRoute>
+                    <DemandesExplication />
+                  </ProtectedRoute>
                 }
               />
 
