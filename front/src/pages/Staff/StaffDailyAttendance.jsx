@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Card, Row, Col, Form, Button, Table, Alert, Spinner, Badge } from 'react-bootstrap';
-import { Calendar, Search, People, Check, X, Eye, Download } from 'react-bootstrap-icons';
+import { Calendar, Search, People, Check, X, Download, ChevronLeft, ChevronRight } from 'react-bootstrap-icons';
 import { secureApiEndpoints, secureApi } from '../../utils/apiMigration';
 
 function StaffDailyAttendance() {
@@ -20,6 +20,43 @@ function StaffDailyAttendance() {
     { value: 'comptable_superieur', label: 'Comptable Supérieur' }
   ]);
 
+  useEffect(() => {
+    if (selectedDate) {
+      fetchAttendanceData();
+    }
+  }, [selectedDate, selectedRole]);
+
+  // Ajouter les raccourcis clavier pour navigation
+  useEffect(() => {
+    const handleKeyPress = (event) => {
+      if (event.target.tagName.toLowerCase() === 'input') return; // Ignore si dans un champ input
+      
+      switch(event.key) {
+        case 'ArrowLeft':
+          event.preventDefault();
+          goToPreviousDay();
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          goToNextDay();
+          break;
+        case 't':
+        case 'T':
+          event.preventDefault();
+          goToToday();
+          break;
+        default:
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyPress);
+    return () => {
+      document.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [selectedDate]);
+
+  // Charger automatiquement les données quand les filtres changent
   useEffect(() => {
     if (selectedDate) {
       fetchAttendanceData();
@@ -71,9 +108,20 @@ function StaffDailyAttendance() {
     }
   };
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    fetchAttendanceData();
+  const goToPreviousDay = () => {
+    const currentDate = new Date(selectedDate);
+    currentDate.setDate(currentDate.getDate() - 1);
+    setSelectedDate(currentDate.toISOString().split('T')[0]);
+  };
+
+  const goToNextDay = () => {
+    const currentDate = new Date(selectedDate);
+    currentDate.setDate(currentDate.getDate() + 1);
+    setSelectedDate(currentDate.toISOString().split('T')[0]);
+  };
+
+  const goToToday = () => {
+    setSelectedDate(new Date().toISOString().split('T')[0]);
   };
 
   const handleExportPDF = async () => {
@@ -157,6 +205,9 @@ function StaffDailyAttendance() {
           <p className="text-muted mb-0">
             Consultez les présences du personnel pour un jour donné
           </p>
+          <small className="text-muted">
+            💡 Raccourcis: ← → pour changer de jour, T pour aujourd'hui
+          </small>
         </Col>
       </Row>
 
@@ -168,57 +219,78 @@ function StaffDailyAttendance() {
           </h5>
         </Card.Header>
         <Card.Body>
-          <Form onSubmit={handleSearch}>
-            <Row>
-              <Col md={6} className="mb-3">
-                <Form.Group>
-                  <Form.Label>Date</Form.Label>
+          <Row>
+            <Col md={8} className="mb-3">
+              <Form.Group>
+                <Form.Label>Date</Form.Label>
+                <div className="d-flex align-items-center gap-2">
+                  <Button 
+                    variant="outline-primary" 
+                    size="sm"
+                    onClick={goToPreviousDay}
+                    className="d-flex align-items-center"
+                  >
+                    <ChevronLeft />
+                  </Button>
+                  
                   <Form.Control
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    required
+                    className="text-center"
+                    style={{ width: '140px', fontSize: '0.9rem' }}
+                    size="sm"
                   />
-                </Form.Group>
-              </Col>
-
-              <Col md={6} className="mb-3">
-                <Form.Group>
-                  <Form.Label>Rôle</Form.Label>
-                  <Form.Select
-                    value={selectedRole}
-                    onChange={(e) => setSelectedRole(e.target.value)}
+                  
+                  <Button 
+                    variant="outline-primary" 
+                    size="sm"
+                    onClick={goToNextDay}
+                    className="d-flex align-items-center"
                   >
-                    <option value="">Tous les rôles</option>
-                    {roles.map(role => (
-                      <option key={role.value} value={role.value}>
-                        {role.label}
-                      </option>
-                    ))}
-                  </Form.Select>
-                </Form.Group>
-              </Col>
-            </Row>
+                    <ChevronRight />
+                  </Button>
+                  
+                  <Button 
+                    variant="outline-secondary" 
+                    size="sm"
+                    onClick={goToToday}
+                    className="ms-2"
+                  >
+                    Aujourd'hui
+                  </Button>
+                </div>
+              </Form.Group>
+            </Col>
 
-            <Row>
-              <Col className="d-flex gap-2">
-                <Button 
-                  type="submit" 
-                  variant="primary" 
-                  disabled={loading}
-                  className="d-flex align-items-center gap-2"
+            <Col md={4} className="mb-3">
+              <Form.Group>
+                <Form.Label>Rôle</Form.Label>
+                <Form.Select
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value)}
+                  size="sm"
                 >
-                  {loading ? (
-                    <>
-                      <Spinner size="sm" /> Chargement...
-                    </>
-                  ) : (
-                    <>
-                      <Eye /> Consulter les Présences
-                    </>
-                  )}
-                </Button>
-                
+                  <option value="">Tous les rôles</option>
+                  {roles.map(role => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+          </Row>
+
+          <Row>
+            <Col className="d-flex gap-2 align-items-center">
+              {loading && (
+                <div className="d-flex align-items-center gap-2 text-muted">
+                  <Spinner size="sm" /> Chargement des données...
+                </div>
+              )}
+              
+              <div className="ms-auto">
                 <Button 
                   variant="success" 
                   disabled={exportLoading || !selectedDate}
@@ -235,9 +307,9 @@ function StaffDailyAttendance() {
                     </>
                   )}
                 </Button>
-              </Col>
-            </Row>
-          </Form>
+              </div>
+            </Col>
+          </Row>
         </Card.Body>
       </Card>
 

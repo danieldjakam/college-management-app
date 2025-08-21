@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Card, Row, Col, Form, Button, Table, Alert, Spinner, Badge } from 'react-bootstrap';
-import { Calendar, Search, People, Check, X, Eye, Download } from 'react-bootstrap-icons';
+import { Calendar, Search, People, Check, X, Eye, Download, ChevronLeft, ChevronRight } from 'react-bootstrap-icons';
 import { secureApiEndpoints, secureApi } from '../../utils/apiMigration';
 
 function StudentAttendanceTracking() {
@@ -35,6 +35,43 @@ function StudentAttendanceTracking() {
       setSelectedSeries('');
     }
   }, [selectedClass]);
+
+  // Ajouter les raccourcis clavier pour navigation
+  useEffect(() => {
+    const handleKeyPress = (event) => {
+      if (event.target.tagName.toLowerCase() === 'input' || event.target.tagName.toLowerCase() === 'select') return;
+      
+      switch(event.key) {
+        case 'ArrowLeft':
+          event.preventDefault();
+          goToPreviousDay();
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          goToNextDay();
+          break;
+        case 't':
+        case 'T':
+          event.preventDefault();
+          goToToday();
+          break;
+        default:
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyPress);
+    return () => {
+      document.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [selectedDate]);
+
+  // Charger automatiquement les données quand les filtres changent
+  useEffect(() => {
+    if (selectedDate) {
+      fetchAttendanceData();
+    }
+  }, [selectedDate, selectedSeries, selectedClass, selectedSection]);
 
   const fetchSections = async () => {
     try {
@@ -148,7 +185,23 @@ function StudentAttendanceTracking() {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    fetchAttendanceData();
+    // Plus nécessaire car le chargement est automatique
+  };
+
+  const goToPreviousDay = () => {
+    const currentDate = new Date(selectedDate);
+    currentDate.setDate(currentDate.getDate() - 1);
+    setSelectedDate(currentDate.toISOString().split('T')[0]);
+  };
+
+  const goToNextDay = () => {
+    const currentDate = new Date(selectedDate);
+    currentDate.setDate(currentDate.getDate() + 1);
+    setSelectedDate(currentDate.toISOString().split('T')[0]);
+  };
+
+  const goToToday = () => {
+    setSelectedDate(new Date().toISOString().split('T')[0]);
   };
 
   const handleExportPDF = async () => {
@@ -241,6 +294,9 @@ function StudentAttendanceTracking() {
           <p className="text-muted mb-0">
             Consultez les présences des élèves par section, classe ou série
           </p>
+          <small className="text-muted">
+            💡 Raccourcis: ← → pour changer de jour, T pour aujourd'hui
+          </small>
         </Col>
       </Row>
 
@@ -252,93 +308,116 @@ function StudentAttendanceTracking() {
           </h5>
         </Card.Header>
         <Card.Body>
-          <Form onSubmit={handleSearch}>
-            <Row>
-              <Col md={6} lg={3} className="mb-3">
-                <Form.Group>
-                  <Form.Label>Date</Form.Label>
+          <Row>
+            <Col md={12} lg={6} className="mb-3">
+              <Form.Group>
+                <Form.Label>Date</Form.Label>
+                <div className="d-flex align-items-center gap-2">
+                  <Button 
+                    variant="outline-primary" 
+                    size="sm"
+                    onClick={goToPreviousDay}
+                    className="d-flex align-items-center"
+                  >
+                    <ChevronLeft />
+                  </Button>
+                  
                   <Form.Control
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    required
+                    className="text-center"
+                    style={{ width: '140px', fontSize: '0.9rem' }}
+                    size="sm"
                   />
-                </Form.Group>
-              </Col>
-
-              <Col md={6} lg={3} className="mb-3">
-                <Form.Group>
-                  <Form.Label>Section</Form.Label>
-                  <Form.Select
-                    value={selectedSection}
-                    onChange={(e) => setSelectedSection(e.target.value)}
+                  
+                  <Button 
+                    variant="outline-primary" 
+                    size="sm"
+                    onClick={goToNextDay}
+                    className="d-flex align-items-center"
                   >
-                    <option value="">Toutes les sections</option>
-                    {sections.map(section => (
-                      <option key={section.id} value={section.id}>
-                        {section.name}
-                      </option>
-                    ))}
-                  </Form.Select>
-                </Form.Group>
-              </Col>
-
-              <Col md={6} lg={3} className="mb-3">
-                <Form.Group>
-                  <Form.Label>Classe</Form.Label>
-                  <Form.Select
-                    value={selectedClass}
-                    onChange={(e) => setSelectedClass(e.target.value)}
-                    disabled={!selectedSection}
+                    <ChevronRight />
+                  </Button>
+                  
+                  <Button 
+                    variant="outline-secondary" 
+                    size="sm"
+                    onClick={goToToday}
+                    className="ms-2"
                   >
-                    <option value="">Toutes les classes</option>
-                    {Array.isArray(classes) && classes.map(classe => (
-                      <option key={classe.id} value={classe.id}>
-                        {classe.name}
-                      </option>
-                    ))}
-                  </Form.Select>
-                </Form.Group>
-              </Col>
+                    Aujourd'hui
+                  </Button>
+                </div>
+              </Form.Group>
+            </Col>
 
-              <Col md={6} lg={3} className="mb-3">
-                <Form.Group>
-                  <Form.Label>Série</Form.Label>
-                  <Form.Select
-                    value={selectedSeries}
-                    onChange={(e) => setSelectedSeries(e.target.value)}
-                    disabled={!selectedClass}
-                  >
-                    <option value="">Toutes les séries</option>
-                    {Array.isArray(series) && series.map(serie => (
-                      <option key={serie.id} value={serie.id}>
-                        {serie.name}
-                      </option>
-                    ))}
-                  </Form.Select>
-                </Form.Group>
-              </Col>
-            </Row>
-
-            <Row>
-              <Col className="d-flex gap-2">
-                <Button 
-                  type="submit" 
-                  variant="primary" 
-                  disabled={loading}
-                  className="d-flex align-items-center gap-2"
+            <Col md={4} lg={2} className="mb-3">
+              <Form.Group>
+                <Form.Label>Section</Form.Label>
+                <Form.Select
+                  value={selectedSection}
+                  onChange={(e) => setSelectedSection(e.target.value)}
+                  size="sm"
                 >
-                  {loading ? (
-                    <>
-                      <Spinner size="sm" /> Chargement...
-                    </>
-                  ) : (
-                    <>
-                      <Eye /> Consulter les Présences
-                    </>
-                  )}
-                </Button>
-                
+                  <option value="">Toutes les sections</option>
+                  {sections.map(section => (
+                    <option key={section.id} value={section.id}>
+                      {section.name}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+
+            <Col md={4} lg={2} className="mb-3">
+              <Form.Group>
+                <Form.Label>Classe</Form.Label>
+                <Form.Select
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  disabled={!selectedSection}
+                  size="sm"
+                >
+                  <option value="">Toutes les classes</option>
+                  {Array.isArray(classes) && classes.map(classe => (
+                    <option key={classe.id} value={classe.id}>
+                      {classe.name}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+
+            <Col md={4} lg={2} className="mb-3">
+              <Form.Group>
+                <Form.Label>Série</Form.Label>
+                <Form.Select
+                  value={selectedSeries}
+                  onChange={(e) => setSelectedSeries(e.target.value)}
+                  disabled={!selectedClass}
+                  size="sm"
+                >
+                  <option value="">Toutes les séries</option>
+                  {Array.isArray(series) && series.map(serie => (
+                    <option key={serie.id} value={serie.id}>
+                      {serie.name}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+          </Row>
+
+          <Row>
+            <Col className="d-flex gap-2 align-items-center">
+              {loading && (
+                <div className="d-flex align-items-center gap-2 text-muted">
+                  <Spinner size="sm" /> Chargement des données...
+                </div>
+              )}
+              
+              <div className="ms-auto">
                 <Button 
                   variant="success" 
                   disabled={exportLoading || !selectedDate}
@@ -355,9 +434,9 @@ function StudentAttendanceTracking() {
                     </>
                   )}
                 </Button>
-              </Col>
-            </Row>
-          </Form>
+              </div>
+            </Col>
+          </Row>
         </Card.Body>
       </Card>
 
