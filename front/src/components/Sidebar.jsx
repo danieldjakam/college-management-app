@@ -119,16 +119,8 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           title: "Comptabilité",
           items: [
             { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
-            { name: "Suivi Présences Élèves", href: "/student-attendance-tracking", icon: <ClipboardCheckFill /> },
-            { name: "Suivi Présences Personnel", href: "/staff-daily-attendance", icon: <PeopleFill /> },
             // { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
-          ],
-        },
-        {
-          title: "Personnel",
-          items: [
-            { name: "Présences Personnel", href: "/staff-attendance-management", icon: <People /> },
           ],
         },
         {
@@ -164,17 +156,16 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           title: "Comptabilité",
           items: [
             { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
-            { name: "Suivi Présences Élèves", href: "/student-attendance-tracking", icon: <ClipboardCheckFill /> },
-            { name: "Suivi Présences Personnel", href: "/staff-daily-attendance", icon: <PeopleFill /> },
             { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
           ],
         },
         {
-          title: "Personnel",
+          title: "Présences",
           items: [
             ...((userRole === "comptable_superieur" || userRole === "accountant") ? [
-              { name: "Présences Personnel", href: "/staff-attendance-management", icon: <People /> }
+            { name: "Suivi Présences Élèves", href: "/student-attendance-tracking", icon: <ClipboardCheckFill /> },
+            { name: "Suivi Présences Personnel", href: "/staff-daily-attendance", icon: <PeopleFill /> },
             ] : []),
           ],
         },
