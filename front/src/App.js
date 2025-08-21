@@ -1,119 +1,633 @@
-import React from 'react'
-import {useState} from 'react';
-import { Route, BrowserRouter as Router, Routes } from 'react-router-dom';
-import './App.css';
-import 'bootstrap/dist/css/bootstrap.min.css'
-import Class from './pages/Class/Class';
-import Student from './pages/Students/Student';
-import Teachers from './pages/Teachers/Teachers';
-import Comp from './pages/Competences/Comp';
-import Matiere from './pages/Matieres/Matiere';
-import Sidebar from './components/Sidebar';
-import Login from './pages/Login';
-import SearchView from './pages/Search';
-import Params from './pages/Profile/Params';
-import Error404 from './pages/Error404';
-import TrimStu from './pages/Trimestres/TrimStu';
-import SeqStu from './pages/Sequences/SeqStu';
-import Settings from './pages/Settings';
-import Home from './pages/Home';
-import ClassBySection from './pages/Class/ClassBySection';
-import SubComp from './pages/Competences/SubComp';
-import Domains from './pages/Domains/Domains';
-import Activities from './pages/Domains/Activities';
-import PrimEn from './pages/Notes/Exams/PrimEn';
-import PrimFr from './pages/Notes/Exams/PrimFr';
-import Cm2 from './pages/Notes/Exams/Cm2';
-import PrimFrBE from './pages/Bulletin/Exams/PrimFr';
-import PrimEnBE from './pages/Bulletin/Exams/PrimEn';
-import Cm2BE from './pages/Bulletin/Exams/Cm2';
-import MatEnT from './pages/Notes/Trimestres/MatEn';
-import MatFrT from './pages/Notes/Trimestres/MatFr';
-import PrimFrT from './pages/Notes/Trimestres/PrimFr';
-import PrimEnT from './pages/Notes/Trimestres/PrimEn';
-import Cm2T from './pages/Notes/Trimestres/Cm2';
-import MatEnBT from './pages/Bulletin/Trimestres/MatEn';
-import MatFrBT from './pages/Bulletin/Trimestres/MatFr';
-import PrimFrBT from './pages/Bulletin/Trimestres/PrimFr';
-import PrimEnBT from './pages/Bulletin/Trimestres/PrimEn';
-import Cm2BT from './pages/Bulletin/Trimestres/Cm2';
-import StudentsComp from './pages/comptables/Students';
-import ClassCompt from './pages/comptables/Class';
-import ParamsCompt from './pages/comptables/Params';
-import StudentsByClass from './pages/comptables/StudentsByClass';
-import ReductFees from './pages/comptables/ReductFees';
-import TransfertStudent from './pages/Students/TransfertStudent';
-import Statistics from './pages/Statistics.jsx';
-import Docs from './pages/Documentation';
+import "bootstrap/dist/css/bootstrap.min.css";
+import { useEffect, useState } from "react";
+import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import "./App.css";
+import "./styles/theme.css";
 
-function App() {
-  let val = null;
-  if (sessionStorage.user) {
-    val = true;
-  }
-  const [user, setUser] = useState(val);
+// Auth Components
+import AppAuthProvider from "./components/AuthProvider";
+import ProtectedRoute, {
+  AccountantRoute,
+  AdminRoute,
+  NeedsManagementRoute,
+  PublicRoute,
+  RoleBasedRedirect,
+  TeacherRoute,
+} from "./components/ProtectedRoute";
+import { useAuth } from "./hooks/useAuth";
+import { SchoolProvider } from "./contexts/SchoolContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
-  return <div className="App">
+// Pages
+import Error404 from "./pages/Error404";
+import Levels from "./pages/Levels/Levels";
+import Login from "./pages/Login";
+import PaymentTranches from "./pages/PaymentTranches";
+import SchoolClasses from "./pages/SchoolClasses/SchoolClasses";
+import SchoolYears from "./pages/SchoolYears";
+import Sections from "./pages/Sections/Sections";
+import Settings from "./pages/Settings";
+import UserProfile from "./pages/Profile/UserProfile";
+import SeriesStudents from "./pages/Students/SeriesStudents";
+
+// Comptable Pages
+import ClassCompt from "./pages/comptables/Class";
+import ParamsCompt from "./pages/comptables/Params";
+import StudentsComp from "./pages/comptables/Students";
+import StudentsByClass from "./pages/comptables/StudentsByClass";
+import StudentAttendanceTracking from "./pages/comptables/StudentAttendanceTracking";
+
+// Payment Pages
+import StudentPayment from "./pages/Payments/StudentPayment";
+import PaymentReports from "./pages/Payments/PaymentReports";
+import DocumentaryFees from "./pages/Payments/DocumentaryFees";
+import CreateDocumentaryFee from "./pages/Payments/CreateDocumentaryFee";
+import DocumentaryFeeDetails from "./pages/Payments/DocumentaryFeeDetails";
+
+// Reports
+import Reports from "./pages/Reports";
+import SchoolFeePaymentDetails from "./pages/Reports/SchoolFeePaymentDetails";
+import DetailedCollectionReport from "./pages/Reports/DetailedCollectionReport";
+import ClassSchoolFeesReport from "./pages/Reports/ClassSchoolFeesReport";
+import RecoveryStatus from "./pages/Reports/RecoveryStatus";
+import SchoolCertificates from "./pages/Reports/SchoolCertificates";
+
+
+// User Management
+import UserManagement from "./pages/UserManagement";
+
+// Subjects & Teachers
+import Subjects from "./pages/Subjects/Subjects";
+import SeriesSubjectConfiguration from "./pages/Subjects/SeriesSubjectConfiguration";
+import Teachers from "./pages/Teachers/Teachers";
+import TeacherAssignments from "./pages/Teachers/TeacherAssignments";
+import TeacherAssignmentManagement from "./pages/Teachers/TeacherAssignmentManagement";
+
+// Departments
+import DepartmentManagement from "./pages/Departments/DepartmentManagement";
+
+// Needs
+import MyNeeds from "./pages/Needs/MyNeeds";
+import NeedsManagement from "./pages/Needs/NeedsManagement";
+
+// Attendance
+import AttendanceScanner from "./pages/Attendance/AttendanceScanner";
+import TeacherAttendanceScanner from "./pages/Attendance/TeacherAttendanceScanner";
+import AttendanceReports from "./pages/Attendance/AttendanceReports";
+import TeacherDetailedStats from "./pages/Teachers/TeacherDetailedStats";
+
+// Supervisor Management
+import SupervisorStatus from "./pages/SupervisorManagement/SupervisorStatus";
+
+// Search
+import Search from "./pages/Search";
+
+// Stats
+import Stats from "./pages/Stats";
+
+// Inventory
+import InventoryModule from "./pages/Inventory/InventoryModule";
+import InventoryModuleSimple from "./pages/Inventory/InventoryModuleSimple";
+import InventoryModuleStable from "./pages/Inventory/InventoryModuleStable";
+import InventoryDebug from "./pages/Inventory/InventoryDebug";
+import InventorySimplest from "./pages/Inventory/InventorySimplest";
+import InventoryFull from "./pages/Inventory/InventoryFull";
+import TestInventory from "./pages/Inventory/TestInventory";
+
+// Documents
+import DocumentsManager from "./pages/Documents/DocumentsManager";
+
+// Staff Attendance
+import StaffAttendanceManagement from "./pages/Staff/StaffAttendanceManagement";
+import StaffDailyAttendance from "./pages/Staff/StaffDailyAttendance";
+
+
+// Components
+import Sidebar from "./components/Sidebar";
+import TopBar from "./components/TopBar";
+
+// Composant interne qui utilise les hooks d'auth
+const AppContent = () => {
+  const { isAuthenticated, user } = useAuth();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const handleSidebarToggle = () => {
+    if (isMobile) {
+      setSidebarOpen(!sidebarOpen);
+    } else {
+      setSidebarCollapsed(!sidebarCollapsed);
+    }
+  };
+
+  return (
+    <div className="app">
       <Router>
-        <Sidebar/>
-        <Routes>
-          {
-            user ? <>
-                    <Route path='/' element={<Home/>} />
-                    <Route path='/students-comp' element={<StudentsComp/>} />
-                    <Route path='/class-comp' element={<ClassCompt/>} />
-                    <Route path='/class-comp/:id' element={<StudentsByClass/>} />
-                    <Route path='/reduct-fees/:id' element={<ReductFees/>} />
-                    <Route path='/params-comp' element={<ParamsCompt/>} />
-                    <Route path='/class' element={<Class/>} /> 
-                    <Route path='/classBySection/:name' element={<ClassBySection />} /> 
-                    <Route path='/students/:id' element={<Student/>} />
-                    <Route path='/transfert/:id' element={<TransfertStudent/>} />
-                    <Route path='/teachers' element={<Teachers/>} />
-                    <Route path='/competences' element={<Comp/>} />
-                    <Route path='/competences/:id' element={<SubComp/>}/>
-                    <Route path='/matieres' element={<Matiere/>} /> 
-                    <Route path='/domains' element={<Domains/>} /> 
-                    <Route path='/domains/:id' element={<Activities/>} /> 
-                    <Route path='/search' element={<SearchView/>}/>
-                    <Route path='/params' element={<Params/>}/>
-                    <Route path='/seqs' element={<SeqStu/>}/>
-                    <Route path='/settings' element={<Settings/>}/>
-                    <Route path='/trims' element={<TrimStu/>}/>
-                    <Route path='/stats' element={<Statistics/>}/>
+        {isAuthenticated && (
+          <Sidebar
+            isCollapsed={sidebarCollapsed}
+            onToggle={handleSidebarToggle}
+            isOpen={sidebarOpen}
+            setIsOpen={setSidebarOpen}
+          />
+        )}
+
+        <div
+          className="main-content"
+          style={{
+            marginLeft: isAuthenticated
+              ? isMobile
+                ? "0"
+                : sidebarCollapsed
+                ? "80px"
+                : "280px"
+              : "0",
+            transition: "margin-left 0.3s ease",
+          }}
+        >
+          {isAuthenticated && (
+            <TopBar
+              onSidebarToggle={handleSidebarToggle}
+              showSidebarToggle={isMobile}
+            />
+          )}
+
+          <div className="view animate-fade-in">
+            <Routes>
+              {/* Route publique - Login */}
+              <Route
+                path="/login"
+                element={
+                  <PublicRoute redirectPath="/">
+                    <Login />
+                  </PublicRoute>
+                }
+              />
+
+              {/* Route de redirection basée sur le rôle */}
+              <Route
+                path="/"
+                element={
+                  <RoleBasedRedirect>
+                    <Sections />
+                  </RoleBasedRedirect>
+                }
+              />
+
+              {/* Routes principales - accessibles à tous les utilisateurs connectés */}
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <UserProfile />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/students/series/:seriesId"
+                element={
+                  <ProtectedRoute>
+                    <SeriesStudents />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/my-needs"
+                element={
+                  <ProtectedRoute>
+                    <MyNeeds />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/search"
+                element={
+                  <ProtectedRoute>
+                    <Search />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/stats"
+                element={
+                  <ProtectedRoute>
+                    <Stats />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/inventory"
+                element={
+                  <AccountantRoute>
+                    <InventoryFull />
+                  </AccountantRoute>
+                }
+              />
+
+              <Route
+                path="/documents"
+                element={
+                  <ProtectedRoute>
+                    <DocumentsManager />
+                  </ProtectedRoute>
+                }
+              />
+              
+              {/* Route pour la gestion des présences du personnel - Secrétaires et Comptables Supérieurs */}
+              <Route
+                path="/staff-attendance-management"
+                element={
+                  <ProtectedRoute requiredRoles={['secretaire', 'comptable_superieur', 'accountant', 'admin']}>
+                    <StaffAttendanceManagement />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Route pour le suivi des présences élèves - Comptables */}
+              <Route
+                path="/student-attendance-tracking"
+                element={
+                  <AccountantRoute>
+                    <StudentAttendanceTracking />
+                  </AccountantRoute>
+                }
+              />
+
+              {/* Route pour le suivi des présences personnel - Comptables */}
+              <Route
+                path="/staff-daily-attendance"
+                element={
+                  <AccountantRoute>
+                    <StaffDailyAttendance />
+                  </AccountantRoute>
+                }
+              />
+
+              <Route
+                path="/test-inventory"
+                element={
+                  <AdminRoute>
+                    <TestInventory />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/attendance"
+                element={
+                  <ProtectedRoute requiredRoles={['surveillant_general', 'admin']}>
+                    <AttendanceScanner />
+                  </ProtectedRoute>
+                }
+              />
 
 
-                    <Route path='/exams3/:exam_id/:class_id' element={<PrimFr type={3}/>} /> 
-                    <Route path='/exams4/:exam_id/:class_id' element={<PrimEn type={4}/>} /> 
-                    <Route path='/exams5/:exam_id/:class_id' element={<Cm2 type={5}/>} />
+              <Route
+                path="/teacher-attendance-scanner"
+                element={
+                  <ProtectedRoute requiredRoles={['surveillant_general', 'admin']}>
+                    <TeacherAttendanceScanner />
+                  </ProtectedRoute>
+                }
+              />
 
-                    <Route path='/trims1/:exam_id/:class_id' element={<MatEnT type={1}/>} /> 
-                    <Route path='/trims2/:exam_id/:class_id' element={<MatFrT type={2}/>} /> 
-                    <Route path='/trims3/:exam_id/:class_id' element={<PrimFrT type={3}/>} /> 
-                    <Route path='/trims4/:exam_id/:class_id' element={<PrimEnT type={4}/>} /> 
-                    <Route path='/trims5/:exam_id/:class_id' element={<Cm2T type={5}/>} />
 
-                    <Route path='/exams3/:exam_id/:class_id/:student_id' element={<PrimFrBE type={3}/>} /> 
-                    <Route path='/exams4/:exam_id/:class_id/:student_id' element={<PrimEnBE type={4}/>} /> 
-                    <Route path='/exams5/:exam_id/:class_id/:student_id' element={<Cm2BE type={5}/>} />
+              <Route
+                path="/teacher-detailed-stats"
+                element={
+                  <ProtectedRoute requiredRoles={['surveillant_general', 'admin']}>
+                    <TeacherDetailedStats />
+                  </ProtectedRoute>
+                }
+              />
 
-                    <Route path='/trims1/:exam_id/:class_id/:student_id' element={<MatEnBT type={1}/>} /> 
-                    <Route path='/trims2/:exam_id/:class_id/:student_id' element={<MatFrBT type={2}/>} /> 
-                    <Route path='/trims3/:exam_id/:class_id/:student_id' element={<PrimFrBT type={3}/>} /> 
-                    <Route path='/trims4/:exam_id/:class_id/:student_id' element={<PrimEnBT type={4}/>} /> 
-                    <Route path='/trims5/:exam_id/:class_id/:student_id' element={<Cm2BT type={5}/>}/>
-                    <Route path='/docs' element={<Docs />} />
+              <Route
+                path="/attendance-reports"
+                element={
+                  <ProtectedRoute requiredRoles={['surveillant_general', 'admin']}>
+                    <AttendanceReports />
+                  </ProtectedRoute>
+                }
+              />
 
-                    <Route path='*' element={<Error404/>} />
-                  </>
-                 : <> 
-                    <Route path='/login' element={<Login setUser={setUser}/>} />
-                    <Route path='*' element={<Login setUser={setUser} />} />
-                 </> 
-          }
-        </Routes>
+              {/* Routes pour administrateurs uniquement */}
+              <Route
+                path="/sections"
+                element={
+                  <AdminRoute>
+                    <Sections />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/levels"
+                element={
+                  <AdminRoute>
+                    <Levels />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/school-classes"
+                element={
+                  <AdminRoute>
+                    <SchoolClasses />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/payment-tranches"
+                element={
+                  <AdminRoute>
+                    <PaymentTranches />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/settings"
+                element={
+                  <AdminRoute>
+                    <Settings />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/school-years"
+                element={
+                  <AdminRoute>
+                    <SchoolYears />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+
+                path="/user-management"
+                element={
+                  <AdminRoute>
+                    <UserManagement />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/supervisor-assignments"
+                element={
+                  <AdminRoute>
+                    <SupervisorStatus />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/subjects"
+                element={
+                  <AdminRoute>
+                    <Subjects />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/series-subject-configuration"
+                element={
+                  <AdminRoute>
+                    <SeriesSubjectConfiguration />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/teachers"
+                element={
+                  <AdminRoute>
+                    <Teachers />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/teacher-assignments"
+                element={
+                  <AdminRoute>
+                    <TeacherAssignmentManagement />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/teacher-assignments-old"
+                element={
+                  <AdminRoute>
+                    <TeacherAssignments />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/departments"
+                element={
+                  <AdminRoute>
+                    <DepartmentManagement />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/needs-management"
+                element={
+                  <NeedsManagementRoute>
+                    <NeedsManagement />
+                  </NeedsManagementRoute>
+                }
+              />
+
+              {/* Routes pour comptables et administrateurs */}
+              <Route
+                path="/students-comp"
+                element={
+                  <AccountantRoute>
+                    <StudentsComp />
+                  </AccountantRoute>
+                }
+              />
+
+              <Route
+                path="/class-comp"
+                element={
+                  <AccountantRoute>
+                    <ClassCompt />
+                  </AccountantRoute>
+                }
+              />
+
+              <Route
+                path="/class-comp/:id"
+                element={
+                  <AccountantRoute>
+                    <StudentsByClass />
+                  </AccountantRoute>
+                }
+              />
+
+
+              <Route
+                path="/params-comp"
+                element={
+                  <AccountantRoute>
+                    <ParamsCompt />
+                  </AccountantRoute>
+                }
+              />
+
+              <Route
+                path="/payment-reports"
+                element={
+                  <AccountantRoute>
+                    <PaymentReports />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/reports"
+                element={
+                  <AccountantRoute>
+                    <Reports />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/reports/school-fee-payment-details"
+                element={
+                  <AccountantRoute>
+                    <SchoolFeePaymentDetails />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/reports/detailed-collection"
+                element={
+                  <AccountantRoute>
+                    <DetailedCollectionReport />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/reports/class-school-fees"
+                element={
+                  <AccountantRoute>
+                    <ClassSchoolFeesReport />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/reports/recovery-status"
+                element={
+                  <AccountantRoute>
+                    <RecoveryStatus />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/reports/school-certificates"
+                element={
+                  <AccountantRoute>
+                    <SchoolCertificates />
+                  </AccountantRoute>
+                }
+              />
+
+              <Route
+                path="/student-payment/:studentId"
+                element={
+                  <AccountantRoute>
+                    <StudentPayment />
+                  </AccountantRoute>
+                }
+              />
+
+              {/* Routes pour les frais de dossiers */}
+              <Route
+                path="/payments/documentary-fees"
+                element={
+                  <AccountantRoute>
+                    <DocumentaryFees />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/payments/documentary-fees/create"
+                element={
+                  <AccountantRoute>
+                    <CreateDocumentaryFee />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/payments/documentary-fees/:id"
+                element={
+                  <AccountantRoute>
+                    <DocumentaryFeeDetails />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/payments/documentary-fees/:id/edit"
+                element={
+                  <AccountantRoute>
+                    <CreateDocumentaryFee />
+                  </AccountantRoute>
+                }
+              />
+
+              {/* 404 pour les utilisateurs connectés */}
+              <Route
+                path="*"
+                element={
+                  <ProtectedRoute>
+                    <Error404 />
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+          </div>
+        </div>
       </Router>
     </div>
+  );
+};
+
+// Composant App principal avec provider
+function App() {
+  return (
+    <AppAuthProvider>
+      <SchoolProvider>
+        <ThemeProvider>
+          <AppContent />
+        </ThemeProvider>
+      </SchoolProvider>
+    </AppAuthProvider>
+  );
 }
 
 export default App;

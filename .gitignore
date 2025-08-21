@@ -2,3 +2,5 @@
 /back/node_modules
 /front/node_modules
 /cli/node_modules
+/front/build
+/src/utils/fetch.js

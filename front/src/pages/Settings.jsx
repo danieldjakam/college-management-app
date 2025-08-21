@@ -1,88 +1,75 @@
-import React from 'react';
-import { useEffect, useState } from 'react'; 
-import { useNavigate } from 'react-router-dom';
-import { settingTraductions } from '../local/setting'
-import { available_years } from '../utils/date'
-import { host } from '../utils/fetch'
-import { getLang } from '../utils/lang'
-
+import React, { useState } from 'react';
+import { Container, Row, Col, Card, Nav } from 'react-bootstrap';
+import { GearFill, Building, Award, Calendar, FileEarmarkText } from 'react-bootstrap-icons';
+import SchoolSettings from './Settings/SchoolSettings';
+import ClassScholarships from './Settings/ClassScholarships';
 
 function Settings() {
-  const [settings, setSettings] = useState({})
-  const [loading, setLoading] = useState(false)
-  const [errors, setErrors] = useState('');
-  const navigate = useNavigate();
-  
-  useEffect(() => {
-    (
-      async () => {
-        if (sessionStorage.stat === 'ad') {
-          setLoading(true)
-          const resp = await fetch(host+'/settings/getSettings', {headers: {
-            'Authorization': sessionStorage.user
-          }}).catch(err => setErrors(`Erreur: ${err}`))
-          const data = await resp.json();
-          setSettings(data);
-          setLoading(false);
-        }
-      }
-    )()
-  }, [])
-  const handleChangeSettings = (e) => {
-    setLoading(true);
-    e.preventDefault();
-    fetch(host+'/settings/setSettings', {method: 'POST', body: JSON.stringify(settings), headers: {'Content-Type': 'application/json', Authorization: sessionStorage.user}})
-      .then((res) => res.json())
-      .then(res => {
-        if (res.success) {
-            navigate(`/class`);
-        }else{
-          setErrors(res.message)
-        }
-      })
-      .catch((e) => {
-        setErrors('Une erreur est survenue lors de la connexion a la base de donnee.')
-      })
-      setLoading(false)
-  }
-  return <div className="view settings-view container">
-    <div className="card login-card">
-      <div className="card-head">
-      <h1>{settingTraductions[getLang()].setting}</h1>
-      </div>
-      <form onSubmit={(e) => {handleChangeSettings(e)}}>
-      <div className="card-content">
-          <div className="field" style={{display: 'flex'}}>
-              <label className="label">{settingTraductions[getLang()].schoolYear}</label>
-              <select value={settings.year_school} onChange={(e) => {setSettings(val => {return{...val, year_school: e.target.value}})}}>
-                  {
-                      available_years.map(year => {
-                          return <option key={year} value={year}>
-                              {year}
-                          </option>
-                      })
-                  }
-              </select>
-          </div> 
-          <div className="field check " style={{display:'flex'}}>
-              <label className={`label ${settings.is_editable === 'yes' ? 'checked' : ''}`} htmlFor='check'>{settingTraductions[getLang()].question}</label>
-              <input type="checkbox" checked={settings.is_editable === 'yes' ? true : false} onChange={(e) => {setSettings(val => {return{...val, is_editable: settings.is_editable === 'yes' ? 'no' : 'yes'}})}} id="check" />
-          </div> 
-          <div className="field check " style={{display:'flex'}}>
-              <label className={`label ${settings.is_after_compo === 'yes' ? 'checked' : ''}`} htmlFor='check2'>{settingTraductions[getLang()].question}(2)</label>
-              <input type="checkbox" checked={settings.is_after_compo === 'yes' ? true : false} onChange={(e) => {setSettings(val => {return{...val, is_after_compo: settings.is_after_compo === 'yes' ? 'no' : 'yes'}})}} id="check2" />
-          </div> 
+    const [activeTab, setActiveTab] = useState('school-settings');
 
-          {
-              errors !== '' ? <div className="error">{errors}</div> : ''
-          }
-      </div>
-      <div className="card-footer">
-          <button type="submit">{loading ? settingTraductions[getLang()].saving : settingTraductions[getLang()].save}</button>
-      </div>
-      </form>
-    </div>
-</div>
+    const tabs = [
+        {
+            key: 'school-settings',
+            title: 'Paramètres Généraux',
+            icon: <Building size={16} className="me-2" />,
+            component: <SchoolSettings />
+        },
+        {
+            key: 'scholarships',
+            title: 'Bourses par Classe',
+            icon: <Award size={16} className="me-2" />,
+            component: <ClassScholarships />
+        }
+    ];
+
+    return (
+        <Container fluid className="py-4">
+            {/* Header */}
+            <Row className="mb-4">
+                <Col>
+                    <div className="d-flex align-items-center mb-3">
+                        <GearFill size={24} className="me-3 text-primary" />
+                        <div>
+                            <h2 className="mb-0">Paramètres de l'Application</h2>
+                            <p className="text-muted mb-0">Configuration et gestion des paramètres du système</p>
+                        </div>
+                    </div>
+                </Col>
+            </Row>
+
+            {/* Navigation Tabs */}
+            <Row className="mb-4">
+                <Col>
+                    <Card>
+                        <Card.Body className="p-0">
+                            <Nav variant="tabs" className="border-0">
+                                {tabs.map((tab) => (
+                                    <Nav.Item key={tab.key}>
+                                        <Nav.Link
+                                            active={activeTab === tab.key}
+                                            onClick={() => setActiveTab(tab.key)}
+                                            className="d-flex align-items-center px-4 py-3"
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            {tab.icon}
+                                            {tab.title}
+                                        </Nav.Link>
+                                    </Nav.Item>
+                                ))}
+                            </Nav>
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Tab Content */}
+            <Row>
+                <Col>
+                    {tabs.find(tab => tab.key === activeTab)?.component}
+                </Col>
+            </Row>
+        </Container>
+    );
 }
 
 export default Settings
