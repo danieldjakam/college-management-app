@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Card, Row, Col, Form, Button, Table, Alert, Spinner, Badge } from 'react-bootstrap';
 import { Calendar, Search, People, Check, X, Download, ChevronLeft, ChevronRight } from 'react-bootstrap-icons';
 import { secureApiEndpoints, secureApi } from '../../utils/apiMigration';
+import { host } from '../../utils/fetch';
 
 function StaffDailyAttendance() {
   const [staffData, setStaffData] = useState([]);
@@ -141,7 +142,7 @@ function StaffDailyAttendance() {
         params.append('role', selectedRole);
       }
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000'}/api/staff-attendance/export/pdf?${params.toString()}`, {
+      const response = await fetch(`${host}/api/staff-attendance/export/pdf?${params.toString()}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token') || sessionStorage.getItem('token')}`,

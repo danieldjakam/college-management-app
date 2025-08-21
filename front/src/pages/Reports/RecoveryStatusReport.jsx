@@ -26,6 +26,7 @@ import {
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import { authService } from '../../services/authService';
+import { host } from '../../utils/fetch';
 
 const RecoveryStatusReport = () => {
     const [recoveryData, setRecoveryData] = useState([]);
@@ -63,7 +64,7 @@ const RecoveryStatusReport = () => {
 
     const exportToPdf = async () => {
         try {
-            const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8000/api/reports/recovery-status/export-pdf`, {
+            const response = await fetch(`${host}/api/reports/recovery-status/export-pdf`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${authService.getToken()}`,

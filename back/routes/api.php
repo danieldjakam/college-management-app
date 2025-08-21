@@ -35,6 +35,7 @@ use App\Http\Controllers\TeacherAttendanceController;
 use App\Http\Controllers\StaffAttendanceController;
 use App\Http\Controllers\StudentAttendanceController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\StaffAttendanceReportController;
 
 
 // Routes d'authentification
@@ -661,6 +662,11 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/school-certificates', [ReportsController::class, 'generateSchoolCertificates']);
         Route::get('/school-certificate/preview/{studentId}', [ReportsController::class, 'previewSchoolCertificate']);
         Route::get('/school-certificates/download', [ReportsController::class, 'downloadSchoolCertificates']);
+
+        // Rapport mensuel de présence du personnel
+        Route::get('/staff-attendance-monthly', [StaffAttendanceReportController::class, 'getStaffAttendanceMonthlyReport']);
+        Route::get('/staff-attendance-monthly/export-pdf', [StaffAttendanceReportController::class, 'exportStaffAttendanceMonthlyPdf']);
+        Route::get('/staff-attendance-monthly/export-excel', [StaffAttendanceReportController::class, 'exportStaffAttendanceMonthlyExcel']);
 
         // Rapports PDF supplémentaires
         Route::get('/detailed-collection/export-pdf', [ReportsController::class, 'exportDetailedCollectionPdf']);

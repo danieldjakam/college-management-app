@@ -19,7 +19,7 @@ return [
 
     'allowed_methods' => ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 
-    'allowed_origins' => ['http://admin.cpb-douala.com', 'http://localhost:3006', 'https://admin.cpb-douala.com','http://192.168.1.229:3006'],
+    'allowed_origins' => ['http://admin.cpb-douala.com', 'http://localhost:3006', 'https://admin.cpb-douala.com','http://192.168.1.229:3006', 'http://localhost:3000'],
 
 
     'allowed_origins_patterns' => [],

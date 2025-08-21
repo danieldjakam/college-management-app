@@ -53,11 +53,13 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
   // Navigation sections based on user role
   const getNavigationSections = () => {
     if (!user || !user.role) {
+      console.log('DEBUG: No user or role', { user, userRole: user?.role });
       return [];
 
     }
 
     const userRole = user.role;
+    console.log('DEBUG: User role detected:', userRole, { user });
 
     if (userRole === "admin") {
       return [
@@ -140,6 +142,21 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
         {
+          title: "Rapports",
+          items: [
+            {
+              name: "États des Paiements",
+              href: "/payment-reports",
+              icon: <Receipt />,
+            },
+            {
+              name: "État des Recouvrements",
+              href: "/reports/recovery-status-report",
+              icon: <BarChartFill />,
+            },
+          ],
+        },
+        {
           title: "Compte",
           items: [
             { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
@@ -166,6 +183,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             ...((userRole === "comptable_superieur" || userRole === "accountant") ? [
             { name: "Suivi Présences Élèves", href: "/student-attendance-tracking", icon: <ClipboardCheckFill /> },
             { name: "Suivi Présences Personnel", href: "/staff-daily-attendance", icon: <PeopleFill /> },
+            { name: "Rapport Présence Personnel", href: "/staff-attendance-report", icon: <BarChartFill /> },
             ] : []),
           ],
         },
@@ -234,6 +252,57 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> }
             ] : []),
             { name: "Profil", href: "/profile", icon: <PersonCircle /> }
+          ],
+        },
+      ];
+    } else if (userRole === "accountant") {
+      return [
+        {
+          title: "Gestion des Étudiants",
+          items: [
+            { name: "Étudiants", href: "/students", icon: <PeopleFill /> },
+            { name: "Classes", href: "/school-classes", icon: <HouseHeartFill /> },
+            { name: "Imports/Exports", href: "/students/import", icon: <FileTextFill /> },
+          ],
+        },
+        {
+          title: "Gestion Financière",
+          items: [
+            { name: "Paiements", href: "/payment-reports", icon: <CashCoin /> },
+            { name: "Frais de Dossiers", href: "/payments/documentary-fees", icon: <Receipt /> },
+            { name: "Tranches Paiement", href: "/payment-tranches", icon: <CreditCard /> },
+          ],
+        },
+        {
+          title: "Présence",
+          items: [
+            { name: "Rapport Présence Personnel", href: "/reports/staff-attendance-report", icon: <BarChartFill /> },
+            { name: "Suivi Présence Quotidien", href: "/staff-daily-attendance", icon: <Calendar /> },
+          ],
+        },
+        {
+          title: "Rapports",
+          items: [
+            { name: "États des Paiements", href: "/payment-reports", icon: <Receipt /> },
+            { name: "Encaissement Détaillé", href: "/reports/detailed-collection", icon: <CashCoin /> },
+            { name: "État des Recouvrements", href: "/reports/recovery-status", icon: <BarChartFill /> },
+            { name: "Paiement par Classe", href: "/reports/class-school-fees", icon: <Receipt /> },
+            { name: "Certificats de Scolarité", href: "/reports/school-certificates", icon: <Award /> },
+          ],
+        },
+        {
+          title: "Outils",
+          items: [
+            { name: "Documents", href: "/documents", icon: <FolderFill /> },
+            { name: "Inventaire", href: "/inventory", icon: <Archive /> },
+            { name: "Rechercher", href: "/search", icon: <Search /> },
+          ],
+        },
+        {
+          title: "Compte",
+          items: [
+            { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
+            { name: "Profil", href: "/profile", icon: <PersonCircle /> },
           ],
         },
       ];

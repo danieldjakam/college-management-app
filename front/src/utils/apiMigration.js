@@ -5,6 +5,7 @@
 
 import { authService } from '../services/authService';
 import { host } from './fetch';
+import logger from './logger';
 
 /**
  * Nouveau service API qui utilise automatiquement les tokens JWT
@@ -92,8 +93,10 @@ class SecureApiService {
 
         } catch (error) {
             if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                logger.apiError(error, 'Connexion');
                 throw new Error('Impossible de se connecter au serveur. Vérifiez votre connexion.');
             }
+            logger.apiError(error);
             throw error;
         }
     }
