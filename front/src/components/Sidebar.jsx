@@ -118,16 +118,17 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
     } else if (userRole === "secretaire") {
       return [
         {
-          title: "Comptabilité",
+          title: "Gestion Académique",
           items: [
+            { name: "Étudiants", href: "/students", icon: <PeopleFill /> },
             { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
-            // { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
           ],
         },
         {
           title: "Outils",
           items: [
+            { name: "Inventaire", href: "/inventory", icon: <Archive /> },
             { name: "Documents", href: "/documents", icon: <FolderFill /> },
           ],
         },
@@ -151,8 +152,18 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             },
             {
               name: "État des Recouvrements",
-              href: "/reports/recovery-status-report",
+              href: "/reports/recovery-status",
               icon: <BarChartFill />,
+            },
+            {
+              name: "Certificats de Scolarité",
+              href: "/reports/school-certificates",
+              icon: <Award />,
+            },
+            {
+              name: "Rapports Détaillés",
+              href: "/reports/detailed-collection",
+              icon: <FileTextFill />,
             },
           ],
         },
