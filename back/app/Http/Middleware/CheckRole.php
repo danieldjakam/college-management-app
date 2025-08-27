@@ -15,6 +15,15 @@ class CheckRole
      */
     public function handle(Request $request, Closure $next, ...$roles): Response
     {
+        // Log pour déboguer l'authentification
+        \Log::info('CheckRole middleware', [
+            'authenticated' => auth()->check(),
+            'user' => auth()->user() ? auth()->user()->toArray() : null,
+            'required_roles' => $roles,
+            'authorization_header' => $request->header('Authorization'),
+            'path' => $request->path()
+        ]);
+        
         if (!auth()->check()) {
             return response()->json([
                 'success' => false,
