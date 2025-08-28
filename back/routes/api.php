@@ -32,6 +32,7 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\DocumentFolderController;
 use App\Http\Controllers\ClassesSeriesController;
 use App\Http\Controllers\TeacherAttendanceController;
+use App\Http\Controllers\TeacherImportController;
 use App\Http\Controllers\StaffAttendanceController;
 use App\Http\Controllers\StudentAttendanceController;
 use App\Http\Controllers\DepartmentController;
@@ -447,7 +448,8 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{teacher}/remove-assignment', [TeacherController::class, 'removeAssignment'])->middleware(['role:admin']);
         Route::post('/{teacher}/create-user-account', [TeacherController::class, 'createUserAccount'])->middleware(['role:admin']);
         Route::delete('/{teacher}/remove-user-account', [TeacherController::class, 'removeUserAccount'])->middleware(['role:admin']);
-        Route::post('/import/csv', [TeacherController::class, 'importCsv'])->middleware(['role:admin']);
+        Route::post('/import/csv', [TeacherImportController::class, 'importCsv'])->middleware(['role:admin']);
+        Route::get('/template/csv', [TeacherImportController::class, 'downloadTemplate'])->middleware(['role:admin']);
     });
 
     // Routes pour la configuration des matières par série
