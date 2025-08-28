@@ -127,6 +127,7 @@ class TeacherController extends Controller
                     'name' => $teacherData['first_name'] . ' ' . $teacherData['last_name'],
                     'username' => $teacherData['username'],
                     'email' => $email,
+                    'contact' => $teacherData['phone_number'], // Ajouter le numéro de téléphone
                     'password' => Hash::make($teacherData['password']),
                     'role' => 'teacher'
                 ]);

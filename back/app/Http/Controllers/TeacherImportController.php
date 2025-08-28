@@ -95,6 +95,10 @@ class TeacherImportController extends Controller
                         'is_active' => $this->parseStatus($rowData['statut'] ?? '1')
                     ];
                     
+                    // Créer aussi un compte utilisateur si spécifié
+                    $createUserAccount = isset($rowData['create_user_account']) && 
+                                       $this->parseStatus($rowData['create_user_account']);
+                    
                     // Vérifier si l'enseignant existe déjà
                     if (!empty($rowData['id'])) {
                         // Mise à jour par ID
