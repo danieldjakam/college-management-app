@@ -47,7 +47,6 @@ const StaffQRCardPrint = ({ staffMember, qrImageUrl, show, onHide, onPrintSucces
     const getStaffPhotoUrl = (staff) => {
         console.log('Getting staff photo URL for:', staff);
         
-        // D'abord, vérifier toutes les propriétés possibles de photo
         const photoFields = ['photo_url', 'photo', 'user_photo', 'image', 'avatar'];
         
         for (const field of photoFields) {
@@ -56,10 +55,8 @@ const StaffQRCardPrint = ({ staffMember, qrImageUrl, show, onHide, onPrintSucces
                 console.log(`Found photo in field '${field}':`, photoValue);
                 
                 if (photoValue.startsWith('http')) {
-                    // URL complète
                     return photoValue.replace('127.0.0.1:8000', host);
                 } else {
-                    // Chemin relatif
                     const baseUrl = host;
                     const photoUrl = photoValue.startsWith('/') ? 
                         `${baseUrl}${photoValue}` : 
@@ -71,7 +68,6 @@ const StaffQRCardPrint = ({ staffMember, qrImageUrl, show, onHide, onPrintSucces
         }
         
         console.log('No photo found, using default');
-        // Image par défaut pour le personnel
         return `${window.location.origin}/static/media/1.png`;
     };
 
@@ -86,37 +82,6 @@ const StaffQRCardPrint = ({ staffMember, qrImageUrl, show, onHide, onPrintSucces
         return labels[role] || role;
     };
 
-    const getStaffTypeColor = (role) => {
-        const colors = {
-            'teacher': '#4a4a8a',
-            'accountant': '#2e7d32',
-            'comptable_superieur': '#1976d2',
-            'surveillant_general': '#f57c00',
-            'admin': '#d32f2f'
-        };
-        return colors[role] || '#7f8c8d';
-    };
-
-    const adjustBrightness = (hex, percent) => {
-        // Supprimer le # si présent
-        hex = hex.replace('#', '');
-        
-        // Convertir en RGB
-        const r = parseInt(hex.substring(0, 2), 16);
-        const g = parseInt(hex.substring(2, 4), 16);
-        const b = parseInt(hex.substring(4, 6), 16);
-        
-        // Ajuster la luminosité
-        const newR = Math.max(0, Math.min(255, r + (r * percent / 100)));
-        const newG = Math.max(0, Math.min(255, g + (g * percent / 100)));
-        const newB = Math.max(0, Math.min(255, b + (b * percent / 100)));
-        
-        // Convertir de nouveau en hex
-        return '#' + Math.round(newR).toString(16).padStart(2, '0') + 
-                     Math.round(newG).toString(16).padStart(2, '0') + 
-                     Math.round(newB).toString(16).padStart(2, '0');
-    };
-
     const handlePrint = async () => {
         if (!staffMember || !qrImageUrl) return;
 
@@ -125,23 +90,24 @@ const StaffQRCardPrint = ({ staffMember, qrImageUrl, show, onHide, onPrintSucces
 
             // Convertir les images en base64 pour l'impression
             const staffPhotoUrl = getStaffPhotoUrl(staffMember);
-            const logoUrl = schoolSettings?.logo_url;
             
             console.log('Preparing images for staff card print:', {
                 staffPhotoUrl,
-                logoUrl,
                 qrImageUrl,
                 staffId: staffMember.id
             });
             
-            const [staffPhotoBase64, logoBase64] = await Promise.all([
+            // Convertir l'image de background et la photo du staff
+            const cardBackgroundUrl = `${window.location.origin}/assets/images/card-background-cpb.png`; // Chemin vers ton image de fond
+            
+            const [staffPhotoBase64, backgroundBase64] = await Promise.all([
                 convertImageToBase64(staffPhotoUrl),
-                convertImageToBase64(logoUrl)
+                convertImageToBase64(cardBackgroundUrl)
             ]);
             
             console.log('Images converted to base64:', {
                 hasStaffPhoto: !!staffPhotoBase64,
-                hasLogo: !!logoBase64
+                hasBackground: !!backgroundBase64
             });
 
             // Créer une nouvelle fenêtre pour l'impression
@@ -152,9 +118,8 @@ const StaffQRCardPrint = ({ staffMember, qrImageUrl, show, onHide, onPrintSucces
             }
 
             const staffTypeLabel = getStaffTypeLabel(staffMember.role);
-            const staffTypeColor = getStaffTypeColor(staffMember.role);
 
-            // Générer le HTML du badge avec le modèle Frame
+            // Générer le HTML du badge avec ton design en background
             const cardHtml = `
                 <!DOCTYPE html>
                 <html>
@@ -181,155 +146,88 @@ const StaffQRCardPrint = ({ staffMember, qrImageUrl, show, onHide, onPrintSucces
                         .badge-container {
                             width: 85.6mm;
                             height: 54mm;
-                            background: white;
+                            position: relative;
+                            background-image: url('${backgroundBase64 || cardBackgroundUrl}');
+                            background-size: cover;
+                            background-position: center;
+                            background-repeat: no-repeat;
                             border-radius: 8px;
                             overflow: hidden;
-                            position: relative;
                             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                            border: 1px solid #e0e0e0;
                         }
                         
-                        /* Header Section */
-                        .badge-header {
-                            background: ${staffTypeColor};
-                            color: white;
-                            padding: 6px 12px;
-                            text-align: center;
-                            font-size: 8px;
-                            font-weight: bold;
-                            letter-spacing: 2px;
-                            text-transform: uppercase;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            gap: 8px;
-                        }
-                        
-                        .school-logo {
-                            width: 16px;
-                            height: 16px;
-                            object-fit: contain;
-                            filter: brightness(0) invert(1);
-                        }
-                        
-                        /* Tableau principal */
-                        .content-table {
-                            width: 100%;
-                            height: calc(100% - 24px - 16px);
-                            border-collapse: collapse;
-                            table-layout: fixed;
-                        }
-                        
-                        .content-table td {
-                            vertical-align: middle;
-                            padding: 6px;
-                            border: none;
-                        }
-                        
-                        /* Colonne 1 - Photo (25%) */
-                        .photo-cell {
-                            width: 25%;
-                            text-align: center;
-                        }
-                        
-                        .staff-photo {
-                            width: 24mm;
-                            height: 30mm;
-                            object-fit: cover;
-                            border-radius: 4px;
-                            border: 1px solid #ddd;
-                            background: #f9f9f9;
-                        }
-                        
-                        /* Colonne 2 - Informations (50%) */
-                        .info-cell {
-                            width: 50%;
-                            padding-left: 8px;
-                            padding-right: 8px;
-                        }
-                        
-                        .id-number-label {
-                            font-size: 6px;
-                            color: ${staffTypeColor};
-                            font-weight: bold;
-                            text-transform: uppercase;
-                            margin-bottom: 1px;
-                            letter-spacing: 0.5px;
-                            display: block;
-                        }
-                        
-                        .id-number {
-                            font-size: 10px;
-                            color: ${staffTypeColor};
-                            font-weight: bold;
-                            margin-bottom: 4px;
-                            display: block;
-                        }
-                        
-                        .name-label {
-                            font-size: 6px;
-                            color: ${staffTypeColor};
-                            font-weight: bold;
-                            text-transform: uppercase;
-                            margin-bottom: 1px;
-                            letter-spacing: 0.5px;
-                            display: block;
-                        }
-                        
+                        /* Nom de l'utilisateur - à côté de l'icône personne */
                         .staff-name {
-                            font-size: 9px;
-                            color: #2c2c2c;
-                            font-weight: bold;
-                            margin-bottom: 4px;
-                            line-height: 1.1;
-                            display: block;
-                        }
-                        
-                        .role-label {
-                            font-size: 6px;
-                            color: ${staffTypeColor};
-                            font-weight: bold;
-                            text-transform: uppercase;
-                            margin-bottom: 1px;
-                            letter-spacing: 0.5px;
-                            display: block;
-                        }
-                        
-                        .staff-role {
-                            font-size: 8px;
-                            color: #2c2c2c;
-                            font-weight: normal;
-                            line-height: 1.1;
-                            display: block;
-                        }
-                        
-                        /* Colonne 3 - QR Code (25%) */
-                        .qr-cell {
-                            width: 25%;
-                            text-align: center;
-                        }
-                        
-                        .qr-code {
-                            width: 20mm;
-                            height: 20mm;
-                            object-fit: contain;
-                            border: 1px solid #ddd;
-                        }
-                        
-                        /* Footer Section */
-                        .badge-footer {
                             position: absolute;
-                            bottom: 0;
-                            left: 0;
-                            right: 0;
-                            background: ${adjustBrightness(staffTypeColor, 60)};
-                            color: ${staffTypeColor};
-                            padding: 3px 12px;
-                            text-align: center;
-                            font-size: 7px;
+                            left: 35px; /* À côté de l'icône personne */
+                            top: 52px; /* Aligné avec l'icône */
+                            color: white;
+                            font-size: 8px;
                             font-weight: bold;
-                            letter-spacing: 3px;
                             text-transform: uppercase;
+                            max-width: 120px;
+                            line-height: 1.1;
+                        }
+                        
+                        /* Poste - juste en dessous du nom */
+                        .staff-role {
+                            position: absolute;
+                            left: 35px; /* Même alignement que le nom */
+                            top: 66px; /* En dessous du nom */
+                            color: white;
+                            font-size: 7px;
+                            font-weight: normal;
+                            max-width: 120px;
+                            line-height: 1.1;
+                        }
+                        
+                        /* Téléphone personnel - au-dessus du téléphone école */
+                        .staff-phone {
+                            position: absolute;
+                            left: 35px; /* Aligné avec les autres infos */
+                            top: 82px; /* Au-dessus du téléphone école */
+                            color: white;
+                            font-size: 7px;
+                            font-weight: normal;
+                        }
+                        
+                        /* Photo dans la zone circulaire */
+                        .staff-photo {
+                            position: absolute;
+                            right: 48px; /* Position dans la zone circulaire */
+                            top: 32px; /* Centré verticalement dans le cercle */
+                            width: 80px; /* Taille pour s'adapter au cercle */
+                            height: 80px;
+                            border-radius: 50%;
+                            object-fit: cover;
+                            border: 3px solid white;
+                            background: white;
+                        }
+                        
+                        /* QR Code dans la zone en pointillés */
+                        .qr-code {
+                            position: absolute;
+                            right: 16px; /* Dans la zone carrée en pointillés */
+                            bottom: 32px; /* Position en bas à droite */
+                            width: 48px; /* Taille pour s'adapter au carré */
+                            height: 48px;
+                            object-fit: contain;
+                            background: white;
+                            border-radius: 4px;
+                            padding: 2px;
+                        }
+                        
+                        /* ID Badge - petit numéro en haut */
+                        .staff-id {
+                            position: absolute;
+                            right: 16px;
+                            top: 16px;
+                            color: white;
+                            font-size: 6px;
+                            font-weight: bold;
+                            background: rgba(255,255,255,0.2);
+                            padding: 2px 6px;
+                            border-radius: 10px;
                         }
                         
                         @media print {
@@ -351,47 +249,27 @@ const StaffQRCardPrint = ({ staffMember, qrImageUrl, show, onHide, onPrintSucces
                 </head>
                 <body>
                     <div class="badge-container">
-                        <!-- Header -->
-                        <div class="badge-header">
-                            ${logoBase64 ? `<img src="${logoBase64}" alt="Logo" class="school-logo">` : ''}
-                            <span>IDENTIFICATION EMPLOYÉ</span>
-                        </div>
+                        <!-- ID Badge -->
+                        <div class="staff-id">ID: ${staffMember.id}</div>
                         
-                        <!-- Main Content - Tableau 3 colonnes -->
-                        <table class="content-table">
-                            <tr>
-                                <!-- Colonne 1: Photo -->
-                                <td class="photo-cell">
-                                    <img src="${staffPhotoBase64 || getStaffPhotoUrl(staffMember)}" alt="Staff Photo" class="staff-photo">
-                                </td>
-                                
-                                <!-- Colonne 2: Informations -->
-                                <td class="info-cell">
-                                    <span class="id-number-label">N° D'IDENTIFICATION</span>
-                                    <span class="id-number">${staffMember.id}</span>
-                                    
-                                    <span class="name-label">NOM</span>
-                                    <span class="staff-name">${staffMember.name}</span>
-                                    
-                                    <span class="role-label">POSTE / EMPLOI</span>
-                                    <span class="staff-role">${staffTypeLabel}</span>
-                                </td>
-                                
-                                <!-- Colonne 3: QR Code -->
-                                <td class="qr-cell">
-                                    <img 
-                                        src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`STAFF_${staffMember.id}`)}&margin=1"
-                                        alt="QR Code"
-                                        class="qr-code"
-                                    />
-                                </td>
-                            </tr>
-                        </table>
+                        <!-- Nom de l'utilisateur -->
+                        <div class="staff-name">${staffMember.name}</div>
                         
-                        <!-- Footer -->
-                        <div class="badge-footer">
-                            ${schoolSettings?.school_name || 'COLLÈGE POLYVALENT BILINGUE DE DOUALA'}
-                        </div>
+                        <!-- Poste -->
+                        <div class="staff-role">${staffTypeLabel}</div>
+                        
+                        <!-- Téléphone personnel -->
+                        <div class="staff-phone">${staffMember.phone || staffMember.telephone || '+237 XXX XXX XXX'}</div>
+                        
+                        <!-- Photo -->
+                        <img src="${staffPhotoBase64 || getStaffPhotoUrl(staffMember)}" alt="Staff Photo" class="staff-photo">
+                        
+                        <!-- QR Code -->
+                        <img 
+                            src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`STAFF_${staffMember.id}`)}&margin=1"
+                            alt="QR Code"
+                            class="qr-code"
+                        />
                     </div>
                 </body>
                 </html>
@@ -485,7 +363,8 @@ const StaffQRCardPrint = ({ staffMember, qrImageUrl, show, onHide, onPrintSucces
                             <strong>Instructions :</strong><br />
                             • Le badge sera imprimé au format carte de crédit (85.6 × 54 mm)<br />
                             • Utilisez du papier cartonné pour un meilleur résultat<br />
-                            • Le QR code permet de scanner la présence
+                            • Le QR code permet de scanner la présence<br />
+                            • <strong>Assure-toi que l'image de fond est dans : public/assets/images/card-background-cpb.png</strong>
                         </Alert>
                     </div>
                 )}
