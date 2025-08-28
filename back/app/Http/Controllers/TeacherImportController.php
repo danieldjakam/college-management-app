@@ -69,6 +69,7 @@ class TeacherImportController extends Controller
                         'sexe' => 'nullable|in:m,f,M,F',
                         'qualification' => 'nullable|string|max:255',
                         'date_embauche' => 'nullable|string',
+                        'type_personnel' => 'nullable|in:V,SP,P,v,sp,p',
                         'statut' => 'nullable'
                     ]);
                     
@@ -91,7 +92,7 @@ class TeacherImportController extends Controller
                         'gender' => $this->parseGender($rowData['sexe'] ?? null),
                         'qualification' => $rowData['qualification'] ?? null,
                         'hire_date' => $this->parseDate($rowData['date_embauche'] ?? null) ?: now()->format('Y-m-d'),
-                        'type_personnel' => $rowData['type_personnel'] ?? 'V',
+                        'type_personnel' => $this->parseTypePersonnel($rowData['type_personnel'] ?? 'V'),
                         'is_active' => $this->parseStatus($rowData['statut'] ?? '1')
                     ];
                     
@@ -269,6 +270,32 @@ class TeacherImportController extends Controller
     }
     
     /**
+     * Parser le type de personnel
+     */
+    private function parseTypePersonnel($type)
+    {
+        if (empty($type)) {
+            return 'V'; // Vacataire par défaut
+        }
+        
+        $typeUpper = strtoupper(trim($type));
+        
+        if (in_array($typeUpper, ['V', 'VACATAIRE', 'VAC'])) {
+            return 'V';
+        }
+        
+        if (in_array($typeUpper, ['SP', 'SEMI-PERMANENT', 'SEMI_PERMANENT', 'SEMIPERMANENT'])) {
+            return 'SP';
+        }
+        
+        if (in_array($typeUpper, ['P', 'PERMANENT', 'PERM'])) {
+            return 'P';
+        }
+        
+        return 'V'; // Par défaut
+    }
+    
+    /**
      * Télécharger un template CSV
      */
     public function downloadTemplate()
@@ -296,6 +323,7 @@ class TeacherImportController extends Controller
         $csvContent = implode(',', $columns) . "\n";
         $csvContent .= ",DUPONT,Jean,696118389,jean.dupont@cpb.cm,Douala,15/05/1985,M,Licence Mathématiques,01/09/2020,V,1\n";
         $csvContent .= ",MARTIN,Sophie,696118390,sophie.martin@cpb.cm,Yaoundé,10/12/1983,F,Master Physique,15/08/2019,P,1\n";
+        $csvContent .= ",KAMENI,Paul,696118391,paul.kameni@cpb.cm,Bafoussam,22/03/1986,M,BTS Comptabilité,10/01/2021,SP,1\n";
         
         return response($csvContent, 200, $headers);
     }

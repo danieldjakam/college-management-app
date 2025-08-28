@@ -40,6 +40,7 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\StaffAttendanceReportController;
 use App\Http\Controllers\DemandeExplicationController;
 use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\TestImportController;
 
 
 // Routes d'authentification
@@ -47,13 +48,16 @@ Route::prefix('auth')->group(function () {
     // Routes publiques (pas d'authentification requise)
     Route::post('login', [AuthController::class, 'login']);
     Route::post('register', [AuthController::class, 'register']);
+});
 
-    // Routes protégées (authentification JWT requise)
-    Route::middleware('auth:api')->group(function () {
-        Route::post('logout', [AuthController::class, 'logout']);
-        Route::post('refresh', [AuthController::class, 'refresh']);
-        Route::get('me', [AuthController::class, 'me']);
-    });
+// Route de test temporaire (ne nécessite pas d'authentification)
+Route::get('test/csv-validation', [TestImportController::class, 'testCsvValidation']);
+
+// Routes protégées (authentification JWT requise)
+Route::middleware('auth:api')->group(function () {
+    Route::post('logout', [AuthController::class, 'logout']);
+    Route::post('refresh', [AuthController::class, 'refresh']);
+    Route::get('me', [AuthController::class, 'me']);
 });
 
 // Route de test
