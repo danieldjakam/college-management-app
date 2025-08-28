@@ -147,6 +147,7 @@ class TeacherController extends Controller
                 'qualification' => $teacherData['qualification'] ?? null,
                 'hire_date' => $teacherData['hire_date'] ?? now(),
                 'is_active' => $teacherData['is_active'] ?? true,
+                'type_personnel' => $teacherData['type_personnel'] ?? 'V',
                 'user_id' => $userId
             ]);
             
