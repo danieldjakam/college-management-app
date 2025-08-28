@@ -578,6 +578,52 @@ class StaffAttendanceController extends Controller
     }
 
     /**
+     * Formater le numéro de téléphone avec des espaces tous les 3 chiffres
+     */
+    private function formatPhoneNumber($phone)
+    {
+        // Nettoyer le numéro (garder seulement les chiffres)
+        $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
+
+        // Si le numéro commence par 237, on le garde tel quel
+        if (str_starts_with($cleanPhone, '237')) {
+            $cleanPhone = substr($cleanPhone, 3); // Enlever le 237
+        }
+
+        // Ajouter des espaces tous les 3 caractères
+        $formattedPhone = '';
+        for ($i = 0; $i < strlen($cleanPhone); $i++) {
+            if ($i > 0 && $i % 3 === 0) {
+                $formattedPhone .= ' ';
+            }
+            $formattedPhone .= $cleanPhone[$i];
+        }
+
+        return '+237 ' . $formattedPhone;
+    }
+
+    /**
+     * Raccourcir le nom si trop long
+     */
+    private function truncateName($name, $maxLength = 23)
+    {
+        if (strlen($name) <= $maxLength) {
+            return $name;
+        }
+
+        // Essayer de couper au dernier espace avant la limite
+        $truncated = substr($name, 0, $maxLength);
+        $lastSpace = strrpos($truncated, ' ');
+
+        if ($lastSpace !== false && $lastSpace > 15) { // Au moins 15 caractères
+            return substr($name, 0, $lastSpace) . '...';
+        }
+
+        // Sinon couper brutalement
+        return substr($name, 0, $maxLength - 3) . '...';
+    }
+
+    /**
      * Générer le HTML du badge personnel pour PDF
      */
     private function generateBadgeHtmlForPDF($user, $qrCode)
@@ -703,7 +749,11 @@ class StaffAttendanceController extends Controller
         ];
 
         $staffLabel = $staffTypes[$user->role] ?? 'Personnel';
-        $userPhone = $user->phone ?? $user->telephone ?? '+237 XXX XXX XXX';
+
+        // MODIFICATIONS ICI : Formater le téléphone et raccourcir le nom
+        $userPhone = $user->contact ?? $user->telephone ?? '000000000';
+        $formattedPhone = $this->formatPhoneNumber($userPhone);
+        $truncatedName = $this->truncateName($user->name);
 
         $html = "
     <!DOCTYPE html>
@@ -724,7 +774,7 @@ class StaffAttendanceController extends Controller
             }
             
             .badge-container {
-                width: 85.6mm;
+                width: 95.6mm;
                 height: 54mm;
                 position: relative;
                 background-image: url('{$backgroundBase64}');
@@ -739,10 +789,10 @@ class StaffAttendanceController extends Controller
             /* Nom de l'utilisateur - à côté de l'icône personne */
             .staff-name {
                 position: absolute;
-                left: 35px;
-                top: 52px;
-                color: white;
-                font-size: 8px;
+                left: 58px;
+                top: 44px;
+                color: black;
+                font-size: 10px;
                 font-weight: bold;
                 text-transform: uppercase;
                 max-width: 120px;
@@ -753,9 +803,9 @@ class StaffAttendanceController extends Controller
             /* Poste - juste en dessous du nom */
             .staff-role {
                 position: absolute;
-                left: 35px;
-                top: 66px;
-                color: white;
+                left: 58px;
+                top: 56px;
+                color: black;
                 font-size: 7px;
                 font-weight: normal;
                 max-width: 120px;
@@ -766,21 +816,22 @@ class StaffAttendanceController extends Controller
             /* Téléphone personnel - au-dessus du téléphone école */
             .staff-phone {
                 position: absolute;
-                left: 35px;
-                top: 82px;
-                color: white;
+                left: 58px;
+                top: 80px;
+                color: black;
                 font-size: 7px;
-                font-weight: normal;
+                font-weight: bold;
+                font-family: 'Open Sans', 'Arial', sans-serif;
                 text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             }
             
             /* Photo dans la zone circulaire */
             .staff-photo {
                 position: absolute;
-                right: 48px;
-                top: 32px;
-                width: 80px;
-                height: 80px;
+                right: 47px;
+                top: 55px;
+                width: 90px;
+                height: 90px;
                 border-radius: 50%;
                 object-fit: cover;
                 border: 3px solid white;
@@ -791,10 +842,10 @@ class StaffAttendanceController extends Controller
             /* QR Code dans la zone en pointillés */
             .qr-code {
                 position: absolute;
-                right: 16px;
-                bottom: 32px;
-                width: 48px;
-                height: 48px;
+                right: 135px;
+                bottom: -1px;
+                width: 45px;
+                height: 45px;
                 object-fit: contain;
                 background: white;
                 border-radius: 4px;
@@ -805,9 +856,9 @@ class StaffAttendanceController extends Controller
             /* ID Badge - petit numéro en haut */
             .staff-id {
                 position: absolute;
-                right: 16px;
-                top: 16px;
-                color: white;
+                left: 26px;
+                top: 36px;
+                color: black;
                 font-size: 6px;
                 font-weight: bold;
                 background: rgba(255,255,255,0.2);
@@ -825,16 +876,16 @@ class StaffAttendanceController extends Controller
     <body>
         <div class='badge-container'>
             <!-- ID Badge -->
-            <div class='staff-id'>ID: {$user->id}</div>
+            <!-- <div class='staff-id'>ID: {$user->id}</div> -->
             
             <!-- Nom de l'utilisateur -->
-            <div class='staff-name'>{$user->name}</div>
+            <div class='staff-name'>{$truncatedName}</div>
             
             <!-- Poste -->
             <div class='staff-role'>{$staffLabel}</div>
             
             <!-- Téléphone personnel -->
-            <div class='staff-phone'>{$userPhone}</div>
+            <div class='staff-phone'>{$formattedPhone}</div>
             
             <!-- Photo -->
             <img src='{$photoBase64}' alt='Photo' class='staff-photo'>
@@ -969,9 +1020,10 @@ class StaffAttendanceController extends Controller
             }
 
             .badge-container {
-                width: 85.6mm;
+                width: 95.6mm;
                 height: 54mm;
                 position: relative;
+                background-image: url('{$backgroundBase64}');
                 background-size: cover;
                 background-position: center;
                 background-repeat: no-repeat;
@@ -979,73 +1031,80 @@ class StaffAttendanceController extends Controller
                 overflow: hidden;
                 box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             }
-
+            
+            /* Nom de l'utilisateur - à côté de l'icône personne */
             .staff-name {
                 position: absolute;
-                left: 35px;
-                top: 52px;
-                color: white;
-                font-size: 8px;
+                left: 58px;
+                top: 44px;
+                color: black;
+                font-size: 10px;
                 font-weight: bold;
                 text-transform: uppercase;
-                max-width: 120px;
+                max-width: 150px;
                 line-height: 1.1;
                 text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             }
-
+            
+            /* Poste - juste en dessous du nom */
             .staff-role {
                 position: absolute;
-                left: 35px;
-                top: 66px;
-                color: white;
+                left: 58px;
+                top: 56px;
+                color: black;
                 font-size: 7px;
                 font-weight: normal;
                 max-width: 120px;
                 line-height: 1.1;
                 text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             }
-
+            
+            /* Téléphone personnel - au-dessus du téléphone école */
             .staff-phone {
                 position: absolute;
-                left: 35px;
-                top: 82px;
-                color: white;
+                left: 58px;
+                top: 80px;
+                color: black;
                 font-size: 7px;
-                font-weight: normal;
+                font-weight: bold;
+                font-family: 'Open Sans', 'Arial', sans-serif;
                 text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             }
-
+            
+            /* Photo dans la zone circulaire */
             .staff-photo {
                 position: absolute;
-                right: 48px;
-                top: 32px;
-                width: 80px;
-                height: 80px;
+                right: 47px;
+                top: 55px;
+                width: 90px;
+                height: 90px;
                 border-radius: 50%;
                 object-fit: cover;
                 border: 3px solid white;
                 background: white;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             }
-
+            
+            /* QR Code dans la zone en pointillés */
             .qr-code {
                 position: absolute;
-                right: 16px;
-                bottom: 32px;
-                width: 48px;
-                height: 48px;
+                right: 135px;
+                bottom: -1px;
+                width: 45px;
+                height: 45px;
                 object-fit: contain;
                 background: white;
                 border-radius: 4px;
                 padding: 2px;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             }
-
+            
+            /* ID Badge - petit numéro en haut */
             .staff-id {
                 position: absolute;
-                right: 16px;
-                top: 16px;
-                color: white;
+                left: 26px;
+                top: 36px;
+                color: black;
                 font-size: 6px;
                 font-weight: bold;
                 background: rgba(255,255,255,0.2);
@@ -1106,14 +1165,18 @@ class StaffAttendanceController extends Controller
         ];
 
         $staffLabel = $staffTypes[$user->role] ?? 'Personnel';
-        $userPhone = $user->phone ?? $user->telephone ?? '+237 XXX XXX XXX';
+
+        // APPLIQUER LES MÊMES MODIFICATIONS
+        $userPhone = $user->contact ?? $user->telephone ?? '000000000';
+        $formattedPhone = $this->formatPhoneNumber($userPhone);
+        $truncatedName = $this->truncateName($user->name);
 
         return "
     <div class='badge-container' style='background-image: url(\"{$backgroundBase64}\");'>
-        <div class='staff-id'>ID: {$user->id}</div>
-        <div class='staff-name'>{$user->name}</div>
+        <!-- <div class='staff-id'>ID: {$user->id}</div> -->
+        <div class='staff-name'>{$truncatedName}</div>
         <div class='staff-role'>{$staffLabel}</div>
-        <div class='staff-phone'>{$userPhone}</div>
+        <div class='staff-phone'>{$formattedPhone}</div>
         <img src='{$photoBase64}' alt='Photo' class='staff-photo'>
         <img src='https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" . urlencode($qrCode) . "&margin=1' alt='QR Code' class='qr-code'>
     </div>";

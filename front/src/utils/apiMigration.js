@@ -18,7 +18,7 @@ class SecureApiService {
     // Fonction de requête sécurisée personnalisée - VERSION AMÉLIORÉE
     async makeRequest(endpoint, options = {}) {
         const fullUrl = endpoint.startsWith('http') ? endpoint : `${this.baseURL}${endpoint}`;
-        
+
         const token = authService.getToken();
         const headers = {
             'Accept': 'application/json',
@@ -33,7 +33,7 @@ class SecureApiService {
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }
-        
+
         try {
             const response = await fetch(fullUrl, {
                 ...options,
@@ -43,7 +43,7 @@ class SecureApiService {
             // Gestion des erreurs HTTP
             if (!response.ok) {
                 let errorMessage = `Erreur HTTP ${response.status}: ${response.statusText}`;
-                
+
                 try {
                     const contentType = response.headers.get('content-type');
                     if (contentType && contentType.includes('application/json')) {
@@ -58,14 +58,14 @@ class SecureApiService {
                 } catch (parseError) {
                     console.warn('Impossible de parser la réponse d\'erreur:', parseError);
                 }
-                
+
                 // Gestion spéciale pour les erreurs 401
                 if (response.status === 401) {
                     authService.removeToken();
                     window.dispatchEvent(new CustomEvent('auth:unauthorized'));
                     throw new Error('Session expirée. Veuillez vous reconnecter.');
                 }
-                
+
                 throw new Error(errorMessage);
             }
 
@@ -73,12 +73,12 @@ class SecureApiService {
             const contentType = response.headers.get('content-type');
             if (contentType && contentType.includes('application/json')) {
                 const responseText = await response.text();
-                
+
                 if (!responseText.trim()) {
                     console.warn('Réponse JSON vide du serveur');
                     return { success: true };
                 }
-                
+
                 try {
                     return JSON.parse(responseText);
                 } catch (jsonError) {
@@ -163,7 +163,7 @@ export const secureApiEndpoints = {
         changePassword: (data) => secureApi.put('/auth/change-password', data),
         uploadAvatar: async (formData) => {
             const token = authService.getToken();
-            
+
             try {
                 const response = await fetch(`${secureApi.baseURL}/upload-photo`, {
                     method: 'POST',
@@ -177,7 +177,7 @@ export const secureApiEndpoints = {
 
                 if (!response.ok) {
                     let errorMessage = `HTTP Error ${response.status}: ${response.statusText}`;
-                    
+
                     try {
                         const contentType = response.headers.get('content-type');
                         if (contentType && contentType.includes('application/json')) {
@@ -187,7 +187,7 @@ export const secureApiEndpoints = {
                     } catch (e) {
                         // Ignore JSON parsing errors
                     }
-                    
+
                     throw new Error(errorMessage);
                 }
 
@@ -240,6 +240,21 @@ export const secureApiEndpoints = {
         getStats: (id, params = {}) => {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/teachers/${id}/stats${queryString ? '?' + queryString : ''}`);
+        },
+        generateBadge: (teacherId) => {
+            return secureApi.post('/teachers/generate-badge', {
+                teacher_id: teacherId
+            }, {
+                responseType: 'blob' // Important pour recevoir le PDF en blob
+            });
+        },
+
+        generateMultipleBadges: (teacherIds) => {
+            return secureApi.post('/teachers/generate-multiple-badges', {
+                teacher_ids: teacherIds
+            }, {
+                responseType: 'blob' // Important pour recevoir le PDF en blob
+            });
         }
     },
 
@@ -296,11 +311,11 @@ export const secureApiEndpoints = {
         getByClassSeries: (seriesId) => secureApi.get(`/students/class-series/${seriesId}`),
         getById: (id) => secureApi.get(`/students/${id}`),
         create: (data) => secureApi.post('/students', data),
-        
+
         // VERSION AMÉLIORÉE avec meilleure gestion des erreurs JSON
         createWithPhoto: async (formData) => {
             const token = authService.getToken();
-            
+
             try {
                 const response = await fetch(`${secureApi.baseURL}/students`, {
                     method: 'POST',
@@ -316,7 +331,7 @@ export const secureApiEndpoints = {
                 if (!response.ok) {
                     // Essayer de récupérer le message d'erreur
                     let errorMessage = `HTTP Error ${response.status}: ${response.statusText}`;
-                    
+
                     try {
                         const contentType = response.headers.get('content-type');
                         if (contentType && contentType.includes('application/json')) {
@@ -332,7 +347,7 @@ export const secureApiEndpoints = {
                     } catch (parseError) {
                         console.warn('Impossible de parser la réponse d\'erreur:', parseError);
                     }
-                    
+
                     throw new Error(errorMessage);
                 }
 
@@ -343,12 +358,12 @@ export const secureApiEndpoints = {
                     // Essayer quand même de lire comme texte pour voir ce qu'on reçoit
                     const responseText = await response.text();
                     console.log('Contenu de la réponse non-JSON:', responseText);
-                    
+
                     // Si c'est vide mais status 200/201, considérer comme succès
                     if (!responseText.trim() && (response.status === 200 || response.status === 201)) {
                         return { success: true, message: 'Étudiant créé avec succès' };
                     }
-                    
+
                     throw new Error('La réponse du serveur n\'est pas au format JSON');
                 }
 
@@ -379,14 +394,14 @@ export const secureApiEndpoints = {
         // Fonction de debug pour diagnostiquer les problèmes
         debugCreateStudent: async (formData) => {
             const token = authService.getToken();
-            
+
             console.log('=== DEBUG CREATE STUDENT ===');
             console.log('Token présent:', !!token);
             console.log('FormData entries:');
             for (let [key, value] of formData.entries()) {
                 console.log(`${key}:`, value instanceof File ? `File(${value.name})` : value);
             }
-            
+
             try {
                 const response = await fetch(`${secureApi.baseURL}/students`, {
                     method: 'POST',
@@ -453,12 +468,12 @@ export const secureApiEndpoints = {
                     'Accept': 'text/csv'
                 }
             });
-            
+
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.message || 'Erreur lors de l\'export CSV');
             }
-            
+
             return await response.blob();
         },
         exportPdf: async (seriesId) => {
@@ -470,22 +485,22 @@ export const secureApiEndpoints = {
                     'Accept': 'text/html'
                 }
             });
-            
+
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.message || 'Erreur lors de l\'export PDF');
             }
-            
+
             return response; // Retourner la réponse pour permettre .text()
         },
         importCsv: (formData, seriesId) => {
             const token = authService.getToken();
-            
+
             // Utiliser la nouvelle route avec l'ID de série
-            const endpoint = seriesId 
+            const endpoint = seriesId
                 ? `/students/series/${seriesId}/import`
                 : `/students/import/csv`; // Fallback vers l'ancienne route
-            
+
             return fetch(`${secureApi.baseURL}${endpoint}`, {
                 method: 'POST',
                 headers: {
@@ -502,16 +517,16 @@ export const secureApiEndpoints = {
                 return response.json();
             });
         },
-        
+
         // Nouvelle méthode pour import Excel spécifique à une série
         importExcel: (formData, seriesId) => {
             const token = authService.getToken();
-            
+
             // Utiliser la nouvelle route avec l'ID de série
-            const endpoint = seriesId 
+            const endpoint = seriesId
                 ? `/students/series/${seriesId}/import`
                 : `/students/import/excel`; // Fallback vers l'ancienne route
-            
+
             return fetch(`${secureApi.baseURL}${endpoint}`, {
                 method: 'POST',
                 headers: {
@@ -681,12 +696,12 @@ export const secureApiEndpoints = {
                     'Accept': 'text/html'
                 }
             });
-            
+
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.message || 'Erreur lors de l\'export PDF');
             }
-            
+
             const htmlContent = await response.text();
             return { success: true, data: htmlContent };
         }
@@ -760,7 +775,7 @@ export const secureApiEndpoints = {
                     'Content-Type': 'application/json',
                     'Accept': 'application/pdf'
                 },
-                body: JSON.stringify({...data, format: 'pdf'})
+                body: JSON.stringify({ ...data, format: 'pdf' })
             });
 
             if (!response.ok) {
@@ -768,7 +783,7 @@ export const secureApiEndpoints = {
             }
 
             const blob = await response.blob();
-            
+
             // Créer un nom de fichier
             const filename = `listing_paiements_${data.start_date}_${data.end_date}.pdf`;
 
@@ -794,7 +809,7 @@ export const secureApiEndpoints = {
                     'Content-Type': 'application/json',
                     'Accept': 'application/pdf'
                 },
-                body: JSON.stringify({...data, format: 'pdf'})
+                body: JSON.stringify({ ...data, format: 'pdf' })
             });
 
             if (!response.ok) {
@@ -802,7 +817,7 @@ export const secureApiEndpoints = {
             }
 
             const blob = await response.blob();
-            
+
             // Créer un nom de fichier
             const filename = `liste_tranches_${data.start_date}_${data.end_date}.pdf`;
 
@@ -837,7 +852,7 @@ export const secureApiEndpoints = {
 
             // Créer un blob pour le PDF
             const blob = await response.blob();
-            
+
             // Créer un nom de fichier à partir des headers ou par défaut
             const contentDisposition = response.headers.get('content-disposition');
             let filename = `Recu_${paymentId}.pdf`;
@@ -869,7 +884,7 @@ export const secureApiEndpoints = {
             if (data instanceof FormData) {
                 // Ajouter _method=PUT pour simuler PUT avec POST
                 data.append('_method', 'PUT');
-                
+
                 const token = authService.getToken();
                 return fetch(`${secureApi.baseURL}/school-settings`, {
                     method: 'POST',
@@ -976,7 +991,7 @@ export const secureApiEndpoints = {
         reject: (id, data) => secureApi.post(`/needs/${id}/reject`, data),
         getStatistics: () => secureApi.get('/needs/statistics/summary'),
         testWhatsApp: () => secureApi.post('/needs/test-whatsapp'),
-        
+
         // Exports
         exportPdf: (params = {}) => {
             const queryString = new URLSearchParams(params).toString();
@@ -1052,7 +1067,7 @@ export const secureApiEndpoints = {
                 return response.json();
             });
         },
-        
+
         // Nouvelle fonctionnalité: cartes d'identité professionnelles
         generateProfessionalCard: (id) => {
             const token = authService.getToken();
@@ -1070,9 +1085,9 @@ export const secureApiEndpoints = {
                 return response.blob();
             });
         },
-        
+
         getUserQR: (id) => secureApi.get(`/user-management/${id}/qr-code`),
-        
+
         // Export personnel administratif
         exportAdministrativeStaffPdf: () => {
             const token = authService.getToken();
@@ -1100,7 +1115,7 @@ export const secureApiEndpoints = {
         deleteAssignment: (assignmentId) => secureApi.delete(`/supervisors/assignments/${assignmentId}`),
         getSupervisorAssignments: (supervisorId) => secureApi.get(`/supervisors/${supervisorId}/assignments`),
         getAvailableClasses: (supervisorId) => secureApi.get(`/supervisors/${supervisorId}/available-classes`),
-        
+
         // Scanner QR et présences
         scanQR: (data) => secureApi.post('/supervisors/scan-qr', data),
         getDailyAttendance: (params = {}) => {
@@ -1118,7 +1133,7 @@ export const secureApiEndpoints = {
         getStudentCurrentStatus: (data) => secureApi.post('/supervisors/student-status', data),
         markAbsentStudents: (data) => secureApi.post('/supervisors/mark-absent-students', data),
         markAllAbsentStudents: (data) => secureApi.post('/supervisors/mark-all-absent-students', data),
-        
+
         // Génération QR codes
         generateStudentQR: (studentId) => secureApi.get(`/supervisors/generate-qr/${studentId}`),
         generateAllQRs: () => secureApi.get('/supervisors/generate-all-qrs')
@@ -1136,11 +1151,11 @@ export const secureApiEndpoints = {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/teacher-attendance/entry-exit-stats${queryString ? '?' + queryString : ''}`);
         },
-        
+
         // Gestion des QR codes enseignants
         generateQRCode: (data) => secureApi.post('/teacher-attendance/generate-qr', data),
         getTeachersWithQR: () => secureApi.get('/teacher-attendance/teachers-with-qr'),
-        
+
         // Rapports et statistiques
         getTeacherReport: (teacherId, params = {}) => {
             const queryString = new URLSearchParams(params).toString();
@@ -1259,7 +1274,7 @@ export const migrationUtils = {
         try {
             const oldUser = sessionStorage.getItem('user');
             const oldStatus = sessionStorage.getItem('stat');
-            
+
             if (oldUser && oldStatus) {
                 console.log('Anciennes données utilisateur détectées, migration recommandée');
                 // Ici vous pourriez implémenter une logique de migration
@@ -1275,7 +1290,7 @@ export const migrationUtils = {
     needsMigration: () => {
         const hasOldData = !!(sessionStorage.getItem('user') || localStorage.getItem('user'));
         const hasNewData = !!authService.getToken();
-        
+
         return hasOldData && !hasNewData;
     },
 

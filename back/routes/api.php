@@ -427,6 +427,10 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{teacher}', [TeacherController::class, 'show'])->middleware(['role:admin,secretaire,accountant']);
         Route::get('/{teacher}/stats', [TeacherController::class, 'getStats'])->middleware(['role:admin,secretaire,accountant']);
 
+        // Routes pour les badges d'enseignants
+        Route::post('/generate-badge', [TeacherAttendanceController::class, 'generateTeacherBadge'])->name('teacher.generate.badge');
+        Route::post('/generate-multiple-badges', [TeacherAttendanceController::class, 'generateMultipleTeacherBadges'])->name('teacher.generate.multiple.badges');
+
         // Export routes
         Route::get('/export/excel', [TeacherController::class, 'exportExcel'])->middleware(['role:admin,secretaire,accountant']);
         Route::get('/export/csv', [TeacherController::class, 'exportCsv'])->middleware(['role:admin,secretaire,accountant']);
