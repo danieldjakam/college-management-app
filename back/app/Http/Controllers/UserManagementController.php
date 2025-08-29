@@ -19,7 +19,7 @@ class UserManagementController extends Controller
     {
         try {
             $query = User::select('id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'qualification', 'is_active', 'created_at')
-                ->whereIn('role', ['surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'accountant', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe']); // Tous les rôles gérables
+                ->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'accountant', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe']); // Tous les rôles gérables
 
             // Système de recherche
             if ($request->has('search') && !empty($request->search)) {
@@ -455,7 +455,7 @@ class UserManagementController extends Controller
             // Récupérer le personnel administratif (users sauf teachers)
             $administrativeStaff = User::select('id', 'name', 'role', 'qualification', 'contact', 'created_at')
                 ->where('is_active', true)
-                ->whereIn('role', ['surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'accountant', 'admin', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe'])
+                ->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'accountant', 'admin', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe'])
                 ->orderBy('name')
                 ->get();
 
