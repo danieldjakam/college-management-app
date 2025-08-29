@@ -79,6 +79,17 @@ const UserManagement = () => {
         teacher: 'Enseignant',
         accountant: 'Comptable',
         principal: 'Principal',
+        user: 'Utilisateur',
+        bibliothecaire: 'Bibliothécaire',
+        responsable_pedagogique: 'Responsable Pédagogique',
+        dean_of_studies: 'Dean of Studies',
+        censeur_esg: 'Censeur ESG',
+        censeur: 'Censeur',
+        surveillant_secteur: 'Surveillant de Secteur',
+        caissiere: 'Caissière',
+        chef_travaux: 'Chef des Travaux',
+        chef_securite: 'Chef de Sécurité',
+        reprographe: 'Reprographe',
     }), []);
 
     const roleColors = useMemo(() => ({
@@ -92,11 +103,22 @@ const UserManagement = () => {
         teacher: 'warning',
         accountant: 'success',
         principal: 'danger',
+        user: 'info',
+        bibliothecaire: 'secondary',
+        responsable_pedagogique: 'primary',
+        dean_of_studies: 'secondary',
+        censeur_esg: 'info',
+        censeur: 'info',
+        surveillant_secteur: 'primary',
+        caissiere: 'warning',
+        chef_travaux: 'dark',
+        chef_securite: 'danger',
+        reprographe: 'light',
     }), []);
 
     // Liste complète des rôles du personnel (incluant tous les nouveaux rôles)
     const staffRoles = useMemo(() => [
-        'teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire', 'principal'
+        'teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire', 'principal', 'user', 'bibliothecaire', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'chef_travaux', 'chef_securite', 'reprographe'
     ], []);
 
     const getFieldLabel = (fieldName) => {
@@ -928,6 +950,8 @@ const UserManagement = () => {
                                         <option value="comptable_superieur">Comptable Supérieur</option>
                                         <option value="accountant">Comptable</option>
                                         <option value="secretaire">Secrétaire</option>
+                                        <option value="user">Utilisateur</option>
+                                        <option value="bibliothecaire">Bibliothécaire</option>
                                     </optgroup>
                                     <optgroup label="Nouveaux rôles">
                                         <option value="responsable_pedagogique">Responsable Pédagogique</option>
