@@ -32,9 +32,14 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\DocumentFolderController;
 use App\Http\Controllers\ClassesSeriesController;
 use App\Http\Controllers\TeacherAttendanceController;
+use App\Http\Controllers\TeacherImportController;
+use App\Http\Controllers\TeacherFixController;
 use App\Http\Controllers\StaffAttendanceController;
 use App\Http\Controllers\StudentAttendanceController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\StaffAttendanceReportController;
+use App\Http\Controllers\DemandeExplicationController;
+use App\Http\Controllers\PayrollController;
 
 
 // Routes d'authentification
@@ -42,13 +47,13 @@ Route::prefix('auth')->group(function () {
     // Routes publiques (pas d'authentification requise)
     Route::post('login', [AuthController::class, 'login']);
     Route::post('register', [AuthController::class, 'register']);
+});
 
-    // Routes protégées (authentification JWT requise)
-    Route::middleware('auth:api')->group(function () {
-        Route::post('logout', [AuthController::class, 'logout']);
-        Route::post('refresh', [AuthController::class, 'refresh']);
-        Route::get('me', [AuthController::class, 'me']);
-    });
+// Routes protégées (authentification JWT requise)
+Route::middleware('auth:api')->group(function () {
+    Route::post('logout', [AuthController::class, 'logout']);
+    Route::post('refresh', [AuthController::class, 'refresh']);
+    Route::get('me', [AuthController::class, 'me']);
 });
 
 // Route de test
@@ -94,7 +99,7 @@ Route::get('test-inventory', function () {
 
 Route::get('/user-management/{id}/professional-card', function () {
     return response('', 204)
-        ->header('Access-Control-Allow-Origin', 'https://admin.cpb-douala.com')
+        ->header('Access-Control-Allow-Origin', 'http://admin.cpb-douala.com')
         ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
         ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With')
         ->header('Access-Control-Allow-Credentials', 'true')
@@ -102,7 +107,7 @@ Route::get('/user-management/{id}/professional-card', function () {
 });
 Route::get('/students', function () {
     return response('', 204)
-        ->header('Access-Control-Allow-Origin', 'https://admin.cpb-douala.com')
+        ->header('Access-Control-Allow-Origin', 'http://admin.cpb-douala.com')
         ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
         ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With')
         ->header('Access-Control-Allow-Credentials', 'true')
@@ -110,7 +115,7 @@ Route::get('/students', function () {
 });
 Route::post('/students', function () {
     return response('', 201)
-        ->header('Access-Control-Allow-Origin', 'https://admin.cpb-douala.com')
+        ->header('Access-Control-Allow-Origin', 'http://admin.cpb-douala.com')
         ->header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
         ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With')
         ->header('Access-Control-Allow-Credentials', 'true')
@@ -121,10 +126,9 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les sections
     Route::prefix('sections')->group(function () {
-
-        Route::get('/dashboard', [SectionController::class, 'dashboard'])->middleware(['role:admin,secretaire,accountant']);
-        Route::get('/', [SectionController::class, 'index'])->middleware(['role:admin,secretaire,accountant']);
-        Route::get('/{section}', [SectionController::class, 'show'])->middleware(['role:admin,secretaire,accountant']);
+        Route::get('/dashboard', [SectionController::class, 'dashboard'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
+        Route::get('/', [SectionController::class, 'index'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
+        Route::get('/{section}', [SectionController::class, 'show'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
 
         // Export routes
         Route::get('/export/excel', [SectionController::class, 'exportExcel'])->middleware(['role:admin,secretaire,accountant']);
@@ -132,11 +136,6 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/export/pdf', [SectionController::class, 'exportPdf'])->middleware(['role:admin,secretaire,accountant']);
         Route::get('/export/importable', [SectionController::class, 'exportImportable'])->middleware(['role:admin,secretaire,accountant']);
         Route::get('/template/download', [SectionController::class, 'downloadTemplate'])->middleware(['role:admin']);
-
-
-        Route::get('/dashboard', [SectionController::class, 'dashboard'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
-        Route::get('/', [SectionController::class, 'index'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
-        Route::get('/{section}', [SectionController::class, 'show'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
 
 
         Route::post('/', [SectionController::class, 'store'])->middleware(['role:admin']);
@@ -373,21 +372,24 @@ Route::middleware('auth:api')->group(function () {
 
 
     // Routes pour la gestion des utilisateurs (admin uniquement)
-    Route::prefix('user-management')->middleware(['role:admin'])->group(function () {
+    Route::prefix('user-management')->middleware(['auth:api', 'role:admin,principal'])->group(function () {
         Route::get('/', [UserManagementController::class, 'index']);
         Route::get('/stats', [UserManagementController::class, 'getStats']);
+        
+        // Routes d'export (AVANT les routes avec ID)
+        Route::get('/export/administrative-staff/pdf', [UserManagementController::class, 'exportAdministrativeStaffPdf']);
+        Route::get('/generate-all-staff-badges', [UserManagementController::class, 'generateAllStaffBadges']);
+        
         Route::post('/', [UserManagementController::class, 'store']);
+        
+        // Routes avec paramètres ID (APRÈS les routes spécifiques)
         Route::get('/{id}', [UserManagementController::class, 'show']);
         Route::put('/{id}', [UserManagementController::class, 'update']);
         Route::post('/{id}/reset-password', [UserManagementController::class, 'resetPassword']);
         Route::post('/{id}/toggle-status', [UserManagementController::class, 'toggleStatus']);
         Route::delete('/{id}', [UserManagementController::class, 'destroy']);
-
-        // Routes pour cartes d'identité professionnelles
         Route::get('/{id}/qr-code', [UserManagementController::class, 'getUserQR']);
-
-        // Routes d'export
-        Route::get('/export/administrative-staff/pdf', [UserManagementController::class, 'exportAdministrativeStaffPdf']);
+        Route::get('/{id}/badge', [UserManagementController::class, 'generateIndividualBadge']);
     });
 
     // Routes d'upload de photos
@@ -427,6 +429,10 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{teacher}', [TeacherController::class, 'show'])->middleware(['role:admin,secretaire,accountant']);
         Route::get('/{teacher}/stats', [TeacherController::class, 'getStats'])->middleware(['role:admin,secretaire,accountant']);
 
+        // Routes pour les badges d'enseignants
+        Route::post('/generate-badge', [TeacherAttendanceController::class, 'generateTeacherBadge'])->name('teacher.generate.badge');
+        Route::post('/generate-multiple-badges', [TeacherAttendanceController::class, 'generateMultipleTeacherBadges'])->name('teacher.generate.multiple.badges');
+
         // Export routes
         Route::get('/export/excel', [TeacherController::class, 'exportExcel'])->middleware(['role:admin,secretaire,accountant']);
         Route::get('/export/csv', [TeacherController::class, 'exportCsv'])->middleware(['role:admin,secretaire,accountant']);
@@ -443,7 +449,12 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{teacher}/remove-assignment', [TeacherController::class, 'removeAssignment'])->middleware(['role:admin']);
         Route::post('/{teacher}/create-user-account', [TeacherController::class, 'createUserAccount'])->middleware(['role:admin']);
         Route::delete('/{teacher}/remove-user-account', [TeacherController::class, 'removeUserAccount'])->middleware(['role:admin']);
-        Route::post('/import/csv', [TeacherController::class, 'importCsv'])->middleware(['role:admin']);
+        Route::post('/import/csv', [TeacherImportController::class, 'importCsv'])->middleware(['role:admin']);
+        Route::get('/template/csv', [TeacherImportController::class, 'downloadTemplate'])->middleware(['role:admin']);
+        
+        // Routes pour corriger les utilisateurs enseignants
+        Route::post('/fix-contacts', [TeacherFixController::class, 'fixTeacherContacts'])->middleware(['role:admin']);
+        Route::post('/fix-contact/{user_id}', [TeacherFixController::class, 'fixSpecificTeacher'])->middleware(['role:admin']);
     });
 
     // Routes pour la configuration des matières par série
@@ -655,6 +666,19 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{department}/set-head', [DepartmentController::class, 'setHead'])->middleware(['role:admin']);
     });
 
+    // Routes pour les demandes d'explication (D.E)
+    Route::prefix('demandes-explication')->middleware(['role:admin,secretaire,accountant,comptable_superieur'])->group(function () {
+        Route::get('/', [App\Http\Controllers\DemandeExplicationController::class, 'index']);
+        Route::post('/', [App\Http\Controllers\DemandeExplicationController::class, 'store']);
+        Route::get('/personnel', [App\Http\Controllers\DemandeExplicationController::class, 'getPersonnel']);
+        Route::get('/statistiques', [App\Http\Controllers\DemandeExplicationController::class, 'statistiques']);
+        Route::get('/{id}', [App\Http\Controllers\DemandeExplicationController::class, 'show']);
+        Route::put('/{id}', [App\Http\Controllers\DemandeExplicationController::class, 'update']);
+        Route::delete('/{id}', [App\Http\Controllers\DemandeExplicationController::class, 'destroy']);
+        Route::post('/{id}/repondre', [App\Http\Controllers\DemandeExplicationController::class, 'repondre']);
+        Route::post('/{id}/cloturer', [App\Http\Controllers\DemandeExplicationController::class, 'cloturer']);
+    });
+
     // Routes pour les rapports de recouvrement et certificats
     Route::prefix('reports')->middleware(['role:admin,secretaire,accountant,comptable_superieur'])->group(function () {
         // État de recouvrement
@@ -663,14 +687,74 @@ Route::middleware('auth:api')->group(function () {
 
         // État général de recouvrement
         Route::get('/general-recovery-status/export-pdf', [ReportsController::class, 'exportGeneralRecoveryStatusToPdf']);
-
         // Certificats de scolarité
         Route::get('/school-certificates', [ReportsController::class, 'generateSchoolCertificates']);
         Route::get('/school-certificate/preview/{studentId}', [ReportsController::class, 'previewSchoolCertificate']);
         Route::get('/school-certificates/download', [ReportsController::class, 'downloadSchoolCertificates']);
 
+        // Rapport mensuel de présence du personnel
+        Route::get('/staff-attendance-monthly', [StaffAttendanceReportController::class, 'getStaffAttendanceMonthlyReport']);
+        Route::get('/staff-attendance-monthly/export-pdf', [StaffAttendanceReportController::class, 'exportStaffAttendanceMonthlyPdf']);
+        Route::get('/staff-attendance-monthly/export-excel', [StaffAttendanceReportController::class, 'exportStaffAttendanceMonthlyExcel']);
+
         // Rapports PDF supplémentaires
         Route::get('/detailed-collection/export-pdf', [ReportsController::class, 'exportDetailedCollectionPdf']);
         Route::get('/class-school-fees/export-pdf', [ReportsController::class, 'exportClassSchoolFeesPdf']);
+        
+        // Rapport d'état des recouvrements complet
+        Route::get('/recovery-status-report', [ReportsController::class, 'getRecoveryStatusReport']);
+        Route::get('/recovery-status/export-pdf', [ReportsController::class, 'exportRecoveryStatusPdf']);
+    });
+
+    // Routes pour la PAIE (comptables uniquement)
+    Route::prefix('payroll')->middleware(['role:accountant,comptable_superieur,admin'])->group(function () {
+        
+        // Dashboard
+        Route::get('/dashboard', [PayrollController::class, 'getDashboard']);
+        
+        // Gestion des employés
+        Route::prefix('employees')->group(function () {
+            Route::get('/', [PayrollController::class, 'getEmployees']);
+            Route::post('/', [PayrollController::class, 'createEmployee']);
+            Route::put('/{id}', [PayrollController::class, 'updateEmployee']);
+            Route::get('/available-users', [PayrollController::class, 'getAvailableUsers']);
+            Route::get('/{employeeId}/payslips', [PayrollController::class, 'getEmployeePayslips']);
+        });
+
+        // Périodes de paie
+        Route::prefix('periods')->group(function () {
+            Route::get('/', [PayrollController::class, 'getPeriods']);
+            Route::post('/', [PayrollController::class, 'createPeriod']);
+            Route::get('/{id}', [PayrollController::class, 'getPeriodDetails']);
+            Route::post('/{id}/calculate', [PayrollController::class, 'calculatePayroll']);
+            Route::post('/{id}/validate', [PayrollController::class, 'validatePeriod']);
+            Route::post('/{id}/mark-available', [PayrollController::class, 'markSalariesAvailable']);
+            Route::get('/{id}/payslips', [PayrollController::class, 'getPayslips']);
+        });
+
+        // Coupures de salaire
+        Route::prefix('salary-cuts')->group(function () {
+            Route::get('/', [PayrollController::class, 'getSalaryCuts']);
+            Route::post('/', [PayrollController::class, 'createSalaryCut']);
+            Route::post('/{id}/cancel', [PayrollController::class, 'cancelSalaryCut']);
+        });
+
+        // Bulletins de paie
+        Route::prefix('payslips')->group(function () {
+            Route::post('/{id}/mark-retired', [PayrollController::class, 'markSalaryAsRetired']);
+        });
+
+        // Notifications WhatsApp
+        Route::prefix('notifications')->group(function () {
+            Route::get('/', [PayrollController::class, 'getNotifications']);
+            Route::post('/{id}/retry', [PayrollController::class, 'retryNotification']);
+        });
+
+        // Génération PDF
+        Route::prefix('pdf')->group(function () {
+            Route::get('/payslip/{id}', [PayrollController::class, 'generatePayslipPDF']);
+            Route::get('/period/{id}/payslips', [PayrollController::class, 'generatePeriodPayslipsPDF']);
+            Route::get('/period/{id}/summary', [PayrollController::class, 'generatePeriodSummaryPDF']);
+        });
     });
 });

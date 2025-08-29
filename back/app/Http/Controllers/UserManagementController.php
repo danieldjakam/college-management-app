@@ -19,7 +19,7 @@ class UserManagementController extends Controller
     {
         try {
             $query = User::select('id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'qualification', 'is_active', 'created_at')
-                ->whereIn('role', ['surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'accountant', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe']); // Tous les rôles gérables
+                ->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'accountant', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe']); // Tous les rôles gérables
 
             // Système de recherche
             if ($request->has('search') && !empty($request->search)) {
@@ -68,7 +68,7 @@ class UserManagementController extends Controller
                 'email' => 'required|email|unique:users,email',
                 'contact' => 'nullable|string|max:20',
                 'photo' => 'nullable|string|max:500',
-                'role' => 'required|in:surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe',
+                'role' => 'required|in:principal,user,surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe',
                 'qualification' => 'nullable|string|max:100',
                 'generate_password' => 'boolean'
             ], [
@@ -168,7 +168,7 @@ class UserManagementController extends Controller
                 'email' => 'required|email|unique:users,email,' . $id,
                 'contact' => 'nullable|string|max:20',
                 'photo' => 'nullable|string|max:500', // Nullable en update
-                'role' => 'required|in:surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe',
+                'role' => 'required|in:principal,user,surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe',
                 'qualification' => 'nullable|string|max:100',
                 'is_active' => 'boolean'
             ], [
@@ -455,7 +455,7 @@ class UserManagementController extends Controller
             // Récupérer le personnel administratif (users sauf teachers)
             $administrativeStaff = User::select('id', 'name', 'role', 'qualification', 'contact', 'created_at')
                 ->where('is_active', true)
-                ->whereIn('role', ['surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'accountant', 'admin', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe'])
+                ->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'accountant', 'admin', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe'])
                 ->orderBy('name')
                 ->get();
 
@@ -808,5 +808,442 @@ class UserManagementController extends Controller
         ];
         
         return $qualifications[$role] ?? 'BAC';
+    }
+
+    /**
+     * Générer les badges de tout le personnel éligible
+     */
+    public function generateAllStaffBadges()
+    {
+        try {
+            // Récupérer tous les utilisateurs éligibles pour les badges
+            $staffUsers = User::select('id', 'name', 'role', 'contact', 'email')
+                ->where('is_active', true)
+                ->whereIn('role', [
+                    'surveillant_general', 'general_accountant', 'comptable_superieur', 
+                    'comptable', 'secretaire', 'teacher', 'accountant',
+                    'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 
+                    'surveillant_secteur', 'caissiere', 'bibliothecaire', 
+                    'chef_travaux', 'chef_securite', 'reprographe'
+                ])
+                ->orderBy('name')
+                ->get();
+
+            if ($staffUsers->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun membre du personnel trouvé pour générer les badges'
+                ], 404);
+            }
+
+            // Récupérer les paramètres de l'école
+            $schoolSettings = SchoolSetting::getSettings();
+            
+            // Générer le HTML pour tous les badges
+            $html = $this->generateAllStaffBadgesHtml($staffUsers, $schoolSettings);
+            
+            // Créer le PDF
+            $pdf = Pdf::loadHtml($html);
+            $pdf->setPaper('A4', 'portrait');
+            
+            $filename = 'badges_tout_le_personnel_' . date('Y-m-d') . '.pdf';
+            
+            return $pdf->download($filename);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération des badges de tout le personnel',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Générer le HTML pour tous les badges du personnel
+     */
+    private function generateAllStaffBadgesHtml($staffUsers, $schoolSettings): string
+    {
+        $html = '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Badges Personnel - ' . ($schoolSettings['school_name'] ?? 'École') . '</title>
+            <style>
+                * {
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }
+                
+                body {
+                    font-family: Arial, sans-serif;
+                    font-size: 10px;
+                    line-height: 1.2;
+                }
+                
+                .page {
+                    width: 210mm;
+                    min-height: 297mm;
+                    padding: 10mm;
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: space-between;
+                    align-content: flex-start;
+                }
+                
+                .badge {
+                    width: 85mm;
+                    height: 54mm;
+                    border: 2px solid #333;
+                    border-radius: 8px;
+                    margin: 3mm;
+                    padding: 3mm;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                    page-break-inside: avoid;
+                    background: white;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }
+                
+                .badge-header {
+                    text-align: center;
+                    border-bottom: 1px solid #ddd;
+                    padding-bottom: 2mm;
+                    margin-bottom: 2mm;
+                }
+                
+                .school-name {
+                    font-size: 8px;
+                    font-weight: bold;
+                    color: #333;
+                    text-transform: uppercase;
+                }
+                
+                .badge-body {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    flex-grow: 1;
+                }
+                
+                .user-info {
+                    flex: 1;
+                    padding-right: 3mm;
+                }
+                
+                .user-name {
+                    font-size: 12px;
+                    font-weight: bold;
+                    color: #333;
+                    margin-bottom: 1mm;
+                    text-transform: uppercase;
+                }
+                
+                .user-role {
+                    font-size: 9px;
+                    color: #666;
+                    margin-bottom: 2mm;
+                    font-style: italic;
+                }
+                
+                .user-contact {
+                    font-size: 8px;
+                    color: #888;
+                }
+                
+                .qr-code {
+                    width: 15mm;
+                    height: 15mm;
+                    border: 1px solid #ddd;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #f9f9f9;
+                }
+                
+                .qr-code img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: contain;
+                }
+                
+                .badge-footer {
+                    border-top: 1px solid #ddd;
+                    padding-top: 1mm;
+                    text-align: center;
+                }
+                
+                .badge-id {
+                    font-size: 7px;
+                    color: #999;
+                }
+                
+                .year {
+                    font-size: 8px;
+                    color: #666;
+                }
+                
+                @page {
+                    margin: 10mm;
+                    size: A4 portrait;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="page">';
+
+        foreach ($staffUsers as $index => $user) {
+            // Générer le contenu QR pour l'utilisateur
+            $qrContent = "STAFF_ID_" . $user->id;
+            $qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . urlencode($qrContent);
+            
+            $roleLabel = $this->getPositionLabel($user->role);
+            $contact = $user->contact ?: $user->email;
+            
+            $html .= '
+                <div class="badge">
+                    <div class="badge-header">
+                        <div class="school-name">' . ($schoolSettings['school_name'] ?? 'COLLEGE POLYVALENT BILINGUE DE DOUALA') . '</div>
+                    </div>
+                    <div class="badge-body">
+                        <div class="user-info">
+                            <div class="user-name">' . strtoupper($user->name) . '</div>
+                            <div class="user-role">' . $roleLabel . '</div>
+                            <div class="user-contact">' . $contact . '</div>
+                        </div>
+                        <div class="qr-code">
+                            <img src="' . $qrUrl . '" alt="QR Code" />
+                        </div>
+                    </div>
+                    <div class="badge-footer">
+                        <div class="badge-id">ID: ' . $user->id . '</div>
+                        <div class="year">' . date('Y') . '/' . (date('Y') + 1) . '</div>
+                    </div>
+                </div>';
+            
+            // Nouvelle page tous les 10 badges (5x2)
+            if (($index + 1) % 10 === 0 && $index < count($staffUsers) - 1) {
+                $html .= '
+            </div>
+            <div style="page-break-before: always;"></div>
+            <div class="page">';
+            }
+        }
+
+        $html .= '
+            </div>
+        </body>
+        </html>';
+
+        return $html;
+    }
+
+    /**
+     * Générer un badge individuel pour un membre du personnel
+     */
+    public function generateIndividualBadge($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+            
+            // Vérifier que l'utilisateur est éligible pour un badge
+            $staffRoles = [
+                'surveillant_general', 'general_accountant', 'comptable_superieur', 
+                'comptable', 'secretaire', 'teacher', 'accountant',
+                'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 
+                'surveillant_secteur', 'caissiere', 'bibliothecaire', 
+                'chef_travaux', 'chef_securite', 'reprographe'
+            ];
+            
+            if (!in_array($user->role, $staffRoles)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet utilisateur n\'est pas éligible pour un badge'
+                ], 403);
+            }
+            
+            // Récupérer les paramètres de l'école
+            $schoolSettings = SchoolSetting::getSettings();
+            
+            // Générer le HTML pour le badge individuel (même design que les badges multiples)
+            $html = $this->generateSingleBadgeHtml($user, $schoolSettings);
+            
+            // Créer le PDF
+            $pdf = Pdf::loadHtml($html);
+            $pdf->setPaper([0, 0, 241.89, 152.4], 'landscape'); // Format carte bancaire (85mm x 54mm)
+            
+            $filename = 'badge_' . Str::slug($user->name) . '_' . date('Y-m-d') . '.pdf';
+            
+            return $pdf->download($filename);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du badge',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Générer le HTML pour un badge individuel
+     */
+    private function generateSingleBadgeHtml($user, $schoolSettings): string
+    {
+        // Générer le contenu QR pour l'utilisateur
+        $qrContent = "STAFF_ID_" . $user->id;
+        $qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=" . urlencode($qrContent);
+        
+        $roleLabel = $this->getPositionLabel($user->role);
+        $contact = $user->contact ?: $user->email;
+        
+        $html = '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Badge - ' . $user->name . '</title>
+            <style>
+                * {
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }
+                
+                body {
+                    font-family: Arial, sans-serif;
+                    font-size: 10px;
+                    line-height: 1.2;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    padding: 20px;
+                }
+                
+                .badge {
+                    width: 85mm;
+                    height: 54mm;
+                    border: 2px solid #333;
+                    border-radius: 8px;
+                    padding: 3mm;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                    background: white;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }
+                
+                .badge-header {
+                    text-align: center;
+                    border-bottom: 1px solid #ddd;
+                    padding-bottom: 2mm;
+                    margin-bottom: 2mm;
+                }
+                
+                .school-name {
+                    font-size: 8px;
+                    font-weight: bold;
+                    color: #333;
+                    text-transform: uppercase;
+                }
+                
+                .badge-body {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    flex-grow: 1;
+                }
+                
+                .user-info {
+                    flex: 1;
+                    padding-right: 3mm;
+                }
+                
+                .user-name {
+                    font-size: 12px;
+                    font-weight: bold;
+                    color: #333;
+                    margin-bottom: 1mm;
+                    text-transform: uppercase;
+                }
+                
+                .user-role {
+                    font-size: 9px;
+                    color: #666;
+                    margin-bottom: 2mm;
+                    font-style: italic;
+                }
+                
+                .user-contact {
+                    font-size: 8px;
+                    color: #888;
+                }
+                
+                .qr-code {
+                    width: 15mm;
+                    height: 15mm;
+                    border: 1px solid #ddd;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #f9f9f9;
+                }
+                
+                .qr-code img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: contain;
+                }
+                
+                .badge-footer {
+                    border-top: 1px solid #ddd;
+                    padding-top: 1mm;
+                    text-align: center;
+                }
+                
+                .badge-id {
+                    font-size: 7px;
+                    color: #999;
+                }
+                
+                .year {
+                    font-size: 8px;
+                    color: #666;
+                }
+                
+                @page {
+                    margin: 0;
+                    size: 85mm 54mm;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="badge">
+                <div class="badge-header">
+                    <div class="school-name">' . ($schoolSettings['school_name'] ?? 'COLLEGE POLYVALENT BILINGUE DE DOUALA') . '</div>
+                </div>
+                <div class="badge-body">
+                    <div class="user-info">
+                        <div class="user-name">' . strtoupper($user->name) . '</div>
+                        <div class="user-role">' . $roleLabel . '</div>
+                        <div class="user-contact">' . $contact . '</div>
+                    </div>
+                    <div class="qr-code">
+                        <img src="' . $qrUrl . '" alt="QR Code" />
+                    </div>
+                </div>
+                <div class="badge-footer">
+                    <div class="badge-id">ID: ' . $user->id . '</div>
+                    <div class="year">' . date('Y') . '/' . (date('Y') + 1) . '</div>
+                </div>
+            </div>
+        </body>
+        </html>';
+
+        return $html;
     }
 }

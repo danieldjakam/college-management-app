@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Modal, Form, Alert, Badge, ButtonGroup, Tabs, Tab, Card, Table } from 'react-bootstrap';
+import { Button, Modal, Form, Alert, Badge, ButtonGroup, Tabs, Tab, Card, Table, Spinner } from 'react-bootstrap';
 import { LoadingSpinner } from '../../components/UI';
 import ImportExportButton from '../../components/ImportExportButton';
 import { PlusCircle, PencilFill, Trash2, Eye, EyeSlashFill, Search, PersonFill, TelephoneFill, EnvelopeFill, PersonPlus, PersonDash } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import Swal from 'sweetalert2';
+import { PrinterFill, FileEarmarkPdf } from 'react-bootstrap-icons';
 
 const Teachers = () => {
     const [loading, setLoading] = useState(false);
@@ -38,6 +39,9 @@ const Teachers = () => {
         password: '',
         email: ''
     });
+
+    const [selectedTeachers, setSelectedTeachers] = useState([]);
+    const [isGeneratingMultipleBadges, setIsGeneratingMultipleBadges] = useState(false);
 
     useEffect(() => {
         loadTeachers();
@@ -182,7 +186,7 @@ const Teachers = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
         try {
             let response;
             if (editingTeacher) {
@@ -327,9 +331,9 @@ const Teachers = () => {
             'SP': { label: 'Semi-Permanent', bg: 'info' },
             'P': { label: 'Permanent', bg: 'primary' }
         };
-        
+
         const config = typeConfig[typePersonnel] || { label: 'Non défini', bg: 'secondary' };
-        
+
         return (
             <Badge bg={config.bg} className="text-white">
                 {config.label}
@@ -342,6 +346,129 @@ const Teachers = () => {
             case 'm': return 'Masculin';
             case 'f': return 'Féminin';
             default: return '-';
+        }
+    };
+
+    const handlePrintTeacherBadge = async (teacher) => {
+        try {
+            setLoading(true);
+
+            // Utiliser secureApiEndpoints ou un appel direct
+            const response = await secureApiEndpoints.teachers.generateBadge(teacher.id);
+
+            // Télécharger le PDF
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `badge_enseignant_${teacher.full_name.replace(/\s+/g, '_')}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(downloadUrl);
+
+            await Swal.fire({
+                title: 'Badge généré !',
+                text: `Badge PDF téléchargé pour ${teacher.full_name}`,
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+
+        } catch (error) {
+            console.error('Error generating teacher badge:', error);
+            await Swal.fire({
+                title: 'Erreur',
+                text: 'Erreur lors de la génération du badge: ' + (error.message || 'Une erreur inattendue s\'est produite'),
+                icon: 'error',
+                confirmButtonText: 'Fermer'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
+    // Fonctions pour la sélection multiple
+    const handleSelectTeacher = (teacherId, isSelected) => {
+        if (isSelected) {
+            setSelectedTeachers(prev => [...prev, teacherId]);
+        } else {
+            setSelectedTeachers(prev => prev.filter(id => id !== teacherId));
+        }
+    };
+
+    const handleSelectAllTeachers = () => {
+        if (selectedTeachers.length === filteredTeachers.length) {
+            // Tout désélectionner
+            setSelectedTeachers([]);
+        } else {
+            // Tout sélectionner
+            setSelectedTeachers(filteredTeachers.map(teacher => teacher.id));
+        }
+    };
+
+    const handlePrintMultipleTeacherBadges = async () => {
+        if (selectedTeachers.length === 0) {
+            await Swal.fire({
+                title: 'Aucune sélection',
+                text: 'Veuillez sélectionner au moins un enseignant pour imprimer les badges.',
+                icon: 'warning',
+                confirmButtonText: 'OK'
+            });
+            return;
+        }
+
+        const result = await Swal.fire({
+            title: 'Confirmer l\'impression',
+            text: `Voulez-vous imprimer les badges de ${selectedTeachers.length} enseignant(s) sélectionné(s) ?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Oui, imprimer',
+            cancelButtonText: 'Annuler'
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            setIsGeneratingMultipleBadges(true);
+
+            const response = await secureApiEndpoints.teachers.generateMultipleBadges(selectedTeachers);
+
+            // Télécharger le PDF
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `badges_enseignants_multiples_${new Date().toISOString().split('T')[0]}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(downloadUrl);
+
+            await Swal.fire({
+                title: 'Badges générés !',
+                text: `PDF avec ${selectedTeachers.length} badge(s) téléchargé avec succès.`,
+                icon: 'success',
+                timer: 3000,
+                showConfirmButton: false
+            });
+
+            // Réinitialiser la sélection
+            setSelectedTeachers([]);
+
+        } catch (error) {
+            console.error('Error generating multiple teacher badges:', error);
+            await Swal.fire({
+                title: 'Erreur',
+                text: 'Erreur lors de la génération des badges: ' + (error.message || 'Une erreur inattendue s\'est produite'),
+                icon: 'error',
+                confirmButtonText: 'Fermer'
+            });
+        } finally {
+            setIsGeneratingMultipleBadges(false);
         }
     };
 
@@ -394,10 +521,66 @@ const Teachers = () => {
                             </Form.Select>
                         </div>
                         <div className="col-md-3">
-                            <div className="text-muted">
-                                Total: {filteredTeachers.length} enseignant(s)
+                            <div className="d-flex justify-content-between align-items-center">
+                                <div className="text-muted">
+                                    Total: {filteredTeachers.length} enseignant(s)
+                                </div>
+                                {selectedTeachers.length > 0 && (
+                                    <Badge bg="primary" className="d-flex align-items-center gap-1">
+                                        <i className="bi bi-check-square"></i>
+                                        {selectedTeachers.length} sélectionné(s)
+                                    </Badge>
+                                )}
                             </div>
                         </div>
+                    </div>
+
+                    {/* Contrôles de sélection multiple */}
+                    <div className="d-flex justify-content-between align-items-center mt-3">
+                        <div className="d-flex gap-2">
+                            <Button
+                                variant="outline-info"
+                                size="sm"
+                                onClick={handleSelectAllTeachers}
+                                className="d-flex align-items-center gap-1"
+                            >
+                                <i className={`bi bi-${selectedTeachers.length === filteredTeachers.length ? 'square' : 'check-square'}`}></i>
+                                {selectedTeachers.length === filteredTeachers.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+                            </Button>
+                            {selectedTeachers.length > 0 && (
+                                <Button
+                                    variant="success"
+                                    size="sm"
+                                    onClick={handlePrintMultipleTeacherBadges}
+                                    disabled={isGeneratingMultipleBadges}
+                                    className="d-flex align-items-center gap-1"
+                                >
+                                    {isGeneratingMultipleBadges ? (
+                                        <>
+                                            <Spinner animation="border" size="sm" />
+                                            Génération...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <PrinterFill />
+                                            Imprimer badges ({selectedTeachers.length})
+                                        </>
+                                    )}
+                                </Button>
+                            )}
+                        </div>
+
+                        <Button
+                            variant="outline-secondary"
+                            size="sm"
+                            onClick={() => {
+                                setSearchTerm('');
+                                setStatusFilter('all');
+                                setSelectedTeachers([]);
+                            }}
+                        >
+                            Réinitialiser les filtres
+                        </Button>
                     </div>
                 </Card.Body>
             </Card>
@@ -407,117 +590,145 @@ const Teachers = () => {
                 <Table responsive>
                     <thead>
                         <tr>
+                            <th style={{ width: '40px' }}>
+                                <Form.Check
+                                    type="checkbox"
+                                    checked={selectedTeachers.length === filteredTeachers.length && filteredTeachers.length > 0}
+                                    onChange={handleSelectAllTeachers}
+                                    title="Sélectionner/Désélectionner tout"
+                                />
+                            </th>
                             <th>Nom complet</th>
                             <th>Contact</th>
                             <th>Qualification</th>
                             <th>Date d'embauche</th>
                             <th>Type de personnel</th>
                             <th>Statut</th>
-                            <th width="150">Actions</th>
+                            <th width="200">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {filteredTeachers.length > 0 ? (
-                            filteredTeachers.map((teacher) => (
-                                <tr key={teacher.id}>
-                                    <td>
-                                        <div className="d-flex align-items-center">
-                                            <PersonFill className="text-muted me-2" />
-                                            <div>
-                                                <strong>{teacher.full_name}</strong>
-                                                <div className="small text-muted">
-                                                    {getGenderText(teacher.gender)}
+                            filteredTeachers.map((teacher) => {
+                                const isSelected = selectedTeachers.includes(teacher.id);
+
+                                return (
+                                    <tr key={teacher.id}>
+                                        <td style={{ textAlign: 'center' }}>
+                                            <Form.Check
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={(e) => handleSelectTeacher(teacher.id, e.target.checked)}
+                                                title={`Sélectionner ${teacher.full_name}`}
+                                            />
+                                        </td>
+                                        <td>
+                                            <div className="d-flex align-items-center">
+                                                <PersonFill className="text-muted me-2" />
+                                                <div>
+                                                    <strong>{teacher.full_name}</strong>
+                                                    <div className="small text-muted">
+                                                        {getGenderText(teacher.gender)}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div className="small">
-                                            <div className="d-flex align-items-center mb-1">
-                                                <TelephoneFill className="text-muted me-2" size={12} />
-                                                {teacher.phone_number}
-                                            </div>
-                                            {teacher.email && (
-                                                <div className="d-flex align-items-center">
-                                                    <EnvelopeFill className="text-muted me-2" size={12} />
-                                                    {teacher.email}
+                                        </td>
+                                        <td>
+                                            <div className="small">
+                                                <div className="d-flex align-items-center mb-1">
+                                                    <TelephoneFill className="text-muted me-2" size={12} />
+                                                    {teacher.phone_number}
                                                 </div>
+                                                {teacher.email && (
+                                                    <div className="d-flex align-items-center">
+                                                        <EnvelopeFill className="text-muted me-2" size={12} />
+                                                        {teacher.email}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <small className="text-muted">
+                                                {teacher.qualification || '-'}
+                                            </small>
+                                        </td>
+                                        <td>
+                                            <small>
+                                                {teacher.hire_date
+                                                    ? new Date(teacher.hire_date).toLocaleDateString('fr-FR')
+                                                    : '-'
+                                                }
+                                            </small>
+                                        </td>
+                                        <td>
+                                            {getTypePersonnelBadge(teacher.type_personnel)}
+                                        </td>
+                                        <td>
+                                            {getStatusBadge(teacher.is_active)}
+                                            {teacher.user && (
+                                                <Badge bg="info" className="ms-1" size="sm">
+                                                    Compte utilisateur
+                                                </Badge>
                                             )}
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <small className="text-muted">
-                                            {teacher.qualification || '-'}
-                                        </small>
-                                    </td>
-                                    <td>
-                                        <small>
-                                            {teacher.hire_date 
-                                                ? new Date(teacher.hire_date).toLocaleDateString('fr-FR')
-                                                : '-'
-                                            }
-                                        </small>
-                                    </td>
-                                    <td>
-                                        {getTypePersonnelBadge(teacher.type_personnel)}
-                                    </td>
-                                    <td>
-                                        {getStatusBadge(teacher.is_active)}
-                                        {teacher.user && (
-                                            <Badge bg="info" className="ms-1" size="sm">
-                                                Compte utilisateur
-                                            </Badge>
-                                        )}
-                                    </td>
-                                    <td>
-                                        <ButtonGroup size="sm">
-                                            <Button
-                                                variant="outline-primary"
-                                                onClick={() => handleShowModal(teacher)}
-                                                title="Modifier"
-                                            >
-                                                <PencilFill size={14} />
-                                            </Button>
-                                            {!teacher.user ? (
+                                        </td>
+                                        <td>
+                                            <ButtonGroup size="sm">
                                                 <Button
-                                                    variant="outline-info"
-                                                    onClick={() => handleCreateUserAccount(teacher)}
-                                                    title="Créer compte utilisateur"
+                                                    variant="outline-primary"
+                                                    onClick={() => handleShowModal(teacher)}
+                                                    title="Modifier"
                                                 >
-                                                    <PersonPlus size={14} />
+                                                    <PencilFill size={14} />
                                                 </Button>
-                                            ) : (
                                                 <Button
-                                                    variant="outline-warning"
-                                                    onClick={() => handleRemoveUserAccount(teacher)}
-                                                    title="Supprimer compte utilisateur"
+                                                    variant="outline-success"
+                                                    onClick={() => handlePrintTeacherBadge(teacher)}
+                                                    title="Imprimer badge QR"
+                                                    disabled={loading}
                                                 >
-                                                    <PersonDash size={14} />
+                                                    <PrinterFill size={14} />
                                                 </Button>
-                                            )}
-                                            <Button
-                                                variant={teacher.is_active ? "outline-warning" : "outline-success"}
-                                                onClick={() => handleToggleStatus(teacher)}
-                                                title={teacher.is_active ? "Désactiver" : "Activer"}
-                                            >
-                                                {teacher.is_active ? <EyeSlashFill size={14} /> : <Eye size={14} />}
-                                            </Button>
-                                            <Button
-                                                variant="outline-danger"
-                                                onClick={() => handleDelete(teacher)}
-                                                title="Supprimer"
-                                            >
-                                                <Trash2 size={14} />
-                                            </Button>
-                                        </ButtonGroup>
-                                    </td>
-                                </tr>
-                            ))
+                                                {!teacher.user ? (
+                                                    <Button
+                                                        variant="outline-info"
+                                                        onClick={() => handleCreateUserAccount(teacher)}
+                                                        title="Créer compte utilisateur"
+                                                    >
+                                                        <PersonPlus size={14} />
+                                                    </Button>
+                                                ) : (
+                                                    <Button
+                                                        variant="outline-warning"
+                                                        onClick={() => handleRemoveUserAccount(teacher)}
+                                                        title="Supprimer compte utilisateur"
+                                                    >
+                                                        <PersonDash size={14} />
+                                                    </Button>
+                                                )}
+                                                <Button
+                                                    variant={teacher.is_active ? "outline-warning" : "outline-success"}
+                                                    onClick={() => handleToggleStatus(teacher)}
+                                                    title={teacher.is_active ? "Désactiver" : "Activer"}
+                                                >
+                                                    {teacher.is_active ? <EyeSlashFill size={14} /> : <Eye size={14} />}
+                                                </Button>
+                                                <Button
+                                                    variant="outline-danger"
+                                                    onClick={() => handleDelete(teacher)}
+                                                    title="Supprimer"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </Button>
+                                            </ButtonGroup>
+                                        </td>
+                                    </tr>
+                                );
+                            })
                         ) : (
                             <tr>
-                                <td colSpan="6" className="text-center py-4">
+                                <td colSpan="8" className="text-center py-4">
                                     <div className="text-muted">
-                                        {searchTerm || statusFilter !== 'all' 
+                                        {searchTerm || statusFilter !== 'all'
                                             ? 'Aucun enseignant ne correspond aux critères de recherche'
                                             : 'Aucun enseignant trouvé'
                                         }
@@ -775,18 +986,18 @@ const Teachers = () => {
                             <Form.Control
                                 type="text"
                                 value={userAccountData.username}
-                                onChange={(e) => setUserAccountData({...userAccountData, username: e.target.value})}
+                                onChange={(e) => setUserAccountData({ ...userAccountData, username: e.target.value })}
                                 required
                                 placeholder="nom.prenom"
                             />
                         </div>
-                        
+
                         <div className="mb-3">
                             <Form.Label>Mot de passe <span className="text-danger">*</span></Form.Label>
                             <Form.Control
                                 type="password"
                                 value={userAccountData.password}
-                                onChange={(e) => setUserAccountData({...userAccountData, password: e.target.value})}
+                                onChange={(e) => setUserAccountData({ ...userAccountData, password: e.target.value })}
                                 required
                                 minLength="6"
                                 placeholder="Minimum 6 caractères"
@@ -798,7 +1009,7 @@ const Teachers = () => {
                             <Form.Control
                                 type="email"
                                 value={userAccountData.email}
-                                onChange={(e) => setUserAccountData({...userAccountData, email: e.target.value})}
+                                onChange={(e) => setUserAccountData({ ...userAccountData, email: e.target.value })}
                                 placeholder="email@example.com (optionnel)"
                             />
                             <Form.Text className="text-muted">

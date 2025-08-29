@@ -13,6 +13,7 @@ import {
     Archive,
     FolderFill,
     Award,
+    ExclamationTriangle,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -53,11 +54,13 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
   // Navigation sections based on user role
   const getNavigationSections = () => {
     if (!user || !user.role) {
+      console.log('DEBUG: No user or role', { user, userRole: user?.role });
       return [];
 
     }
 
     const userRole = user.role;
+    console.log('DEBUG: User role detected:', userRole, { user });
 
     if (userRole === "admin") {
       return [
@@ -116,16 +119,17 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
     } else if (userRole === "secretaire") {
       return [
         {
-          title: "Comptabilité",
+          title: "Gestion Académique",
           items: [
+            { name: "Étudiants", href: "/students", icon: <PeopleFill /> },
             { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
-            // { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
           ],
         },
         {
           title: "Outils",
           items: [
+            { name: "Inventaire", href: "/inventory", icon: <Archive /> },
             { name: "Documents", href: "/documents", icon: <FolderFill /> },
           ],
         },
@@ -135,6 +139,37 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             {
               name: "Frais de Dossiers",
               href: "/payments/documentary-fees",
+              icon: <FileTextFill />,
+            },
+          ],
+        },
+        {
+          title: "Communication",
+          items: [
+            { name: "Mes Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
+          ],
+        },
+        {
+          title: "Rapports",
+          items: [
+            {
+              name: "États des Paiements",
+              href: "/payment-reports",
+              icon: <Receipt />,
+            },
+            {
+              name: "État des Recouvrements",
+              href: "/reports/recovery-status",
+              icon: <BarChartFill />,
+            },
+            {
+              name: "Certificats de Scolarité",
+              href: "/reports/school-certificates",
+              icon: <Award />,
+            },
+            {
+              name: "Rapports Détaillés",
+              href: "/reports/detailed-collection",
               icon: <FileTextFill />,
             },
           ],
@@ -166,7 +201,14 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             ...((userRole === "comptable_superieur" || userRole === "accountant") ? [
             { name: "Suivi Présences Élèves", href: "/student-attendance-tracking", icon: <ClipboardCheckFill /> },
             { name: "Suivi Présences Personnel", href: "/staff-daily-attendance", icon: <PeopleFill /> },
+            { name: "Rapport Présence Personnel", href: "/staff-attendance-report", icon: <BarChartFill /> },
             ] : []),
+          ],
+        },
+        {
+          title: "Communication",
+          items: [
+            { name: "D.E (Demandes d'Explication)", href: "/demandes-explication", icon: <ExclamationTriangle /> },
           ],
         },
         {
@@ -237,6 +279,63 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
       ];
+    } else if (userRole === "accountant") {
+      return [
+        {
+          title: "Gestion des Étudiants",
+          items: [
+            { name: "Étudiants", href: "/students", icon: <PeopleFill /> },
+            { name: "Classes", href: "/school-classes", icon: <HouseHeartFill /> },
+            { name: "Imports/Exports", href: "/students/import", icon: <FileTextFill /> },
+          ],
+        },
+        {
+          title: "Gestion Financière",
+          items: [
+            { name: "Paiements", href: "/payment-reports", icon: <CashCoin /> },
+            { name: "Frais de Dossiers", href: "/payments/documentary-fees", icon: <Receipt /> },
+            { name: "Tranches Paiement", href: "/payment-tranches", icon: <CreditCard /> },
+          ],
+        },
+        {
+          title: "Présence",
+          items: [
+            { name: "Rapport Présence Personnel", href: "/reports/staff-attendance-report", icon: <BarChartFill /> },
+            { name: "Suivi Présence Quotidien", href: "/staff-daily-attendance", icon: <Calendar /> },
+          ],
+        },
+        {
+          title: "Rapports",
+          items: [
+            { name: "États des Paiements", href: "/payment-reports", icon: <Receipt /> },
+            { name: "Encaissement Détaillé", href: "/reports/detailed-collection", icon: <CashCoin /> },
+            { name: "État des Recouvrements", href: "/reports/recovery-status", icon: <BarChartFill /> },
+            { name: "Paiement par Classe", href: "/reports/class-school-fees", icon: <Receipt /> },
+            { name: "Certificats de Scolarité", href: "/reports/school-certificates", icon: <Award /> },
+          ],
+        },
+        {
+          title: "Communication",
+          items: [
+            { name: "Mes Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
+          ],
+        },
+        {
+          title: "Outils",
+          items: [
+            { name: "Documents", href: "/documents", icon: <FolderFill /> },
+            { name: "Inventaire", href: "/inventory", icon: <Archive /> },
+            { name: "Rechercher", href: "/search", icon: <Search /> },
+          ],
+        },
+        {
+          title: "Compte",
+          items: [
+            { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
+            { name: "Profil", href: "/profile", icon: <PersonCircle /> },
+          ],
+        },
+      ];
     } else if (userRole === "surveillant_general") {
       return [
         {
@@ -246,6 +345,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Scanner QR Personnel", href: "/teacher-attendance-scanner", icon: <PeopleFill /> },
             { name: "Stats Personnel", href: "/teacher-detailed-stats", icon: <BarChartFill /> },
             { name: "Rapports Présence", href: "/attendance-reports", icon: <FileTextFill /> },
+          ],
+        },
+        {
+          title: "Communication",
+          items: [
+            { name: "Mes Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
           ],
         },
         {
@@ -274,6 +379,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             },
             { name: "Séquences", href: "/seqs", icon: <List /> },
             { name: "Trimestres", href: "/trims", icon: <BookFill /> },
+          ],
+        },
+        {
+          title: "Communication",
+          items: [
+            { name: "Mes Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
           ],
         },
         {

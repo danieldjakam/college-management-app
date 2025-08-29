@@ -1,4 +1,5 @@
 import { host } from '../utils/fetch';
+import logger from '../utils/logger';
 
 class AuthService {
     constructor() {
@@ -218,7 +219,7 @@ class AuthService {
                 throw new Error('Impossible de récupérer les informations utilisateur');
             }
         } catch (error) {
-            console.error('Erreur lors de la récupération des données utilisateur:', error);
+            logger.apiError(error, 'getCurrentUser');
             throw error;
         }
     }

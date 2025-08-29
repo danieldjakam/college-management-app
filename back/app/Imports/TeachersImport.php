@@ -38,11 +38,14 @@ class TeachersImport implements ToCollection, WithHeadingRow
                     $rowData['id'] = (string) $rowData['id'];
                 }
 
+                // Nettoyer les valeurs "NON RENSEIGÉ"
+                $rowData = $this->cleanNonRenseigne($rowData);
+                
                 $validator = Validator::make($rowData, [
-                    'id' => 'nullable|string|exists:teachers,id',
+                    'id' => 'nullable|string',
                     'nom' => 'required|string|max:255',
-                    'prenom' => 'required|string|max:255',
-                    'telephone' => 'required|string|max:20',
+                    'prenom' => 'required|string|max:255', 
+                    'telephone' => 'nullable|string|max:20',
                     'email' => 'nullable|email|max:255',
                     'adresse' => 'nullable|string',
                     'date_naissance' => 'nullable|string',
@@ -63,13 +66,14 @@ class TeachersImport implements ToCollection, WithHeadingRow
                 $data = [
                     'first_name' => trim($rowData['prenom']),
                     'last_name' => trim($rowData['nom']),
-                    'phone_number' => trim($rowData['telephone']),
+                    'phone_number' => $this->cleanPhoneNumber($rowData['telephone']),
                     'email' => $rowData['email'] ? trim($rowData['email']) : null,
                     'address' => $rowData['adresse'] ? trim($rowData['adresse']) : null,
                     'date_of_birth' => $this->parseDate($rowData['date_naissance']),
                     'gender' => $this->parseGender($rowData['sexe']),
                     'qualification' => $rowData['qualification'] ? trim($rowData['qualification']) : null,
                     'hire_date' => $this->parseDate($rowData['date_embauche']),
+                    'type_personnel' => 'V', // Défaut: Vacataire
                     'is_active' => $this->parseStatus($rowData['statut'] ?? 1)
                 ];
 
@@ -168,6 +172,44 @@ class TeachersImport implements ToCollection, WithHeadingRow
         }
         
         return (bool) $status;
+    }
+
+    private function cleanNonRenseigne($rowData)
+    {
+        foreach ($rowData as $key => $value) {
+            if (is_string($value)) {
+                $cleanValue = trim($value);
+                if (in_array(strtoupper($cleanValue), [
+                    'NON RENSEIGN�', 'NON RENSEIGNÉ', 'NON RENSEIGNE', 
+                    'NON RENSEIGNÉ', '', 'NULL', 'N/A'
+                ])) {
+                    $rowData[$key] = null;
+                }
+            }
+        }
+        return $rowData;
+    }
+
+    private function cleanPhoneNumber($phone)
+    {
+        if (empty($phone)) {
+            return '000000000'; // Numéro par défaut si vide
+        }
+        
+        // Nettoyer le numéro de téléphone
+        $phone = preg_replace('/[^0-9]/', '', $phone);
+        
+        // Si trop court, compléter avec des zéros
+        if (strlen($phone) < 9) {
+            $phone = str_pad($phone, 9, '0', STR_PAD_RIGHT);
+        }
+        
+        // Si pas de préfixe pays, ajouter +237 pour le Cameroun
+        if (!str_starts_with($phone, '+')) {
+            $phone = '+237' . $phone;
+        }
+        
+        return $phone;
     }
 
     public function getResults()

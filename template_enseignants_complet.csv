@@ -1,0 +1,6 @@
+id,nom,prenom,telephone,email,adresse,date_naissance,sexe,qualification,date_embauche,type_personnel,statut
+,DUPONT,Jean,696118389,jean.dupont@cpb.cm,Douala,15/05/1985,M,Licence Mathématiques,01/09/2020,V,1
+,MARTIN,Sophie,696118390,sophie.martin@cpb.cm,Yaoundé,10/12/1983,F,Master Physique,15/08/2019,P,1
+,KAMENI,Paul,696118391,paul.kameni@cpb.cm,Bafoussam,22/03/1986,M,BTS Comptabilité,10/01/2021,SP,1
+,TCHINDA,Marie,696118392,marie.tchinda@cpb.cm,Dschang,18/11/1987,F,Licence Français,05/02/2020,V,1
+,FOTSO,André,696118393,andre.fotso@cpb.cm,Bamenda,08/07/1984,M,Master Anglais,12/09/2019,P,1

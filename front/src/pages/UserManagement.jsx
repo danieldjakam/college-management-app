@@ -27,9 +27,11 @@ import {
     CreditCard2Back,
     QrCode,
     PrinterFill,
-    FileEarmarkPdf
+    FileEarmarkPdf,
+    Upload
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../utils/apiMigration';
+import { host } from '../utils/fetch';
 import Swal from 'sweetalert2';
 import PhotoCapture from '../components/PhotoCapture';
 
@@ -76,17 +78,18 @@ const UserManagement = () => {
         enseignant: 'Enseignant',
         teacher: 'Enseignant',
         accountant: 'Comptable',
-        // Nouveaux rôles du fichier k.png
+        principal: 'Principal',
+        user: 'Utilisateur',
+        bibliothecaire: 'Bibliothécaire',
         responsable_pedagogique: 'Responsable Pédagogique',
         dean_of_studies: 'Dean of Studies',
         censeur_esg: 'Censeur ESG',
         censeur: 'Censeur',
         surveillant_secteur: 'Surveillant de Secteur',
         caissiere: 'Caissière',
-        bibliothecaire: 'Bibliothécaire',
         chef_travaux: 'Chef des Travaux',
         chef_securite: 'Chef de Sécurité',
-        reprographe: 'Reprographe'
+        reprographe: 'Reprographe',
     }), []);
 
     const roleColors = useMemo(() => ({
@@ -99,25 +102,23 @@ const UserManagement = () => {
         enseignant: 'warning',
         teacher: 'warning',
         accountant: 'success',
-        // Nouveaux rôles du fichier k.png
+        principal: 'danger',
+        user: 'info',
+        bibliothecaire: 'secondary',
         responsable_pedagogique: 'primary',
         dean_of_studies: 'secondary',
         censeur_esg: 'info',
         censeur: 'info',
         surveillant_secteur: 'primary',
         caissiere: 'warning',
-        bibliothecaire: 'secondary',
         chef_travaux: 'dark',
         chef_securite: 'danger',
-        reprographe: 'light'
+        reprographe: 'light',
     }), []);
 
     // Liste complète des rôles du personnel (incluant tous les nouveaux rôles)
     const staffRoles = useMemo(() => [
-        'teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire',
-        // Nouveaux rôles
-        'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 
-        'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe'
+        'teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire', 'principal', 'user', 'bibliothecaire', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'chef_travaux', 'chef_securite', 'reprographe'
     ], []);
 
     const getFieldLabel = (fieldName) => {
@@ -744,6 +745,15 @@ const UserManagement = () => {
         }
     };
 
+    const handleImportAdministrativeStaff = async () => {
+        await Swal.fire({
+            title: 'Fonctionnalité non disponible',
+            text: 'L\'import du personnel administratif sera disponible prochainement.',
+            icon: 'info',
+            confirmButtonText: 'OK'
+        });
+    };
+
     const handleExportAdministrativeStaff = async () => {
         const result = await Swal.fire({
             title: 'Confirmer l\'export',
@@ -934,11 +944,14 @@ const UserManagement = () => {
                                     disabled={modalMode === 'view'}
                                 >
                                     <optgroup label="Rôles administratifs principaux">
+                                        <option value="principal">Principal</option>
                                         <option value="surveillant_general">Surveillant Général</option>
                                         <option value="general_accountant">Comptable Général</option>
                                         <option value="comptable_superieur">Comptable Supérieur</option>
                                         <option value="accountant">Comptable</option>
                                         <option value="secretaire">Secrétaire</option>
+                                        <option value="user">Utilisateur</option>
+                                        <option value="bibliothecaire">Bibliothécaire</option>
                                     </optgroup>
                                     <optgroup label="Nouveaux rôles">
                                         <option value="responsable_pedagogique">Responsable Pédagogique</option>
@@ -1045,6 +1058,15 @@ const UserManagement = () => {
                             >
                                 <FileEarmarkPdf className="me-2" />
                                 Export Personnel Admin
+                            </Button>
+                            <Button
+                                variant="info"
+                                onClick={handleImportAdministrativeStaff}
+                                className="d-flex align-items-center"
+                                title="Importer le personnel administratif"
+                            >
+                                <Upload className="me-2" />
+                                Import Personnel Admin
                             </Button>
                             <Button
                                 variant="primary"

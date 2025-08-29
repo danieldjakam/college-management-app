@@ -1,0 +1,11 @@
+id,nom,prenom,telephone,email,adresse,date_naissance,sexe,qualification,date_embauche,type_personnel,statut
+,KUITCHOU,CHRISTIAN,696118389,christian.kuitchou@cpb.cm,,1985-05-15,M,Licence Mathématiques,2020-09-01,V,1
+,OWONO MVENG,MOÏSE,696118390,moise.owono@cpb.cm,,1983-12-10,M,Master Physique,2019-08-15,P,1
+,PETKEU,MILIXANDRE DELFLORE,696118391,milixandre.petkeu@cpb.cm,,1987-03-22,M,Licence Chimie,2021-01-10,SP,1
+,NDZANA,DONATIEN,696118392,donatien.ndzana@cpb.cm,,1984-07-08,M,Licence Histoire,2020-02-01,V,1
+,NGO SAMNICK,SUZANNE,696118393,suzanne.samnick@cpb.cm,,1986-11-18,F,Master Français,2019-09-01,P,1
+,MOUKORY,SANTANA,696118394,santana.moukory@cpb.cm,,1985-09-05,F,Licence Anglais,2020-10-15,V,1
+,BATOUANEN MOBAN,GERAUDE,696427010,geraude.batouanen@cpb.cm,,1982-04-12,M,Licence Géographie,2018-08-01,SP,1
+,BOGNI,NGNINZEKO,696961822,ngninzeko.bogni@cpb.cm,,1988-01-25,M,Master Biologie,2021-09-01,P,1
+,LY-INBE,EMERENTIEN,698352081,emerentien.lyinbe@cpb.cm,,1983-06-30,M,Licence Philosophie,2019-01-15,V,1
+,HOUNSOU,DESIRE,679549423,desire.hounsou@cpb.cm,,1985-10-14,M,Master Économie,2020-03-01,P,1

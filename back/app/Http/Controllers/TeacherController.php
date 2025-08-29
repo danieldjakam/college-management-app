@@ -73,7 +73,15 @@ class TeacherController extends Controller
      */
     public function store(Request $request)
     {
+        // Log pour déboguer
+        \Log::info('TeacherController::store called', [
+            'request_data' => $request->all(),
+            'user' => auth()->user() ? auth()->user()->toArray() : null,
+            'headers' => $request->headers->all()
+        ]);
+        
         try {
+            \Log::info('Validation started');
             $validator = Validator::make($request->all(), [
                 'first_name' => 'required|string|max:255',
                 'last_name' => 'required|string|max:255',
@@ -93,13 +101,17 @@ class TeacherController extends Controller
             ]);
 
             if ($validator->fails()) {
+                \Log::info('Validation failed', $validator->errors()->toArray());
                 return response()->json([
                     'success' => false,
                     'message' => 'Données invalides',
                     'errors' => $validator->errors()
                 ], 422);
             }
+            
+            \Log::info('Validation passed');
 
+            \Log::info('Starting database transaction');
             DB::beginTransaction();
 
             $teacherData = $validator->validated();
@@ -107,6 +119,7 @@ class TeacherController extends Controller
 
             // Créer un compte utilisateur si demandé
             if ($request->create_user_account && $request->username && $request->password) {
+                \Log::info('Creating user account', ['username' => $request->username]);
                 // Si pas d'email fourni, générer un email temporaire basé sur le nom d'utilisateur
                 $email = $teacherData['email'] ?? $teacherData['username'] . '@school.local';
                 
@@ -114,13 +127,16 @@ class TeacherController extends Controller
                     'name' => $teacherData['first_name'] . ' ' . $teacherData['last_name'],
                     'username' => $teacherData['username'],
                     'email' => $email,
+                    'contact' => $teacherData['phone_number'], // Ajouter le numéro de téléphone
                     'password' => Hash::make($teacherData['password']),
                     'role' => 'teacher'
                 ]);
                 $userId = $user->id;
+                \Log::info('User created successfully', ['user_id' => $userId]);
             }
 
             // Créer l'enseignant
+            \Log::info('Creating teacher record');
             $teacher = Teacher::create([
                 'first_name' => $teacherData['first_name'],
                 'last_name' => $teacherData['last_name'],
@@ -132,9 +148,13 @@ class TeacherController extends Controller
                 'qualification' => $teacherData['qualification'] ?? null,
                 'hire_date' => $teacherData['hire_date'] ?? now(),
                 'is_active' => $teacherData['is_active'] ?? true,
+                'type_personnel' => $teacherData['type_personnel'] ?? 'V',
                 'user_id' => $userId
             ]);
+            
+            \Log::info('Teacher created successfully', ['teacher_id' => $teacher->id]);
 
+            \Log::info('Committing transaction');
             DB::commit();
 
             $teacher->load('user');

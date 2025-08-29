@@ -11,6 +11,8 @@ use Carbon\Carbon;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Barryvdh\DomPDF\Facade\Pdf;
+use App\Models\SchoolSetting;
 
 class TeacherAttendanceController extends Controller
 {
@@ -28,8 +30,8 @@ class TeacherAttendanceController extends Controller
 
             // Trouver l'enseignant par son QR code
             $teacher = Teacher::where('qr_code', $request->teacher_qr_code)
-                            ->where('is_active', true)
-                            ->first();
+                ->where('is_active', true)
+                ->first();
 
             if (!$teacher) {
                 return response()->json([
@@ -87,7 +89,7 @@ class TeacherAttendanceController extends Controller
                 // Calculer le retard pour l'entrée
                 $expectedArrival = Carbon::createFromFormat('H:i:s', $teacher->expected_arrival_time ?: '08:00:00');
                 $actualArrival = $now;
-                
+
                 if ($actualArrival->gt($expectedArrival)) {
                     $lateMinutes = $actualArrival->diffInMinutes($expectedArrival);
                 }
@@ -95,7 +97,7 @@ class TeacherAttendanceController extends Controller
                 // Calculer le départ anticipé et les heures travaillées
                 $expectedDeparture = Carbon::createFromFormat('H:i:s', $teacher->expected_departure_time ?: '17:00:00');
                 $actualDeparture = $now;
-                
+
                 if ($actualDeparture->lt($expectedDeparture)) {
                     $earlyDepartureMinutes = $expectedDeparture->diffInMinutes($actualDeparture);
                 }
@@ -131,7 +133,7 @@ class TeacherAttendanceController extends Controller
             $attendance->load(['teacher', 'supervisor']);
 
             // Message de confirmation
-            $message = $eventType === 'entry' 
+            $message = $eventType === 'entry'
                 ? "Entrée enregistrée pour {$teacher->full_name}"
                 : "Sortie enregistrée pour {$teacher->full_name}";
 
@@ -161,7 +163,6 @@ class TeacherAttendanceController extends Controller
                     ]
                 ]
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -173,7 +174,7 @@ class TeacherAttendanceController extends Controller
     /**
      * Générer un QR code pour un enseignant
      */
-    public function generateQRCode(Request $request): JsonResponse
+    public function generateQRCode(Request $request)
     {
         try {
             $request->validate([
@@ -188,7 +189,7 @@ class TeacherAttendanceController extends Controller
                 $teacher->update(['qr_code' => $qrCode]);
             }
 
-            // Générer l'image QR code
+            /*// Générer l'image QR code
             $qrCodeImage = QrCode::format('svg')
                 ->size(300)
                 ->margin(1)
@@ -206,14 +207,694 @@ class TeacherAttendanceController extends Controller
                     'qr_code' => $teacher->qr_code,
                     'qr_image_url' => Storage::disk('public')->url($fileName)
                 ]
+            ]);*/
+            // Générer directement le PDF du badge
+            $badgeHtml = $this->generateTeacherBadgeHtmlForPDF($teacher, $qrCode);
+
+            // Configuration DomPDF avec optimisations
+            $pdf = Pdf::loadHtml($badgeHtml);
+            $pdf->setPaper('A4', 'portrait');
+
+            // Optimisations pour améliorer la performance
+            $pdf->setOptions([
+                'isPhpEnabled' => false,
+                'isRemoteEnabled' => true,
+                'defaultFont' => 'Arial',
+                'dpi' => 96, // Réduire la DPI pour des PDF plus rapides
+                'enable_css_float' => false,
+                'enable_html5_parser' => false
             ]);
 
+            // Nom du fichier
+            $filename = 'badge_' . str_replace(' ', '_', $teacher->name) . '_' . date('Y-m-d_H-i-s') . '.pdf';
+
+            // Retourner le PDF en téléchargement direct
+            return $pdf->download($filename);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la génération du QR code: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Formater le numéro de téléphone avec des espaces tous les 3 chiffres
+     */
+    private function formatPhoneNumber($phone)
+    {
+        // Nettoyer le numéro (garder seulement les chiffres)
+        $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
+
+        // Si le numéro commence par 237, on le garde tel quel
+        if (str_starts_with($cleanPhone, '237')) {
+            $cleanPhone = substr($cleanPhone, 3); // Enlever le 237
+        }
+
+        // Ajouter des espaces tous les 3 caractères
+        $formattedPhone = '';
+        for ($i = 0; $i < strlen($cleanPhone); $i++) {
+            if ($i > 0 && $i % 3 === 0) {
+                $formattedPhone .= ' ';
+            }
+            $formattedPhone .= $cleanPhone[$i];
+        }
+
+        return '+237 ' . $formattedPhone;
+    }
+
+    /**
+     * Raccourcir le nom si trop long
+     */
+    private function truncateName($name, $maxLength = 23)
+    {
+        if (strlen($name) <= $maxLength) {
+            return $name;
+        }
+
+        // Essayer de couper au dernier espace avant la limite
+        $truncated = substr($name, 0, $maxLength);
+        $lastSpace = strrpos($truncated, ' ');
+
+        if ($lastSpace !== false && $lastSpace > 15) { // Au moins 15 caractères
+            return substr($name, 0, $lastSpace) . '...';
+        }
+
+        // Sinon couper brutalement
+        return substr($name, 0, $maxLength - 3) . '...';
+    }
+
+    /**
+     * Générer le badge PDF pour un enseignant
+     */
+    public function generateTeacherBadge(Request $request)
+    {
+        try {
+            $request->validate([
+                'teacher_id' => 'required|exists:teachers,id',
+            ]);
+
+            $teacher = Teacher::findOrFail($request->teacher_id);
+
+            // Vérifier que l'enseignant est actif
+            if (!$teacher->is_active) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet enseignant est inactif'
+                ], 400);
+            }
+
+            // Générer un code QR unique simple
+            $qrCode = 'TCH_' . $teacher->id;
+
+            // Mettre à jour l'enseignant avec le nouveau QR code s'il n'en a pas
+            if (!$teacher->qr_code) {
+                $teacher->update(['qr_code' => $qrCode]);
+            } else {
+                $qrCode = $teacher->qr_code;
+            }
+
+            // Générer directement le PDF du badge
+            $badgeHtml = $this->generateTeacherBadgeHtmlForPDF($teacher, $qrCode);
+
+            // Configuration DomPDF
+            $pdf = Pdf::loadHtml($badgeHtml);
+            $pdf->setPaper('A4', 'portrait');
+
+            $pdf->setOptions([
+                'isPhpEnabled' => false,
+                'isRemoteEnabled' => true,
+                'defaultFont' => 'Arial',
+                'dpi' => 96,
+                'enable_css_float' => false,
+                'enable_html5_parser' => false
+            ]);
+
+            // Nom du fichier
+            $filename = 'badge_enseignant_' . str_replace(' ', '_', $teacher->full_name) . '_' . date('Y-m-d_H-i-s') . '.pdf';
+
+            // Retourner le PDF en téléchargement direct
+            return $pdf->download($filename);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du badge',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Générer plusieurs badges d'enseignants sur un même PDF
+     */
+    public function generateMultipleTeacherBadges(Request $request)
+    {
+        try {
+            $request->validate([
+                'teacher_ids' => 'required|array|min:1',
+                'teacher_ids.*' => 'required|exists:teachers,id',
+            ]);
+
+            $teacherIds = $request->teacher_ids;
+            $teachers = Teacher::whereIn('id', $teacherIds)
+                ->where('is_active', true)
+                ->get();
+
+            if ($teachers->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun enseignant actif trouvé'
+                ], 400);
+            }
+
+            // Générer le HTML avec plusieurs badges
+            $html = $this->generateMultipleTeacherBadgesHtml($teachers);
+
+            // Configuration DomPDF
+            $pdf = Pdf::loadHtml($html);
+            $pdf->setPaper('A4', 'portrait');
+
+            $pdf->setOptions([
+                'isPhpEnabled' => false,
+                'isRemoteEnabled' => true,
+                'defaultFont' => 'Arial',
+                'dpi' => 96,
+                'enable_css_float' => false,
+                'enable_html5_parser' => false
+            ]);
+
+            // Nom du fichier
+            $filename = 'badges_enseignants_' . count($teachers) . '_' . date('Y-m-d_H-i-s') . '.pdf';
+
+            return $pdf->download($filename);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération des badges',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Générer le HTML du badge enseignant pour PDF
+     */
+    private function generateTeacherBadgeHtmlForPDF($teacher, $qrCode)
+    {
+        // Récupérer les paramètres de l'école
+        $schoolSettings = SchoolSetting::first();
+
+        // Log de début pour debug
+        \Log::info("Starting teacher badge generation for: " . $teacher->id . " (" . $teacher->full_name . ")", ['photo_url' => $teacher->photo]);
+
+        // Convertir l'image de background CPB en base64
+        $backgroundBase64 = '';
+        $backgroundPath = public_path('assets/images/card-background-cpb.png');
+        if (file_exists($backgroundPath)) {
+            $backgroundContent = file_get_contents($backgroundPath);
+            $backgroundBase64 = 'data:image/png;base64,' . base64_encode($backgroundContent);
+            \Log::info("Background image loaded from: " . $backgroundPath);
+        } else {
+            \Log::warning("Background image not found at: " . $backgroundPath);
+        }
+
+        // Convertir la photo de l'enseignant en base64 (optimisée)
+        $photoBase64 = '';
+        if ($teacher->photo) {
+            try {
+                $photoContent = null;
+                if (str_starts_with($teacher->photo, 'http')) {
+                    $correctedUrl = str_replace(['127.0.0.1:8000', 'localhost:8000', '192.168.1.229:8000'], $_ENV['APP_URL'], $teacher->photo);
+
+                    $relativePath = str_replace(['http://127.0.0.1:8000/', 'http://localhost:8000/', 'http://192.168.1.229:8000/', $_ENV['APP_URL']], '', $teacher->photo);
+                    $relativePath = ltrim($relativePath, '/');
+                    if (str_starts_with($relativePath, 'storage/')) {
+                        $relativePath = substr($relativePath, 8);
+                    }
+                    $localPath = storage_path('app/public/' . $relativePath);
+
+                    if (file_exists($localPath)) {
+                        $photoContent = file_get_contents($localPath);
+                        \Log::info("Teacher photo loaded from local path: " . $localPath);
+                    } else {
+                        $context = stream_context_create([
+                            'http' => [
+                                'timeout' => 5,
+                                'user_agent' => 'Mozilla/5.0'
+                            ]
+                        ]);
+                        $photoContent = file_get_contents($correctedUrl, false, $context);
+                        \Log::info("Teacher photo loaded from URL: " . $correctedUrl);
+                    }
+                } else {
+                    $photoPath = storage_path('app/public/' . $teacher->photo);
+                    if (file_exists($photoPath)) {
+                        $photoContent = file_get_contents($photoPath);
+                        \Log::info("Teacher photo loaded from relative path: " . $photoPath);
+                    }
+                }
+
+                if ($photoContent) {
+                    if (strlen($photoContent) > 50000) {
+                        $tempImage = imagecreatefromstring($photoContent);
+                        if ($tempImage) {
+                            $newImage = imagecreatetruecolor(120, 120);
+                            $width = imagesx($tempImage);
+                            $height = imagesy($tempImage);
+
+                            imagecopyresampled($newImage, $tempImage, 0, 0, 0, 0, 120, 120, $width, $height);
+
+                            ob_start();
+                            imagepng($newImage, null, 6);
+                            $photoContent = ob_get_clean();
+
+                            imagedestroy($tempImage);
+                            imagedestroy($newImage);
+                        }
+                    }
+
+                    $photoBase64 = 'data:image/png;base64,' . base64_encode($photoContent);
+                    \Log::info("Teacher photo successfully converted to base64: " . $teacher->id);
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Erreur chargement photo enseignant: ' . $e->getMessage(), [
+                    'teacher_id' => $teacher->id,
+                    'teacher_photo' => $teacher->photo,
+                    'error_message' => $e->getMessage()
+                ]);
+            }
+        }
+
+        // Si pas de photo, utiliser une image par défaut circulaire
+        if (!$photoBase64) {
+            $photoBase64 = 'data:image/svg+xml;base64,' . base64_encode('
+            <svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="60" cy="60" r="60" fill="#e2e8f0"/>
+                <circle cx="60" cy="45" r="20" fill="#9ca3af"/>
+                <path d="M30 100 C30 80, 45 65, 60 65 C75 65, 90 80, 90 100 L90 120 L30 120 Z" fill="#9ca3af"/>
+            </svg>
+        ');
+        }
+
+        // Déterminer le libellé du type de personnel
+        $typePersonnelLabels = [
+            'V' => 'Enseignant Vacataire',
+            'SP' => 'Enseignant Semi-Permanent',
+            'P' => 'Enseignant Permanent'
+        ];
+
+        $teacherLabel = $typePersonnelLabels[$teacher->type_personnel] ?? 'Enseignant';
+
+        // MODIFICATIONS : Formater le téléphone et raccourcir le nom
+        $teacherPhone = $teacher->phone_number ?? '000000000';
+        $formattedPhone = $this->formatPhoneNumber($teacherPhone);
+        $truncatedName = $this->truncateName($teacher->full_name);
+
+        $html = "
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset='UTF-8'>
+        <title>Badge Enseignant - {$teacher->full_name}</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: 'Arial', 'Helvetica', sans-serif;
+                padding: 20mm;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                background: #f5f5f5;
+            }
+            
+            .badge-container {
+                width: 95.6mm;
+                height: 54mm;
+                position: relative;
+                background-image: url('{$backgroundBase64}');
+                background-size: cover;
+                background-position: center;
+                background-repeat: no-repeat;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            }
+            
+            /* Nom de l'enseignant - à côté de l'icône personne */
+            .teacher-name {
+                position: absolute;
+                left: 58px;
+                top: 44px;
+                color: black;
+                font-size: 10px;
+                font-weight: bold;
+                text-transform: uppercase;
+                max-width: 120px;
+                line-height: 1.1;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            }
+            
+            /* Type - juste en dessous du nom */
+            .teacher-type {
+                position: absolute;
+                left: 58px;
+                top: 56px;
+                color: black;
+                font-size: 7px;
+                font-weight: normal;
+                max-width: 120px;
+                line-height: 1.1;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            }
+            
+            /* Téléphone personnel - au-dessus du téléphone école */
+            .teacher-phone {
+                position: absolute;
+                left: 58px;
+                top: 80px;
+                color: black;
+                font-size: 7px;
+                font-weight: bold;
+                font-family: 'Open Sans', 'Arial', sans-serif;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            }
+            
+            /* Photo dans la zone circulaire */
+            .teacher-photo {
+                position: absolute;
+                right: 47px;
+                top: 55px;
+                width: 90px;
+                height: 90px;
+                border-radius: 50%;
+                object-fit: cover;
+                border: 3px solid white;
+                background: white;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            }
+            
+            /* QR Code dans la zone en pointillés */
+            .qr-code {
+                position: absolute;
+                right: 135px;
+                bottom: -1px;
+                width: 45px;
+                height: 45px;
+                object-fit: contain;
+                background: white;
+                border-radius: 4px;
+                padding: 2px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            }
+            
+            @page {
+                size: A4;
+                margin: 10mm;
+            }
+        </style>
+    </head>
+    <body>
+        <div class='badge-container'>
+            <!-- Nom de l'enseignant -->
+            <div class='teacher-name'>{$truncatedName}</div>
+            
+            <!-- Type d'enseignant -->
+            <div class='teacher-type'>{$teacherLabel}</div>
+            
+            <!-- Téléphone personnel -->
+            <div class='teacher-phone'>{$formattedPhone}</div>
+            
+            <!-- Photo -->
+            <img src='{$photoBase64}' alt='Photo' class='teacher-photo'>
+            
+            <!-- QR Code -->
+            <img src='https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" . urlencode($qrCode) . "&margin=1' alt='QR Code' class='qr-code'>
+        </div>
+    </body>
+    </html>";
+
+        return $html;
+    }
+
+    /**
+     * Générer le HTML pour plusieurs badges d'enseignants
+     */
+    private function generateMultipleTeacherBadgesHtml($teachers)
+    {
+        $schoolSettings = SchoolSetting::first();
+
+        // Charger l'image de background CPB
+        $backgroundBase64 = '';
+        $backgroundPath = public_path('assets/images/card-background-cpb.png');
+        if (file_exists($backgroundPath)) {
+            $backgroundContent = file_get_contents($backgroundPath);
+            $backgroundBase64 = 'data:image/png;base64,' . base64_encode($backgroundContent);
+        }
+
+        $badgesHtml = '';
+        $badgeCount = 0;
+
+        foreach ($teachers as $teacher) {
+            // Générer QR code si nécessaire
+            $qrCode = $teacher->qr_code ?: 'TCH_' . $teacher->id;
+            if (!$teacher->qr_code) {
+                $teacher->update(['qr_code' => $qrCode]);
+            }
+
+            // Convertir la photo en base64
+            $photoBase64 = $this->getTeacherPhotoBase64($teacher);
+
+            // Générer le HTML du badge
+            $badgeHtml = $this->generateSingleTeacherBadgeHtml($teacher, $qrCode, $photoBase64, $schoolSettings);
+
+            // Ajouter le badge avec gestion des sauts de page
+            if ($badgeCount > 0 && $badgeCount % 4 === 0) {
+                $badgesHtml .= '<div style="page-break-before: always;"></div>';
+            }
+
+            $badgesHtml .= '<div class="badge-wrapper">' . $badgeHtml . '</div>';
+            $badgeCount++;
+        }
+
+        return "
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset='UTF-8'>
+        <title>Badges Enseignants CPB - " . count($teachers) . " badges</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: 'Arial', 'Helvetica', sans-serif;
+                background: white;
+                padding: 10mm;
+            }
+
+            .badge-wrapper {
+                display: inline-block;
+                margin: 5mm;
+                page-break-inside: avoid;
+            }
+
+            .badge-container {
+                width: 95.6mm;
+                height: 54mm;
+                position: relative;
+                background-image: url('{$backgroundBase64}');
+                background-size: cover;
+                background-position: center;
+                background-repeat: no-repeat;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            }
+            
+            .teacher-name {
+                position: absolute;
+                left: 58px;
+                top: 44px;
+                color: black;
+                font-size: 10px;
+                font-weight: bold;
+                text-transform: uppercase;
+                max-width: 150px;
+                line-height: 1.1;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            }
+            
+            .teacher-type {
+                position: absolute;
+                left: 58px;
+                top: 56px;
+                color: black;
+                font-size: 7px;
+                font-weight: normal;
+                max-width: 120px;
+                line-height: 1.1;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            }
+            
+            .teacher-phone {
+                position: absolute;
+                left: 58px;
+                top: 80px;
+                color: black;
+                font-size: 7px;
+                font-weight: bold;
+                font-family: 'Open Sans', 'Arial', sans-serif;
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            }
+            
+            .teacher-photo {
+                position: absolute;
+                right: 47px;
+                top: 55px;
+                width: 90px;
+                height: 90px;
+                border-radius: 50%;
+                object-fit: cover;
+                border: 3px solid white;
+                background: white;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            }
+            
+            .qr-code {
+                position: absolute;
+                right: 135px;
+                bottom: -1px;
+                width: 45px;
+                height: 45px;
+                object-fit: contain;
+                background: white;
+                border-radius: 4px;
+                padding: 2px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            }
+
+            @page {
+                size: A4;
+                margin: 10mm;
+            }
+
+            @media print {
+                .badge-wrapper {
+                    page-break-inside: avoid;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        {$badgesHtml}
+    </body>
+    </html>";
+    }
+
+    /**
+     * Générer le HTML d'un badge individuel pour enseignant
+     */
+    private function generateSingleTeacherBadgeHtml($teacher, $qrCode, $photoBase64, $schoolSettings)
+    {
+        // Charger l'image de background CPB
+        $backgroundBase64 = '';
+        $backgroundPath = public_path('assets/images/card-background-cpb.png');
+        if (file_exists($backgroundPath)) {
+            $backgroundContent = file_get_contents($backgroundPath);
+            $backgroundBase64 = 'data:image/png;base64,' . base64_encode($backgroundContent);
+        }
+
+        $typePersonnelLabels = [
+            'V' => 'Enseignant Vacataire',
+            'SP' => 'Enseignant Semi-Permanent',
+            'P' => 'Enseignant Permanent'
+        ];
+
+        $teacherLabel = $typePersonnelLabels[$teacher->type_personnel] ?? 'Enseignant';
+
+        // APPLIQUER LES MÊMES MODIFICATIONS
+        $teacherPhone = $teacher->phone_number ?? '000000000';
+        $formattedPhone = $this->formatPhoneNumber($teacherPhone);
+        $truncatedName = $this->truncateName($teacher->full_name);
+
+        return "
+    <div class='badge-container' style='background-image: url(\"{$backgroundBase64}\");'>
+        <div class='teacher-name'>{$truncatedName}</div>
+        <div class='teacher-type'>{$teacherLabel}</div>
+        <div class='teacher-phone'>{$formattedPhone}</div>
+        <img src='{$photoBase64}' alt='Photo' class='teacher-photo'>
+        <img src='https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" . urlencode($qrCode) . "&margin=1' alt='QR Code' class='qr-code'>
+    </div>";
+    }
+
+    /**
+     * Obtenir la photo de l'enseignant en base64
+     */
+    private function getTeacherPhotoBase64($teacher)
+    {
+        $photoBase64 = '';
+        if ($teacher->photo) {
+            try {
+                $photoContent = null;
+                if (str_starts_with($teacher->photo, 'http')) {
+                    $relativePath = str_replace(['http://127.0.0.1:8000/', 'http://localhost:8000/', 'http://192.168.1.229:8000/', $_ENV['APP_URL']], '', $teacher->photo);
+                    $relativePath = ltrim($relativePath, '/');
+                    if (str_starts_with($relativePath, 'storage/')) {
+                        $relativePath = substr($relativePath, 8);
+                    }
+                    $localPath = storage_path('app/public/' . $relativePath);
+
+                    if (file_exists($localPath)) {
+                        $photoContent = file_get_contents($localPath);
+                    }
+                } else {
+                    $photoPath = storage_path('app/public/' . $teacher->photo);
+                    if (file_exists($photoPath)) {
+                        $photoContent = file_get_contents($photoPath);
+                    }
+                }
+
+                if ($photoContent) {
+                    // Optimiser l'image si trop grosse
+                    if (strlen($photoContent) > 50000) {
+                        $tempImage = imagecreatefromstring($photoContent);
+                        if ($tempImage) {
+                            $newImage = imagecreatetruecolor(80, 80);
+                            $width = imagesx($tempImage);
+                            $height = imagesy($tempImage);
+
+                            imagecopyresampled($newImage, $tempImage, 0, 0, 0, 0, 80, 80, $width, $height);
+
+                            ob_start();
+                            imagepng($newImage, null, 6);
+                            $photoContent = ob_get_clean();
+
+                            imagedestroy($tempImage);
+                            imagedestroy($newImage);
+                        }
+                    }
+
+                    $photoBase64 = 'data:image/png;base64,' . base64_encode($photoContent);
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Erreur chargement photo enseignant: ' . $e->getMessage(), [
+                    'teacher_id' => $teacher->id,
+                    'teacher_photo' => $teacher->photo
+                ]);
+            }
+        }
+
+        // Image par défaut
+        if (!$photoBase64) {
+            $photoBase64 = 'data:image/svg+xml;base64,' . base64_encode('
+            <svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100" height="100" fill="#e2e8f0"/>
+                <circle cx="50" cy="35" r="15" fill="#9ca3af"/>
+                <path d="M20 80 C20 65, 35 50, 50 50 C65 50, 80 65, 80 80 L80 100 L20 100 Z" fill="#9ca3af"/>
+            </svg>
+        ');
+        }
+
+        return $photoBase64;
     }
 
     /**
@@ -243,7 +924,7 @@ class TeacherAttendanceController extends Controller
                 $teacher = $teacherAttendances->first()->teacher;
                 $entryTime = $teacherAttendances->where('event_type', 'entry')->first();
                 $exitTime = $teacherAttendances->where('event_type', 'exit')->first();
-                
+
                 $teacherStats[] = [
                     'teacher' => $teacher,
                     'entry_time' => $entryTime?->scanned_at,
@@ -268,7 +949,6 @@ class TeacherAttendanceController extends Controller
                     ]
                 ]
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -305,12 +985,12 @@ class TeacherAttendanceController extends Controller
             for ($hour = 6; $hour <= 18; $hour++) {
                 $hourStart = Carbon::createFromFormat('Y-m-d H:i:s', $date . ' ' . sprintf('%02d:00:00', $hour));
                 $hourEnd = $hourStart->copy()->addHour();
-                
+
                 $hourlyEntries = TeacherAttendance::forDate($date)
                     ->entries()
                     ->whereBetween('scanned_at', [$hourStart, $hourEnd])
                     ->count();
-                    
+
                 $hourlyExits = TeacherAttendance::forDate($date)
                     ->exits()
                     ->whereBetween('scanned_at', [$hourStart, $hourEnd])
@@ -336,7 +1016,6 @@ class TeacherAttendanceController extends Controller
                     'hourly_stats' => $hourlyStats
                 ]
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -375,7 +1054,7 @@ class TeacherAttendanceController extends Controller
             $dailyAttendances = $attendances->groupBy('attendance_date')->map(function ($dayAttendances) {
                 $entry = $dayAttendances->where('event_type', 'entry')->first();
                 $exit = $dayAttendances->where('event_type', 'exit')->first();
-                
+
                 return [
                     'date' => $dayAttendances->first()->attendance_date,
                     'entry' => $entry,
@@ -401,7 +1080,6 @@ class TeacherAttendanceController extends Controller
                     'raw_attendances' => $attendances
                 ]
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -423,7 +1101,7 @@ class TeacherAttendanceController extends Controller
             ]);
 
             $teacher = Teacher::findOrFail($teacherId);
-            
+
             $updateData = [];
             if ($request->has('expected_arrival_time')) {
                 $updateData['expected_arrival_time'] = $request->expected_arrival_time . ':00';
@@ -444,7 +1122,6 @@ class TeacherAttendanceController extends Controller
                     'teacher' => $teacher->fresh()
                 ]
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -473,7 +1150,6 @@ class TeacherAttendanceController extends Controller
                     'with_qr_code' => $teachers->whereNotNull('qr_code')->count()
                 ]
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -495,8 +1171,8 @@ class TeacherAttendanceController extends Controller
 
             $teacher = Teacher::with(['attendances' => function ($query) use ($request) {
                 $query->whereBetween('attendance_date', [$request->start_date, $request->end_date])
-                      ->orderBy('attendance_date', 'desc')
-                      ->orderBy('scanned_at', 'asc');
+                    ->orderBy('attendance_date', 'desc')
+                    ->orderBy('scanned_at', 'asc');
             }])->findOrFail($teacherId);
 
             $startDate = $request->start_date;
@@ -522,14 +1198,14 @@ class TeacherAttendanceController extends Controller
             foreach ($attendancesByDate as $date => $dayAttendances) {
                 $entries = $dayAttendances->where('event_type', 'entry');
                 $exits = $dayAttendances->where('event_type', 'exit');
-                
+
                 $firstEntry = $entries->first();
                 $lastExit = $exits->last();
-                
+
                 $workHours = 0;
                 $actualWorkStart = null;
                 $actualWorkEnd = null;
-                
+
                 if ($firstEntry && $lastExit) {
                     $entryTime = Carbon::parse($firstEntry->scanned_at);
                     $exitTime = Carbon::parse($lastExit->scanned_at);
@@ -644,7 +1320,6 @@ class TeacherAttendanceController extends Controller
                     })
                 ]
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -691,7 +1366,7 @@ class TeacherAttendanceController extends Controller
             $timeline = $movements->map(function ($movement, $index) use ($movements) {
                 $nextMovement = $movements->get($index + 1);
                 $timeSpent = null;
-                
+
                 if ($nextMovement) {
                     $current = Carbon::parse($movement->scanned_at);
                     $next = Carbon::parse($nextMovement->scanned_at);
@@ -725,7 +1400,6 @@ class TeacherAttendanceController extends Controller
                     'timeline' => $timeline
                 ]
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

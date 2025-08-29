@@ -1,0 +1,95 @@
+id,nom,prenom,telephone,email,adresse,date_naissance,sexe,qualification,date_embauche,type_personnel,statut
+1,KUITCHOU,CHRISTIAN,696118001,christian.kuitchou@cpb.cm,Douala,15/03/1980,M,Licence Mathématiques,12/12/2024,V,1
+2,OWONO MVENG,MOÏSE,696118002,moise.owono@cpb.cm,Yaoundé,20/07/1982,M,Master Physique,12/12/2024,V,1
+3,PETKEU,MILIXANDRE DELFLORE,696118003,milixandre.petkeu@cpb.cm,Douala,10/11/1979,M,Licence Chimie,12/12/2024,V,1
+4,NDZANA,DONATIEN,696118004,donatien.ndzana@cpb.cm,Bafoussam,25/09/1981,M,Licence Histoire,12/12/2024,V,1
+5,NGO SAMNICK,SUZANNE,696118005,suzanne.samnick@cpb.cm,Douala,12/05/1983,F,Master Français,12/12/2024,V,1
+6,MOUKORY,SANTANA,696118006,santana.moukory@cpb.cm,Yaoundé,08/12/1980,F,Licence Anglais,12/12/2024,V,1
+7,BATOUANEN MOBAN,GERAUDE,696427010,geraude.batouanen@cpb.cm,Douala,30/01/1978,M,Licence Géographie,12/12/2024,V,1
+8,BOGNI,NGNINZEKO,696961822,ngninzeko.bogni@cpb.cm,Bamenda,18/06/1984,M,Master Biologie,12/12/2024,V,1
+9,LY-INBE,EMERENTIEN,698352081,emerentien.lyinbe@cpb.cm,Douala,22/04/1981,M,Licence Philosophie,12/12/2024,V,1
+10,HOUNSOU,DESIRE,679549423,desire.hounsou@cpb.cm,Yaoundé,14/10/1982,M,Master Économie,12/12/2024,V,1
+11,BEKOMBO POUNGOUE,JEAN,672939521,jean.bekombo@cpb.cm,Douala,05/08/1979,M,Licence Droit,12/12/2024,V,1
+12,PLACIDE,PLACIDE,681879734,placide.placide@cpb.cm,Yaoundé,16/02/1983,M,BTS Comptabilité,12/12/2024,V,1
+13,NJIKI,ULRICH LANDRY,697957200,ulrich.njiki@cpb.cm,Bafoussam,28/07/1980,M,Licence Informatique,12/12/2024,V,1
+14,TATSINKOU TENE,CYRILLE,690151661,cyrille.tatsinkou@cpb.cm,Douala,11/09/1981,M,Master Chimie,12/12/2024,V,1
+15,MEKUATE,JUDITH FLORE,694088658,judith.mekuate@cpb.cm,Yaoundé,03/12/1982,F,Licence Biologie,12/12/2024,V,1
+16,NGANSI WONSSI,ELISE,697458185,elise.ngansi@cpb.cm,Douala,19/05/1984,F,Master Anglais,12/12/2024,V,1
+17,TONFACK,BERTRAND,670403323,bertrand.tonfack@cpb.cm,Bafoussam,07/11/1979,M,Licence Mathématiques,12/12/2024,V,1
+18,KAMENI,NESTOR,674831332,nestor.kameni@cpb.cm,Douala,23/03/1983,M,BTS Électronique,12/12/2024,V,1
+19,AURELIEN,TALLA,658047838,talla.aurelien@cpb.cm,Yaoundé,15/08/1980,M,Licence Histoire,12/12/2024,V,1
+20,WOULINA,MARCEL,674667016,marcel.woulina@cpb.cm,Douala,02/06/1982,M,Master Géographie,12/12/2024,V,1
+21,WOUASSI,NADEGE,673697712,nadege.wouassi@cpb.cm,Yaoundé,26/10/1981,F,Licence Français,12/12/2024,V,1
+22,NGO NSEGBE,DEBORAH,670609624,deborah.ngo@cpb.cm,Douala,18/04/1983,F,BTS Secrétariat,12/12/2024,V,1
+23,BI,SOLANGE,674536333,solange.bi@cpb.cm,Bafoussam,09/07/1980,F,Licence Anglais,12/12/2024,V,1
+24,DJOMATCHOUA,DJOMATCHOUA,678963262,djomatchoua.djomatchoua@cpb.cm,Douala,21/12/1982,F,Master Économie,12/12/2024,V,1
+25,NOUBISSIE,SANDRINE NATHALIE,696976171,sandrine.noubissie@cpb.cm,Yaoundé,13/01/1984,F,Licence Droit,12/12/2024,V,1
+26,BEITI A MOUBIE,SA,674007378,sa.beiti@cpb.cm,Douala,05/09/1981,F,BTS Comptabilité,12/12/2024,V,1
+27,NZOUYA,PATIENCE,675120578,patience.nzouya@cpb.cm,Yaoundé,27/11/1979,F,Licence Philosophie,12/12/2024,V,1
+28,MADADJEU,UGUETTE PHILOMENE,697345879,uguette.madadjeu@cpb.cm,Bafoussam,14/02/1983,F,Master Biologie,12/12/2024,V,1
+29,NOUTAMOUN,K,696118029,k.noutamoun@cpb.cm,Douala,06/08/1980,F,Licence Mathématiques,12/12/2024,V,1
+30,LUCIENNE FLORE,LUCIENNE FLORE,696118030,lucienne.flore@cpb.cm,Yaoundé,18/05/1982,F,BTS Secrétariat,12/12/2024,V,1
+31,MAKOUPO TALLA,IDA CLAUDINE,696118031,ida.makoupo@cpb.cm,Douala,30/10/1981,F,Licence Français,12/12/2024,V,1
+32,TCHIEDJIO,JOSEPHINE,674611961,josephine.tchiedjio@cpb.cm,Bafoussam,12/03/1984,F,Master Anglais,12/12/2024,V,1
+33,MBAKOP,TCHUIGANG,656287367,tchuigang.mbakop@cpb.cm,Douala,24/07/1979,F,Licence Histoire,12/12/2024,V,1
+34,DJEUKOUA,PULCHERIE,675382461,pulcherie.djeukoua@cpb.cm,Yaoundé,16/12/1982,F,BTS Comptabilité,12/12/2024,V,1
+35,GUEKAM,ANDRIENNE,699184325,andrienne.guekam@cpb.cm,Douala,08/04/1983,F,Licence Géographie,12/12/2024,V,1
+36,TAGNE,LEOCARDIE,673427073,leocardie.tagne@cpb.cm,Bafoussam,20/09/1980,F,Master Chimie,12/12/2024,V,1
+37,FOMEKONG KENNE,MERLINE,691250098,merline.fomekong@cpb.cm,Douala,02/01/1984,M,Licence Physique,12/12/2024,V,1
+38,NYANGONO,YACINTHE,655099808,yacinthe.nyangono@cpb.cm,Yaoundé,14/06/1981,M,BTS Électronique,12/12/2024,V,1
+39,TCHEUSONG,THALES,655428206,thales.tcheusong@cpb.cm,Douala,26/11/1979,M,Licence Mathématiques,12/12/2024,V,1
+40,NJINE DEHELALE,JEAN MARIE,693249266,jean.njine@cpb.cm,Bafoussam,18/02/1983,M,Master Biologie,12/12/2024,V,1
+41,MEBOT,RAÏSSA DANIE,694087843,raissa.mebot@cpb.cm,Douala,10/08/1982,F,Licence Français,12/12/2024,V,1
+42,FRANCK,STEPHANE EVINDI,677999266,stephane.franck@cpb.cm,Yaoundé,22/05/1980,M,BTS Informatique,12/12/2024,V,1
+43,BALOMLEKE,BENOIT GERARD,695164220,benoit.balomleke@cpb.cm,Douala,04/12/1981,M,Licence Droit,12/12/2024,V,1
+44,KOWA,PIUS COLLINS,699734094,pius.kowa@cpb.cm,Bafoussam,16/07/1984,M,Master Anglais,12/12/2024,V,1
+45,NAWESSI,DUMONT,650466778,dumont.nawessi@cpb.cm,Douala,28/03/1979,M,Licence Histoire,12/12/2024,V,1
+46,KUIZING,CHRISTIAN,699824521,christian.kuizing@cpb.cm,Yaoundé,10/10/1982,M,BTS Comptabilité,12/12/2024,V,1
+47,BOUM GWETH,AMOUR,650824521,amour.boum@cpb.cm,Douala,22/01/1983,M,Licence Géographie,12/12/2024,V,1
+48,NGNOGUE,NGOGUE,699893310,ngogue.ngnogue@cpb.cm,Bafoussam,14/09/1980,M,Master Économie,12/12/2024,V,1
+49,FREDERIC,FREDERIC,691015957,frederic.frederic@cpb.cm,Douala,06/04/1984,M,Licence Philosophie,12/12/2024,V,1
+50,NJEM IV,PAUL,696014985,paul.njem@cpb.cm,Yaoundé,18/11/1981,M,BTS Électronique,12/12/2024,V,1
+51,TASSO,ELYSEE,653675880,elysee.tasso@cpb.cm,Douala,30/06/1979,M,Licence Mathématiques,12/12/2024,V,1
+52,DZOKOU KENGNE,JUDITH,694859867,judith.dzokou@cpb.cm,Bafoussam,12/12/1982,F,Master Biologie,12/12/2024,V,1
+53,TCHEKWANDEU,GABRIEL,676373457,gabriel.tchekwandeu@cpb.cm,Douala,24/08/1983,M,Licence Chimie,12/12/2024,V,1
+54,ONGMETANA,GENEVIEVE,690151600,genevieve.ongmetana@cpb.cm,Yaoundé,16/02/1980,F,BTS Secrétariat,12/12/2024,V,1
+55,GUEMDJO,MARCELINE,693310561,marceline.guemdjo@cpb.cm,Douala,08/07/1984,F,Licence Français,12/12/2024,V,1
+56,MOMO,ELEONORE,652553099,eleonore.momo@cpb.cm,Bafoussam,20/03/1981,F,Master Anglais,12/12/2024,V,1
+57,NGO NYOBE,ODELE,698950519,odele.ngo@cpb.cm,Douala,02/10/1982,F,Licence Histoire,12/12/2024,V,1
+58,DJUELA FOKOU,GISELE,694429771,gisele.djuela@cpb.cm,Yaoundé,14/05/1979,F,BTS Comptabilité,12/12/2024,V,1
+59,LOKIO TCHANANG,LIONIE,695475535,lionie.lokio@cpb.cm,Douala,26/11/1983,F,Licence Géographie,12/12/2024,V,1
+60,KAMBEU,TOUFFEU,697320739,touffeu.kambeu@cpb.cm,Bafoussam,18/01/1984,F,Master Chimie,12/12/2024,V,1
+61,MIREILLE,MIREILLE,695148001,mireille.mireille@cpb.cm,Douala,10/09/1980,F,Licence Physique,12/12/2024,V,1
+62,TCHOUDJIN,ERNEST,670248900,ernest.tchoudjin@cpb.cm,Yaoundé,22/04/1982,M,BTS Électronique,12/12/2024,V,1
+63,NDONI,JULES ARSENE,681613033,jules.ndoni@cpb.cm,Douala,04/12/1981,M,Licence Mathématiques,12/12/2024,V,1
+64,SIMO TAKONGUE,ARIANE,674219396,ariane.simo@cpb.cm,Bafoussam,16/07/1983,F,Master Biologie,12/12/2024,V,1
+65,RAISSA,RAISSA,652148494,raissa.raissa@cpb.cm,Douala,28/02/1980,F,Licence Français,12/12/2024,V,1
+66,YOUSSA,HUBERT,677191795,hubert.youssa@cpb.cm,Yaoundé,10/08/1984,M,BTS Informatique,12/12/2024,V,1
+67,NGALAKO NJEUNGA,JEAN JACQUES,654377605,jean.ngalako@cpb.cm,Douala,22/05/1979,M,Licence Droit,12/12/2024,V,1
+68,FOGANG NGOUFO,CONSTANT,694848151,constant.fogang@cpb.cm,Bafoussam,04/11/1982,M,Master Anglais,12/12/2024,V,1
+69,YHAM,JOSEPH KINDONG,675339919,joseph.yham@cpb.cm,Douala,16/03/1981,M,Licence Histoire,12/12/2024,V,1
+70,DC FOTSOP,FOMAGNOUA,677577236,fomagnoua.fotsop@cpb.cm,Yaoundé,28/09/1983,M,BTS Comptabilité,12/12/2024,V,1
+71,JOHNIE,JOSEPHINE B,677212371,josephine.johnie@cpb.cm,Douala,10/01/1984,F,Licence Géographie,12/12/2024,V,1
+72,PEKWEKEH,GUSTAVE NOSO,671818252,gustave.pekwekeh@cpb.cm,Bafoussam,22/06/1980,M,Master Économie,12/12/2024,V,1
+73,NKOUAMO,DADY JOEL,671711951,dady.nkouamo@cpb.cm,Douala,14/12/1982,M,Licence Philosophie,12/12/2024,V,1
+74,NDASSI,GERADINE,672719607,geradine.ndassi@cpb.cm,Yaoundé,06/04/1981,F,BTS Secrétariat,12/12/2024,V,1
+75,WAKUNA,WAKUNA,652216968,wakuna.wakuna@cpb.cm,Douala,18/10/1979,M,Licence Mathématiques,12/12/2024,V,1
+76,KUMGAHA TANGNI,ERIC,674769687,eric.kumgaha@cpb.cm,Bafoussam,30/07/1983,M,Master Biologie,12/12/2024,V,1
+77,MBULLE,MIRABEL,674378487,mirabel.mbulle@cpb.cm,Douala,12/02/1984,F,Licence Chimie,12/12/2024,V,1
+78,EGBENCHUNG BISONG,JUNIOR,651067920,junior.egbenchung@cpb.cm,Yaoundé,24/08/1980,M,BTS Électronique,12/12/2024,V,1
+79,NKONGHO TAMBE,PHILIP,659182885,philip.nkongho@cpb.cm,Douala,16/05/1982,M,Licence Physique,12/12/2024,V,1
+80,ANAM,GILEAN,654193306,gilean.anam@cpb.cm,Bafoussam,08/11/1981,M,Master Anglais,12/12/2024,V,1
+81,TEZE,ASHU,680093485,ashu.teze@cpb.cm,Douala,20/03/1983,M,Licence Histoire,12/12/2024,V,1
+82,FRANCK DARIUS,NDJOH,672126000,ndjoh.franck@cpb.cm,Yaoundé,02/09/1984,M,BTS Comptabilité,12/12/2024,V,1
+83,NDJOH,NDJOH,651074407,ndjoh.ndjoh@cpb.cm,Douala,14/01/1979,M,Licence Droit,12/12/2024,V,1
+84,NJINYERU,ANGELA DIOH,675366578,angela.njinyeru@cpb.cm,Bafoussam,26/06/1982,F,Master Français,12/12/2024,V,1
+85,TANTOH,GILTON LAISIN,678247695,gilton.tantoh@cpb.cm,Douala,18/12/1980,M,Licence Géographie,12/12/2024,V,1
+86,LEKEAKA,PRINCE WILL,678457764,prince.lekeaka@cpb.cm,Yaoundé,10/04/1983,M,BTS Informatique,12/12/2024,V,1
+87,MBAIN,MIRABEL WEI,696118087,mirabel.mbain@cpb.cm,Douala,22/10/1981,F,Licence Mathématiques,12/12/2024,V,1
+88,ATEMKENG,THEOPHELEN,696118088,theophelen.atemkeng@cpb.cm,Bafoussam,14/07/1984,M,Master Économie,12/12/2024,V,1
+89,MOTO,COLLIN KOLOA,696118089,collin.moto@cpb.cm,Douala,06/02/1979,M,Licence Philosophie,12/12/2024,V,1
+90,KOUZO NGRUNTE,DEM,696118090,dem.kouzo@cpb.cm,Yaoundé,18/09/1982,M,BTS Électronique,12/12/2024,V,1
+91,KADJO,JACKON,696118091,jackon.kadjo@cpb.cm,Douala,30/05/1983,M,Licence Histoire,12/12/2024,V,1
+92,TUMBU,BARTHOLOMEW,696118092,bartholomew.tumbu@cpb.cm,Bafoussam,12/11/1980,M,Master Biologie,12/12/2024,V,1
+93,FUH,SIDONIE,696118093,sidonie.fuh@cpb.cm,Douala,24/03/1984,F,Licence Français,12/12/2024,V,1
+94,MESUMBE,ELVIS METOUKE,696118094,elvis.mesumbe@cpb.cm,Yaoundé,16/08/1981,M,BTS Comptabilité,12/12/2024,V,1

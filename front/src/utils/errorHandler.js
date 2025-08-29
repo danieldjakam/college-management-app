@@ -2,6 +2,8 @@
  * Utilitaire pour gérer les erreurs API de manière cohérente
  */
 
+import logger from './logger';
+
 /**
  * Extrait le message d'erreur le plus approprié d'une réponse d'erreur
  * @param {Error|Object} error - L'erreur capturée
@@ -9,7 +11,7 @@
  * @returns {string} Le message d'erreur à afficher à l'utilisateur
  */
 export function extractErrorMessage(error, defaultMessage = 'Une erreur est survenue') {
-    console.error('Erreur API:', error);
+    logger.apiError(error, 'extractErrorMessage');
     
     // Si l'erreur a un message direct
     if (error.message) {

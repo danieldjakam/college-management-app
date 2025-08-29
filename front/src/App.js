@@ -36,6 +36,7 @@ import ParamsCompt from "./pages/comptables/Params";
 import StudentsComp from "./pages/comptables/Students";
 import StudentsByClass from "./pages/comptables/StudentsByClass";
 import StudentAttendanceTracking from "./pages/comptables/StudentAttendanceTracking";
+import StaffAttendanceReportCompt from "./pages/comptables/StaffAttendanceReport";
 
 // Payment Pages
 import StudentPayment from "./pages/Payments/StudentPayment";
@@ -51,6 +52,7 @@ import DetailedCollectionReport from "./pages/Reports/DetailedCollectionReport";
 import ClassSchoolFeesReport from "./pages/Reports/ClassSchoolFeesReport";
 import RecoveryStatus from "./pages/Reports/RecoveryStatus";
 import SchoolCertificates from "./pages/Reports/SchoolCertificates";
+import StaffAttendanceReport from "./pages/Reports/StaffAttendanceReport";
 
 
 // User Management
@@ -101,6 +103,10 @@ import DocumentsManager from "./pages/Documents/DocumentsManager";
 import StaffAttendanceManagement from "./pages/Staff/StaffAttendanceManagement";
 import StaffDailyAttendance from "./pages/Staff/StaffDailyAttendance";
 
+// Demandes d'Explication
+import DemandesExplication from "./pages/comptables/DemandesExplication";
+import NouvelleDemande from "./pages/comptables/NouvelleDemande";
+
 
 // Components
 import Sidebar from "./components/Sidebar";
@@ -132,7 +138,12 @@ const AppContent = () => {
 
   return (
     <div className="app">
-      <Router>
+      <Router 
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true
+        }}
+      >
         {isAuthenticated && (
           <Sidebar
             isCollapsed={sidebarCollapsed}
@@ -264,6 +275,16 @@ const AppContent = () => {
                 element={
                   <AccountantRoute>
                     <StudentAttendanceTracking />
+                  </AccountantRoute>
+                }
+              />
+
+              {/* Route pour le rapport de présence du personnel - Comptables */}
+              <Route
+                path="/staff-attendance-report"
+                element={
+                  <AccountantRoute>
+                    <StaffAttendanceReportCompt />
                   </AccountantRoute>
                 }
               />
@@ -554,6 +575,42 @@ const AppContent = () => {
                   <AccountantRoute>
                     <SchoolCertificates />
                   </AccountantRoute>
+                }
+              />
+              <Route
+                path="/reports/staff-attendance-report"
+                element={
+                  <AccountantRoute>
+                    <StaffAttendanceReport />
+                  </AccountantRoute>
+                }
+              />
+
+              {/* Routes pour les D.E (Demandes d'Explication) - Comptables uniquement */}
+              <Route
+                path="/demandes-explication"
+                element={
+                  <AccountantRoute>
+                    <DemandesExplication />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/demandes-explication/nouvelle"
+                element={
+                  <AccountantRoute>
+                    <NouvelleDemande />
+                  </AccountantRoute>
+                }
+              />
+
+              {/* Routes pour les D.E - Personnel (enseignants, etc.) */}
+              <Route
+                path="/mes-demandes-explication"
+                element={
+                  <ProtectedRoute>
+                    <DemandesExplication />
+                  </ProtectedRoute>
                 }
               />
 
