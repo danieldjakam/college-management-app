@@ -225,7 +225,7 @@ class SupervisorController extends Controller
                 'school_year_id' => $currentSchoolYear->id,
                 'attendance_date' => $today,
                 'scanned_at' => Carbon::now(),
-                'is_present' => $eventType === 'entry', // true pour entrée, false pour sortie
+                'is_present' => true, // true pour tout scan réel (entrée ou sortie)
                 'event_type' => $eventType
             ]);
 

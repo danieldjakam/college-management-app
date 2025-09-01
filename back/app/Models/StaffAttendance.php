@@ -16,6 +16,7 @@ class StaffAttendance extends Model
         'school_year_id',
         'attendance_date',
         'scanned_at',
+        'scanned_qr_code',      // Le code QR exact qui a été scanné
         'is_present',
         'event_type',           // entry, exit, auto
         'staff_type',          // teacher, accountant, supervisor, admin

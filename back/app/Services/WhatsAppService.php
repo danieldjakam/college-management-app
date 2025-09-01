@@ -157,6 +157,41 @@ class WhatsAppService
     }
 
     /**
+     * Envoyer une notification d'entrée/sortie au personnel
+     */
+    public function sendStaffAttendanceNotification($staffAttendance)
+    {
+        if (!$this->isWhatsAppConfigured()) {
+            return false;
+        }
+
+        $user = $staffAttendance->user;
+        
+        // Vérifier que l'utilisateur a un numéro de téléphone
+        if (!$user || !$user->contact) {
+            Log::info('Personnel sans numéro de téléphone pour notification WhatsApp', [
+                'attendance_id' => $staffAttendance->id,
+                'user_id' => $user ? $user->id : null
+            ]);
+            return false;
+        }
+
+        $message = $this->formatStaffAttendanceMessage($staffAttendance);
+        
+        $result = $this->sendMessage($user->contact, $message);
+        
+        if ($result) {
+            Log::info('Notification personnel envoyée avec succès', [
+                'attendance_id' => $staffAttendance->id,
+                'user_id' => $user->id,
+                'phone' => $user->contact
+            ]);
+        }
+        
+        return $result;
+    }
+
+    /**
      * Envoyer une notification d'entrée/sortie aux parents
      */
     public function sendAttendanceNotification(Attendance $attendance)
@@ -254,6 +289,41 @@ class WhatsAppService
     }
 
     /**
+     * Formater le message de notification de présence du personnel
+     */
+    protected function formatStaffAttendanceMessage($staffAttendance)
+    {
+        $settings = SchoolSetting::getSettings();
+        $schoolName = $settings->school_name ?? 'CAMPUS UNIVERSITAIRE DE BAFOUSSAM';
+        $user = $staffAttendance->user;
+        
+        // Déterminer le titre et le sexe
+        $title = $this->getPersonTitle($user);
+        $eventType = $staffAttendance->event_type === 'entry' ? 'ENTRÉE' : 'SORTIE';
+        
+        // Format de la date et heure
+        $date = $staffAttendance->scanned_at->format('Y-m-d');
+        $time = $staffAttendance->scanned_at->format('H:i:s');
+        
+        return "*ATTENDANCE / QRCODE {$eventType}*\n\n" .
+               "{$schoolName}\n\n" .
+               "*{$title}* : {$user->name}\n\n" .
+               "LE : {$date}\n\n" .
+               "HEURE DE {$eventType}: {$time}\n\n" .
+               "VOTRE POINTAGE A ÉTÉ ENREGISTRÉ. NOUS VOUS REMERCIONS POUR VOS SERVICES.";
+    }
+
+    /**
+     * Déterminer le titre de civilité
+     */
+    protected function getPersonTitle($user)
+    {
+        // Vous pouvez ajouter une logique plus sophistiquée si vous avez un champ sexe/genre
+        // Pour l'instant, utilisation de "M./Mme/Mlle"
+        return "M./Mme/Mlle";
+    }
+
+    /**
      * Formater le message de notification d'entrée/sortie
      */
     protected function formatAttendanceMessage(Attendance $attendance)
@@ -261,8 +331,8 @@ class WhatsAppService
         $schoolName = SchoolSetting::getSettings()->school_name ?? 'École';
         $student = $attendance->student;
         
-        // Gérer les absences
-        if (!$attendance->is_present) {
+        // Gérer les absences (uniquement si ce n'est pas un scan de sortie)
+        if (!$attendance->is_present && $attendance->event_type !== 'exit') {
             return "⚠️ *ABSENCE SIGNALÉE - {$schoolName}*\n\n" .
                    "👤 *Élève:* {$student->full_name}\n" .
                    "📚 *Classe:* " . ($student->classSeries->name ?? 'N/A') . "\n" .
@@ -626,15 +696,14 @@ class WhatsAppService
                 return false;
             }
 
-            // URL pour envoyer des images via UltraMsg
-            $url = "https://api.ultramsg.com/instance{$settings->whatsapp_instance_id}/messages/image";
+            // URL pour envoyer des images via UltraMsg avec token en GET
+            $url = "https://api.ultramsg.com/instance{$settings->whatsapp_instance_id}/messages/image?token={$settings->whatsapp_token}";
             
             $headers = [
                 'Content-Type' => 'application/x-www-form-urlencoded'
             ];
             
             $params = [
-                'token' => $settings->whatsapp_token,
                 'to' => $this->formatPhoneNumber($phoneNumber),
                 'image' => $imageUrl,
                 'caption' => $caption
@@ -686,19 +755,18 @@ class WhatsAppService
                 return true;
             }
 
-            // Construction de l'URL selon votre exemple : https://api.ultramsg.com/instance97191/messages/chat
-            $url = "https://api.ultramsg.com/instance{$settings->whatsapp_instance_id}/messages/chat";
+            // Construction de l'URL avec token en paramètre GET selon UltraMsg
+            $url = "https://api.ultramsg.com/instance{$settings->whatsapp_instance_id}/messages/chat?token={$settings->whatsapp_token}";
             
             // Headers selon votre exemple
             $headers = [
                 'Content-Type' => 'application/x-www-form-urlencoded'
             ];
             
-            // Paramètres selon votre exemple exact
+            // Paramètres POST (sans token qui est maintenant en GET)
             $params = [
-                'token' => $settings->whatsapp_token, // vdnvcpgsd1veydwc dans votre exemple
-                'to' => $this->formatPhoneNumber($phoneNumber), // +237676781795 dans votre exemple
-                'body' => $message // Le message à envoyer
+                'to' => $this->formatPhoneNumber($phoneNumber),
+                'body' => $message
             ];
 
             // Utilisation de Http::asForm() pour envoyer en application/x-www-form-urlencoded

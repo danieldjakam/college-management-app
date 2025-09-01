@@ -75,6 +75,7 @@ import NeedsManagement from "./pages/Needs/NeedsManagement";
 // Attendance
 import AttendanceScanner from "./pages/Attendance/AttendanceScanner";
 import TeacherAttendanceScanner from "./pages/Attendance/TeacherAttendanceScanner";
+import StaffAttendanceScanner from "./pages/Attendance/StaffAttendanceScanner";
 import AttendanceReports from "./pages/Attendance/AttendanceReports";
 import TeacherDetailedStats from "./pages/Teachers/TeacherDetailedStats";
 
@@ -279,23 +280,23 @@ const AppContent = () => {
                 }
               />
 
-              {/* Route pour le rapport de présence du personnel - Comptables */}
+              {/* Route pour le rapport de présence du personnel - Comptables et Bibliothécaires */}
               <Route
                 path="/staff-attendance-report"
                 element={
-                  <AccountantRoute>
+                  <ProtectedRoute requiredRoles={['accountant', 'comptable_superieur', 'admin', 'bibliothecaire']}>
                     <StaffAttendanceReportCompt />
-                  </AccountantRoute>
+                  </ProtectedRoute>
                 }
               />
 
-              {/* Route pour le suivi des présences personnel - Comptables */}
+              {/* Route pour le suivi des présences personnel - Comptables et Bibliothécaires */}
               <Route
                 path="/staff-daily-attendance"
                 element={
-                  <AccountantRoute>
+                  <ProtectedRoute requiredRoles={['accountant', 'comptable_superieur', 'admin', 'bibliothecaire']}>
                     <StaffDailyAttendance />
-                  </AccountantRoute>
+                  </ProtectedRoute>
                 }
               />
 
@@ -311,7 +312,7 @@ const AppContent = () => {
               <Route
                 path="/attendance"
                 element={
-                  <ProtectedRoute requiredRoles={['surveillant_general', 'admin']}>
+                  <ProtectedRoute requiredRoles={['bibliothecaire', 'admin']}>
                     <AttendanceScanner />
                   </ProtectedRoute>
                 }
@@ -321,17 +322,25 @@ const AppContent = () => {
               <Route
                 path="/teacher-attendance-scanner"
                 element={
-                  <ProtectedRoute requiredRoles={['surveillant_general', 'admin']}>
+                  <ProtectedRoute requiredRoles={['bibliothecaire', 'admin']}>
                     <TeacherAttendanceScanner />
                   </ProtectedRoute>
                 }
               />
 
+              <Route
+                path="/staff-attendance-scanner"
+                element={
+                  <ProtectedRoute requiredRoles={['admin', 'bibliothecaire']}>
+                    <StaffAttendanceScanner />
+                  </ProtectedRoute>
+                }
+              />
 
               <Route
                 path="/teacher-detailed-stats"
                 element={
-                  <ProtectedRoute requiredRoles={['surveillant_general', 'admin']}>
+                  <ProtectedRoute requiredRoles={['bibliothecaire', 'admin']}>
                     <TeacherDetailedStats />
                   </ProtectedRoute>
                 }
@@ -340,7 +349,7 @@ const AppContent = () => {
               <Route
                 path="/attendance-reports"
                 element={
-                  <ProtectedRoute requiredRoles={['surveillant_general', 'admin']}>
+                  <ProtectedRoute requiredRoles={['bibliothecaire', 'admin', 'accountant', 'comptable_superieur']}>
                     <AttendanceReports />
                   </ProtectedRoute>
                 }
