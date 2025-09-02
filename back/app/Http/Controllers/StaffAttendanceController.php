@@ -15,6 +15,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\SchoolSetting;
+use App\Services\WhatsAppService;
 
 class StaffAttendanceController extends Controller
 {
@@ -50,21 +51,44 @@ class StaffAttendanceController extends Controller
             }
 
             if (!$user) {
+                // LOG: QR code scanné non trouvé
+                \Log::warning('QR code staff attendance - Code non trouvé', [
+                    'scanned_qr_code' => $request->staff_qr_code,
+                    'supervisor_id' => $request->supervisor_id,
+                    'scanned_at' => now()
+                ]);
+
                 // Vérifier si le QR code existe mais avec un rôle différent
                 $userWithDifferentRole = User::where('qr_code', $request->staff_qr_code)
                     ->where('is_active', true)
                     ->first();
 
                 if ($userWithDifferentRole) {
+                    \Log::warning('QR code staff attendance - Rôle non autorisé', [
+                        'scanned_qr_code' => $request->staff_qr_code,
+                        'user_name' => $userWithDifferentRole->name,
+                        'user_role' => $userWithDifferentRole->role,
+                        'supervisor_id' => $request->supervisor_id
+                    ]);
+
                     return response()->json([
                         'success' => false,
-                        'message' => 'Code QR invalide - rôle non autorisé pour la présence personnel'
+                        'message' => 'Code QR invalide - rôle non autorisé pour la présence personnel',
+                        'debug_info' => [
+                            'scanned_qr' => $request->staff_qr_code,
+                            'found_user' => $userWithDifferentRole->name,
+                            'user_role' => $userWithDifferentRole->role
+                        ]
                     ], 403);
                 }
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Code QR invalide - membre du personnel non trouvé ou inactif'
+                    'message' => 'Code QR invalide - membre du personnel non trouvé ou inactif',
+                    'debug_info' => [
+                        'scanned_qr' => $request->staff_qr_code,
+                        'searched_roles' => $staffRoles
+                    ]
                 ], 404);
             }
 
@@ -91,6 +115,19 @@ class StaffAttendanceController extends Controller
                 ->orderBy('scanned_at', 'desc')
                 ->first();
 
+            // PROTECTION CONTRE LES SCANS MULTIPLES
+            // Empêcher les scans dans un délai de 30 secondes
+            if ($lastMovement && $lastMovement->scanned_at) {
+                $timeDifference = Carbon::parse($lastMovement->scanned_at)->diffInSeconds($now);
+                if ($timeDifference < 30) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Scan trop récent. Veuillez attendre ' . (30 - $timeDifference) . ' secondes avant de rescanner.',
+                        'time_remaining' => 30 - $timeDifference
+                    ], 429); // 429 Too Many Requests
+                }
+            }
+
             // Déterminer le type d'événement
             if ($eventType === 'auto') {
                 // Auto-détection basée sur le dernier mouvement
@@ -114,6 +151,7 @@ class StaffAttendanceController extends Controller
                 'school_year_id' => $currentSchoolYear->id,
                 'attendance_date' => $today,
                 'scanned_at' => $now,
+                'scanned_qr_code' => $request->staff_qr_code,  // Enregistrer le QR exact scanné
                 'is_present' => $eventType === 'entry',
                 'event_type' => $eventType,
                 'staff_type' => $staffType,
@@ -122,6 +160,30 @@ class StaffAttendanceController extends Controller
 
             // Calculer le temps de travail total pour la journée
             $totalWorkTime = $this->calculateDailyWorkTime($user->id, $today, $currentSchoolYear->id);
+
+            // Envoyer notification WhatsApp au personnel
+            try {
+                $whatsappService = new WhatsAppService();
+                $whatsappService->sendStaffAttendanceNotification($attendance);
+            } catch (\Exception $e) {
+                \Log::warning('Erreur envoi notification WhatsApp personnel', [
+                    'attendance_id' => $attendance->id,
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
+            // LOG: Scan réussi avec détails complets
+            \Log::info('QR code staff attendance - Scan réussi', [
+                'scanned_qr_code' => $request->staff_qr_code,
+                'user_qr_code' => $user->qr_code,
+                'user_name' => $user->name,
+                'user_id' => $user->id,
+                'event_type' => $eventType,
+                'staff_type' => $staffType,
+                'supervisor_id' => $request->supervisor_id,
+                'qr_match' => $request->staff_qr_code === $user->qr_code ? 'EXACT' : 'DIFFERENT'
+            ]);
 
             $message = $eventType === 'entry' ? 'Entrée enregistrée avec succès' : 'Sortie enregistrée avec succès';
 
@@ -133,13 +195,19 @@ class StaffAttendanceController extends Controller
                         'id' => $user->id,
                         'name' => $user->name,
                         'role' => $user->role,
-                        'staff_type' => $staffType
+                        'staff_type' => $staffType,
+                        'expected_qr' => $user->qr_code,
+                        'scanned_qr' => $request->staff_qr_code
                     ],
                     'attendance' => $attendance,
                     'event_type' => $eventType,
                     'late_minutes' => $lateMinutes,
                     'scan_time' => $now->format('H:i:s'),
-                    'daily_work_time' => $totalWorkTime
+                    'daily_work_time' => $totalWorkTime,
+                    'validation' => [
+                        'qr_match' => $request->staff_qr_code === $user->qr_code,
+                        'found_via' => $user->qr_code ? 'users_table' : 'teachers_table'
+                    ]
                 ]
             ]);
         } catch (\Exception $e) {
@@ -1403,9 +1471,10 @@ class StaffAttendanceController extends Controller
             case 'chef_securite':
                 return 'admin';
             case 'secretaire':
-            case 'bibliothecaire':
             case 'reprographe':
                 return 'secretaire';
+            case 'bibliothecaire':
+                return 'bibliothecaire';
             case 'responsable_pedagogique':
             case 'dean_of_studies':
             case 'censeur_esg':
@@ -1418,24 +1487,18 @@ class StaffAttendanceController extends Controller
     }
 
     /**
-     * Calculer les minutes de retard
+     * Calculer les minutes de retard selon les horaires du collège
+     * Horaires: 7h-8h30 (tolérance), après 8h30 = retard
      */
     private function calculateLateMinutes(Carbon $scanTime, string $staffType): int
     {
-        // Heures de début par défaut (peut être configuré plus tard)
-        $workStartTimes = [
-            'teacher' => '07:30',
-            'accountant' => '08:00',
-            'supervisor' => '07:00',
-            'admin' => '08:00'
-        ];
-
-        $expectedStartTime = $workStartTimes[$staffType] ?? '08:00';
-        $expectedStart = Carbon::createFromTimeString($expectedStartTime);
+        // Horaires du collège: 7h00-8h30 = à l'heure, après 8h30 = retard
+        $lateThreshold = Carbon::createFromTimeString('08:30:00');
         $scanDateTime = Carbon::createFromTimeString($scanTime->format('H:i:s'));
 
-        if ($scanDateTime->greaterThan($expectedStart)) {
-            return $scanDateTime->diffInMinutes($expectedStart);
+        // Si scan après 8h30, calculer les minutes de retard
+        if ($scanDateTime->greaterThan($lateThreshold)) {
+            return $lateThreshold->diffInMinutes($scanDateTime);
         }
 
         return 0;
@@ -1443,6 +1506,7 @@ class StaffAttendanceController extends Controller
 
     /**
      * Calculer le temps de travail total pour une journée
+     * Règle: Fermeture à 17h30, pas d'heures supplémentaires comptées après
      */
     private function calculateDailyWorkTime($userId, $date, $schoolYearId)
     {
@@ -1454,13 +1518,24 @@ class StaffAttendanceController extends Controller
 
         $totalMinutes = 0;
         $entryTime = null;
+        
+        // Heure limite de fermeture: 17h30
+        $closingTime = Carbon::createFromTimeString('17:30:00');
 
         foreach ($movements as $movement) {
             if ($movement->event_type === 'entry') {
                 $entryTime = Carbon::parse($movement->scanned_at);
             } elseif ($movement->event_type === 'exit' && $entryTime) {
                 $exitTime = Carbon::parse($movement->scanned_at);
-                $totalMinutes += $entryTime->diffInMinutes($exitTime);
+                
+                // Si sortie après 17h30, limiter le calcul à 17h30
+                $effectiveExitTime = $exitTime;
+                if ($exitTime->format('H:i:s') > '17:30:00') {
+                    $effectiveExitTime = Carbon::createFromFormat('Y-m-d H:i:s', 
+                        $exitTime->format('Y-m-d') . ' 17:30:00');
+                }
+                
+                $totalMinutes += $entryTime->diffInMinutes($effectiveExitTime);
                 $entryTime = null; // Reset pour la prochaine paire entrée/sortie
             }
         }

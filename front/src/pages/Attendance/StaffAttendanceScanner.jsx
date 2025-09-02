@@ -43,12 +43,36 @@ import {
     People,
     PersonWorkspace,
     ShieldCheck,
-    Gear
+    Gear,
+    PersonCircle,
+    QrCode,
+    BoxArrowInRight,
+    BoxArrowRight,
+    XCircle
 } from 'react-bootstrap-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import QrScanner from 'qr-scanner';
 import Swal from 'sweetalert2';
+
+// Styles pour les animations
+const styles = `
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+.scan-success-card {
+    animation: fadeIn 0.5s ease-in-out;
+}
+.scan-avatar {
+    animation: pulse 0.8s ease-in-out;
+}
+`;
 
 const StaffAttendanceScanner = () => {
     const [isScanning, setIsScanning] = useState(false);
@@ -63,9 +87,11 @@ const StaffAttendanceScanner = () => {
     const [currentScan, setCurrentScan] = useState(null);
     const [showToast, setShowToast] = useState(false);
     const [toastMessage, setToastMessage] = useState('');
+    const [isProcessingScan, setIsProcessingScan] = useState(false);
 
     const videoRef = useRef(null);
     const scannerRef = useRef(null);
+    const lastScanTime = useRef(0);
     const { user } = useAuth();
     const isOnline = true;
 
@@ -94,6 +120,18 @@ const StaffAttendanceScanner = () => {
             icon: Gear, 
             color: 'danger',
             bgColor: 'bg-danger'
+        },
+        bibliothecaire: { 
+            label: 'Bibliothécaires', 
+            icon: PersonBadge, 
+            color: 'info',
+            bgColor: 'bg-info'
+        },
+        secretaire: { 
+            label: 'Secrétaires', 
+            icon: PersonCheck, 
+            color: 'secondary',
+            bgColor: 'bg-secondary'
         }
     };
 
@@ -186,6 +224,25 @@ const StaffAttendanceScanner = () => {
 
     const handleScan = async (qrCode) => {
         try {
+            // PROTECTION CONTRE LES SCANS MULTIPLES
+            const currentTime = Date.now();
+            const timeSinceLastScan = currentTime - lastScanTime.current;
+            
+            // Empêcher les scans dans un délai de 3 secondes
+            if (timeSinceLastScan < 3000) {
+                console.log('Scan ignoré - trop récent:', timeSinceLastScan + 'ms');
+                return;
+            }
+            
+            // Empêcher les scans multiples si un scan est déjà en cours
+            if (isProcessingScan) {
+                console.log('Scan ignoré - traitement en cours');
+                return;
+            }
+            
+            setIsProcessingScan(true);
+            lastScanTime.current = currentTime;
+            
             setMessage('Traitement du scan...');
             setMessageType('info');
             
@@ -201,8 +258,14 @@ const StaffAttendanceScanner = () => {
                 setCurrentScan({
                     staffMember: staff_member,
                     attendance: attendance,
-                    eventType: event_type
+                    eventType: event_type,
+                    scanTime: new Date()  // Ajouter l'heure exacte du scan
                 });
+
+                // Auto-masquer après 10 secondes
+                setTimeout(() => {
+                    setCurrentScan(null);
+                }, 10000);
 
                 const eventLabel = event_type === 'entry' ? 'Entrée' : 'Sortie';
                 const staffTypeLabel = staffTypes[staff_member.staff_type]?.label || staff_member.role;
@@ -232,6 +295,9 @@ const StaffAttendanceScanner = () => {
             console.error('Erreur scan:', error);
             setMessage('Erreur lors du traitement du scan');
             setMessageType('danger');
+        } finally {
+            // Remettre à zéro l'état de traitement
+            setIsProcessingScan(false);
         }
     };
 
@@ -310,8 +376,42 @@ const StaffAttendanceScanner = () => {
         );
     };
 
+    // Fonction pour regrouper les présences par personne
+    const groupAttendancesByPerson = () => {
+        const grouped = {};
+        
+        dailyAttendances.forEach(attendance => {
+            const userId = attendance.user?.id;
+            if (!userId) return;
+            
+            if (!grouped[userId]) {
+                grouped[userId] = {
+                    user: attendance.user,
+                    staff_type: attendance.staff_type,
+                    late_minutes: 0,
+                    entries: [],
+                    exits: [],
+                    supervisor: attendance.supervisor
+                };
+            }
+            
+            if (attendance.event_type === 'entry') {
+                grouped[userId].entries.push(attendance);
+                // Prendre le retard de la première entrée
+                if (attendance.late_minutes > 0 && grouped[userId].late_minutes === 0) {
+                    grouped[userId].late_minutes = attendance.late_minutes;
+                }
+            } else if (attendance.event_type === 'exit') {
+                grouped[userId].exits.push(attendance);
+            }
+        });
+        
+        return Object.values(grouped);
+    };
+
     return (
         <Container fluid className="py-4">
+            <style>{styles}</style>
             {/* Header */}
             <Row className="mb-4">
                 <Col>
@@ -331,7 +431,9 @@ const StaffAttendanceScanner = () => {
                     {messageType === 'danger' && <ExclamationTriangle className="me-2" />}
                     {messageType === 'success' && <CheckCircleFill className="me-2" />}
                     {messageType === 'info' && <InfoCircle className="me-2" />}
+                    {isProcessingScan && <Spinner size="sm" className="me-2" />}
                     {message}
+                    {isProcessingScan && <span className="ms-2 text-muted">(Traitement en cours...)</span>}
                 </Alert>
             )}
 
@@ -410,6 +512,84 @@ const StaffAttendanceScanner = () => {
                 </Row>
             )}
 
+            {/* Informations du personnel scanné */}
+            {currentScan && (
+                <Row className="mb-4">
+                    <Col>
+                        <Card className="border-success shadow-sm scan-success-card">
+                            <Card.Header className="bg-success text-white">
+                                <h5 className="mb-0">
+                                    <CheckCircleFill className="me-2" />
+                                    Personnel Scanné - {currentScan.eventType === 'entry' ? 'Entrée' : 'Sortie'}
+                                </h5>
+                            </Card.Header>
+                            <Card.Body>
+                                <Row className="align-items-center">
+                                    <Col md={3} className="text-center">
+                                        <div className="position-relative">
+                                            <div className={`rounded-circle ${staffTypes[currentScan.staffMember.staff_type]?.bgColor || 'bg-secondary'} d-flex align-items-center justify-content-center mx-auto scan-avatar`} 
+                                                 style={{ width: '80px', height: '80px' }}>
+                                                {React.createElement(staffTypes[currentScan.staffMember.staff_type]?.icon || PersonCircle, 
+                                                    { size: 40, className: 'text-white' })}
+                                            </div>
+                                            <Badge 
+                                                bg={staffTypes[currentScan.staffMember.staff_type]?.color || 'secondary'} 
+                                                className="position-absolute top-0 start-100 translate-middle"
+                                            >
+                                                {staffTypes[currentScan.staffMember.staff_type]?.label || currentScan.staffMember.role}
+                                            </Badge>
+                                        </div>
+                                    </Col>
+                                    <Col md={6}>
+                                        <h4 className="mb-2">{currentScan.staffMember.name}</h4>
+                                        <p className="text-muted mb-1">
+                                            <PersonBadge className="me-2" />
+                                            Rôle: {currentScan.staffMember.role}
+                                        </p>
+                                        <p className="text-muted mb-1">
+                                            <QrCode className="me-2" />
+                                            Code QR: {currentScan.staffMember.expected_qr}
+                                        </p>
+                                        <p className="text-muted mb-0">
+                                            <Clock className="me-2" />
+                                            Scanné à: {currentScan.scanTime ? currentScan.scanTime.toLocaleTimeString('fr-FR') : 'N/A'}
+                                        </p>
+                                    </Col>
+                                    <Col md={3} className="text-center">
+                                        <div className={`alert alert-${currentScan.eventType === 'entry' ? 'success' : 'warning'} mb-0`}>
+                                            <h5 className="mb-1">
+                                                {currentScan.eventType === 'entry' ? (
+                                                    <BoxArrowInRight className="me-2" />
+                                                ) : (
+                                                    <BoxArrowRight className="me-2" />
+                                                )}
+                                                {currentScan.eventType === 'entry' ? 'ENTRÉE' : 'SORTIE'}
+                                            </h5>
+                                            <small>
+                                                {currentScan.attendance?.late_minutes > 0 && currentScan.eventType === 'entry' && (
+                                                    <span className="text-danger">
+                                                        Retard: {currentScan.attendance.late_minutes} min
+                                                    </span>
+                                                )}
+                                            </small>
+                                        </div>
+                                        <Button 
+                                            variant="outline-secondary" 
+                                            size="sm" 
+                                            className="mt-2"
+                                            onClick={() => setCurrentScan(null)}
+                                        >
+                                            <XCircle className="me-1" />
+                                            Fermer
+                                        </Button>
+                                    </Col>
+                                </Row>
+                            </Card.Body>
+                        </Card>
+                    </Col>
+                </Row>
+            )}
+
             {/* Liste des présences */}
             <Row>
                 <Col>
@@ -445,40 +625,63 @@ const StaffAttendanceScanner = () => {
                                         <tr>
                                             <th>Personnel</th>
                                             <th>Type</th>
-                                            <th>Heure</th>
-                                            <th>Événement</th>
+                                            <th className="text-center">Entrée(s)</th>
+                                            <th className="text-center">Sortie(s)</th>
                                             <th>Retard</th>
                                             <th>Superviseur</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {dailyAttendances.map((attendance) => (
-                                            <tr key={attendance.id}>
+                                        {groupAttendancesByPerson().map((personData) => (
+                                            <tr key={personData.user.id}>
                                                 <td>
                                                     <div className="d-flex align-items-center">
                                                         <PersonBadge className="me-2 text-primary" />
                                                         <div>
-                                                            <div className="fw-bold">{attendance.user?.name}</div>
-                                                            <small className="text-muted">{attendance.user?.email}</small>
+                                                            <div className="fw-bold">{personData.user.name}</div>
+                                                            <small className="text-muted">{personData.user.email}</small>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td>{getStaffTypeBadge(attendance.staff_type)}</td>
-                                                <td>
-                                                    <Clock className="me-1" size={12} />
-                                                    {formatTime(attendance.scanned_at)}
+                                                <td>{getStaffTypeBadge(personData.staff_type)}</td>
+                                                <td className="text-center">
+                                                    {personData.entries.length > 0 ? (
+                                                        <div>
+                                                            {personData.entries.map((entry, index) => (
+                                                                <Badge key={index} bg="success" className="me-1 mb-1">
+                                                                    <ArrowRightCircle size={12} className="me-1" />
+                                                                    {formatTime(entry.scanned_at)}
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-muted">-</span>
+                                                    )}
                                                 </td>
-                                                <td>{getEventBadge(attendance.event_type)}</td>
+                                                <td className="text-center">
+                                                    {personData.exits.length > 0 ? (
+                                                        <div>
+                                                            {personData.exits.map((exit, index) => (
+                                                                <Badge key={index} bg="danger" className="me-1 mb-1">
+                                                                    <ArrowLeftCircle size={12} className="me-1" />
+                                                                    {formatTime(exit.scanned_at)}
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-muted">-</span>
+                                                    )}
+                                                </td>
                                                 <td>
-                                                    {attendance.late_minutes > 0 ? (
-                                                        <Badge bg="warning">+{attendance.late_minutes}min</Badge>
+                                                    {personData.late_minutes > 0 ? (
+                                                        <Badge bg="warning">+{personData.late_minutes}min</Badge>
                                                     ) : (
                                                         <Badge bg="success">À l'heure</Badge>
                                                     )}
                                                 </td>
                                                 <td>
                                                     <small className="text-muted">
-                                                        {attendance.supervisor?.name}
+                                                        {personData.supervisor?.name}
                                                     </small>
                                                 </td>
                                             </tr>

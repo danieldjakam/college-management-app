@@ -530,14 +530,14 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{supervisorId}/assignments', [SupervisorController::class, 'getSupervisorAssignments'])->middleware(['role:admin,surveillant_general']);
         Route::get('/{supervisorId}/available-classes', [SupervisorController::class, 'getAvailableClasses'])->middleware(['role:admin,surveillant_general']);
 
-        // Routes pour surveillants généraux (scanner QR et voir présences)
-        Route::post('/scan-qr', [SupervisorController::class, 'scanStudentQR'])->middleware(['role:admin,surveillant_general']);
-        Route::get('/daily-attendance', [SupervisorController::class, 'getDailyAttendance'])->middleware(['role:admin,surveillant_general']);
-        Route::get('/attendance-range', [SupervisorController::class, 'getAttendanceRange'])->middleware(['role:admin,surveillant_general']);
-        Route::get('/entry-exit-stats', [SupervisorController::class, 'getEntryExitStats'])->middleware(['role:admin,surveillant_general']);
-        Route::post('/student-status', [SupervisorController::class, 'getStudentCurrentStatus'])->middleware(['role:admin,surveillant_general']);
-        Route::post('/mark-absent-students', [SupervisorController::class, 'markAbsentStudents'])->middleware(['role:admin,surveillant_general']);
-        Route::post('/mark-all-absent-students', [SupervisorController::class, 'markAllAbsentStudents'])->middleware(['role:admin,surveillant_general']);
+        // Routes pour bibliothécaires (scanner QR et voir présences étudiants)
+        Route::post('/scan-qr', [SupervisorController::class, 'scanStudentQR'])->middleware(['role:admin,bibliothecaire']);
+        Route::get('/daily-attendance', [SupervisorController::class, 'getDailyAttendance'])->middleware(['role:admin,bibliothecaire,accountant,comptable_superieur']);
+        Route::get('/attendance-range', [SupervisorController::class, 'getAttendanceRange'])->middleware(['role:admin,bibliothecaire,accountant,comptable_superieur']);
+        Route::get('/entry-exit-stats', [SupervisorController::class, 'getEntryExitStats'])->middleware(['role:admin,bibliothecaire,accountant,comptable_superieur']);
+        Route::post('/student-status', [SupervisorController::class, 'getStudentCurrentStatus'])->middleware(['role:admin,bibliothecaire,accountant,comptable_superieur']);
+        Route::post('/mark-absent-students', [SupervisorController::class, 'markAbsentStudents'])->middleware(['role:admin,bibliothecaire']);
+        Route::post('/mark-all-absent-students', [SupervisorController::class, 'markAllAbsentStudents'])->middleware(['role:admin,bibliothecaire']);
 
         // Routes pour génération codes QR
         Route::get('/generate-qr/{studentId}', [SupervisorController::class, 'generateStudentQR'])->middleware(['role:admin']);
@@ -607,23 +607,23 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les présences du personnel (remplace teacher-attendance)
     Route::prefix('staff-attendance')->group(function () {
         // Routes pour scan QR du personnel
-        Route::post('/scan-qr', [StaffAttendanceController::class, 'scanQR'])->middleware(['role:admin,surveillant_general']);
-        Route::get('/daily-attendance', [StaffAttendanceController::class, 'getDailyAttendance'])->middleware(['role:admin,surveillant_general,secretaire,comptable_superieur,accountant']);
-        Route::get('/daily', [StaffAttendanceController::class, 'getDailyStaffAttendance'])->middleware(['role:admin,surveillant_general,secretaire,comptable_superieur,accountant']);
-        Route::get('/entry-exit-stats', [StaffAttendanceController::class, 'getEntryExitStats'])->middleware(['role:admin,surveillant_general,secretaire,comptable_superieur,accountant']);
+        Route::post('/scan-qr', [StaffAttendanceController::class, 'scanQR'])->middleware(['role:admin,bibliothecaire']);
+        Route::get('/daily-attendance', [StaffAttendanceController::class, 'getDailyAttendance'])->middleware(['role:admin,secretaire,comptable_superieur,accountant,bibliothecaire']);
+        Route::get('/daily', [StaffAttendanceController::class, 'getDailyStaffAttendance'])->middleware(['role:admin,secretaire,comptable_superieur,accountant,bibliothecaire']);
+        Route::get('/entry-exit-stats', [StaffAttendanceController::class, 'getEntryExitStats'])->middleware(['role:admin,secretaire,comptable_superieur,accountant,bibliothecaire']);
 
         // Routes pour gestion des QR codes personnel
         Route::post('/generate-qr', [StaffAttendanceController::class, 'generateQRCode'])->middleware(['role:admin']);
-        Route::get('/staff-with-qr', [StaffAttendanceController::class, 'getStaffWithQR'])->middleware(['role:admin,surveillant_general,secretaire,comptable_superieur,accountant']);
+        Route::get('/staff-with-qr', [StaffAttendanceController::class, 'getStaffWithQR'])->middleware(['role:admin,secretaire,comptable_superieur,accountant,bibliothecaire']);
 
         // Routes pour rapports et statistiques
-        Route::get('/staff/{staffId}/report', [StaffAttendanceController::class, 'getStaffReport'])->middleware(['role:admin,surveillant_general,secretaire,comptable_superieur,accountant']);
+        Route::get('/staff/{staffId}/report', [StaffAttendanceController::class, 'getStaffReport'])->middleware(['role:admin,secretaire,comptable_superieur,accountant,bibliothecaire']);
 
         // Routes pour badges multiples
         Route::post('/generate-multiple-badges', [StaffAttendanceController::class, 'generateMultipleBadges'])->middleware(['role:admin']);
 
         // Routes d'export PDF
-        Route::get('/export/pdf', [StaffAttendanceController::class, 'exportStaffAttendancePDF'])->middleware(['role:admin,accountant,comptable_superieur']);
+        Route::get('/export/pdf', [StaffAttendanceController::class, 'exportStaffAttendancePDF'])->middleware(['role:admin,accountant,comptable_superieur,bibliothecaire']);
     });
 
     // Routes de compatibilité pour teacher-attendance (à supprimer plus tard)
@@ -667,7 +667,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour les demandes d'explication (D.E)
-    Route::prefix('demandes-explication')->middleware(['role:admin,secretaire,accountant,comptable_superieur'])->group(function () {
+    Route::prefix('demandes-explication')->middleware(['role:admin,secretaire,accountant,comptable_superieur,bibliothecaire'])->group(function () {
         Route::get('/', [App\Http\Controllers\DemandeExplicationController::class, 'index']);
         Route::post('/', [App\Http\Controllers\DemandeExplicationController::class, 'store']);
         Route::get('/personnel', [App\Http\Controllers\DemandeExplicationController::class, 'getPersonnel']);
@@ -680,7 +680,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour les rapports de recouvrement et certificats
-    Route::prefix('reports')->middleware(['role:admin,secretaire,accountant,comptable_superieur'])->group(function () {
+    Route::prefix('reports')->middleware(['role:admin,secretaire,accountant,comptable_superieur,bibliothecaire'])->group(function () {
         // État de recouvrement
         Route::get('/recovery-status', [ReportsController::class, 'getRecoveryStatus']);
         Route::get('/recovery-status/export-pdf', [ReportsController::class, 'exportRecoveryStatusPdf']);

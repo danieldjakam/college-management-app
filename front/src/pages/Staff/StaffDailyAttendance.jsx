@@ -370,7 +370,8 @@ function StaffDailyAttendance() {
                     <th>Type</th>
                     <th>Rôle</th>
                     <th>Statut</th>
-                    <th>Entrées/Sorties</th>
+                    <th>Entrées</th>
+                    <th>Sorties</th>
                     <th>Temps Total</th>
                   </tr>
                 </thead>
@@ -403,32 +404,38 @@ function StaffDailyAttendance() {
                         {staff.entry_exit_pairs && staff.entry_exit_pairs.length > 0 ? (
                           <div className="small">
                             {staff.entry_exit_pairs.map((pair, pairIndex) => (
-                              <div key={pairIndex} className="mb-1">
-                                <span className="text-success">
-                                  {new Date(pair.entry_time).toLocaleTimeString('fr-FR', {
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </span>
-                                {pair.exit_time ? (
-                                  <>
-                                    <span className="mx-1">→</span>
-                                    <span className="text-danger">
-                                      {new Date(pair.exit_time).toLocaleTimeString('fr-FR', {
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })}
-                                    </span>
-                                    <span className="text-muted ms-1">({pair.working_hours})</span>
-                                  </>
-                                ) : (
-                                  <span className="text-warning ms-1">(En cours)</span>
-                                )}
-                              </div>
+                              <Badge key={pairIndex} bg="success" className="me-1 mb-1">
+                                {new Date(pair.entry_time).toLocaleTimeString('fr-FR', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </Badge>
                             ))}
                           </div>
                         ) : (
-                          <span className="text-muted">Aucune donnée</span>
+                          <span className="text-muted">-</span>
+                        )}
+                      </td>
+                      <td>
+                        {staff.entry_exit_pairs && staff.entry_exit_pairs.length > 0 ? (
+                          <div className="small">
+                            {staff.entry_exit_pairs.map((pair, pairIndex) => (
+                              pair.exit_time ? (
+                                <Badge key={pairIndex} bg="danger" className="me-1 mb-1">
+                                  {new Date(pair.exit_time).toLocaleTimeString('fr-FR', {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </Badge>
+                              ) : (
+                                <Badge key={pairIndex} bg="warning" className="me-1 mb-1">
+                                  En cours
+                                </Badge>
+                              )
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted">-</span>
                         )}
                       </td>
                       <td>

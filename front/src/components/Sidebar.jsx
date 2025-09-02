@@ -200,6 +200,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           items: [
             ...((userRole === "comptable_superieur" || userRole === "accountant") ? [
             { name: "Suivi Présences Élèves", href: "/student-attendance-tracking", icon: <ClipboardCheckFill /> },
+            { name: "Rapports Présence Étudiants", href: "/attendance-reports", icon: <FileTextFill /> },
             { name: "Suivi Présences Personnel", href: "/staff-daily-attendance", icon: <PeopleFill /> },
             { name: "Rapport Présence Personnel", href: "/staff-attendance-report", icon: <BarChartFill /> },
             ] : []),
@@ -339,12 +340,40 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
     } else if (userRole === "surveillant_general") {
       return [
         {
-          title: "Présence Personnel",
+          title: "Communication",
+          items: [
+            { name: "Mes Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
+          ],
+        },
+        {
+          title: "Outils",
+          items: [
+            { name: "Documents", href: "/documents", icon: <FolderFill /> },
+          ],
+        },
+        {
+          title: "Compte",
+          items: [
+            { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
+            { name: "Profil", href: "/profile", icon: <PersonCircle /> },
+          ],
+        },
+      ];
+    } else if (userRole === "bibliothecaire") {
+      return [
+        {
+          title: "Scan Personnel",
+          items: [
+            { name: "Scanner QR Personnel", href: "/staff-attendance-scanner", icon: <QrCodeScan /> },
+            { name: "Présences du Jour", href: "/staff-daily-attendance", icon: <Calendar /> },
+            { name: "Rapports Présence", href: "/staff-attendance-report", icon: <BarChartFill /> },
+          ],
+        },
+        {
+          title: "Scan Étudiants",
           items: [
             { name: "Scanner QR Étudiants", href: "/attendance", icon: <QrCodeScan /> },
-            { name: "Scanner QR Personnel", href: "/teacher-attendance-scanner", icon: <PeopleFill /> },
-            { name: "Stats Personnel", href: "/teacher-detailed-stats", icon: <BarChartFill /> },
-            { name: "Rapports Présence", href: "/attendance-reports", icon: <FileTextFill /> },
+            { name: "Rapports Présence Étudiants", href: "/attendance-reports", icon: <FileTextFill /> },
           ],
         },
         {

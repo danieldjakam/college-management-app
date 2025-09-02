@@ -41,13 +41,6 @@ class PaymentStatusService
      */
     private function calculateStatusForStudent(Student $student, SchoolYear $schoolYear, $paymentTranches, $existingPayments): object
     {
-        // CORRECTION: Calculer la bourse totale réelle depuis les paiements existants
-        $totalActualScholarshipFromPayments = 0;
-        foreach ($existingPayments as $payment) {
-            if ($payment->has_scholarship && $payment->scholarship_amount > 0) {
-                $totalActualScholarshipFromPayments += $payment->scholarship_amount;
-            }
-        }
 
         // Utiliser la logique de réduction par dernières tranches pour les étudiants avec paiements réduits
         $hasAnyReduction = false;
