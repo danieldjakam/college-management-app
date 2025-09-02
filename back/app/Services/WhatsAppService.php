@@ -705,14 +705,15 @@ class WhatsAppService
                 return false;
             }
 
-            // URL pour envoyer des images via UltraMsg avec token en GET
-            $url = "https://api.ultramsg.com/instance{$settings->whatsapp_instance_id}/messages/image?token={$settings->whatsapp_token}";
+            // CORRECTION: URL pour envoyer des images via UltraMsg
+            $url = "https://api.ultramsg.com/instance{$settings->whatsapp_instance_id}/messages/image";
             
             $headers = [
                 'Content-Type' => 'application/x-www-form-urlencoded'
             ];
             
             $params = [
+                'token' => $settings->whatsapp_token,
                 'to' => $this->formatPhoneNumber($phoneNumber),
                 'image' => $imageUrl,
                 'caption' => $caption
@@ -764,19 +765,26 @@ class WhatsAppService
                 return true;
             }
 
-            // Construction de l'URL avec token en paramètre GET selon UltraMsg
+            // CORRECTION FINALE: Token DOIT être en paramètre GET selon UltraMsg
             $url = "https://api.ultramsg.com/instance{$settings->whatsapp_instance_id}/messages/chat?token={$settings->whatsapp_token}";
             
-            // Headers selon votre exemple
+            // Headers selon UltraMsg
             $headers = [
                 'Content-Type' => 'application/x-www-form-urlencoded'
             ];
             
-            // Paramètres POST (sans token qui est maintenant en GET)
+            // Paramètres POST (sans token car il est en GET)
             $params = [
                 'to' => $this->formatPhoneNumber($phoneNumber),
                 'body' => $message
             ];
+
+            // Log pour débogage
+            Log::info('Envoi WhatsApp UltraMsg', [
+                'url' => $url,
+                'to' => $this->formatPhoneNumber($phoneNumber),
+                'has_token' => !empty($settings->whatsapp_token)
+            ]);
 
             // Utilisation de Http::asForm() pour envoyer en application/x-www-form-urlencoded
             $response = Http::withHeaders($headers)->asForm()->post($url, $params);
