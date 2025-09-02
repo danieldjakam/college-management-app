@@ -305,12 +305,21 @@ class WhatsAppService
         $date = $staffAttendance->scanned_at->format('Y-m-d');
         $time = $staffAttendance->scanned_at->format('H:i:s');
         
-        return "*ATTENDANCE / QRCODE {$eventType}*\n\n" .
-               "{$schoolName}\n\n" .
-               "*{$title}* : {$user->name}\n\n" .
-               "LE : {$date}\n\n" .
-               "HEURE DE {$eventType}: {$time}\n\n" .
-               "VOTRE POINTAGE A ÉTÉ ENREGISTRÉ. NOUS VOUS REMERCIONS POUR VOS SERVICES.";
+        // Préparer le message de base
+        $message = "*ATTENDANCE / QRCODE {$eventType}*\n\n" .
+                   "{$schoolName}\n\n" .
+                   "*{$title}* : {$user->name}\n\n" .
+                   "LE : {$date}\n\n" .
+                   "HEURE DE {$eventType}: {$time}\n\n";
+        
+        // Ajouter l'information de retard si c'est une entrée et qu'il y a du retard
+        if ($staffAttendance->event_type === 'entry' && $staffAttendance->late_minutes > 0) {
+            $message .= "⚠️ *RETARD: {$staffAttendance->late_minutes} minutes*\n\n";
+        }
+        
+        $message .= "VOTRE POINTAGE A ÉTÉ ENREGISTRÉ. NOUS VOUS REMERCIONS POUR VOS SERVICES.";
+        
+        return $message;
     }
 
     /**

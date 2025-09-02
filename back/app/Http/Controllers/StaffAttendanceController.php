@@ -1487,24 +1487,18 @@ class StaffAttendanceController extends Controller
     }
 
     /**
-     * Calculer les minutes de retard
+     * Calculer les minutes de retard selon les horaires du collège
+     * Horaires: 7h-8h30 (tolérance), après 8h30 = retard
      */
     private function calculateLateMinutes(Carbon $scanTime, string $staffType): int
     {
-        // Heures de début par défaut (peut être configuré plus tard)
-        $workStartTimes = [
-            'teacher' => '07:30',
-            'accountant' => '08:00',
-            'supervisor' => '07:00',
-            'admin' => '08:00'
-        ];
-
-        $expectedStartTime = $workStartTimes[$staffType] ?? '08:00';
-        $expectedStart = Carbon::createFromTimeString($expectedStartTime);
+        // Horaires du collège: 7h00-8h30 = à l'heure, après 8h30 = retard
+        $lateThreshold = Carbon::createFromTimeString('08:30:00');
         $scanDateTime = Carbon::createFromTimeString($scanTime->format('H:i:s'));
 
-        if ($scanDateTime->greaterThan($expectedStart)) {
-            return $scanDateTime->diffInMinutes($expectedStart);
+        // Si scan après 8h30, calculer les minutes de retard
+        if ($scanDateTime->greaterThan($lateThreshold)) {
+            return $lateThreshold->diffInMinutes($scanDateTime);
         }
 
         return 0;
@@ -1512,6 +1506,7 @@ class StaffAttendanceController extends Controller
 
     /**
      * Calculer le temps de travail total pour une journée
+     * Règle: Fermeture à 17h30, pas d'heures supplémentaires comptées après
      */
     private function calculateDailyWorkTime($userId, $date, $schoolYearId)
     {
@@ -1523,13 +1518,24 @@ class StaffAttendanceController extends Controller
 
         $totalMinutes = 0;
         $entryTime = null;
+        
+        // Heure limite de fermeture: 17h30
+        $closingTime = Carbon::createFromTimeString('17:30:00');
 
         foreach ($movements as $movement) {
             if ($movement->event_type === 'entry') {
                 $entryTime = Carbon::parse($movement->scanned_at);
             } elseif ($movement->event_type === 'exit' && $entryTime) {
                 $exitTime = Carbon::parse($movement->scanned_at);
-                $totalMinutes += $entryTime->diffInMinutes($exitTime);
+                
+                // Si sortie après 17h30, limiter le calcul à 17h30
+                $effectiveExitTime = $exitTime;
+                if ($exitTime->format('H:i:s') > '17:30:00') {
+                    $effectiveExitTime = Carbon::createFromFormat('Y-m-d H:i:s', 
+                        $exitTime->format('Y-m-d') . ' 17:30:00');
+                }
+                
+                $totalMinutes += $entryTime->diffInMinutes($effectiveExitTime);
                 $entryTime = null; // Reset pour la prochaine paire entrée/sortie
             }
         }
