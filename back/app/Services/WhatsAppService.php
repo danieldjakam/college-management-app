@@ -487,17 +487,16 @@ class WhatsAppService
     protected function generateReceiptImage($payment)
     {
         try {
-            // Récupérer le HTML du reçu depuis le PaymentController via l'injection de dépendances
+            // Utiliser la nouvelle méthode pour générer le reçu parent
             $paymentController = app()->make(\App\Http\Controllers\PaymentController::class);
-            $receiptResponse = $paymentController->generateReceipt($payment->id);
-            $responseData = $receiptResponse->getData();
+            $receiptData = $paymentController->generateParentReceipt($payment->id);
             
-            if (!$responseData->success) {
-                Log::error('Impossible de générer le HTML du reçu', ['payment_id' => $payment->id]);
+            if (!$receiptData['success']) {
+                Log::error('Impossible de générer le HTML du reçu parent', ['payment_id' => $payment->id]);
                 return null;
             }
             
-            $receiptHtml = $responseData->data->html;
+            $receiptHtml = $receiptData['html'];
             
             // Utiliser wkhtmltoimage ou une alternative pour convertir HTML en image
             return $this->convertHtmlToImage($receiptHtml, $payment->id);
