@@ -518,10 +518,10 @@ class WhatsAppService
         try {
             // Créer un nom de fichier unique
             $filename = "receipt_payment_{$paymentId}_" . time() . ".png";
-            $imagePath = storage_path("app/public/receipts/{$filename}");
+            $imagePath = base_path("docs/receipts/{$filename}");
             
             // Créer le dossier s'il n'existe pas
-            $receiptDir = storage_path('app/public/receipts');
+            $receiptDir = base_path('docs/receipts');
             if (!file_exists($receiptDir)) {
                 mkdir($receiptDir, 0755, true);
             }
@@ -535,7 +535,7 @@ class WhatsAppService
             // Retourner l'URL publique
             // Note: Pour que UltraMsg puisse accéder à l'image, l'URL doit être publiquement accessible
             // En local, utiliser ngrok ou héberger sur un serveur public
-            $publicUrl = url("storage/receipts/{$filename}");
+            $publicUrl = url("docs/receipts/{$filename}");
             
             // Alternative : uploader sur un service cloud (à implémenter si nécessaire)
             // return $this->uploadToCloudService($imagePath, $filename);
