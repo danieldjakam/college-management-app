@@ -1,693 +1,593 @@
-import React, { useState, useEffect } from 'react';
-import { 
-    Plus, 
-    Search, 
-    Eye, 
-    Pencil, 
-    Trash,
-    ToggleOff,
-    ToggleOn,
-    Grid,
-    List,
-    Filter,
-    Building,
-    Book
-} from 'react-bootstrap-icons';
-
-// Components
-import { Card, Input, Alert, LoadingSpinner, Modal } from '../../components/UI';
-import ImportExportButton from '../../components/ImportExportButton';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, Button, Modal, Form, Row, Col, Alert, ProgressBar } from 'react-bootstrap';
+import { Plus, Gear, BookFill, CheckCircle, XCircle } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
-
-// Hooks
 import { useAuth } from '../../hooks/useAuth';
-import { Button } from 'react-bootstrap';
+import Swal from 'sweetalert2';
 
-const Levels = () => {
-    const { user } = useAuth();
-    const [levels, setLevels] = useState([]);
-    const [sections, setSections] = useState([]);
-    const [dashboardStats, setDashboardStats] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-    
-    // Filters and search
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filterActive, setFilterActive] = useState('all');
-    const [filterSection, setFilterSection] = useState('all');
-    const [viewMode, setViewMode] = useState('grid');
-    
-    // Modal states
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [showEditModal, setShowEditModal] = useState(false);
-    const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [selectedLevel, setSelectedLevel] = useState(null);
-    
-    // Form data
-    const [formData, setFormData] = useState({
-        name: '',
-        section_id: '',
-        description: '',
-        is_active: true,
-        order: 0
-    });
+function EvaluationConfiguration() {
+  const { user } = useAuth();
+  const [schoolYears, setSchoolYears] = useState([]);
+  const [levels, setLevels] = useState([]);
+  const [selectedYear, setSelectedYear] = useState('');
+  const [configurations, setConfigurations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filterMode, setFilterMode] = useState('all');
+  const [filterLevel, setFilterLevel] = useState('all');
+  
+  // Modals
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [editingConfig, setEditingConfig] = useState(null);
+  
+  // Form
+  const [configForm, setConfigForm] = useState({
+    level_id: '',
+    evaluation_mode: '1ds_1comp', // ou '2ds_1comp'
+    ds1_percentage: 50,
+    ds2_percentage: 0, // uniquement pour 2ds_1comp
+    composition_percentage: 50,
+    description: '',
+    is_active: true
+  });
 
-    // Load data on component mount
-    useEffect(() => {
-        loadLevels();
-        loadSections();
-        loadDashboard();
-    }, []);
-
-    const loadLevels = async () => {
-        try {
-            setLoading(true);
-            const response = await secureApiEndpoints.levels.getAll();
-            if (response.success) {
-                setLevels(response.data);
-            } else {
-                setError(response.message || 'Erreur lors du chargement des niveaux');
-            }
-        } catch (error) {
-            setError('Erreur lors du chargement des niveaux');
-            console.error('Error loading levels:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const loadSections = async () => {
-        try {
-            const response = await secureApiEndpoints.sections.getAll();
-            if (response.success) {
-                setSections(response.data);
-            }
-        } catch (error) {
-            console.error('Error loading sections:', error);
-        }
-    };
-
-    const loadDashboard = async () => {
-        try {
-            const response = await secureApiEndpoints.levels.getDashboard();
-            if (response.success) {
-                setDashboardStats(response.data);
-            }
-        } catch (error) {
-            console.error('Error loading dashboard:', error);
-        }
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            setError('');
-            setSuccess('');
-
-            const response = selectedLevel 
-                ? await secureApiEndpoints.levels.update(selectedLevel.id, formData)
-                : await secureApiEndpoints.levels.create(formData);
-
-            if (response.success) {
-                setSuccess(response.message);
-                resetForm();
-                setShowAddModal(false);
-                setShowEditModal(false);
-                loadLevels();
-                loadDashboard();
-            } else {
-                setError(response.message || 'Erreur lors de la sauvegarde');
-            }
-        } catch (error) {
-            setError('Erreur lors de la sauvegarde');
-            console.error('Error saving level:', error);
-        }
-    };
-
-    const handleDelete = async () => {
-        if (!selectedLevel) return;
-
-        try {
-            setError('');
-            const response = await secureApiEndpoints.levels.delete(selectedLevel.id);
-            
-            if (response.success) {
-                setSuccess(response.message);
-                setShowDeleteModal(false);
-                setSelectedLevel(null);
-                loadLevels();
-                loadDashboard();
-            } else {
-                setError(response.message || 'Erreur lors de la suppression');
-            }
-        } catch (error) {
-            setError('Erreur lors de la suppression');
-            console.error('Error deleting level:', error);
-        }
-    };
-
-    const handleToggleStatus = async (level) => {
-        try {
-            const response = await secureApiEndpoints.levels.toggleStatus(level.id);
-            if (response.success) {
-                setSuccess(response.message);
-                loadLevels();
-                loadDashboard();
-            } else {
-                setError(response.message || 'Erreur lors de la mise à jour');
-            }
-        } catch (error) {
-            setError('Erreur lors de la mise à jour du statut');
-            console.error('Error toggling status:', error);
-        }
-    };
-
-    const resetForm = () => {
-        setFormData({
-            name: '',
-            section_id: '',
-            description: '',
-            is_active: true,
-            order: 0
-        });
-        setSelectedLevel(null);
-    };
-
-    const openEditModal = (level) => {
-        setSelectedLevel(level);
-        setFormData({
-            name: level.name,
-            section_id: level.section_id.toString(),
-            description: level.description || '',
-            is_active: level.is_active,
-            order: level.order
-        });
-        setShowEditModal(true);
-    };
-
-    const openDeleteModal = (level) => {
-        setSelectedLevel(level);
-        setShowDeleteModal(true);
-    };
-
-    // Filter levels
-    const filteredLevels = levels.filter(level => {
-        const matchesSearch = level.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            (level.description && level.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                            (level.section && level.section.name.toLowerCase().includes(searchTerm.toLowerCase()));
-        
-        const matchesFilter = filterActive === 'all' || 
-                            (filterActive === 'active' && level.is_active) ||
-                            (filterActive === 'inactive' && !level.is_active);
-
-        const matchesSection = filterSection === 'all' || 
-                              level.section_id.toString() === filterSection;
-        
-        return matchesSearch && matchesFilter && matchesSection;
-    });
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-96">
-                <LoadingSpinner text="Chargement des niveaux..." size="lg" />
-            </div>
-        );
+  const evaluationModes = [
+    {
+      value: '1ds_1comp',
+      label: '1 DS + 1 Composition',
+      description: 'Idéal pour les premiers cycles',
+      default_percentages: { ds1: 50, ds2: 0, composition: 50 }
+    },
+    {
+      value: '2ds_1comp', 
+      label: '2 DS + 1 Composition',
+      description: 'Généralement pour les seconds cycles',
+      default_percentages: { ds1: 25, ds2: 25, composition: 50 }
     }
+  ];
 
-    return (
-        <div className="p-6 bg-gray-50 min-h-screen">
-            {/* Header */}
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                        Gestion des Niveaux
-                    </h1>
-                    <p className="text-gray-600">
-                        Bienvenue {user?.name} - Gérez les niveaux de classe de l'établissement
-                    </p>
+  const loadInitialData = useCallback(async () => {
+    try {
+      console.log('Chargement des données initiales...');
+      
+      const [yearsRes, levelsRes] = await Promise.all([
+        secureApiEndpoints.request('/school-years/active'),
+        secureApiEndpoints.levels.getAll()
+      ]);
+
+      console.log('Years response:', yearsRes);
+      console.log('Levels response:', levelsRes);
+
+      if (yearsRes.success) {
+        setSchoolYears(yearsRes.data);
+        const currentYear = yearsRes.data.find(year => year.is_current);
+        if (currentYear) {
+          setSelectedYear(currentYear.id.toString());
+        }
+      }
+
+      if (levelsRes.success) {
+        setLevels(levelsRes.data.filter(level => level.is_active));
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadConfigurations = useCallback(async () => {
+    if (!selectedYear) return;
+    
+    try {
+      console.log('Chargement des configurations pour l\'année:', selectedYear);
+      const response = await secureApiEndpoints.evaluationConfigs.getAll({
+        school_year_id: selectedYear
+      });
+      
+      console.log('Configurations response:', response);
+      
+      if (response.success) {
+        setConfigurations(response.data);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des configurations:', error);
+    }
+  }, [selectedYear]);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  useEffect(() => {
+    if (selectedYear) {
+      loadConfigurations();
+    }
+  }, [selectedYear, loadConfigurations]);
+
+  const handleModeChange = (mode) => {
+    const modeConfig = evaluationModes.find(m => m.value === mode);
+    if (modeConfig) {
+      setConfigForm({
+        ...configForm,
+        evaluation_mode: mode,
+        ds1_percentage: modeConfig.default_percentages.ds1,
+        ds2_percentage: modeConfig.default_percentages.ds2,
+        composition_percentage: modeConfig.default_percentages.composition
+      });
+    }
+  };
+
+  const handleConfigSubmit = async (e) => {
+    e.preventDefault();
+    console.log('Soumission de la configuration:', configForm);
+    
+    // Validation du niveau
+    if (!configForm.level_id) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Niveau requis',
+        text: 'Veuillez sélectionner un cycle/niveau'
+      });
+      return;
+    }
+    
+    // Validation des pourcentages
+    const total = configForm.ds1_percentage + configForm.ds2_percentage + configForm.composition_percentage;
+    if (total !== 100) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Pourcentages invalides',
+        text: `Le total des pourcentages doit être 100%. Total actuel: ${total}%`
+      });
+      return;
+    }
+    
+    try {
+      const response = editingConfig 
+        ? await secureApiEndpoints.evaluationConfigs.update(editingConfig.id, {
+            ...configForm,
+            school_year_id: selectedYear,
+            level_id: selectedLevel
+          })
+        : await secureApiEndpoints.evaluationConfigs.create({
+            ...configForm,
+            school_year_id: selectedYear
+          });
+
+      console.log('Configuration sauvegardée:', response);
+
+      if (response.success) {
+        setShowConfigModal(false);
+        setEditingConfig(null);
+        loadConfigurations();
+        Swal.fire({
+          icon: 'success',
+          title: 'Succès',
+          text: response.message
+        });
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Erreur',
+          text: response.message || 'Erreur lors de la sauvegarde'
+        });
+      }
+      
+    } catch (error) {
+      console.error('Erreur lors de la configuration:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Erreur technique',
+        text: 'Une erreur est survenue lors de la sauvegarde'
+      });
+    }
+  };
+
+  const handleEdit = (config) => {
+    setEditingConfig(config);
+    setConfigForm({
+      level_id: config.level_id.toString(),
+      evaluation_mode: config.evaluation_mode,
+      ds1_percentage: config.ds1_percentage,
+      ds2_percentage: config.ds2_percentage || 0,
+      composition_percentage: config.composition_percentage,
+      description: config.description || '',
+      is_active: config.is_active
+    });
+    setShowConfigModal(true);
+  };
+
+  const handleToggleStatus = async (config) => {
+    try {
+      const response = await secureApiEndpoints.evaluationConfigs.toggleStatus(config.id);
+      if (response.success) {
+        loadConfigurations();
+        Swal.fire({
+          icon: 'success',
+          title: 'Statut mis à jour',
+          text: response.message
+        });
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Erreur',
+          text: response.message || 'Erreur lors de la mise à jour'
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors du toggle:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Erreur technique',
+        text: 'Erreur lors de la mise à jour du statut'
+      });
+    }
+  };
+
+  const resetConfigForm = () => {
+    setConfigForm({
+      level_id: '',
+      evaluation_mode: '1ds_1comp',
+      ds1_percentage: 50,
+      ds2_percentage: 0,
+      composition_percentage: 50,
+      description: '',
+      is_active: true
+    });
+    setEditingConfig(null);
+  };
+
+  const getFilteredConfigurations = () => {
+    return configurations.filter(config => {
+      const matchesMode = filterMode === 'all' || config.evaluation_mode === filterMode;
+      const matchesLevel = filterLevel === 'all' || config.level_id.toString() === filterLevel;
+      return matchesMode && matchesLevel;
+    });
+  };
+
+  const getCurrentModeConfig = () => {
+    return evaluationModes.find(mode => mode.value === configForm.evaluation_mode);
+  };
+
+  const getTotalPercentage = () => {
+    return configForm.ds1_percentage + configForm.ds2_percentage + configForm.composition_percentage;
+  };
+
+  const getValidationVariant = () => {
+    const total = getTotalPercentage();
+    if (total === 100) return 'success';
+    if (total > 100) return 'danger';
+    return 'warning';
+  };
+
+  if (loading) {
+    return <div>Chargement...</div>;
+  }
+
+  return (
+    <div className="container-fluid mt-4">
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h2>Configuration des Évaluations par Cycle</h2>
+        <Button 
+          variant="primary"
+          onClick={() => {
+            resetConfigForm();
+            setShowConfigModal(true);
+          }}
+          disabled={!selectedYear}
+        >
+          <Plus className="me-2" />
+          Nouvelle Configuration
+        </Button>
+      </div>
+
+      {/* Sélection Année + Filtres */}
+      <Card className="mb-4">
+        <Card.Body>
+          <Row>
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label>Année Scolaire</Form.Label>
+                <Form.Select 
+                  value={selectedYear} 
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                >
+                  <option value="">Sélectionner une année</option>
+                  {schoolYears.map(year => (
+                    <option key={year.id} value={year.id}>
+                      {year.name} {year.is_current ? '(Actuelle)' : ''}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label>Filtrer par Mode</Form.Label>
+                <Form.Select 
+                  value={filterMode} 
+                  onChange={(e) => setFilterMode(e.target.value)}
+                >
+                  <option value="all">Tous les modes</option>
+                  <option value="1ds_1comp">1 DS + 1 Composition</option>
+                  <option value="2ds_1comp">2 DS + 1 Composition</option>
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group>
+                <Form.Label>Filtrer par Niveau</Form.Label>
+                <Form.Select 
+                  value={filterLevel} 
+                  onChange={(e) => setFilterLevel(e.target.value)}
+                >
+                  <option value="all">Tous les niveaux</option>
+                  {levels.map(level => (
+                    <option key={level.id} value={level.id}>
+                      {level.name} - {level.section?.name}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+          </Row>
+        </Card.Body>
+      </Card>
+
+      {/* Configurations existantes */}
+      {selectedYear && (
+        <Card>
+          <Card.Header>
+            <h5 className="mb-0">Configurations des Évaluations</h5>
+          </Card.Header>
+          <Card.Body>
+            {getFilteredConfigurations().length === 0 ? (
+              <Alert variant="info">
+                <div className="d-flex align-items-center">
+                  <BookFill className="me-2" />
+                  {configurations.length === 0 
+                    ? "Aucune configuration trouvée. Créez une configuration pour définir les modes d'évaluation."
+                    : "Aucune configuration correspondant aux filtres sélectionnés."
+                  }
                 </div>
-                <div className="flex gap-2">
-                    <ImportExportButton
-                        title="Niveaux"
-                        apiBasePath="/api/levels"
-                        onImportSuccess={loadLevels}
-                        filters={{ section_id: filterSection !== 'all' ? filterSection : undefined }}
-                        templateFileName="template_niveaux.csv"
-                    />
-                    <Button
-                        onClick={() => {
-                            resetForm();
-                            setShowAddModal(true);
-                        }}
-                    >
-                        <Plus size={16} />
-                        Nouveau Niveau
-                    </Button>
-                </div>
-            </div>
-
-            {/* Alerts */}
-            {error && (
-                <Alert variant="error" className="mb-4" dismissible onDismiss={() => setError('')}>
-                    {error}
-                </Alert>
-            )}
-            {success && (
-                <Alert variant="success" className="mb-4" dismissible onDismiss={() => setSuccess('')}>
-                    {success}
-                </Alert>
-            )}
-
-            {/* Dashboard Stats */}
-            {dashboardStats && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <Card className="p-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600">Total Niveaux</p>
-                                <p className="text-2xl font-bold text-blue-600">
-                                    {dashboardStats.stats.total_levels}
-                                </p>
-                            </div>
-                            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                                <Book className="text-blue-600" size={24} />
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Card className="p-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600">Niveaux Actifs</p>
-                                <p className="text-2xl font-bold text-green-600">
-                                    {dashboardStats.stats.active_levels}
-                                </p>
-                            </div>
-                            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                                <ToggleOn className="text-green-600" size={24} />
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Card className="p-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600">Niveaux Inactifs</p>
-                                <p className="text-2xl font-bold text-red-600">
-                                    {dashboardStats.stats.inactive_levels}
-                                </p>
-                            </div>
-                            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                                <ToggleOff className="text-red-600" size={24} />
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Card className="p-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600">Avec Classes</p>
-                                <p className="text-2xl font-bold text-purple-600">
-                                    {dashboardStats.stats.levels_with_classes}
-                                </p>
-                            </div>
-                            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                                <Building className="text-purple-600" size={24} />
-                            </div>
-                        </div>
-                    </Card>
-                </div>
-            )}
-
-            {/* Filtres */}
-            <div className="row mb-4">
-                <div className="col-12">
-                    <div className="card">
-                        <div className="card-body">
-                            <div className="row g-3">
-                                <div className="col-md-3">
-                                    <label className="form-label">Rechercher</label>
-                                    <div className="position-relative">
-                                        <Search className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" size={16} />
-                                        <input
-                                            type="text"
-                                            className="form-control ps-5"
-                                            placeholder="Rechercher un niveau..."
-                                            value={searchTerm}
-                                            onChange={(e) => setSearchTerm(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="col-md-3">
-                                    <label className="form-label">Section</label>
-                                    <select
-                                        className="form-select"
-                                        value={filterSection}
-                                        onChange={(e) => setFilterSection(e.target.value)}
-                                    >
-                                        <option value="all">Toutes les sections</option>
-                                        {sections.map(section => (
-                                            <option key={section.id} value={section.id.toString()}>
-                                                {section.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="col-md-3">
-                                    <label className="form-label">Statut</label>
-                                    <select
-                                        className="form-select"
-                                        value={filterActive}
-                                        onChange={(e) => setFilterActive(e.target.value)}
-                                    >
-                                        <option value="all">Tous les niveaux</option>
-                                        <option value="active">Niveaux actifs</option>
-                                        <option value="inactive">Niveaux inactifs</option>
-                                    </select>
-                                </div>
-                                <div className="col-md-3 d-flex align-items-end">
-                                    <div className="btn-group me-3" role="group">
-                                        <button
-                                            type="button"
-                                            className={`btn ${viewMode === 'grid' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                                            onClick={() => setViewMode('grid')}
-                                            title="Vue grille"
-                                        >
-                                            <Grid size={16} />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className={`btn ${viewMode === 'list' ? 'btn-primary' : 'btn-outline-secondary'}`}
-                                            onClick={() => setViewMode('list')}
-                                            title="Vue liste"
-                                        >
-                                            <List size={16} />
-                                        </button>
-                                    </div>
-                                    <button
-                                        className="btn btn-outline-secondary"
-                                        onClick={() => {
-                                            setSearchTerm('');
-                                            setFilterActive('all');
-                                            setFilterSection('all');
-                                        }}
-                                    >
-                                        Réinitialiser
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Levels List/Grid */}
-            {filteredLevels.length === 0 ? (
-                <Card className="p-8 text-center">
-                    <p className="text-gray-500 mb-4">Aucun niveau trouvé</p>
-                    <Button
-                        onClick={() => {
-                            resetForm();
-                            setShowAddModal(true);
-                        }}
-                        className="flex items-center gap-2 mx-auto"
-                    >
-                        <Plus size={16} />
-                        Créer le premier niveau
-                    </Button>
-                </Card>
-            ) : viewMode === 'grid' ? (
-                // Vue en grille
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {filteredLevels.map((level) => (
-                        <Card key={level.id} className="p-4 hover:shadow-md transition-shadow duration-200">
-                            <div className="flex justify-between items-start mb-3">
-                                <h3 className="text-lg font-semibold text-gray-900">
-                                    {level.name}
-                                </h3>
-                                <div className="flex items-center gap-1">
-                                    <span className={`px-2 py-1 text-xs rounded-full ${
-                                        level.is_active 
-                                            ? 'bg-green-100 text-green-800' 
-                                            : 'bg-red-100 text-red-800'
-                                    }`}>
-                                        {level.is_active ? 'Actif' : 'Inactif'}
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <div className="mb-3">
-                                <p className="text-sm text-gray-600 mb-1">
-                                    Section: <span className="font-medium text-blue-600">
-                                        {level.section?.name}
-                                    </span>
-                                </p>
-                                {level.description && (
-                                    <p className="text-gray-600 text-sm">
-                                        {level.description}
-                                    </p>
-                                )}
-                            </div>
-                            
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs text-gray-500">
-                                    Ordre: {level.order}
-                                </span>
-                                
-                                <div className="flex gap-1">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleToggleStatus(level)}
-                                        title={level.is_active ? 'Désactiver' : 'Activer'}
-                                    >
-                                        {level.is_active ? <ToggleOn size={16} /> : <ToggleOff size={16} />}
-                                    </Button>
-                                    
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => openEditModal(level)}
-                                        title="Modifier"
-                                    >
-                                        <Pencil size={16} />
-                                    </Button>
-                                    
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => openDeleteModal(level)}
-                                        className="text-red-600 hover:text-red-700"
-                                        title="Supprimer"
-                                    >
-                                        <Trash size={16} />
-                                    </Button>
-                                </div>
-                            </div>
-                        </Card>
-                    ))}
-                </div>
+              </Alert>
             ) : (
-                // Vue en liste
-                <div className="space-y-4">
-                    {filteredLevels.map((level) => (
-                        <Card key={level.id} className="p-4 hover:shadow-md transition-shadow duration-200">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-4 flex-1">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-3 mb-1">
-                                            <h3 className="text-lg font-semibold text-gray-900">
-                                                {level.name}
-                                            </h3>
-                                            <span className={`px-2 py-1 text-xs rounded-full ${
-                                                level.is_active 
-                                                    ? 'bg-green-100 text-green-800' 
-                                                    : 'bg-red-100 text-red-800'
-                                            }`}>
-                                                {level.is_active ? 'Actif' : 'Inactif'}
-                                            </span>
-                                            <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
-                                                {level.section?.name}
-                                            </span>
-                                            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                                                Ordre: {level.order}
-                                            </span>
-                                        </div>
-                                        {level.description && (
-                                            <p className="text-gray-600 text-sm">
-                                                {level.description}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                                
-                                <div className="flex gap-1 ml-4">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleToggleStatus(level)}
-                                        title={level.is_active ? 'Désactiver' : 'Activer'}
-                                    >
-                                        {level.is_active ? <ToggleOn size={16} /> : <ToggleOff size={16} />}
-                                    </Button>
-                                    
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => openEditModal(level)}
-                                        title="Modifier"
-                                    >
-                                        <Pencil size={16} />
-                                    </Button>
-                                    
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => openDeleteModal(level)}
-                                        className="text-red-600 hover:text-red-700"
-                                        title="Supprimer"
-                                    >
-                                        <Trash size={16} />
-                                    </Button>
-                                </div>
+              <Row>
+                {getFilteredConfigurations().map(config => (
+                  <Col md={6} lg={4} key={config.id} className="mb-3">
+                    <Card className="h-100 border">
+                      <Card.Body>
+                        <div className="d-flex justify-content-between align-items-start mb-3">
+                          <div>
+                            <h6 className="card-title">
+                              {evaluationModes.find(m => m.value === config.evaluation_mode)?.label}
+                            </h6>
+                            <small className="text-muted">
+                              {config.level?.name} - {config.level?.section?.name}
+                            </small>
+                          </div>
+                          <span className={`badge ${config.is_active ? 'bg-success' : 'bg-secondary'}`}>
+                            {config.is_active ? 'Actif' : 'Inactif'}
+                          </span>
+                        </div>
+                        
+                        <div className="mb-3">
+                          <small className="text-muted d-block mb-2">Répartition des notes:</small>
+                          <div className="d-flex justify-content-between mb-1">
+                            <span>DS 1:</span>
+                            <span className="badge bg-primary">{config.ds1_percentage}%</span>
+                          </div>
+                          {config.ds2_percentage > 0 && (
+                            <div className="d-flex justify-content-between mb-1">
+                              <span>DS 2:</span>
+                              <span className="badge bg-primary">{config.ds2_percentage}%</span>
                             </div>
-                        </Card>
-                    ))}
-                </div>
+                          )}
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Composition:</span>
+                            <span className="badge bg-success">{config.composition_percentage}%</span>
+                          </div>
+                          <ProgressBar 
+                            variant="success"
+                            now={100}
+                            label="100%"
+                            size="sm"
+                          />
+                        </div>
+
+                        {config.description && (
+                          <p className="text-muted small mb-3">{config.description}</p>
+                        )}
+
+                        <div className="d-flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline-primary"
+                            onClick={() => handleEdit(config)}
+                          >
+                            Modifier
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant={config.is_active ? "outline-danger" : "outline-success"}
+                            onClick={() => handleToggleStatus(config)}
+                          >
+                            {config.is_active ? 'Désactiver' : 'Activer'}
+                          </Button>
+                        </div>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
             )}
+          </Card.Body>
+        </Card>
+      )}
 
-            {/* Add/Edit Modal */}
-            <Modal
-                isOpen={showAddModal || showEditModal}
-                onClose={() => {
-                    setShowAddModal(false);
-                    setShowEditModal(false);
-                    resetForm();
-                }}
-                title={selectedLevel ? 'Modifier le Niveau' : 'Nouveau Niveau'}
-            >
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <Input
-                        label="Nom du niveau"
-                        type="text"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        required
-                        placeholder="Ex: CP, CE1, 6ème..."
-                    />
+      {/* Modal Configuration */}
+      <Modal show={showConfigModal} onHide={() => {setShowConfigModal(false); resetConfigForm();}}>
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {editingConfig ? 'Modifier la Configuration' : 'Nouvelle Configuration d\'Évaluation'}
+          </Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleConfigSubmit}>
+          <Modal.Body>
+            <Form.Group className="mb-3">
+              <Form.Label>Cycle (Niveau)</Form.Label>
+              <Form.Select
+                value={configForm.level_id}
+                onChange={(e) => setConfigForm({...configForm, level_id: e.target.value})}
+                required
+              >
+                <option value="">Sélectionner un cycle</option>
+                {levels.map(level => (
+                  <option key={level.id} value={level.id}>
+                    {level.name} - {level.section?.name}
+                  </option>
+                ))}
+              </Form.Select>
+            </Form.Group>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Section *
-                        </label>
-                        <select
-                            value={formData.section_id}
-                            onChange={(e) => setFormData({ ...formData, section_id: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            required
-                        >
-                            <option value="">Sélectionner une section</option>
-                            {sections.filter(s => s.is_active).map(section => (
-                                <option key={section.id} value={section.id.toString()}>
-                                    {section.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+            <Form.Group className="mb-3">
+              <Form.Label>Mode d'évaluation</Form.Label>
+              <Form.Select
+                value={configForm.evaluation_mode}
+                onChange={(e) => handleModeChange(e.target.value)}
+              >
+                {evaluationModes.map(mode => (
+                  <option key={mode.value} value={mode.value}>
+                    {mode.label} - {mode.description}
+                  </option>
+                ))}
+              </Form.Select>
+            </Form.Group>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Description
-                        </label>
-                        <textarea
-                            value={formData.description}
-                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            placeholder="Description du niveau..."
-                            rows={3}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                    </div>
-
-                    <Input
-                        label="Ordre d'affichage"
+            <div className="mb-3">
+              <Form.Label>Répartition des pourcentages</Form.Label>
+              <div className="border rounded p-3 bg-light">
+                <Row>
+                  <Col md={configForm.evaluation_mode === '1ds_1comp' ? 6 : 4}>
+                    <Form.Group>
+                      <Form.Label>DS 1 (%)</Form.Label>
+                      <Form.Control
                         type="number"
-                        value={formData.order}
-                        onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) })}
                         min="0"
-                        placeholder="0"
-                    />
-
-                    <div className="flex items-center">
-                        <input
-                            type="checkbox"
-                            id="is_active"
-                            checked={formData.is_active}
-                            onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        max="100"
+                        step="0.1"
+                        value={configForm.ds1_percentage}
+                        onChange={(e) => setConfigForm({
+                          ...configForm, 
+                          ds1_percentage: parseFloat(e.target.value) || 0
+                        })}
+                      />
+                    </Form.Group>
+                  </Col>
+                  
+                  {configForm.evaluation_mode === '2ds_1comp' && (
+                    <Col md={4}>
+                      <Form.Group>
+                        <Form.Label>DS 2 (%)</Form.Label>
+                        <Form.Control
+                          type="number"
+                          min="0"
+                          max="100" 
+                          step="0.1"
+                          value={configForm.ds2_percentage}
+                          onChange={(e) => setConfigForm({
+                            ...configForm, 
+                            ds2_percentage: parseFloat(e.target.value) || 0
+                          })}
                         />
-                        <label htmlFor="is_active" className="ml-2 text-sm text-gray-700">
-                            Niveau actif
-                        </label>
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                                setShowAddModal(false);
-                                setShowEditModal(false);
-                                resetForm();
-                            }}
-                        >
-                            Annuler
-                        </Button>
-                        <Button type="submit">
-                            {selectedLevel ? 'Modifier' : 'Créer'}
-                        </Button>
-                    </div>
-                </form>
-            </Modal>
-
-            {/* Delete Modal */}
-            <Modal
-                isOpen={showDeleteModal}
-                onClose={() => {
-                    setShowDeleteModal(false);
-                    setSelectedLevel(null);
-                }}
-                title="Confirmer la suppression"
-            >
-                <div className="space-y-4">
-                    <p className="text-gray-700">
-                        Êtes-vous sûr de vouloir supprimer le niveau <strong>{selectedLevel?.name}</strong> ?
-                    </p>
-                    <p className="text-sm text-red-600">
-                        Cette action est irréversible et ne sera possible que si le niveau ne contient aucune classe.
-                    </p>
-                    
-                    <div className="flex justify-end gap-2 pt-4">
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                setShowDeleteModal(false);
-                                setSelectedLevel(null);
-                            }}
-                        >
-                            Annuler
-                        </Button>
-                        <Button
-                            variant="danger"
-                            onClick={handleDelete}
-                        >
-                            Supprimer
-                        </Button>
-                    </div>
+                      </Form.Group>
+                    </Col>
+                  )}
+                  
+                  <Col md={configForm.evaluation_mode === '1ds_1comp' ? 6 : 4}>
+                    <Form.Group>
+                      <Form.Label>Composition (%)</Form.Label>
+                      <Form.Control
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1" 
+                        value={configForm.composition_percentage}
+                        onChange={(e) => setConfigForm({
+                          ...configForm, 
+                          composition_percentage: parseFloat(e.target.value) || 0
+                        })}
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
+                
+                <div className="mt-3">
+                  <div className="d-flex justify-content-between align-items-center">
+                    <span>Total:</span>
+                    <span className={`badge ${getTotalPercentage() === 100 ? 'bg-success' : 'bg-danger'}`}>
+                      {getTotalPercentage()}%
+                    </span>
+                  </div>
+                  <ProgressBar 
+                    variant={getValidationVariant()}
+                    now={getTotalPercentage()}
+                    className="mt-2"
+                  />
+                  {getTotalPercentage() !== 100 && (
+                    <small className="text-danger">
+                      Le total doit être exactement 100%
+                    </small>
+                  )}
                 </div>
-            </Modal>
-        </div>
-    );
-};
+              </div>
+            </div>
 
-export default Levels;
+            <Form.Group className="mb-3">
+              <Form.Label>Description (optionnel)</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={3}
+                value={configForm.description}
+                onChange={(e) => setConfigForm({...configForm, description: e.target.value})}
+                placeholder="Description de cette configuration..."
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Check
+                type="checkbox"
+                label="Configuration active"
+                checked={configForm.is_active}
+                onChange={(e) => setConfigForm({...configForm, is_active: e.target.checked})}
+              />
+            </Form.Group>
+
+            {configForm.level_id && selectedYear && (
+              <Alert variant="info">
+                <strong>Configuration pour:</strong><br/>
+                Année: {schoolYears.find(y => y.id.toString() === selectedYear)?.name}<br/>
+                Cycle: {levels.find(l => l.id.toString() === configForm.level_id)?.name}
+              </Alert>
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => {setShowConfigModal(false); resetConfigForm();}}>
+              Annuler
+            </Button>
+            <Button 
+              variant="primary" 
+              type="submit"
+              disabled={getTotalPercentage() !== 100 || !configForm.level_id}
+            >
+              {editingConfig ? 'Mettre à jour' : 'Créer la Configuration'}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+    </div>
+  );
+}
+
+export default EvaluationConfiguration;

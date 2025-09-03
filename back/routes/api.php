@@ -40,6 +40,9 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\StaffAttendanceReportController;
 use App\Http\Controllers\DemandeExplicationController;
 use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\AcademicPeriodController;
+use App\Http\Controllers\EvaluationConfigController;
+use App\Http\Controllers\GradingScaleController;
 
 
 // Routes d'authentification
@@ -757,4 +760,42 @@ Route::middleware('auth:api')->group(function () {
             Route::get('/period/{id}/summary', [PayrollController::class, 'generatePeriodSummaryPDF']);
         });
     });
+
+    // Routes pour la gestion des périodes académiques (semestres/trimestres)
+    Route::prefix('academic-periods')->middleware(['role:admin'])->group(function () {
+        // Configuration du système
+        Route::get('/config', [AcademicPeriodController::class, 'getConfig']);
+        Route::post('/config', [AcademicPeriodController::class, 'updateConfig']);
+        
+        // Gestion des périodes
+        Route::get('/', [AcademicPeriodController::class, 'index']);
+        Route::post('/', [AcademicPeriodController::class, 'store']);
+        Route::get('/{academicPeriod}', [AcademicPeriodController::class, 'show']);
+        Route::put('/{academicPeriod}', [AcademicPeriodController::class, 'update']);
+        Route::delete('/{academicPeriod}', [AcademicPeriodController::class, 'destroy']);
+        
+        // Validation
+        Route::post('/validate-year', [AcademicPeriodController::class, 'validateYear']);
+    });
+});
+
+// Evaluation Configurations (Admin only) 
+Route::middleware(['auth:api', 'role:admin'])->prefix('evaluation-configs')->group(function () {
+    Route::get('/', [EvaluationConfigController::class, 'index']);
+    Route::post('/', [EvaluationConfigController::class, 'store']);
+    Route::get('/{evaluationConfig}', [EvaluationConfigController::class, 'show']);
+    Route::put('/{evaluationConfig}', [EvaluationConfigController::class, 'update']);
+    Route::delete('/{evaluationConfig}', [EvaluationConfigController::class, 'destroy']);
+    Route::patch('/{evaluationConfig}/toggle-status', [EvaluationConfigController::class, 'toggleStatus']);
+});
+
+// Grading Scales (Admin only)
+Route::middleware(['auth:api', 'role:admin'])->prefix('grading-scales')->group(function () {
+    Route::get('/', [GradingScaleController::class, 'index']);
+    Route::post('/', [GradingScaleController::class, 'store']);
+    Route::get('/{gradingScale}', [GradingScaleController::class, 'show']);
+    Route::put('/{gradingScale}', [GradingScaleController::class, 'update']);
+    Route::delete('/{gradingScale}', [GradingScaleController::class, 'destroy']);
+    Route::post('/create-default', [GradingScaleController::class, 'createDefaultScale']);
+    Route::post('/get-grade-for-score', [GradingScaleController::class, 'getGradeForScore']);
 });

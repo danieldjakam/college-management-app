@@ -153,6 +153,9 @@ const secureApi = new SecureApiService();
  * Remplace progressivement les anciens endpoints
  */
 export const secureApiEndpoints = {
+    // === GENERIC REQUEST ===
+    request: (endpoint, options = {}) => secureApi.makeRequest(endpoint, options),
+
     // === AUTHENTICATION ===
     auth: {
         login: (credentials) => authService.login(credentials),
@@ -1191,6 +1194,47 @@ export const secureApiEndpoints = {
                 method: 'GET'
             });
         }
+    },
+
+    // === ACADEMIC PERIODS ===
+    academicPeriods: {
+        getConfig: () => secureApi.get('/academic-periods/config'),
+        updateConfig: (data) => secureApi.post('/academic-periods/config', data),
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/academic-periods${queryString ? '?' + queryString : ''}`);
+        },
+        create: (data) => secureApi.post('/academic-periods', data),
+        update: (id, data) => secureApi.put(`/academic-periods/${id}`, data),
+        delete: (id) => secureApi.delete(`/academic-periods/${id}`),
+        validateYear: (data) => secureApi.post('/academic-periods/validate-year', data)
+    },
+
+    // === EVALUATION CONFIGURATIONS ===
+    evaluationConfigs: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/evaluation-configs${queryString ? '?' + queryString : ''}`);
+        },
+        create: (data) => secureApi.post('/evaluation-configs', data),
+        update: (id, data) => secureApi.put(`/evaluation-configs/${id}`, data),
+        delete: (id) => secureApi.delete(`/evaluation-configs/${id}`),
+        toggleStatus: (id) => secureApi.patch(`/evaluation-configs/${id}/toggle-status`),
+        show: (id) => secureApi.get(`/evaluation-configs/${id}`)
+    },
+
+    // === GRADING SCALES ===
+    gradingScales: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/grading-scales${queryString ? '?' + queryString : ''}`);
+        },
+        create: (data) => secureApi.post('/grading-scales', data),
+        update: (id, data) => secureApi.put(`/grading-scales/${id}`, data),
+        delete: (id) => secureApi.delete(`/grading-scales/${id}`),
+        show: (id) => secureApi.get(`/grading-scales/${id}`),
+        createDefault: (data) => secureApi.post('/grading-scales/create-default', data),
+        getGradeForScore: (data) => secureApi.post('/grading-scales/get-grade-for-score', data)
     },
 
     // === INVENTORY ===
