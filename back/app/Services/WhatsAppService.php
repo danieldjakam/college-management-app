@@ -499,7 +499,7 @@ class WhatsAppService
             $receiptHtml = $receiptData['html'];
             
             // Utiliser wkhtmltoimage ou une alternative pour convertir HTML en image
-            return $this->generateReceiptImage($receiptHtml, $payment->id);
+            return $this->createReceiptImageFile($receiptHtml, $payment->id);
             
         } catch (\Exception $e) {
             Log::error('Erreur lors de la génération de l\'image du reçu', [
@@ -511,9 +511,9 @@ class WhatsAppService
     }
 
     /**
-     * Générer une image de reçu à partir du HTML
+     * Créer le fichier image du reçu à partir du HTML
      */
-    protected function generateReceiptImage($html, $paymentId)
+    protected function createReceiptImageFile($html, $paymentId)
     {
         try {
             // Créer un nom de fichier unique
