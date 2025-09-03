@@ -147,7 +147,7 @@ function EvaluationConfiguration() {
         ? await secureApiEndpoints.evaluationConfigs.update(editingConfig.id, {
             ...configForm,
             school_year_id: selectedYear,
-            level_id: selectedLevel
+            level_id: configForm.level_id
           })
         : await secureApiEndpoints.evaluationConfigs.create({
             ...configForm,
