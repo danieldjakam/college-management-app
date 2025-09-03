@@ -618,53 +618,76 @@ class WhatsAppService
      */
     protected function createFallbackImage($html, $imagePath)
     {
-        // Cette méthode crée une image basique avec GD
-        // Pour une version plus avancée, utilisez Browsershot ou wkhtmltoimage
+        // Extraire les informations du HTML pour créer une image complète
+        // Récupérer les données de paiement depuis le HTML
+        preg_match('/Reçu N° ([^<]+)/', $html, $receiptMatches);
+        preg_match('/Élève:<\/span>\s*<span[^>]*>([^<]+)/', $html, $studentMatches);
+        preg_match('/Classe:<\/span>\s*<span[^>]*>([^<]+)/', $html, $classMatches);
+        preg_match('/TOTAL PAYÉ: ([^<]+)/', $html, $totalMatches);
+        
+        $receiptNumber = $receiptMatches[1] ?? 'N/A';
+        $studentName = $studentMatches[1] ?? 'N/A';
+        $className = $classMatches[1] ?? 'N/A';
+        $totalAmount = $totalMatches[1] ?? 'N/A';
         
         $width = 600;
         $height = 800;
         
         // Créer l'image
-        $image = imagecreate($width, $height);
+        $image = imagecreatetruecolor($width, $height);
         
         // Définir les couleurs
         $white = imagecolorallocate($image, 255, 255, 255);
         $black = imagecolorallocate($image, 0, 0, 0);
-        $blue = imagecolorallocate($image, 0, 102, 204);
-        $gray = imagecolorallocate($image, 128, 128, 128);
+        $green = imagecolorallocate($image, 46, 139, 87); // Couleur verte du design
+        $lightGray = imagecolorallocate($image, 240, 240, 240);
+        $darkGray = imagecolorallocate($image, 100, 100, 100);
         
         // Remplir le fond
         imagefill($image, 0, 0, $white);
         
-        // Extraire les informations de base du HTML pour l'image simple
-        // En cas de fallback, on crée une image minimaliste
+        // En-tête coloré
+        imagefilledrectangle($image, 0, 0, $width, 120, $green);
         
-        $width = 600;
-        $height = 800;
-        
-        // Créer l'image
-        $image = imagecreate($width, $height);
-        
-        // Définir les couleurs
-        $white = imagecolorallocate($image, 255, 255, 255);
-        $black = imagecolorallocate($image, 0, 0, 0);
-        $blue = imagecolorallocate($image, 46, 139, 87); // Couleur verte du design
-        $gray = imagecolorallocate($image, 128, 128, 128);
-        
-        // Remplir le fond
-        imagefill($image, 0, 0, $white);
-        
-        // Ajouter du texte basique
-        $y = 50;
-        imagestring($image, 5, 120, $y, 'RECU DE PAIEMENT', $blue);
-        $y += 60;
-        
-        imagestring($image, 4, 50, $y, 'COLLEGE POLYVALENT BILINGUE DOUALA', $black);
+        // Titre
+        $y = 30;
+        imagestring($image, 5, 180, $y, 'RECU DE PAIEMENT', $white);
         $y += 40;
+        imagestring($image, 3, 120, $y, 'COLLEGE POLYVALENT BILINGUE DOUALA', $white);
+        $y += 25;
+        imagestring($image, 2, 220, $y, 'Annee academique 2025-2026', $white);
         
-        imagestring($image, 3, 50, $y, 'Design HTML non disponible', $gray);
+        // Corps du reçu
+        $y = 150;
+        
+        // Rectangle pour les infos
+        imagefilledrectangle($image, 30, $y, $width-30, $y+50, $lightGray);
+        $y += 15;
+        imagestring($image, 4, 50, $y, "Recu N: " . $receiptNumber, $black);
+        $y += 20;
+        imagestring($image, 3, 50, $y, date('d/m/Y H:i'), $darkGray);
+        
+        $y += 60;
+        imagestring($image, 4, 50, $y, "Eleve: " . $studentName, $black);
         $y += 30;
-        imagestring($image, 3, 50, $y, 'Version simplifiee generee', $gray);
+        imagestring($image, 3, 50, $y, "Classe: " . $className, $black);
+        
+        $y += 60;
+        // Rectangle pour le montant
+        imagefilledrectangle($image, 30, $y, $width-30, $y+40, $green);
+        $y += 15;
+        imagestring($image, 4, 50, $y, "TOTAL PAYE: " . $totalAmount, $white);
+        
+        $y += 80;
+        imagestring($image, 2, 50, $y, "Paiement confirme et valide", $darkGray);
+        $y += 20;
+        imagestring($image, 2, 50, $y, "Conservez ce recu precieusement", $darkGray);
+        
+        // Pied de page
+        $y = $height - 60;
+        imagestring($image, 2, 50, $y, "Tel: 233 43 25 47 | Email: contact@cpb-douala.com", $darkGray);
+        $y += 20;
+        imagestring($image, 1, 180, $y, "Recu envoye automatiquement par WhatsApp", $darkGray);
         
         // Sauvegarder l'image
         imagepng($image, $imagePath);
