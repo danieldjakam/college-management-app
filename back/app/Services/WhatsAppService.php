@@ -499,7 +499,7 @@ class WhatsAppService
             $receiptHtml = $receiptData['html'];
             
             // Utiliser wkhtmltoimage ou une alternative pour convertir HTML en image
-            return $this->convertHtmlToImage($receiptHtml, $payment->id);
+            return $this->generateReceiptImage($receiptHtml, $payment->id);
             
         } catch (\Exception $e) {
             Log::error('Erreur lors de la génération de l\'image du reçu', [
@@ -511,9 +511,9 @@ class WhatsAppService
     }
 
     /**
-     * Convertir HTML en image
+     * Générer une image de reçu à partir du HTML
      */
-    protected function convertHtmlToImage($html, $paymentId)
+    protected function generateReceiptImage($html, $paymentId)
     {
         try {
             // Créer un nom de fichier unique
@@ -526,10 +526,7 @@ class WhatsAppService
                 mkdir($receiptDir, 0755, true);
             }
             
-            // Méthode simple avec HTML to Image via navigateur headless (nécessite Chrome/Chromium)
-            // Alternative : utiliser une bibliothèque comme Browsershot ou wkhtmltoimage
-            
-            // Pour une implémentation rapide, créons une image simple avec du texte
+            // Utiliser la méthode de conversion HTML vers image
             $this->convertHtmlToImage($html, $imagePath);
             
             // Retourner l'URL publique
