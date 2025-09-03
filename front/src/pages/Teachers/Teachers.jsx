@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Button, Modal, Form, Alert, Badge, ButtonGroup, Tabs, Tab, Card, Table, Spinner } from 'react-bootstrap';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Button, Modal, Form, Badge, ButtonGroup, Tabs, Tab, Card, Table, Spinner } from 'react-bootstrap';
 import { LoadingSpinner } from '../../components/UI';
 import ImportExportButton from '../../components/ImportExportButton';
-import { PlusCircle, PencilFill, Trash2, Eye, EyeSlashFill, Search, PersonFill, TelephoneFill, EnvelopeFill, PersonPlus, PersonDash } from 'react-bootstrap-icons';
+import { PlusCircle, PencilFill, Trash2, Eye, EyeSlashFill, Search, PersonFill, TelephoneFill, EnvelopeFill, PersonPlus, PersonDash, PrinterFill } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import Swal from 'sweetalert2';
-import { PrinterFill, FileEarmarkPdf } from 'react-bootstrap-icons';
 
 const Teachers = () => {
     const [loading, setLoading] = useState(false);
@@ -47,9 +46,32 @@ const Teachers = () => {
         loadTeachers();
     }, []);
 
+    const filterTeachers = useCallback(() => {
+        let filtered = teachers;
+
+        // Filtrer par terme de recherche
+        if (searchTerm) {
+            filtered = filtered.filter(teacher => {
+                const fullName = `${teacher.first_name} ${teacher.last_name}`.toLowerCase();
+                return fullName.includes(searchTerm.toLowerCase()) ||
+                       teacher.phone_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       teacher.email?.toLowerCase().includes(searchTerm.toLowerCase());
+            });
+        }
+
+        // Filtrer par statut
+        if (statusFilter === 'active') {
+            filtered = filtered.filter(teacher => teacher.is_active);
+        } else if (statusFilter === 'inactive') {
+            filtered = filtered.filter(teacher => !teacher.is_active);
+        }
+
+        setFilteredTeachers(filtered);
+    }, [teachers, searchTerm, statusFilter]);
+
     useEffect(() => {
         filterTeachers();
-    }, [teachers, searchTerm, statusFilter]);
+    }, [filterTeachers]);
 
     const loadTeachers = async () => {
         try {
@@ -67,28 +89,6 @@ const Teachers = () => {
         } finally {
             setLoading(false);
         }
-    };
-
-    const filterTeachers = () => {
-        let filtered = teachers;
-
-        // Filtrer par terme de recherche
-        if (searchTerm) {
-            filtered = filtered.filter(teacher =>
-                teacher.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                teacher.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                teacher.phone_number.includes(searchTerm) ||
-                (teacher.email && teacher.email.toLowerCase().includes(searchTerm.toLowerCase()))
-            );
-        }
-
-        // Filtrer par statut
-        if (statusFilter !== 'all') {
-            const isActive = statusFilter === 'active';
-            filtered = filtered.filter(teacher => teacher.is_active === isActive);
-        }
-
-        setFilteredTeachers(filtered);
     };
 
     const handleShowModal = (teacher = null) => {

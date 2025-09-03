@@ -972,6 +972,127 @@ class WhatsAppService
     }
 
     /**
+     * Envoyer une notification d'affectation de matière à un enseignant
+     */
+    public function sendTeacherAssignmentNotification($teacherAssignment)
+    {
+        if (!$this->isWhatsAppConfigured()) {
+            return false;
+        }
+
+        $teacher = $teacherAssignment->teacher;
+        
+        // Vérifier que l'enseignant a un numéro de téléphone
+        if (!$teacher || !$teacher->phone_number) {
+            Log::info('Enseignant sans numéro de téléphone pour notification WhatsApp', [
+                'assignment_id' => $teacherAssignment->id,
+                'teacher_id' => $teacher ? $teacher->id : null
+            ]);
+            return false;
+        }
+
+        $message = $this->formatTeacherAssignmentMessage($teacherAssignment);
+        
+        $result = $this->sendMessage($teacher->phone_number, $message);
+        
+        if ($result) {
+            Log::info('Notification d\'affectation enseignant envoyée avec succès', [
+                'assignment_id' => $teacherAssignment->id,
+                'teacher_id' => $teacher->id,
+                'phone' => $teacher->phone_number
+            ]);
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Envoyer une notification de nomination comme professeur principal
+     */
+    public function sendMainTeacherNotification($mainTeacher)
+    {
+        if (!$this->isWhatsAppConfigured()) {
+            return false;
+        }
+
+        $teacher = $mainTeacher->teacher;
+        
+        // Vérifier que l'enseignant a un numéro de téléphone
+        if (!$teacher || !$teacher->phone_number) {
+            Log::info('Enseignant sans numéro de téléphone pour notification professeur principal WhatsApp', [
+                'main_teacher_id' => $mainTeacher->id,
+                'teacher_id' => $teacher ? $teacher->id : null
+            ]);
+            return false;
+        }
+
+        $message = $this->formatMainTeacherMessage($mainTeacher);
+        
+        $result = $this->sendMessage($teacher->phone_number, $message);
+        
+        if ($result) {
+            Log::info('Notification professeur principal envoyée avec succès', [
+                'main_teacher_id' => $mainTeacher->id,
+                'teacher_id' => $teacher->id,
+                'phone' => $teacher->phone_number
+            ]);
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Formater le message de notification d'affectation enseignant
+     */
+    protected function formatTeacherAssignmentMessage($teacherAssignment)
+    {
+        $schoolName = SchoolSetting::getSettings()->school_name ?? 'COLLEGE POLYVALENT BILINGUE DE DOUALA';
+        $teacher = $teacherAssignment->teacher;
+        $seriesSubject = $teacherAssignment->seriesSubject;
+        $subject = $seriesSubject->subject;
+        $class = $seriesSubject->schoolClass;
+        $schoolYear = $teacherAssignment->schoolYear;
+        
+        return "🎓 *NOUVELLE AFFECTATION - {$schoolName}*\n\n" .
+               "👨‍🏫 *Cher(e) {$teacher->first_name} {$teacher->last_name},*\n\n" .
+               "Vous avez été affecté(e) à une nouvelle matière :\n\n" .
+               "📚 *Matière :* {$subject->name}\n" .
+               "🏫 *Classe :* {$class->name}\n" .
+               "📊 *Niveau :* " . ($class->level->name ?? 'N/A') . "\n" .
+               "📅 *Année scolaire :* " . ($schoolYear->name ?? 'Actuelle') . "\n\n" .
+               "✅ Votre affectation est maintenant active.\n" .
+               "📖 Vous pouvez consulter la liste des élèves sur votre tableau de bord enseignant.\n\n" .
+               "📞 Pour toute question, contactez l'administration.\n\n" .
+               "📱 Notification automatique du système de gestion scolaire.";
+    }
+
+    /**
+     * Formater le message de notification professeur principal
+     */
+    protected function formatMainTeacherMessage($mainTeacher)
+    {
+        $schoolName = SchoolSetting::getSettings()->school_name ?? 'COLLEGE POLYVALENT BILINGUE DE DOUALA';
+        $teacher = $mainTeacher->teacher;
+        $class = $mainTeacher->schoolClass;
+        $schoolYear = $mainTeacher->schoolYear;
+        
+        return "👑 *NOMINATION PROFESSEUR PRINCIPAL - {$schoolName}*\n\n" .
+               "👨‍🏫 *Félicitations {$teacher->first_name} {$teacher->last_name} !*\n\n" .
+               "Vous avez été nommé(e) professeur principal de :\n\n" .
+               "🏫 *Classe :* {$class->name}\n" .
+               "📊 *Niveau :* " . ($class->level->name ?? 'N/A') . "\n" .
+               "📅 *Année scolaire :* " . ($schoolYear->name ?? 'Actuelle') . "\n\n" .
+               "🎯 *Vos responsabilités incluent :*\n" .
+               "• Suivi pédagogique des élèves\n" .
+               "• Communication avec les parents\n" .
+               "• Coordination avec l'équipe pédagogique\n" .
+               "• Participation aux conseils de classe\n\n" .
+               "📖 Accédez à votre tableau de bord pour voir tous les détails.\n\n" .
+               "🏆 Bonne réussite dans vos nouvelles fonctions !\n\n" .
+               "📱 Notification automatique du système de gestion scolaire.";
+    }
+
+    /**
      * Récupérer la dernière erreur WhatsApp des logs
      */
     private function getRecentWhatsAppError()

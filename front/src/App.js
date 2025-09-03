@@ -65,6 +65,12 @@ import Teachers from "./pages/Teachers/Teachers";
 import TeacherAssignments from "./pages/Teachers/TeacherAssignments";
 import TeacherAssignmentManagement from "./pages/Teachers/TeacherAssignmentManagement";
 
+// Teacher Dashboard
+import TeacherDashboard from "./pages/Teacher/TeacherDashboard";
+import TeacherClassStudents from "./pages/Teacher/TeacherClassStudents";
+import Sequences from "./pages/Teacher/Sequences";
+import Trimesters from "./pages/Teacher/Trimesters";
+
 // Departments
 import DepartmentManagement from "./pages/Departments/DepartmentManagement";
 
@@ -687,6 +693,43 @@ const AppContent = () => {
                   <AccountantRoute>
                     <CreateDocumentaryFee />
                   </AccountantRoute>
+                }
+              />
+
+              {/* Routes Enseignants */}
+              <Route
+                path="/teacher/dashboard"
+                element={
+                  <TeacherRoute>
+                    <TeacherDashboard />
+                  </TeacherRoute>
+                }
+              />
+              
+              <Route
+                path="/teacher/class/:classId/students"
+                element={
+                  <TeacherRoute>
+                    <TeacherClassStudents />
+                  </TeacherRoute>
+                }
+              />
+              
+              <Route
+                path="/sequences"
+                element={
+                  <TeacherRoute>
+                    <Sequences />
+                  </TeacherRoute>
+                }
+              />
+              
+              <Route
+                path="/trimesters"
+                element={
+                  <TeacherRoute>
+                    <Trimesters />
+                  </TeacherRoute>
                 }
               />
 

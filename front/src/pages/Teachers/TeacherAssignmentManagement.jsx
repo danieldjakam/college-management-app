@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Form, Alert, Badge, Card, Table, Row, Col, Tabs, Tab } from 'react-bootstrap';
-import { PlusCircle, PersonFill, JournalBookmarkFill, HouseHeartFill, Trash2, Calendar } from 'react-bootstrap-icons';
+import { PlusCircle, PersonFill, JournalBookmarkFill, Trash2, Calendar } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import Swal from 'sweetalert2';
 
@@ -29,6 +29,32 @@ const TeacherAssignmentManagement = () => {
         loadInitialData();
     }, []);
 
+    const loadYearData = async () => {
+        try {
+            const yearId = selectedSchoolYear === 'current' ? null : selectedSchoolYear;
+            
+            // Construire les paramètres sans school_year_id si yearId est null
+            const assignmentParams = { active: true };
+            const mainTeacherParams = { active: true };
+            
+            if (yearId !== null) {
+                assignmentParams.school_year_id = yearId;
+                mainTeacherParams.school_year_id = yearId;
+            }
+            
+            const [assignmentsRes, mainTeachersRes] = await Promise.all([
+                secureApiEndpoints.teacherAssignments.getAll(assignmentParams),
+                secureApiEndpoints.mainTeachers.getAll(mainTeacherParams)
+            ]);
+
+            if (assignmentsRes.success) setAssignments(assignmentsRes.data);
+            if (mainTeachersRes.success) setMainTeachers(mainTeachersRes.data);
+
+        } catch (error) {
+            console.error('Erreur lors du chargement des données de l\'année:', error);
+        }
+    };
+
     useEffect(() => {
         if (selectedSchoolYear) {
             loadYearData();
@@ -53,32 +79,6 @@ const TeacherAssignmentManagement = () => {
             Swal.fire('Erreur', 'Impossible de charger les données', 'error');
         } finally {
             setLoading(false);
-        }
-    };
-
-    const loadYearData = async () => {
-        try {
-            const yearId = selectedSchoolYear === 'current' ? null : selectedSchoolYear;
-            
-            // Construire les paramètres sans school_year_id si yearId est null
-            const assignmentParams = { active: true };
-            const mainTeacherParams = { active: true };
-            
-            if (yearId !== null) {
-                assignmentParams.school_year_id = yearId;
-                mainTeacherParams.school_year_id = yearId;
-            }
-            
-            const [assignmentsRes, mainTeachersRes] = await Promise.all([
-                secureApiEndpoints.teacherAssignments.getAll(assignmentParams),
-                secureApiEndpoints.mainTeachers.getAll(mainTeacherParams)
-            ]);
-
-            if (assignmentsRes.success) setAssignments(assignmentsRes.data);
-            if (mainTeachersRes.success) setMainTeachers(mainTeachersRes.data);
-
-        } catch (error) {
-            console.error('Erreur lors du chargement des données de l\'année:', error);
         }
     };
 

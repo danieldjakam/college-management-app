@@ -79,18 +79,43 @@ class AuthController extends Controller
 
     public function me()
     {
-        return response()->json(auth()->user());
+        $user = auth()->user();
+        
+        // Si l'utilisateur est un enseignant, ajouter son teacher_id
+        if ($user->role === 'teacher') {
+            $teacher = \App\Models\Teacher::where('user_id', $user->id)->first();
+            if ($teacher) {
+                $userData = $user->toArray();
+                $userData['teacher_id'] = $teacher->id;
+                $userData['teacher'] = $teacher;
+                return response()->json($userData);
+            }
+        }
+        
+        return response()->json($user);
     }
 
     protected function respondWithToken($token)
     {
+        $user = auth()->user();
+        $userData = $user->toArray();
+        
+        // Si l'utilisateur est un enseignant, ajouter son teacher_id
+        if ($user->role === 'teacher') {
+            $teacher = \App\Models\Teacher::where('user_id', $user->id)->first();
+            if ($teacher) {
+                $userData['teacher_id'] = $teacher->id;
+                $userData['teacher'] = $teacher;
+            }
+        }
+        
         return response()->json([
             'success' => true,
             'message' => 'Connexion réussie',
             'access_token' => $token,
             'token_type' => 'bearer',
             'expires_in' => auth()->factory()->getTTL() * 60,
-            'user' => auth()->user()
+            'user' => $userData
         ]);
     }
 }

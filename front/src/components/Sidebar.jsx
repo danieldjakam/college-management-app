@@ -402,18 +402,33 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
       ];
-    } else {
+    } else if (userRole === "teacher") {
       return [
+        {
+          title: "Mon Espace Enseignant",
+          items: [
+            {
+              name: "Mon Dashboard",
+              href: "/teacher/dashboard",
+              icon: <HouseHeartFill />,
+            },
+          ],
+        },
         {
           title: "Enseignement",
           items: [
             {
-              name: "Élèves",
-              href: "/students/" + (user.class_id || "1"),
+              name: "Mes Classes",
+              href: "/teacher/dashboard",
               icon: <PeopleFill />,
             },
-            { name: "Séquences", href: "/seqs", icon: <List /> },
-            { name: "Trimestres", href: "/trims", icon: <BookFill /> },
+          ],
+        },
+        {
+          title: "Examens",
+          items: [
+            { name: "Séquences", href: "/sequences", icon: <List /> },
+            { name: "Trimestres", href: "/trimesters", icon: <BookFill /> },
           ],
         },
         {

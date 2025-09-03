@@ -7,6 +7,7 @@ use App\Models\Teacher;
 use App\Models\SeriesSubject;
 use App\Models\MainTeacher;
 use App\Models\SchoolYear;
+use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -104,11 +105,15 @@ class TeacherAssignmentController extends Controller
                 ->with(['schoolClass.level'])
                 ->get();
 
+            // Récupérer les informations de l'année scolaire
+            $schoolYear = \App\Models\SchoolYear::find($schoolYearId);
+            
             return response()->json([
                 'success' => true,
                 'data' => [
                     'assignments' => $assignments,
-                    'main_teacher_classes' => $mainTeacherClasses
+                    'main_teacher_classes' => $mainTeacherClasses,
+                    'school_year' => $schoolYear
                 ]
             ]);
         } catch (\Exception $e) {
@@ -176,6 +181,19 @@ class TeacherAssignmentController extends Controller
                 'seriesSubject.schoolClass.level',
                 'schoolYear'
             ]);
+
+            // Envoyer notification WhatsApp à l'enseignant
+            try {
+                $whatsAppService = app(WhatsAppService::class);
+                $whatsAppService->sendTeacherAssignmentNotification($assignment);
+            } catch (\Exception $e) {
+                // Log l'erreur mais ne pas faire échouer l'affectation
+                \Log::error('Erreur envoi notification WhatsApp affectation enseignant', [
+                    'assignment_id' => $assignment->id,
+                    'teacher_id' => $assignment->teacher_id,
+                    'error' => $e->getMessage()
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
@@ -290,7 +308,8 @@ class TeacherAssignmentController extends Controller
 
             DB::commit();
 
-            // Charger les relations
+            // Charger les relations et envoyer notifications
+            $whatsAppService = app(WhatsAppService::class);
             foreach ($assignments as $assignment) {
                 $assignment->load([
                     'teacher',
@@ -298,6 +317,18 @@ class TeacherAssignmentController extends Controller
                     'seriesSubject.schoolClass.level',
                     'schoolYear'
                 ]);
+                
+                // Envoyer notification WhatsApp à l'enseignant
+                try {
+                    $whatsAppService->sendTeacherAssignmentNotification($assignment);
+                } catch (\Exception $e) {
+                    // Log l'erreur mais continuer avec les autres notifications
+                    \Log::error('Erreur envoi notification WhatsApp affectation en lot', [
+                        'assignment_id' => $assignment->id,
+                        'teacher_id' => $assignment->teacher_id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
             }
 
             return response()->json([

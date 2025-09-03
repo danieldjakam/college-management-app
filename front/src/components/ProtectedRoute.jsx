@@ -210,7 +210,7 @@ export const RoleBasedRedirect = ({ children }) => {
   if (location.pathname === "/" && user?.role) {
     const defaultPaths = {
       admin: "/sections",
-      teacher: "/students",
+      teacher: "/teacher/dashboard",
       accountant: "/class-comp",
       comptable_superieur: "/class-comp",
       surveillant_general: "/attendance",

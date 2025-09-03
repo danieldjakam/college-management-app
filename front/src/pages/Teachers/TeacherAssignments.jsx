@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Modal, Form, Alert, Badge, Card, Table, Row, Col, Tabs, Tab } from 'react-bootstrap';
-import { PlusCircle, PencilFill, Trash2, PersonFill, JournalBookmarkFill, HouseHeartFill } from 'react-bootstrap-icons';
+import { Button, Modal, Form, Badge, Card, Table, Row, Col, Tabs, Tab } from 'react-bootstrap';
+import { PlusCircle, Trash2, PersonFill, JournalBookmarkFill, HouseHeartFill } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import Swal from 'sweetalert2';
 
@@ -9,7 +9,6 @@ const TeacherAssignments = () => {
     const [teachers, setTeachers] = useState([]);
     const [subjects, setSubjects] = useState([]);
     const [schoolClasses, setSchoolClasses] = useState([]);
-    const [assignments, setAssignments] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [selectedTeacher, setSelectedTeacher] = useState(null);
     const [assignmentData, setAssignmentData] = useState({

@@ -1,0 +1,379 @@
+
+> systemegestionecole@0.1.0 build
+> react-scripts build
+
+Creating an optimized production build...
+Compiled with warnings.
+
+[eslint] 
+src/App.js
+  Line 15:3:    'TeacherRoute' is defined but never used           no-unused-vars
+  Line 92:8:    'InventoryModule' is defined but never used        no-unused-vars
+  Line 93:8:    'InventoryModuleSimple' is defined but never used  no-unused-vars
+  Line 94:8:    'InventoryModuleStable' is defined but never used  no-unused-vars
+  Line 95:8:    'InventoryDebug' is defined but never used         no-unused-vars
+  Line 96:8:    'InventorySimplest' is defined but never used      no-unused-vars
+  Line 124:28:  'user' is assigned a value but never used          no-unused-vars
+
+src/components/AuthProvider.jsx
+  Line 10:13:  'autoAuthCompleted' is assigned a value but never used  no-unused-vars
+
+src/components/BulkPhotoUpload.jsx
+  Line 2:32:  'ProgressBar' is defined but never used  no-unused-vars
+  Line 3:26:  'X' is defined but never used            no-unused-vars
+
+src/components/ImportExportButton.jsx
+  Line 2:10:   'Button' is defined but never used              no-unused-vars
+  Line 17:12:  'modalMode' is assigned a value but never used  no-unused-vars
+
+src/components/ImportExportModal.jsx
+  Line 4:10:  'api' is defined but never used  no-unused-vars
+
+src/components/PhotoCapture.jsx
+  Line 3:26:  'X' is defined but never used                     no-unused-vars
+  Line 9:12:  'isStreaming' is assigned a value but never used  no-unused-vars
+
+src/components/RameStatusToggle.jsx
+  Line 2:16:  'Button' is defined but never used                                                                                 no-unused-vars
+  Line 22:8:  React Hook useEffect has a missing dependency: 'loadRameStatus'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/components/Sidebar.jsx
+  Line 11:5:  'QrCode' is defined but never used  no-unused-vars
+
+src/components/StudentCard.jsx
+  Line 4:8:     'cameroonFlag' is defined but never used          no-unused-vars
+  Line 129:11:  'footerStyle' is assigned a value but never used  no-unused-vars
+
+src/components/StudentTransfer.jsx
+  Line 22:8:  React Hook useEffect has a missing dependency: 'loadAvailableClasses'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/components/TopBar.jsx
+  Line 22:29:  'canAccess' is assigned a value but never used  no-unused-vars
+
+src/contexts/AuthContext.js
+  Line 173:11:  The 'logout' function makes the dependencies of useEffect Hook (at line 326) change on every render. To fix this, wrap the definition of 'logout' in its own useCallback() Hook  react-hooks/exhaustive-deps
+  Line 307:8:   React Hook useEffect has missing dependencies: 'setupTokenRefresh' and 'state.refreshTokenTimeout'. Either include them or remove the dependency array                           react-hooks/exhaustive-deps
+
+src/contexts/ThemeContext.js
+  Line 75:24:  Unexpected mix of '>>' and '&'. Use parentheses to clarify the intended order of operations  no-mixed-operators
+  Line 75:29:  Unexpected mix of '>>' and '&'. Use parentheses to clarify the intended order of operations  no-mixed-operators
+  Line 88:24:  Unexpected mix of '>>' and '&'. Use parentheses to clarify the intended order of operations  no-mixed-operators
+  Line 88:29:  Unexpected mix of '>>' and '&'. Use parentheses to clarify the intended order of operations  no-mixed-operators
+
+src/hooks/useAuth.js
+  Line 215:37:  React Hook useEffect has a spread element in its dependency array. This means we can't statically verify whether you've passed the correct dependencies  react-hooks/exhaustive-deps
+
+src/pages/Attendance/AttendanceReports.jsx
+  Line 82:6:   React Hook useEffect has a missing dependency: 'loadSupervisorClasses'. Either include it or remove the dependency array          react-hooks/exhaustive-deps
+  Line 100:6:  React Hook useEffect has a missing dependency: 'loadAttendances'. Either include it or remove the dependency array                react-hooks/exhaustive-deps
+  Line 104:6:  React Hook useEffect has a missing dependency: 'filterAndSummarizeAttendances'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 295:9:  'exportToPDF' is assigned a value but never used                                                                                  no-unused-vars
+
+src/pages/Attendance/AttendanceScanner.jsx
+  Line 34:6:  React Hook useEffect has missing dependencies: 'loadEntryExitStats' and 'loadTodayAttendances'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Attendance/StaffAttendanceScanner.jsx
+  Line 19:5:    'Modal' is defined but never used                                                                                        no-unused-vars
+  Line 20:5:    'ProgressBar' is defined but never used                                                                                  no-unused-vars
+  Line 23:5:    'Tab' is defined but never used                                                                                          no-unused-vars
+  Line 24:5:    'Tabs' is defined but never used                                                                                         no-unused-vars
+  Line 35:5:    'Wifi' is defined but never used                                                                                         no-unused-vars
+  Line 36:5:    'WifiOff' is defined but never used                                                                                      no-unused-vars
+  Line 37:5:    'CloudArrowUp' is defined but never used                                                                                 no-unused-vars
+  Line 38:5:    'CloudArrowDown' is defined but never used                                                                               no-unused-vars
+  Line 56:8:    'Swal' is defined but never used                                                                                         no-unused-vars
+  Line 86:12:   'showStatsModal' is assigned a value but never used                                                                      no-unused-vars
+  Line 86:28:   'setShowStatsModal' is assigned a value but never used                                                                   no-unused-vars
+  Line 96:11:   'isOnline' is assigned a value but never used                                                                            no-unused-vars
+  Line 145:8:   React Hook useEffect has a missing dependency: 'loadDailyAttendances'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 329:11:  'getEventBadge' is assigned a value but never used                                                                       no-unused-vars
+
+src/pages/Departments/DepartmentManagement.jsx
+  Line 917:126:  Expected '===' and instead saw '=='  eqeqeq
+  Line 978:126:  Expected '===' and instead saw '=='  eqeqeq
+
+src/pages/Documents/DocumentsManager.jsx
+  Line 15:5:   'Dropdown' is defined but never used                                                                         no-unused-vars
+  Line 21:5:   'Plus' is defined but never used                                                                             no-unused-vars
+  Line 22:5:   'Eye' is defined but never used                                                                              no-unused-vars
+  Line 27:5:   'Filter' is defined but never used                                                                           no-unused-vars
+  Line 30:5:   'Archive' is defined but never used                                                                          no-unused-vars
+  Line 39:5:   'Tag' is defined but never used                                                                              no-unused-vars
+  Line 58:12:  'selectedDocument' is assigned a value but never used                                                        no-unused-vars
+  Line 82:12:  'folderForm' is assigned a value but never used                                                              no-unused-vars
+  Line 97:8:   React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/GradingScales/GradingScales.jsx
+  Line 3:23:  'Palette' is defined but never used        no-unused-vars
+  Line 3:32:  'Eye' is defined but never used            no-unused-vars
+  Line 3:52:  'ToggleOff' is defined but never used      no-unused-vars
+  Line 3:63:  'ToggleOn' is defined but never used       no-unused-vars
+  Line 9:11:  'user' is assigned a value but never used  no-unused-vars
+
+src/pages/Inventory/InventoryFull.jsx
+  Line 111:6:  React Hook useEffect has missing dependencies: 'loadConfig' and 'loadItems'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 118:6:  React Hook useEffect has a missing dependency: 'loadItems'. Either include it or remove the dependency array                     react-hooks/exhaustive-deps
+
+src/pages/Inventory/InventoryModule.jsx
+  Line 1:31:   'useMemo' is defined but never used                                                                                   no-unused-vars
+  Line 63:6:   React Hook useEffect has a missing dependency: 'loadInventoryData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 111:6:  React Hook useEffect has a missing dependency: 'loadInventoryData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Inventory/InventoryModuleSimple.jsx
+  Line 17:19:  Unreachable code  no-unreachable
+
+src/pages/Inventory/InventoryModuleStable.jsx
+  Line 55:6:  React Hook useEffect has a missing dependency: 'loadInventoryData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Inventory/components/InventoryDashboard.jsx
+  Line 12:3:  'Activity' is defined but never used                                                                                  no-unused-vars
+  Line 68:6:  React Hook useEffect has a missing dependency: 'loadDashboardData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Inventory/components/StockMovements.jsx
+  Line 4:3:   'Minus' is defined but never used                                                                                 no-unused-vars
+  Line 12:3:  'Eye' is defined but never used                                                                                   no-unused-vars
+  Line 77:6:  React Hook useEffect has a missing dependency: 'loadMovements'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Inventory/components/WhatsAppAlerts.jsx
+  Line 113:6:  React Hook useEffect has a missing dependency: 'loadLowStockItems'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Levels/Levels.jsx
+  Line 3:16:   'Gear' is defined but never used                           no-unused-vars
+  Line 3:32:   'CheckCircle' is defined but never used                    no-unused-vars
+  Line 3:45:   'XCircle' is defined but never used                        no-unused-vars
+  Line 9:11:   'user' is assigned a value but never used                  no-unused-vars
+  Line 248:9:  'getCurrentModeConfig' is assigned a value but never used  no-unused-vars
+
+src/pages/Login.jsx
+  Line 36:13:  'persistenceEnabled' is assigned a value but never used  no-unused-vars
+  Line 55:19:  'result' is assigned a value but never used              no-unused-vars
+
+src/pages/Needs/MyNeeds.jsx
+  Line 55:8:  React Hook useEffect has a missing dependency: 'loadNeeds'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Needs/NeedsManagement.jsx
+  Line 25:5:  'CurrencyDollar' is defined but never used                                                                    no-unused-vars
+  Line 29:5:  'Search' is defined but never used                                                                            no-unused-vars
+  Line 31:5:  'Download' is defined but never used                                                                          no-unused-vars
+  Line 63:8:  React Hook useEffect has a missing dependency: 'loadNeeds'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/PaymentTranches.jsx
+  Line 7:5:  'CheckCircle' is defined but never used  no-unused-vars
+  Line 8:5:  'XCircle' is defined but never used      no-unused-vars
+
+src/pages/Payments/CreateDocumentaryFee.jsx
+  Line 69:6:  React Hook useEffect has a missing dependency: 'searchStudents'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Payments/DocumentaryFeeDetails.jsx
+  Line 51:6:  React Hook useEffect has a missing dependency: 'loadDocumentaryFee'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Payments/DocumentaryFees.jsx
+  Line 21:3:   'FunnelFill' is defined but never used                                                                                                         no-unused-vars
+  Line 26:3:   'CashCoin' is defined but never used                                                                                                           no-unused-vars
+  Line 94:10:  'showFilters' is assigned a value but never used                                                                                               no-unused-vars
+  Line 94:23:  'setShowFilters' is assigned a value but never used                                                                                            no-unused-vars
+  Line 116:6:  React Hook useEffect has missing dependencies: 'loadDocumentaryFees' and 'loadStatistics'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 288:9:  'getFeeTypeInfo' is assigned a value but never used                                                                                            no-unused-vars
+  Line 295:9:  'getStatusInfo' is assigned a value but never used                                                                                             no-unused-vars
+
+src/pages/Payments/PaymentReports.jsx
+  Line 44:6:    React Hook useEffect has a missing dependency: 'loadPaymentStats'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 242:19:  Expected '===' and instead saw '=='                                                                                  eqeqeq
+  Line 966:72:  Expected '===' and instead saw '=='                                                                                  eqeqeq
+
+src/pages/Payments/StudentPayment.jsx
+  Line 21:3:   'Printer' is defined but never used                                                                                                                   no-unused-vars
+  Line 33:43:  'getLogoUrl' is assigned a value but never used                                                                                                       no-unused-vars
+  Line 47:10:  'discountInfo' is assigned a value but never used                                                                                                     no-unused-vars
+  Line 90:6:   React Hook useEffect has missing dependencies: 'loadPaymentHistory' and 'loadStudentPaymentInfo'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 256:9:  'handleQuickPayment' is assigned a value but never used                                                                                               no-unused-vars
+  Line 828:9:  'printReceipt' is assigned a value but never used                                                                                                     no-unused-vars
+
+src/pages/Reports.jsx
+  Line 36:11:   'schoolSettings' is assigned a value but never used  no-unused-vars
+  Line 758:59:  Expected '===' and instead saw '=='                  eqeqeq
+  Line 784:64:  Expected '!==' and instead saw '!='                  eqeqeq
+  Line 786:60:  Expected '!==' and instead saw '!='                  eqeqeq
+
+src/pages/Reports/ClassSchoolFeesReport.jsx
+  Line 15:5:    'FileEarmarkPdf' is defined but never used           no-unused-vars
+  Line 16:5:    'Calendar2' is defined but never used                no-unused-vars
+  Line 22:5:    'Download' is defined but never used                 no-unused-vars
+  Line 130:11:  'getStatusBadge' is assigned a value but never used  no-unused-vars
+
+src/pages/Reports/DetailedCollectionReport.jsx
+  Line 21:5:  'Download' is defined but never used  no-unused-vars
+
+src/pages/Reports/RecoveryStatus.jsx
+  Line 28:8:   'Swal' is defined but never used                 no-unused-vars
+  Line 29:10:  'Hospital' is defined but never used             no-unused-vars
+  Line 35:12:  'schoolYear' is assigned a value but never used  no-unused-vars
+
+src/pages/Reports/SchoolCertificates.jsx
+  Line 18:5:  'FiletypePdf' is defined but never used                                                                                  no-unused-vars
+  Line 19:5:  'Search' is defined but never used                                                                                       no-unused-vars
+  Line 28:8:  'Swal' is defined but never used                                                                                         no-unused-vars
+  Line 60:8:  React Hook useEffect has a missing dependency: 'loadStudentsBySeries'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Reports/SchoolFeePaymentDetails.jsx
+  Line 25:8:  'Swal' is defined but never used  no-unused-vars
+
+src/pages/Reports/SeriesCollectionSummary.jsx
+  Line 44:8:  React Hook useEffect has a missing dependency: 'loadSeriesCollectionSummary'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Reports/StaffAttendanceReport.jsx
+  Line 16:5:   'Calendar' is defined but never used                                                                                          no-unused-vars
+  Line 19:5:   'Download' is defined but never used                                                                                          no-unused-vars
+  Line 31:10:  'secureApiEndpoints' is defined but never used                                                                                no-unused-vars
+  Line 44:32:  'setSelectedDepartment' is assigned a value but never used                                                                    no-unused-vars
+  Line 63:8:   React Hook useEffect has a missing dependency: 'loadStaffAttendanceReport'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/SchoolClasses/CreateSchoolClass.jsx
+  Line 20:12:  'selectedSectionId' is assigned a value but never used  no-unused-vars
+
+src/pages/SchoolClasses/EditSchoolClass.jsx
+  Line 18:12:  'selectedSectionId' is assigned a value but never used                                                                 no-unused-vars
+  Line 26:8:   React Hook useEffect has a missing dependency: 'initializeFormData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/SchoolClasses/SchoolClasses.jsx
+  Line 50:8:    React Hook useEffect has a missing dependency: 'loadClasses'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 150:11:  'getSectionName' is assigned a value but never used                                                             no-unused-vars
+  Line 155:11:  'getLevelName' is assigned a value but never used                                                               no-unused-vars
+
+src/pages/Search.jsx
+  Line 16:5:    'ListGroup' is defined but never used                                                                             no-unused-vars
+  Line 25:5:    'GeoAlt' is defined but never used                                                                                no-unused-vars
+  Line 28:5:    'ArrowRight' is defined but never used                                                                            no-unused-vars
+  Line 31:5:    'BookFill' is defined but never used                                                                              no-unused-vars
+  Line 38:11:   'navigate' is assigned a value but never used                                                                     no-unused-vars
+  Line 83:8:    React Hook useEffect has a missing dependency: 'performSearch'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 475:11:  'getAllResults' is assigned a value but never used                                                                no-unused-vars
+
+src/pages/Sections/Sections.jsx
+  Line 5:5:   'Eye' is defined but never used     no-unused-vars
+  Line 12:5:  'Filter' is defined but never used  no-unused-vars
+
+src/pages/Settings/SchoolSettings.jsx
+  Line 70:6:  React Hook useEffect has a missing dependency: 'loadSettings'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Staff/StaffAttendanceManagement.jsx
+  Line 21:5:   'Dropdown' is defined but never used                                                                                   no-unused-vars
+  Line 67:13:  'user' is assigned a value but never used                                                                              no-unused-vars
+  Line 112:8:  React Hook useEffect has a missing dependency: 'loadAttendanceData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Staff/StaffDailyAttendance.jsx
+  Line 4:10:  'secureApiEndpoints' is defined but never used                                                                                          no-unused-vars
+  Line 28:6:  React Hook useEffect has a missing dependency: 'fetchAttendanceData'. Either include it or remove the dependency array                  react-hooks/exhaustive-deps
+  Line 58:6:  React Hook useEffect has missing dependencies: 'goToNextDay' and 'goToPreviousDay'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 65:6:  React Hook useEffect has a missing dependency: 'fetchAttendanceData'. Either include it or remove the dependency array                  react-hooks/exhaustive-deps
+
+src/pages/Stats.jsx
+  Line 18:5:  'Grid3x3Gap' is defined but never used    no-unused-vars
+  Line 19:5:  'Calendar' is defined but never used      no-unused-vars
+  Line 20:5:  'TrendingUp' is defined but never used    no-unused-vars
+  Line 21:5:  'PieChartFill' is defined but never used  no-unused-vars
+
+src/pages/Students/SeriesStudents.jsx
+  Line 5:5:      'PencilSquare' is defined but never used                                                                                                                                                         no-unused-vars
+  Line 6:5:      'Trash' is defined but never used                                                                                                                                                                no-unused-vars
+  Line 8:5:      'Upload' is defined but never used                                                                                                                                                               no-unused-vars
+  Line 24:5:     'Printer' is defined but never used                                                                                                                                                              no-unused-vars
+  Line 25:5:     'ArrowRightCircle' is defined but never used                                                                                                                                                     no-unused-vars
+  Line 217:13:   'schoolSettings' is assigned a value but never used                                                                                                                                              no-unused-vars
+  Line 217:29:   'formatCurrency' is assigned a value but never used                                                                                                                                              no-unused-vars
+  Line 226:12:   'hasCustomOrder' is assigned a value but never used                                                                                                                                              no-unused-vars
+  Line 283:8:    React Hook useEffect has a missing dependency: 'loadStudents'. Either include it or remove the dependency array                                                                                  react-hooks/exhaustive-deps
+  Line 702:11:   'handleExportCsv' is assigned a value but never used                                                                                                                                             no-unused-vars
+  Line 728:11:   'handleExportPdf' is assigned a value but never used                                                                                                                                             no-unused-vars
+  Line 806:60:   Expected '===' and instead saw '=='                                                                                                                                                              eqeqeq
+  Line 1558:61:  Redundant alt attribute. Screen-readers already announce `img` tags as an image. You don’t need to use the words `image`, `photo,` or `picture` (or any specified custom words) in the alt prop  jsx-a11y/img-redundant-alt
+
+src/pages/Subjects/SeriesSubjectConfiguration.jsx
+  Line 2:51:  'Table' is defined but never used                                                                            no-unused-vars
+  Line 3:22:  'PencilFill' is defined but never used                                                                       no-unused-vars
+  Line 23:8:  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Subjects/Subjects.jsx
+  Line 2:31:  'Alert' is defined but never used                                                                                  no-unused-vars
+  Line 30:8:  React Hook useEffect has a missing dependency: 'filterSubjects'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/SupervisorManagement/SupervisorStatus.jsx
+  Line 19:11:  'token' is assigned a value but never used                                                                   no-unused-vars
+  Line 23:6:   React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Teachers/TeacherAssignmentManagement.jsx
+  Line 2:51:  'Table' is defined but never used                                                                                no-unused-vars
+  Line 62:8:  React Hook useEffect has a missing dependency: 'loadYearData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/Teachers/TeacherAssignments.jsx
+  Line 2:44:  'Table' is defined but never used  no-unused-vars
+
+src/pages/Teachers/TeacherDetailedStats.jsx
+  Line 31:5:    'TrendingUp' is defined but never used                                                                                no-unused-vars
+  Line 32:5:    'TrendingDown' is defined but never used                                                                              no-unused-vars
+  Line 33:5:    'Eye' is defined but never used                                                                                       no-unused-vars
+  Line 36:5:    'CheckCircleFill' is defined but never used                                                                           no-unused-vars
+  Line 53:15:   'Line' is defined but never used                                                                                      no-unused-vars
+  Line 84:13:   'user' is assigned a value but never used                                                                             no-unused-vars
+  Line 94:8:    React Hook useEffect has a missing dependency: 'loadDetailedStats'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 127:11:  'loadDayMovements' is assigned a value but never used                                                                 no-unused-vars
+  Line 248:11:  'getPunctualityBadge' is assigned a value but never used                                                              no-unused-vars
+
+src/pages/UserManagement.jsx
+  Line 34:10:  'host' is defined but never used                        no-unused-vars
+  Line 49:28:  'setSelectedUserQR' is assigned a value but never used  no-unused-vars
+
+src/pages/comptables/Class.jsx
+  Line 57:5:  React Hook useEffect has a missing dependency: 'Classes'. Either include it or remove the dependency array. You can also replace multiple useState variables with useReducer if 'setAffich' needs the current value of 'Classes'  react-hooks/exhaustive-deps
+
+src/pages/comptables/DemandesExplication.jsx
+  Line 17:5:   'Dropdown' is defined but never used                   no-unused-vars
+  Line 31:5:   'AlertTriangle' is defined but never used              no-unused-vars
+  Line 46:11:  'navigate' is assigned a value but never used          no-unused-vars
+  Line 50:12:  'filteredDemandes' is assigned a value but never used  no-unused-vars
+
+src/pages/comptables/StaffAttendanceReport.jsx
+  Line 19:5:   'Download' is defined but never used                                                                                          no-unused-vars
+  Line 32:10:  'secureApiEndpoints' is defined but never used                                                                                no-unused-vars
+  Line 45:32:  'setSelectedDepartment' is assigned a value but never used                                                                    no-unused-vars
+  Line 72:8:   React Hook useEffect has a missing dependency: 'loadStaffAttendanceReport'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/comptables/StudentAttendanceTracking.jsx
+  Line 3:46:   'Eye' is defined but never used                                                                                                         no-unused-vars
+  Line 68:6:   React Hook useEffect has missing dependencies: 'goToNextDay' and 'goToPreviousDay'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 75:6:   React Hook useEffect has a missing dependency: 'fetchAttendanceData'. Either include it or remove the dependency array                  react-hooks/exhaustive-deps
+  Line 187:9:  'handleSearch' is assigned a value but never used                                                                                       no-unused-vars
+
+src/pages/comptables/StudentsByClass.jsx
+  Line 185:39:  'insolvable' is assigned a value but never used  no-unused-vars
+
+src/utils/tokenManager.js
+  Line 112:17:  'isPersistent' is assigned a value but never used  no-unused-vars
+  Line 279:15:  'currentTime' is assigned a value but never used   no-unused-vars
+
+Search for the keywords to learn more about each warning.
+To ignore, add // eslint-disable-next-line to the line before.
+
+File sizes after gzip:
+
+  567.75 kB (+101 B)  build/static/js/main.01dc2821.js
+  46.66 kB            build/static/css/main.b9a7e7a9.css
+  10.38 kB            build/static/js/451.c957c7c2.chunk.js
+
+The bundle size is significantly larger than recommended.
+Consider reducing it with code splitting: https://goo.gl/9VhYWB
+You can also analyze the project dependencies: https://goo.gl/LeUzfb
+
+The project was built assuming it is hosted at /.
+You can control this with the homepage field in your package.json.
+
+The build folder is ready to be deployed.
+You may serve it with a static server:
+
+  npm install -g serve
+  serve -s build
+
+Find out more about deployment here:
+
+  https://cra.link/deployment
+

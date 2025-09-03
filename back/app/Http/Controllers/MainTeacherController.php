@@ -6,6 +6,7 @@ use App\Models\MainTeacher;
 use App\Models\Teacher;
 use App\Models\SchoolClass;
 use App\Models\SchoolYear;
+use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -140,6 +141,19 @@ class MainTeacherController extends Controller
                 'schoolYear'
             ]);
 
+            // Envoyer notification WhatsApp au professeur principal
+            try {
+                $whatsAppService = app(WhatsAppService::class);
+                $whatsAppService->sendMainTeacherNotification($mainTeacher);
+            } catch (\Exception $e) {
+                // Log l'erreur mais ne pas faire échouer la désignation
+                \Log::error('Erreur envoi notification WhatsApp professeur principal', [
+                    'main_teacher_id' => $mainTeacher->id,
+                    'teacher_id' => $mainTeacher->teacher_id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Professeur principal désigné avec succès',
@@ -204,6 +218,21 @@ class MainTeacherController extends Controller
                 'schoolClass.level',
                 'schoolYear'
             ]);
+
+            // Envoyer notification WhatsApp si changement d'enseignant
+            if ($request->teacher_id != $mainTeacher->getOriginal('teacher_id')) {
+                try {
+                    $whatsAppService = app(WhatsAppService::class);
+                    $whatsAppService->sendMainTeacherNotification($mainTeacher);
+                } catch (\Exception $e) {
+                    // Log l'erreur mais ne pas faire échouer la mise à jour
+                    \Log::error('Erreur envoi notification WhatsApp mise à jour professeur principal', [
+                        'main_teacher_id' => $mainTeacher->id,
+                        'teacher_id' => $mainTeacher->teacher_id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
 
             return response()->json([
                 'success' => true,

@@ -226,9 +226,11 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/import/csv', [ClassesSeriesController::class, 'importCsv'])->middleware(['role:admin']);
     });
 
+    // Route spéciale pour les enseignants pour voir les élèves de leurs classes (AVANT le groupe)
+    Route::get('/students/class/{classId}', [StudentController::class, 'getByClass'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,teacher']);
+
     // Routes pour les élèves
     Route::prefix('students')->middleware(['role:admin,secretaire,accountant,comptable_superieur'])->group(function () {
-        Route::get('/class/{classId}', [StudentController::class, 'getByClass']);
         Route::get('/class-series/{seriesId}', [StudentController::class, 'getByClassSeries']);
 
         // Export routes - amélioration des routes existantes
@@ -670,7 +672,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour les demandes d'explication (D.E)
-    Route::prefix('demandes-explication')->middleware(['role:admin,secretaire,accountant,comptable_superieur,bibliothecaire'])->group(function () {
+    Route::prefix('demandes-explication')->middleware(['role:admin,secretaire,accountant,comptable_superieur,bibliothecaire,teacher'])->group(function () {
         Route::get('/', [App\Http\Controllers\DemandeExplicationController::class, 'index']);
         Route::post('/', [App\Http\Controllers\DemandeExplicationController::class, 'store']);
         Route::get('/personnel', [App\Http\Controllers\DemandeExplicationController::class, 'getPersonnel']);
