@@ -108,6 +108,12 @@ import StaffDailyAttendance from "./pages/Staff/StaffDailyAttendance";
 import DemandesExplication from "./pages/comptables/DemandesExplication";
 import NouvelleDemande from "./pages/comptables/NouvelleDemande";
 
+// Academic Periods
+import AcademicPeriodsManagement from "./pages/AcademicPeriods/AcademicPeriodsManagement";
+
+// Grading Scales
+import GradingScales from "./pages/GradingScales/GradingScales";
+
 
 // Components
 import Sidebar from "./components/Sidebar";
@@ -370,6 +376,24 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <Levels />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/academic-periods"
+                element={
+                  <AdminRoute>
+                    <AcademicPeriodsManagement />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/grading-scales"
+                element={
+                  <AdminRoute>
+                    <GradingScales />
                   </AdminRoute>
                 }
               />

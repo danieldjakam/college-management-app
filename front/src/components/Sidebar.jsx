@@ -69,7 +69,6 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           items: [
             { name: "Années Scolaires", href: "/school-years", icon: <Calendar /> },
             { name: "Sections", href: "/sections", icon: <HospitalFill /> },
-            { name: "Niveaux", href: "/levels", icon: <BookFill /> },
             {
               name: "Classes",
               href: "/school-classes",
@@ -93,6 +92,13 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               href: "/payment-tranches",
               icon: <CreditCard />,
             },
+          ],
+        },
+        {
+          title: "Gestion des Notes",
+          items: [
+            { name: "Configuration Évaluations", href: "/levels", icon: <BookFill /> },
+            { name: "Barèmes de Notation", href: "/grading-scales", icon: <Award /> },
           ],
         },
         {
