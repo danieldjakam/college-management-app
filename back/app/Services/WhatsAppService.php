@@ -530,7 +530,7 @@ class WhatsAppService
             // Alternative : utiliser une bibliothèque comme Browsershot ou wkhtmltoimage
             
             // Pour une implémentation rapide, créons une image simple avec du texte
-            $this->createSimpleReceiptImage($html, $imagePath, $paymentId);
+            $this->convertHtmlToImage($html, $imagePath);
             
             // Retourner l'URL publique
             // Note: Pour que UltraMsg puisse accéder à l'image, l'URL doit être publiquement accessible
@@ -559,10 +559,67 @@ class WhatsAppService
         }
     }
 
+    protected function convertHtmlToImage($html, $imagePath)
+    {
+        try {
+            // Méthode 1: Essayer wkhtmltoimage si disponible
+            if ($this->isWkhtmltoImageAvailable()) {
+                return $this->convertWithWkhtmltoimage($html, $imagePath);
+            }
+            
+            // Méthode 2: Fallback vers image basique
+            return $this->createFallbackImage($html, $imagePath);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur conversion HTML vers image', ['error' => $e->getMessage()]);
+            // Fallback vers image basique en cas d'erreur
+            return $this->createFallbackImage($html, $imagePath);
+        }
+    }
+
+    protected function isWkhtmltoImageAvailable()
+    {
+        $output = shell_exec('which wkhtmltoimage 2>/dev/null');
+        return !empty($output);
+    }
+
+    protected function convertWithWkhtmltoimage($html, $imagePath)
+    {
+        // Créer un fichier HTML temporaire
+        $tempHtmlFile = tempnam(sys_get_temp_dir(), 'receipt_') . '.html';
+        file_put_contents($tempHtmlFile, $html);
+        
+        try {
+            // Commande wkhtmltoimage avec options pour un rendu optimal
+            $command = sprintf(
+                'wkhtmltoimage --width 600 --height 800 --format png --quality 95 "%s" "%s" 2>/dev/null',
+                $tempHtmlFile,
+                $imagePath
+            );
+            
+            $exitCode = 0;
+            $output = [];
+            exec($command, $output, $exitCode);
+            
+            if ($exitCode === 0 && file_exists($imagePath)) {
+                Log::info('Image générée avec wkhtmltoimage', ['path' => $imagePath]);
+                return true;
+            } else {
+                Log::warning('Échec wkhtmltoimage', ['exit_code' => $exitCode, 'output' => implode("\n", $output)]);
+                return false;
+            }
+        } finally {
+            // Nettoyer le fichier temporaire
+            if (file_exists($tempHtmlFile)) {
+                unlink($tempHtmlFile);
+            }
+        }
+    }
+
     /**
      * Créer une image simple du reçu (version basique sans HTML)
      */
-    protected function createSimpleReceiptImage($html, $imagePath, $paymentId)
+    protected function createFallbackImage($html, $imagePath)
     {
         // Cette méthode crée une image basique avec GD
         // Pour une version plus avancée, utilisez Browsershot ou wkhtmltoimage
@@ -582,65 +639,41 @@ class WhatsAppService
         // Remplir le fond
         imagefill($image, 0, 0, $white);
         
-        // Récupérer les données du paiement
-        $payment = \App\Models\Payment::with('student.classSeries.schoolClass', 'paymentDetails.paymentTranche')->find($paymentId);
-        $schoolName = \App\Models\SchoolSetting::getSettings()->school_name ?? 'École';
+        // Extraire les informations de base du HTML pour l'image simple
+        // En cas de fallback, on crée une image minimaliste
         
-        // Ajouter le titre
-        $y = 30;
-        imagestring($image, 5, 150, $y, 'RECU DE PAIEMENT', $blue);
-        $y += 50;
+        $width = 600;
+        $height = 800;
         
-        // Informations de l'école
-        imagestring($image, 3, 50, $y, $schoolName, $black);
-        $y += 30;
+        // Créer l'image
+        $image = imagecreate($width, $height);
         
-        // Numéro de reçu
-        imagestring($image, 4, 50, $y, "Recu N° {$payment->id}", $black);
+        // Définir les couleurs
+        $white = imagecolorallocate($image, 255, 255, 255);
+        $black = imagecolorallocate($image, 0, 0, 0);
+        $blue = imagecolorallocate($image, 46, 139, 87); // Couleur verte du design
+        $gray = imagecolorallocate($image, 128, 128, 128);
+        
+        // Remplir le fond
+        imagefill($image, 0, 0, $white);
+        
+        // Ajouter du texte basique
+        $y = 50;
+        imagestring($image, 5, 120, $y, 'RECU DE PAIEMENT', $blue);
+        $y += 60;
+        
+        imagestring($image, 4, 50, $y, 'COLLEGE POLYVALENT BILINGUE DOUALA', $black);
         $y += 40;
         
-        // Informations de l'étudiant
-        imagestring($image, 3, 50, $y, "Eleve: {$payment->student->full_name}", $black);
-        $y += 25;
-        imagestring($image, 3, 50, $y, "Classe: " . ($payment->student->classSeries->name ?? 'N/A'), $black);
-        $y += 25;
-        
-        // Informations du paiement
-        $y += 20;
-        imagestring($image, 3, 50, $y, "Montant: " . number_format($payment->total_amount, 0, ',', ' ') . " FCFA", $black);
-        $y += 25;
-        imagestring($image, 3, 50, $y, "Date: " . $payment->payment_date->format('d/m/Y H:i'), $black);
-        $y += 25;
-        imagestring($image, 3, 50, $y, "Methode: " . ucfirst($payment->payment_method), $black);
-        
-        if ($payment->reference_number) {
-            $y += 25;
-            imagestring($image, 3, 50, $y, "Reference: {$payment->reference_number}", $black);
-        }
-        
-        // Détails des tranches payées
-        $y += 40;
-        imagestring($image, 4, 50, $y, "DETAILS DU PAIEMENT:", $blue);
+        imagestring($image, 3, 50, $y, 'Design HTML non disponible', $gray);
         $y += 30;
-        
-        foreach ($payment->paymentDetails as $detail) {
-            if ($detail->amount_allocated > 0) {
-                $trancheName = $detail->paymentTranche->name;
-                $amount = number_format($detail->amount_allocated, 0, ',', ' ');
-                imagestring($image, 2, 50, $y, "- {$trancheName}: {$amount} FCFA", $black);
-                $y += 20;
-            }
-        }
-        
-        // Pied de page
-        $y = $height - 80;
-        imagestring($image, 2, 50, $y, "Merci pour votre confiance !", $gray);
-        $y += 20;
-        imagestring($image, 2, 50, $y, "Document genere automatiquement", $gray);
+        imagestring($image, 3, 50, $y, 'Version simplifiee generee', $gray);
         
         // Sauvegarder l'image
         imagepng($image, $imagePath);
         imagedestroy($image);
+        
+        return true;
     }
 
     /**
