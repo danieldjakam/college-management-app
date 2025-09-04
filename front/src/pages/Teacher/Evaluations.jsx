@@ -382,83 +382,111 @@ const Evaluations = () => {
                                     <thead className="table-dark">
                                         <tr>
                                             <th>Nom</th>
-                                            <th>Type</th>
+                                            <th className="d-none d-md-table-cell">Type</th>
                                             <th>Matière/Classe</th>
-                                            <th>Date</th>
-                                            <th>Séquence</th>
-                                            <th>Note max</th>
-                                            <th>Coeff.</th>
-                                            <th>Statut</th>
-                                            <th>Actions</th>
+                                            <th className="d-none d-lg-table-cell">Date</th>
+                                            <th className="d-none d-lg-table-cell">Séquence</th>
+                                            <th className="d-none d-sm-table-cell">Note max</th>
+                                            <th className="d-none d-sm-table-cell">Coeff.</th>
+                                            <th style={{width: '200px'}}>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {filteredEvaluations.map(evaluation => (
                                             <tr key={evaluation.id}>
                                                 <td>
-                                                    <strong>{evaluation.name}</strong>
-                                                    {evaluation.description && (
-                                                        <small className="d-block text-muted">
-                                                            {evaluation.description}
-                                                        </small>
-                                                    )}
+                                                    <div>
+                                                        <strong>{evaluation.name}</strong>
+                                                        {evaluation.description && (
+                                                            <small className="d-block text-muted">
+                                                                {evaluation.description}
+                                                            </small>
+                                                        )}
+                                                        {/* Informations mobiles */}
+                                                        <div className="d-md-none mt-1">
+                                                            <div className="mb-1">{getTypeDisplay(evaluation.type)}</div>
+                                                            <div className="mb-1">{getEvaluationStatus(evaluation)}</div>
+                                                            <small className="text-muted">
+                                                                <Calendar size={12} className="me-1" />
+                                                                {formatDate(evaluation.date)}
+                                                            </small>
+                                                        </div>
+                                                    </div>
                                                 </td>
-                                                <td>{getTypeDisplay(evaluation.type)}</td>
+                                                <td className="d-none d-md-table-cell">{getTypeDisplay(evaluation.type)}</td>
                                                 <td>
                                                     <div>
                                                         <strong>{evaluation.series_subject?.subject?.name}</strong>
                                                         <small className="d-block text-muted">
                                                             {evaluation.series_subject?.school_class?.name}
                                                         </small>
+                                                        {/* Info mobile pour note max et coeff */}
+                                                        <div className="d-sm-none mt-1">
+                                                            <Badge bg="light" text="dark" className="me-1">
+                                                                /{evaluation.max_score}
+                                                            </Badge>
+                                                            <Badge bg="secondary">
+                                                                ×{evaluation.coefficient}
+                                                            </Badge>
+                                                        </div>
                                                     </div>
                                                 </td>
-                                                <td>
-                                                    <Calendar size={14} className="me-1" />
-                                                    {formatDate(evaluation.date)}
-                                                </td>
-                                                <td>
+                                                <td className="d-none d-lg-table-cell">
                                                     <small className="text-muted">
                                                         {getSequenceName(evaluation.sequence_id)}
                                                     </small>
                                                 </td>
-                                                <td className="text-center">
+                                                <td className="text-center d-none d-sm-table-cell">
                                                     <Badge bg="light" text="dark">
                                                         /{evaluation.max_score}
                                                     </Badge>
                                                 </td>
-                                                <td className="text-center">
+                                                <td className="text-center d-none d-sm-table-cell">
                                                     <Badge bg="secondary">
                                                         ×{evaluation.coefficient}
                                                     </Badge>
                                                 </td>
-                                                <td>{getEvaluationStatus(evaluation)}</td>
+                                                <td className="d-none d-md-table-cell">{getEvaluationStatus(evaluation)}</td>
                                                 <td>
-                                                    <Dropdown>
-                                                        <Dropdown.Toggle variant="outline-primary" size="sm">
-                                                            Actions
-                                                        </Dropdown.Toggle>
-                                                        <Dropdown.Menu>
-                                                            <Dropdown.Item>
-                                                                <Eye className="me-2" />
-                                                                Voir détails
-                                                            </Dropdown.Item>
-                                                            <Dropdown.Item 
-                                                                onClick={() => navigate(`/teacher/evaluations/${evaluation.id}/grades`)}
-                                                            >
-                                                                <Pencil className="me-2" />
-                                                                Saisir notes
-                                                            </Dropdown.Item>
-                                                            <Dropdown.Item>
-                                                                <FileText className="me-2" />
-                                                                Statistiques
-                                                            </Dropdown.Item>
-                                                            <Dropdown.Divider />
-                                                            <Dropdown.Item className="text-danger">
-                                                                <Trash className="me-2" />
-                                                                Supprimer
-                                                            </Dropdown.Item>
-                                                        </Dropdown.Menu>
-                                                    </Dropdown>
+                                                    <div className="d-flex flex-column flex-sm-row gap-1">
+                                                        <Button 
+                                                            variant="outline-info" 
+                                                            size="sm"
+                                                            className="flex-fill"
+                                                            title="Voir détails"
+                                                        >
+                                                            <Eye size={14} />
+                                                            <span className="d-none d-md-inline ms-1">Détails</span>
+                                                        </Button>
+                                                        <Button 
+                                                            variant="outline-success" 
+                                                            size="sm"
+                                                            className="flex-fill"
+                                                            onClick={() => navigate(`/teacher/evaluations/${evaluation.id}/grades`)}
+                                                            title="Saisir notes"
+                                                        >
+                                                            <Pencil size={14} />
+                                                            <span className="d-none d-md-inline ms-1">Notes</span>
+                                                        </Button>
+                                                        <Button 
+                                                            variant="outline-warning" 
+                                                            size="sm"
+                                                            className="flex-fill"
+                                                            title="Statistiques"
+                                                        >
+                                                            <FileText size={14} />
+                                                            <span className="d-none d-md-inline ms-1"></span>
+                                                        </Button>
+                                                        <Button 
+                                                            variant="outline-danger" 
+                                                            size="sm"
+                                                            className="flex-fill"
+                                                            title="Supprimer"
+                                                        >
+                                                            <Trash size={14} />
+                                                            <span className="d-none d-md-inline ms-1"></span>
+                                                        </Button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}

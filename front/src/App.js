@@ -74,6 +74,8 @@ import Trimesters from "./pages/Teacher/Trimesters";
 import Evaluations from "./pages/Teacher/Evaluations";
 import EvaluationCreate from "./pages/Teacher/EvaluationCreate";
 import GradeEntry from "./pages/Teacher/GradeEntry";
+import SequenceSubjects from "./pages/Teacher/SequenceSubjects";
+import SubjectStudents from "./pages/Teacher/SubjectStudents";
 
 // Departments
 import DepartmentManagement from "./pages/Departments/DepartmentManagement";
@@ -123,6 +125,9 @@ import AcademicPeriodsManagement from "./pages/AcademicPeriods/AcademicPeriodsMa
 
 // Grading Scales
 import GradingScales from "./pages/GradingScales/GradingScales";
+
+// Admin Trimester & Sequence Management
+import TrimesterSequenceManagement from "./pages/Admin/TrimesterSequenceManagement";
 
 
 // Components
@@ -404,6 +409,14 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <GradingScales />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/trimesters-sequences"
+                element={
+                  <AdminRoute>
+                    <TrimesterSequenceManagement />
                   </AdminRoute>
                 }
               />
@@ -742,6 +755,24 @@ const AppContent = () => {
                 element={
                   <TeacherRoute>
                     <Trimesters />
+                  </TeacherRoute>
+                }
+              />
+              
+              <Route
+                path="/teacher/sequences/:sequenceId/subjects"
+                element={
+                  <TeacherRoute>
+                    <SequenceSubjects />
+                  </TeacherRoute>
+                }
+              />
+              
+              <Route
+                path="/teacher/sequences/:sequenceId/subjects/:subjectId/students"
+                element={
+                  <TeacherRoute>
+                    <SubjectStudents />
                   </TeacherRoute>
                 }
               />

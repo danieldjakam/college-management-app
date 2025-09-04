@@ -120,8 +120,11 @@ class SequenceController extends Controller
             Sequence::where('school_year_id', $sequence->school_year_id)
                 ->update(['is_current' => false]);
 
-            // Activer la séquence sélectionnée
-            $sequence->update(['is_current' => true]);
+            // Activer la séquence sélectionnée (et la retirer du statut terminé si nécessaire)
+            $sequence->update([
+                'is_current' => true,
+                'is_completed' => false  // Si elle était terminée, la réouvrir
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -132,6 +135,102 @@ class SequenceController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'activation de la séquence',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Marquer une séquence comme terminée
+     */
+    public function markCompleted(Sequence $sequence)
+    {
+        try {
+            $sequence->update([
+                'is_completed' => true,
+                'is_current' => false  // Une séquence terminée n'est plus en cours
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Séquence marquée comme terminée',
+                'data' => $sequence->load(['trimester', 'schoolYear'])
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du marquage de la séquence',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Marquer une séquence comme non terminée
+     */
+    public function markIncomplete(Sequence $sequence)
+    {
+        try {
+            $sequence->update([
+                'is_completed' => false,
+                'is_current' => false  // Retour au statut "Programmé"
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Séquence marquée comme programmée',
+                'data' => $sequence->load(['trimester', 'schoolYear'])
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du changement de statut',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Créer une nouvelle séquence
+     */
+    public function store(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'number' => 'required|integer|min:1|max:6',
+                'trimester_id' => 'required|exists:trimesters,id',
+                'school_year_id' => 'required|exists:school_years,id',
+                'start_date' => 'required|date',
+                'end_date' => 'required|date|after:start_date',
+                'is_active' => 'boolean',
+                'is_current' => 'boolean'
+            ]);
+
+            // Vérifier qu'il n'y a pas déjà une séquence avec ce numéro
+            $existingSequence = Sequence::where('school_year_id', $validated['school_year_id'])
+                ->where('number', $validated['number'])
+                ->first();
+
+            if ($existingSequence) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Une séquence #{$validated['number']} existe déjà pour cette année scolaire"
+                ], 422);
+            }
+
+            $sequence = Sequence::create($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Séquence créée avec succès',
+                'data' => $sequence->load(['trimester', 'schoolYear'])
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la création de la séquence',
                 'error' => $e->getMessage()
             ], 500);
         }

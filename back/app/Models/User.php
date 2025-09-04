@@ -74,4 +74,12 @@ class User extends Authenticatable implements JWTSubject
     {
         return $this->belongsTo(SchoolYear::class, 'working_school_year_id');
     }
+
+    /**
+     * Relation avec le profil enseignant
+     */
+    public function teacher()
+    {
+        return $this->hasOne(Teacher::class);
+    }
 }

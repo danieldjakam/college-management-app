@@ -68,6 +68,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           title: "Gestion Académique",
           items: [
             { name: "Années Scolaires", href: "/school-years", icon: <Calendar /> },
+            { name: "Cycles", href: "/levels", icon: <Award /> },
             { name: "Sections", href: "/sections", icon: <HospitalFill /> },
             {
               name: "Classes",
@@ -99,6 +100,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           items: [
             { name: "Configuration Évaluations", href: "/levels", icon: <BookFill /> },
             { name: "Barèmes de Notation", href: "/grading-scales", icon: <Award /> },
+            { name: "Trimestres & Séquences", href: "/admin/trimesters-sequences", icon: <Calendar /> },
           ],
         },
         {
@@ -427,7 +429,6 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         {
           title: "Examens",
           items: [
-            { name: "Séquences", href: "/sequences", icon: <List /> },
             { name: "Trimestres", href: "/trimesters", icon: <BookFill /> },
           ],
         },

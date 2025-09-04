@@ -471,6 +471,7 @@ Route::middleware('auth:api')->group(function () {
     Route::prefix('series-subjects')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)
         Route::get('/', [SeriesSubjectController::class, 'index'])->middleware(['role:admin,secretaire,accountant,teacher']);
+        Route::get('/{seriesSubject}', [SeriesSubjectController::class, 'show'])->middleware(['role:admin,secretaire,accountant,teacher']);
         Route::get('/class/{schoolClass}', [SeriesSubjectController::class, 'getByClass'])->middleware(['role:admin,secretaire,accountant,teacher']);
 
         // Routes pour administrateurs uniquement (gestion)
@@ -819,18 +820,25 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{sequence}/stats', [SequenceController::class, 'getStats'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
         
         // Gestion (admin uniquement)
+        Route::post('/', [SequenceController::class, 'store'])->middleware(['role:admin']);
         Route::post('/{sequence}/activate', [SequenceController::class, 'activate'])->middleware(['role:admin']);
+        Route::post('/{sequence}/mark-completed', [SequenceController::class, 'markCompleted'])->middleware(['role:admin']);
+        Route::post('/{sequence}/mark-incomplete', [SequenceController::class, 'markIncomplete'])->middleware(['role:admin']);
     });
 
     // Routes pour les trimestres
     Route::prefix('trimesters')->group(function () {
         // Consultation (enseignants, admins, comptables)
         Route::get('/', [TrimesterController::class, 'index'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/teacher', [TrimesterController::class, 'getTeacherTrimesters'])->middleware(['role:teacher']);
         Route::get('/current', [TrimesterController::class, 'getCurrentTrimester'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
         Route::get('/{trimester}', [TrimesterController::class, 'show'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
         Route::get('/{trimester}/stats', [TrimesterController::class, 'getStats'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
         
         // Gestion (admin uniquement)
+        Route::post('/', [TrimesterController::class, 'store'])->middleware(['role:admin']);
+        Route::put('/{trimester}', [TrimesterController::class, 'update'])->middleware(['role:admin']);
+        Route::delete('/{trimester}', [TrimesterController::class, 'destroy'])->middleware(['role:admin']);
         Route::post('/{trimester}/activate', [TrimesterController::class, 'activate'])->middleware(['role:admin']);
     });
 

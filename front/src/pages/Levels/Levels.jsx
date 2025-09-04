@@ -1,593 +1,515 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Button, Modal, Form, Row, Col, Alert, ProgressBar } from 'react-bootstrap';
-import { Plus, Gear, BookFill, CheckCircle, XCircle } from 'react-bootstrap-icons';
+import React, { useState, useEffect } from 'react';
+import { 
+    Card, Row, Col, Button, Alert, Modal, Form, Badge, Table
+} from 'react-bootstrap';
+import { 
+    Award, Plus, Pencil, Trash2, CheckCircle, XCircle, 
+    HospitalFill, Archive
+} from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
-import { useAuth } from '../../hooks/useAuth';
-import Swal from 'sweetalert2';
 
-function EvaluationConfiguration() {
-  const { user } = useAuth();
-  const [schoolYears, setSchoolYears] = useState([]);
-  const [levels, setLevels] = useState([]);
-  const [selectedYear, setSelectedYear] = useState('');
-  const [configurations, setConfigurations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filterMode, setFilterMode] = useState('all');
-  const [filterLevel, setFilterLevel] = useState('all');
-  
-  // Modals
-  const [showConfigModal, setShowConfigModal] = useState(false);
-  const [editingConfig, setEditingConfig] = useState(null);
-  
-  // Form
-  const [configForm, setConfigForm] = useState({
-    level_id: '',
-    evaluation_mode: '1ds_1comp', // ou '2ds_1comp'
-    ds1_percentage: 50,
-    ds2_percentage: 0, // uniquement pour 2ds_1comp
-    composition_percentage: 50,
-    description: '',
-    is_active: true
-  });
+const Levels = () => {
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [success, setSuccess] = useState(null);
 
-  const evaluationModes = [
-    {
-      value: '1ds_1comp',
-      label: '1 DS + 1 Composition',
-      description: 'Idéal pour les premiers cycles',
-      default_percentages: { ds1: 50, ds2: 0, composition: 50 }
-    },
-    {
-      value: '2ds_1comp', 
-      label: '2 DS + 1 Composition',
-      description: 'Généralement pour les seconds cycles',
-      default_percentages: { ds1: 25, ds2: 25, composition: 50 }
-    }
-  ];
+    // États des données
+    const [levels, setLevels] = useState([]);
+    const [sections, setSections] = useState([]);
 
-  const loadInitialData = useCallback(async () => {
-    try {
-      console.log('Chargement des données initiales...');
-      
-      const [yearsRes, levelsRes] = await Promise.all([
-        secureApiEndpoints.request('/school-years/active'),
-        secureApiEndpoints.levels.getAll()
-      ]);
+    // États des modals
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [selectedLevel, setSelectedLevel] = useState(null);
 
-      console.log('Years response:', yearsRes);
-      console.log('Levels response:', levelsRes);
+    // État du formulaire
+    const [levelForm, setLevelForm] = useState({
+        name: '',
+        section_id: '',
+        description: '',
+        order: 0,
+        is_active: true
+    });
 
-      if (yearsRes.success) {
-        setSchoolYears(yearsRes.data);
-        const currentYear = yearsRes.data.find(year => year.is_current);
-        if (currentYear) {
-          setSelectedYear(currentYear.id.toString());
+    useEffect(() => {
+        loadData();
+    }, []);
+
+    const loadData = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            // Charger les cycles et sections en parallèle
+            const [levelsResponse, sectionsResponse] = await Promise.all([
+                secureApiEndpoints.levels.getAll(),
+                secureApiEndpoints.sections.getAll()
+            ]);
+
+            setLevels(levelsResponse.data || []);
+            setSections(sectionsResponse.data || []);
+
+        } catch (error) {
+            console.error('Erreur chargement:', error);
+            setError('Erreur lors du chargement des données');
+        } finally {
+            setLoading(false);
         }
-      }
+    };
 
-      if (levelsRes.success) {
-        setLevels(levelsRes.data.filter(level => level.is_active));
-      }
-    } catch (error) {
-      console.error('Erreur lors du chargement:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadConfigurations = useCallback(async () => {
-    if (!selectedYear) return;
-    
-    try {
-      console.log('Chargement des configurations pour l\'année:', selectedYear);
-      const response = await secureApiEndpoints.evaluationConfigs.getAll({
-        school_year_id: selectedYear
-      });
-      
-      console.log('Configurations response:', response);
-      
-      if (response.success) {
-        setConfigurations(response.data);
-      }
-    } catch (error) {
-      console.error('Erreur lors du chargement des configurations:', error);
-    }
-  }, [selectedYear]);
-
-  useEffect(() => {
-    loadInitialData();
-  }, [loadInitialData]);
-
-  useEffect(() => {
-    if (selectedYear) {
-      loadConfigurations();
-    }
-  }, [selectedYear, loadConfigurations]);
-
-  const handleModeChange = (mode) => {
-    const modeConfig = evaluationModes.find(m => m.value === mode);
-    if (modeConfig) {
-      setConfigForm({
-        ...configForm,
-        evaluation_mode: mode,
-        ds1_percentage: modeConfig.default_percentages.ds1,
-        ds2_percentage: modeConfig.default_percentages.ds2,
-        composition_percentage: modeConfig.default_percentages.composition
-      });
-    }
-  };
-
-  const handleConfigSubmit = async (e) => {
-    e.preventDefault();
-    console.log('Soumission de la configuration:', configForm);
-    
-    // Validation du niveau
-    if (!configForm.level_id) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Niveau requis',
-        text: 'Veuillez sélectionner un cycle/niveau'
-      });
-      return;
-    }
-    
-    // Validation des pourcentages
-    const total = configForm.ds1_percentage + configForm.ds2_percentage + configForm.composition_percentage;
-    if (total !== 100) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Pourcentages invalides',
-        text: `Le total des pourcentages doit être 100%. Total actuel: ${total}%`
-      });
-      return;
-    }
-    
-    try {
-      const response = editingConfig 
-        ? await secureApiEndpoints.evaluationConfigs.update(editingConfig.id, {
-            ...configForm,
-            school_year_id: selectedYear,
-            level_id: configForm.level_id
-          })
-        : await secureApiEndpoints.evaluationConfigs.create({
-            ...configForm,
-            school_year_id: selectedYear
-          });
-
-      console.log('Configuration sauvegardée:', response);
-
-      if (response.success) {
-        setShowConfigModal(false);
-        setEditingConfig(null);
-        loadConfigurations();
-        Swal.fire({
-          icon: 'success',
-          title: 'Succès',
-          text: response.message
+    const resetForm = () => {
+        setLevelForm({
+            name: '',
+            section_id: '',
+            description: '',
+            order: 0,
+            is_active: true
         });
-      } else {
-        Swal.fire({
-          icon: 'error',
-          title: 'Erreur',
-          text: response.message || 'Erreur lors de la sauvegarde'
+    };
+
+    const handleCreateLevel = async () => {
+        try {
+            setError(null);
+            await secureApiEndpoints.levels.create(levelForm);
+            setSuccess('Cycle créé avec succès');
+            setShowCreateModal(false);
+            resetForm();
+            await loadData();
+            setTimeout(() => setSuccess(null), 3000);
+        } catch (error) {
+            console.error('Erreur création:', error);
+            setError('Erreur lors de la création du cycle');
+        }
+    };
+
+    const handleEditLevel = (level) => {
+        setSelectedLevel(level);
+        setLevelForm({
+            name: level.name,
+            section_id: level.section_id,
+            description: level.description || '',
+            order: level.order,
+            is_active: level.is_active
         });
-      }
-      
-    } catch (error) {
-      console.error('Erreur lors de la configuration:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Erreur technique',
-        text: 'Une erreur est survenue lors de la sauvegarde'
-      });
-    }
-  };
+        setShowEditModal(true);
+    };
 
-  const handleEdit = (config) => {
-    setEditingConfig(config);
-    setConfigForm({
-      level_id: config.level_id.toString(),
-      evaluation_mode: config.evaluation_mode,
-      ds1_percentage: config.ds1_percentage,
-      ds2_percentage: config.ds2_percentage || 0,
-      composition_percentage: config.composition_percentage,
-      description: config.description || '',
-      is_active: config.is_active
-    });
-    setShowConfigModal(true);
-  };
+    const handleUpdateLevel = async () => {
+        try {
+            setError(null);
+            await secureApiEndpoints.levels.update(selectedLevel.id, levelForm);
+            setSuccess('Cycle mis à jour avec succès');
+            setShowEditModal(false);
+            setSelectedLevel(null);
+            resetForm();
+            await loadData();
+            setTimeout(() => setSuccess(null), 3000);
+        } catch (error) {
+            console.error('Erreur mise à jour:', error);
+            setError('Erreur lors de la mise à jour du cycle');
+        }
+    };
 
-  const handleToggleStatus = async (config) => {
-    try {
-      const response = await secureApiEndpoints.evaluationConfigs.toggleStatus(config.id);
-      if (response.success) {
-        loadConfigurations();
-        Swal.fire({
-          icon: 'success',
-          title: 'Statut mis à jour',
-          text: response.message
-        });
-      } else {
-        Swal.fire({
-          icon: 'error',
-          title: 'Erreur',
-          text: response.message || 'Erreur lors de la mise à jour'
-        });
-      }
-    } catch (error) {
-      console.error('Erreur lors du toggle:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Erreur technique',
-        text: 'Erreur lors de la mise à jour du statut'
-      });
-    }
-  };
+    const handleDeleteLevel = (level) => {
+        setSelectedLevel(level);
+        setShowDeleteModal(true);
+    };
 
-  const resetConfigForm = () => {
-    setConfigForm({
-      level_id: '',
-      evaluation_mode: '1ds_1comp',
-      ds1_percentage: 50,
-      ds2_percentage: 0,
-      composition_percentage: 50,
-      description: '',
-      is_active: true
-    });
-    setEditingConfig(null);
-  };
+    const confirmDeleteLevel = async () => {
+        try {
+            setError(null);
+            await secureApiEndpoints.levels.delete(selectedLevel.id);
+            setSuccess('Cycle supprimé avec succès');
+            setShowDeleteModal(false);
+            setSelectedLevel(null);
+            await loadData();
+            setTimeout(() => setSuccess(null), 3000);
+        } catch (error) {
+            console.error('Erreur suppression:', error);
+            setError(error.message || 'Erreur lors de la suppression du cycle');
+        }
+    };
 
-  const getFilteredConfigurations = () => {
-    return configurations.filter(config => {
-      const matchesMode = filterMode === 'all' || config.evaluation_mode === filterMode;
-      const matchesLevel = filterLevel === 'all' || config.level_id.toString() === filterLevel;
-      return matchesMode && matchesLevel;
-    });
-  };
+    const handleToggleStatus = async (level) => {
+        try {
+            setError(null);
+            await secureApiEndpoints.levels.toggleStatus(level.id);
+            setSuccess(`Cycle ${level.is_active ? 'désactivé' : 'activé'} avec succès`);
+            await loadData();
+            setTimeout(() => setSuccess(null), 3000);
+        } catch (error) {
+            console.error('Erreur changement statut:', error);
+            setError('Erreur lors du changement de statut');
+        }
+    };
 
-  const getCurrentModeConfig = () => {
-    return evaluationModes.find(mode => mode.value === configForm.evaluation_mode);
-  };
+    const getSectionName = (sectionId) => {
+        const section = sections.find(s => s.id === sectionId);
+        return section ? section.name : 'Section inconnue';
+    };
 
-  const getTotalPercentage = () => {
-    return configForm.ds1_percentage + configForm.ds2_percentage + configForm.composition_percentage;
-  };
-
-  const getValidationVariant = () => {
-    const total = getTotalPercentage();
-    if (total === 100) return 'success';
-    if (total > 100) return 'danger';
-    return 'warning';
-  };
-
-  if (loading) {
-    return <div>Chargement...</div>;
-  }
-
-  return (
-    <div className="container-fluid mt-4">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2>Configuration des Évaluations par Cycle</h2>
-        <Button 
-          variant="primary"
-          onClick={() => {
-            resetConfigForm();
-            setShowConfigModal(true);
-          }}
-          disabled={!selectedYear}
-        >
-          <Plus className="me-2" />
-          Nouvelle Configuration
-        </Button>
-      </div>
-
-      {/* Sélection Année + Filtres */}
-      <Card className="mb-4">
-        <Card.Body>
-          <Row>
-            <Col md={4}>
-              <Form.Group>
-                <Form.Label>Année Scolaire</Form.Label>
-                <Form.Select 
-                  value={selectedYear} 
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                >
-                  <option value="">Sélectionner une année</option>
-                  {schoolYears.map(year => (
-                    <option key={year.id} value={year.id}>
-                      {year.name} {year.is_current ? '(Actuelle)' : ''}
-                    </option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
-            </Col>
-            <Col md={4}>
-              <Form.Group>
-                <Form.Label>Filtrer par Mode</Form.Label>
-                <Form.Select 
-                  value={filterMode} 
-                  onChange={(e) => setFilterMode(e.target.value)}
-                >
-                  <option value="all">Tous les modes</option>
-                  <option value="1ds_1comp">1 DS + 1 Composition</option>
-                  <option value="2ds_1comp">2 DS + 1 Composition</option>
-                </Form.Select>
-              </Form.Group>
-            </Col>
-            <Col md={4}>
-              <Form.Group>
-                <Form.Label>Filtrer par Niveau</Form.Label>
-                <Form.Select 
-                  value={filterLevel} 
-                  onChange={(e) => setFilterLevel(e.target.value)}
-                >
-                  <option value="all">Tous les niveaux</option>
-                  {levels.map(level => (
-                    <option key={level.id} value={level.id}>
-                      {level.name} - {level.section?.name}
-                    </option>
-                  ))}
-                </Form.Select>
-              </Form.Group>
-            </Col>
-          </Row>
-        </Card.Body>
-      </Card>
-
-      {/* Configurations existantes */}
-      {selectedYear && (
-        <Card>
-          <Card.Header>
-            <h5 className="mb-0">Configurations des Évaluations</h5>
-          </Card.Header>
-          <Card.Body>
-            {getFilteredConfigurations().length === 0 ? (
-              <Alert variant="info">
-                <div className="d-flex align-items-center">
-                  <BookFill className="me-2" />
-                  {configurations.length === 0 
-                    ? "Aucune configuration trouvée. Créez une configuration pour définir les modes d'évaluation."
-                    : "Aucune configuration correspondant aux filtres sélectionnés."
-                  }
+    if (loading) {
+        return (
+            <div className="d-flex justify-content-center align-items-center" style={{ height: '400px' }}>
+                <div className="spinner-border" role="status">
+                    <span className="visually-hidden">Chargement...</span>
                 </div>
-              </Alert>
-            ) : (
-              <Row>
-                {getFilteredConfigurations().map(config => (
-                  <Col md={6} lg={4} key={config.id} className="mb-3">
-                    <Card className="h-100 border">
-                      <Card.Body>
-                        <div className="d-flex justify-content-between align-items-start mb-3">
-                          <div>
-                            <h6 className="card-title">
-                              {evaluationModes.find(m => m.value === config.evaluation_mode)?.label}
-                            </h6>
-                            <small className="text-muted">
-                              {config.level?.name} - {config.level?.section?.name}
-                            </small>
-                          </div>
-                          <span className={`badge ${config.is_active ? 'bg-success' : 'bg-secondary'}`}>
-                            {config.is_active ? 'Actif' : 'Inactif'}
-                          </span>
-                        </div>
-                        
-                        <div className="mb-3">
-                          <small className="text-muted d-block mb-2">Répartition des notes:</small>
-                          <div className="d-flex justify-content-between mb-1">
-                            <span>DS 1:</span>
-                            <span className="badge bg-primary">{config.ds1_percentage}%</span>
-                          </div>
-                          {config.ds2_percentage > 0 && (
-                            <div className="d-flex justify-content-between mb-1">
-                              <span>DS 2:</span>
-                              <span className="badge bg-primary">{config.ds2_percentage}%</span>
-                            </div>
-                          )}
-                          <div className="d-flex justify-content-between mb-2">
-                            <span>Composition:</span>
-                            <span className="badge bg-success">{config.composition_percentage}%</span>
-                          </div>
-                          <ProgressBar 
-                            variant="success"
-                            now={100}
-                            label="100%"
-                            size="sm"
-                          />
-                        </div>
-
-                        {config.description && (
-                          <p className="text-muted small mb-3">{config.description}</p>
-                        )}
-
-                        <div className="d-flex gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline-primary"
-                            onClick={() => handleEdit(config)}
-                          >
-                            Modifier
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant={config.is_active ? "outline-danger" : "outline-success"}
-                            onClick={() => handleToggleStatus(config)}
-                          >
-                            {config.is_active ? 'Désactiver' : 'Activer'}
-                          </Button>
-                        </div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                ))}
-              </Row>
-            )}
-          </Card.Body>
-        </Card>
-      )}
-
-      {/* Modal Configuration */}
-      <Modal show={showConfigModal} onHide={() => {setShowConfigModal(false); resetConfigForm();}}>
-        <Modal.Header closeButton>
-          <Modal.Title>
-            {editingConfig ? 'Modifier la Configuration' : 'Nouvelle Configuration d\'Évaluation'}
-          </Modal.Title>
-        </Modal.Header>
-        <Form onSubmit={handleConfigSubmit}>
-          <Modal.Body>
-            <Form.Group className="mb-3">
-              <Form.Label>Cycle (Niveau)</Form.Label>
-              <Form.Select
-                value={configForm.level_id}
-                onChange={(e) => setConfigForm({...configForm, level_id: e.target.value})}
-                required
-              >
-                <option value="">Sélectionner un cycle</option>
-                {levels.map(level => (
-                  <option key={level.id} value={level.id}>
-                    {level.name} - {level.section?.name}
-                  </option>
-                ))}
-              </Form.Select>
-            </Form.Group>
-
-            <Form.Group className="mb-3">
-              <Form.Label>Mode d'évaluation</Form.Label>
-              <Form.Select
-                value={configForm.evaluation_mode}
-                onChange={(e) => handleModeChange(e.target.value)}
-              >
-                {evaluationModes.map(mode => (
-                  <option key={mode.value} value={mode.value}>
-                    {mode.label} - {mode.description}
-                  </option>
-                ))}
-              </Form.Select>
-            </Form.Group>
-
-            <div className="mb-3">
-              <Form.Label>Répartition des pourcentages</Form.Label>
-              <div className="border rounded p-3 bg-light">
-                <Row>
-                  <Col md={configForm.evaluation_mode === '1ds_1comp' ? 6 : 4}>
-                    <Form.Group>
-                      <Form.Label>DS 1 (%)</Form.Label>
-                      <Form.Control
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.1"
-                        value={configForm.ds1_percentage}
-                        onChange={(e) => setConfigForm({
-                          ...configForm, 
-                          ds1_percentage: parseFloat(e.target.value) || 0
-                        })}
-                      />
-                    </Form.Group>
-                  </Col>
-                  
-                  {configForm.evaluation_mode === '2ds_1comp' && (
-                    <Col md={4}>
-                      <Form.Group>
-                        <Form.Label>DS 2 (%)</Form.Label>
-                        <Form.Control
-                          type="number"
-                          min="0"
-                          max="100" 
-                          step="0.1"
-                          value={configForm.ds2_percentage}
-                          onChange={(e) => setConfigForm({
-                            ...configForm, 
-                            ds2_percentage: parseFloat(e.target.value) || 0
-                          })}
-                        />
-                      </Form.Group>
-                    </Col>
-                  )}
-                  
-                  <Col md={configForm.evaluation_mode === '1ds_1comp' ? 6 : 4}>
-                    <Form.Group>
-                      <Form.Label>Composition (%)</Form.Label>
-                      <Form.Control
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.1" 
-                        value={configForm.composition_percentage}
-                        onChange={(e) => setConfigForm({
-                          ...configForm, 
-                          composition_percentage: parseFloat(e.target.value) || 0
-                        })}
-                      />
-                    </Form.Group>
-                  </Col>
-                </Row>
-                
-                <div className="mt-3">
-                  <div className="d-flex justify-content-between align-items-center">
-                    <span>Total:</span>
-                    <span className={`badge ${getTotalPercentage() === 100 ? 'bg-success' : 'bg-danger'}`}>
-                      {getTotalPercentage()}%
-                    </span>
-                  </div>
-                  <ProgressBar 
-                    variant={getValidationVariant()}
-                    now={getTotalPercentage()}
-                    className="mt-2"
-                  />
-                  {getTotalPercentage() !== 100 && (
-                    <small className="text-danger">
-                      Le total doit être exactement 100%
-                    </small>
-                  )}
-                </div>
-              </div>
             </div>
+        );
+    }
 
-            <Form.Group className="mb-3">
-              <Form.Label>Description (optionnel)</Form.Label>
-              <Form.Control
-                as="textarea"
-                rows={3}
-                value={configForm.description}
-                onChange={(e) => setConfigForm({...configForm, description: e.target.value})}
-                placeholder="Description de cette configuration..."
-              />
-            </Form.Group>
+    return (
+        <div className="container-fluid">
+            {/* En-tête */}
+            <Row className="mb-4">
+                <Col>
+                    <Card className="border-0 shadow-sm">
+                        <Card.Body className="bg-primary text-white">
+                            <div className="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h4 className="mb-1">
+                                        <Award className="me-2" />
+                                        Gestion des Cycles
+                                    </h4>
+                                    <p className="mb-0 opacity-75">
+                                        Gérez les cycles d'enseignement (Primaire, Secondaire, etc.)
+                                    </p>
+                                </div>
+                                <div>
+                                    <Button 
+                                        variant="light" 
+                                        onClick={() => setShowCreateModal(true)}
+                                    >
+                                        <Plus className="me-1" />
+                                        Nouveau Cycle
+                                    </Button>
+                                </div>
+                            </div>
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
 
-            <Form.Group className="mb-3">
-              <Form.Check
-                type="checkbox"
-                label="Configuration active"
-                checked={configForm.is_active}
-                onChange={(e) => setConfigForm({...configForm, is_active: e.target.checked})}
-              />
-            </Form.Group>
-
-            {configForm.level_id && selectedYear && (
-              <Alert variant="info">
-                <strong>Configuration pour:</strong><br/>
-                Année: {schoolYears.find(y => y.id.toString() === selectedYear)?.name}<br/>
-                Cycle: {levels.find(l => l.id.toString() === configForm.level_id)?.name}
-              </Alert>
+            {/* Messages */}
+            {error && (
+                <Alert variant="danger" dismissible onClose={() => setError(null)}>
+                    <XCircle className="me-2" />
+                    {error}
+                </Alert>
             )}
-          </Modal.Body>
-          <Modal.Footer>
-            <Button variant="secondary" onClick={() => {setShowConfigModal(false); resetConfigForm();}}>
-              Annuler
-            </Button>
-            <Button 
-              variant="primary" 
-              type="submit"
-              disabled={getTotalPercentage() !== 100 || !configForm.level_id}
-            >
-              {editingConfig ? 'Mettre à jour' : 'Créer la Configuration'}
-            </Button>
-          </Modal.Footer>
-        </Form>
-      </Modal>
+            {success && (
+                <Alert variant="success" dismissible onClose={() => setSuccess(null)}>
+                    <CheckCircle className="me-2" />
+                    {success}
+                </Alert>
+            )}
 
-    </div>
-  );
-}
+            {/* Liste des cycles */}
+            <Row>
+                <Col>
+                    <Card>
+                        <Card.Header>
+                            <h5 className="mb-0">Cycles Existants ({levels.length})</h5>
+                        </Card.Header>
+                        <Card.Body>
+                            {levels.length === 0 ? (
+                                <div className="text-center p-4">
+                                    <Archive size={48} className="text-muted mb-3" />
+                                    <h5 className="text-muted">Aucun cycle configuré</h5>
+                                    <p className="text-muted">Créez votre premier cycle pour organiser l'enseignement</p>
+                                    <Button variant="primary" onClick={() => setShowCreateModal(true)}>
+                                        <Plus className="me-2" />
+                                        Créer le premier cycle
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div className="table-responsive">
+                                    <Table hover>
+                                        <thead className="table-light">
+                                            <tr>
+                                                <th>Nom du Cycle</th>
+                                                <th>Section</th>
+                                                <th>Description</th>
+                                                <th>Ordre</th>
+                                                <th>Statut</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {levels.map((level) => (
+                                                <tr key={level.id}>
+                                                    <td>
+                                                        <strong>{level.name}</strong>
+                                                    </td>
+                                                    <td>
+                                                        <Badge bg="outline-secondary">
+                                                            <HospitalFill size={12} className="me-1" />
+                                                            {getSectionName(level.section_id)}
+                                                        </Badge>
+                                                    </td>
+                                                    <td>
+                                                        <small className="text-muted">
+                                                            {level.description || 'Pas de description'}
+                                                        </small>
+                                                    </td>
+                                                    <td>
+                                                        <Badge bg="info">{level.order}</Badge>
+                                                    </td>
+                                                    <td>
+                                                        <Badge bg={level.is_active ? 'success' : 'secondary'}>
+                                                            {level.is_active ? 'Actif' : 'Inactif'}
+                                                        </Badge>
+                                                    </td>
+                                                    <td>
+                                                        <div className="d-flex gap-1">
+                                                            <Button 
+                                                                size="sm" 
+                                                                variant="outline-primary"
+                                                                onClick={() => handleEditLevel(level)}
+                                                                title="Modifier"
+                                                            >
+                                                                <Pencil size={14} />
+                                                            </Button>
+                                                            <Button 
+                                                                size="sm" 
+                                                                variant={level.is_active ? 'outline-warning' : 'outline-success'}
+                                                                onClick={() => handleToggleStatus(level)}
+                                                                title={level.is_active ? 'Désactiver' : 'Activer'}
+                                                            >
+                                                                {level.is_active ? <XCircle size={14} /> : <CheckCircle size={14} />}
+                                                            </Button>
+                                                            <Button 
+                                                                size="sm" 
+                                                                variant="outline-danger"
+                                                                onClick={() => handleDeleteLevel(level)}
+                                                                title="Supprimer"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </Table>
+                                </div>
+                            )}
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
 
-export default EvaluationConfiguration;
+            {/* Modal Création */}
+            <Modal show={showCreateModal} onHide={() => setShowCreateModal(false)} size="lg">
+                <Modal.Header closeButton>
+                    <Modal.Title>Créer un nouveau cycle</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form>
+                        <Row>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Nom du cycle *</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        value={levelForm.name}
+                                        onChange={(e) => setLevelForm({ ...levelForm, name: e.target.value })}
+                                        placeholder="Ex: Premier Cycle"
+                                    />
+                                </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Section *</Form.Label>
+                                    <Form.Select
+                                        value={levelForm.section_id}
+                                        onChange={(e) => setLevelForm({ ...levelForm, section_id: e.target.value })}
+                                    >
+                                        <option value="">Sélectionner une section</option>
+                                        {sections.map(section => (
+                                            <option key={section.id} value={section.id}>
+                                                {section.name}
+                                            </option>
+                                        ))}
+                                    </Form.Select>
+                                </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Ordre d'affichage</Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        min="0"
+                                        value={levelForm.order}
+                                        onChange={(e) => setLevelForm({ ...levelForm, order: parseInt(e.target.value) || 0 })}
+                                    />
+                                </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Check
+                                        type="switch"
+                                        id="create-is-active"
+                                        label="Cycle actif"
+                                        checked={levelForm.is_active}
+                                        onChange={(e) => setLevelForm({ ...levelForm, is_active: e.target.checked })}
+                                    />
+                                </Form.Group>
+                            </Col>
+                            <Col md={12}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Description</Form.Label>
+                                    <Form.Control
+                                        as="textarea"
+                                        rows={3}
+                                        value={levelForm.description}
+                                        onChange={(e) => setLevelForm({ ...levelForm, description: e.target.value })}
+                                        placeholder="Description optionnelle du cycle..."
+                                    />
+                                </Form.Group>
+                            </Col>
+                        </Row>
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => {
+                        setShowCreateModal(false);
+                        resetForm();
+                    }}>
+                        Annuler
+                    </Button>
+                    <Button variant="primary" onClick={handleCreateLevel}>
+                        Créer le Cycle
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal Édition */}
+            <Modal show={showEditModal} onHide={() => setShowEditModal(false)} size="lg">
+                <Modal.Header closeButton>
+                    <Modal.Title>Modifier le cycle</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form>
+                        <Row>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Nom du cycle *</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        value={levelForm.name}
+                                        onChange={(e) => setLevelForm({ ...levelForm, name: e.target.value })}
+                                        placeholder="Ex: Premier Cycle"
+                                    />
+                                </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Section *</Form.Label>
+                                    <Form.Select
+                                        value={levelForm.section_id}
+                                        onChange={(e) => setLevelForm({ ...levelForm, section_id: e.target.value })}
+                                    >
+                                        <option value="">Sélectionner une section</option>
+                                        {sections.map(section => (
+                                            <option key={section.id} value={section.id}>
+                                                {section.name}
+                                            </option>
+                                        ))}
+                                    </Form.Select>
+                                </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Ordre d'affichage</Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        min="0"
+                                        value={levelForm.order}
+                                        onChange={(e) => setLevelForm({ ...levelForm, order: parseInt(e.target.value) || 0 })}
+                                    />
+                                </Form.Group>
+                            </Col>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Check
+                                        type="switch"
+                                        id="edit-is-active"
+                                        label="Cycle actif"
+                                        checked={levelForm.is_active}
+                                        onChange={(e) => setLevelForm({ ...levelForm, is_active: e.target.checked })}
+                                    />
+                                </Form.Group>
+                            </Col>
+                            <Col md={12}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Description</Form.Label>
+                                    <Form.Control
+                                        as="textarea"
+                                        rows={3}
+                                        value={levelForm.description}
+                                        onChange={(e) => setLevelForm({ ...levelForm, description: e.target.value })}
+                                        placeholder="Description optionnelle du cycle..."
+                                    />
+                                </Form.Group>
+                            </Col>
+                        </Row>
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => {
+                        setShowEditModal(false);
+                        setSelectedLevel(null);
+                        resetForm();
+                    }}>
+                        Annuler
+                    </Button>
+                    <Button variant="primary" onClick={handleUpdateLevel}>
+                        Mettre à jour
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal Suppression */}
+            <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title className="text-danger">
+                        <Trash2 className="me-2" />
+                        Confirmer la suppression
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {selectedLevel && (
+                        <div>
+                            <Alert variant="warning">
+                                <XCircle className="me-2" />
+                                <strong>Attention !</strong> Cette action est irréversible.
+                            </Alert>
+                            <p>
+                                Êtes-vous sûr de vouloir supprimer le cycle <strong>"{selectedLevel.name}"</strong> ?
+                            </p>
+                            <small className="text-muted">
+                                Note : Vous ne pouvez pas supprimer un cycle qui contient des classes.
+                            </small>
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => {
+                        setShowDeleteModal(false);
+                        setSelectedLevel(null);
+                    }}>
+                        Annuler
+                    </Button>
+                    <Button variant="danger" onClick={confirmDeleteLevel}>
+                        <Trash2 className="me-2" />
+                        Supprimer définitivement
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+        </div>
+    );
+};
+
+export default Levels;
