@@ -1,0 +1,129 @@
+/**
+ * Script pour synchroniser les zones entre admin et utilisateurs
+ * Temporaire jusqu'à ce que le backend gère les zones
+ */
+
+// Zones par défaut pour tous les utilisateurs
+const DEFAULT_ZONES_CONFIG = {
+    'college_polyvalent': {
+        name: 'Collège Polyvalent',
+        latitude: 5.481275,
+        longitude: 10.459527,
+        radius: 500, // Augmenté pour plus de tolérance
+        enabled: true,
+        description: 'Zone principale du collège'
+    }
+};
+
+/**
+ * Initialiser les zones si elles n'existent pas
+ */
+export function initializeDefaultZones() {
+    const existingZones = localStorage.getItem('geolocation_zones');
+    
+    if (!existingZones || existingZones === '{}' || existingZones === 'undefined') {
+        console.log('🔧 Initialisation des zones par défaut...');
+        localStorage.setItem('geolocation_zones', JSON.stringify(DEFAULT_ZONES_CONFIG));
+        return true;
+    }
+    
+    return false;
+}
+
+/**
+ * Forcer l'ajout de la zone Collège Polyvalent
+ */
+export function ensureCollegeZoneExists() {
+    try {
+        let zones = {};
+        const stored = localStorage.getItem('geolocation_zones');
+        
+        if (stored && stored !== 'undefined') {
+            zones = JSON.parse(stored);
+        }
+        
+        // Ajouter la zone collège si elle n'existe pas
+        if (!zones['college_polyvalent']) {
+            zones['college_polyvalent'] = DEFAULT_ZONES_CONFIG['college_polyvalent'];
+            localStorage.setItem('geolocation_zones', JSON.stringify(zones));
+            console.log('✅ Zone Collège Polyvalent ajoutée');
+            return true;
+        }
+        
+        return false;
+    } catch (error) {
+        console.error('Erreur lors de l\'ajout de la zone:', error);
+        // En cas d'erreur, réinitialiser avec les zones par défaut
+        localStorage.setItem('geolocation_zones', JSON.stringify(DEFAULT_ZONES_CONFIG));
+        return true;
+    }
+}
+
+/**
+ * Obtenir toutes les zones configurées
+ */
+export function getAllZones() {
+    try {
+        const stored = localStorage.getItem('geolocation_zones');
+        if (stored && stored !== 'undefined') {
+            return JSON.parse(stored);
+        }
+    } catch (error) {
+        console.error('Erreur lecture zones:', error);
+    }
+    
+    return DEFAULT_ZONES_CONFIG;
+}
+
+/**
+ * Copier les zones d'un utilisateur admin vers tous les utilisateurs
+ * (À appeler après configuration par l'admin)
+ */
+export function shareZonesToAllUsers() {
+    // Récupérer les zones actuelles (même si elles sont vides)
+    const stored = localStorage.getItem('geolocation_zones');
+    let zones = {};
+    
+    if (stored && stored !== 'undefined' && stored !== '{}') {
+        try {
+            zones = JSON.parse(stored);
+        } catch (error) {
+            console.error('Erreur parsing zones:', error);
+            zones = {};
+        }
+    }
+    
+    // Sauvegarder dans un emplacement partagé
+    localStorage.setItem('shared_geolocation_zones', JSON.stringify(zones));
+    
+    console.log('📤 Zones partagées:', zones);
+    return zones;
+}
+
+/**
+ * Charger les zones partagées
+ */
+export function loadSharedZones() {
+    // D'abord essayer de charger les zones partagées
+    const sharedZones = localStorage.getItem('shared_geolocation_zones');
+    if (sharedZones && sharedZones !== 'undefined') {
+        localStorage.setItem('geolocation_zones', sharedZones);
+        console.log('📥 Zones partagées chargées');
+        return JSON.parse(sharedZones);
+    }
+    
+    // Sinon, initialiser avec les zones par défaut
+    initializeDefaultZones();
+    return getAllZones();
+}
+
+// Auto-initialisation désactivée
+// Les zones seront gérées uniquement par l'interface admin
+if (typeof window !== 'undefined') {
+    // Vérifier si des zones existent, sinon initialiser
+    const existingZones = localStorage.getItem('geolocation_zones');
+    if (!existingZones || existingZones === '{}' || existingZones === 'undefined') {
+        console.log('🔧 Aucune zone configurée, initialisation avec zones par défaut');
+        initializeDefaultZones();
+    }
+}

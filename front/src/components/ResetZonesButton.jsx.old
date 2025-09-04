@@ -1,0 +1,91 @@
+/**
+ * Bouton pour réinitialiser complètement les zones
+ */
+
+import React, { useState } from 'react';
+import { Button, Modal } from 'react-bootstrap';
+import { Trash, ExclamationTriangle } from 'react-bootstrap-icons';
+import geolocationService from '../services/geolocationService';
+import { shareZonesToAllUsers } from '../utils/zonesSyncFix';
+
+const ResetZonesButton = ({ onZonesReset }) => {
+    const [showModal, setShowModal] = useState(false);
+    const [resetting, setResetting] = useState(false);
+    
+    const handleResetZones = async () => {
+        setResetting(true);
+        try {
+            // Vider complètement les zones
+            localStorage.removeItem('geolocation_zones');
+            localStorage.removeItem('shared_geolocation_zones');
+            
+            // Réinitialiser le service de géolocalisation
+            geolocationService.AUTHORIZED_ZONES = {};
+            geolocationService.loadZoneConfig();
+            
+            // Partager les zones vides
+            shareZonesToAllUsers();
+            
+            console.log('🗑️ Toutes les zones ont été supprimées');
+            
+            if (onZonesReset) {
+                onZonesReset();
+            }
+            
+        } catch (error) {
+            console.error('Erreur lors de la réinitialisation:', error);
+        } finally {
+            setResetting(false);
+            setShowModal(false);
+        }
+    };
+    
+    return (
+        <>
+            <Button 
+                variant="outline-danger"
+                onClick={() => setShowModal(true)}
+            >
+                <Trash className="me-1" />
+                Réinitialiser toutes les zones
+            </Button>
+            
+            <Modal show={showModal} onHide={() => setShowModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <ExclamationTriangle className="me-2 text-danger" />
+                        Réinitialiser les zones
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <p><strong>⚠️ Attention !</strong></p>
+                    <p>Cette action va :</p>
+                    <ul>
+                        <li>Supprimer <strong>TOUTES</strong> les zones configurées</li>
+                        <li>Vider le cache de géolocalisation</li>
+                        <li>Synchroniser les zones vides avec tous les utilisateurs</li>
+                    </ul>
+                    <p>Vous devrez reconfigurer toutes vos zones après cette action.</p>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button 
+                        variant="secondary" 
+                        onClick={() => setShowModal(false)}
+                        disabled={resetting}
+                    >
+                        Annuler
+                    </Button>
+                    <Button 
+                        variant="danger" 
+                        onClick={handleResetZones}
+                        disabled={resetting}
+                    >
+                        {resetting ? 'Suppression...' : 'Oui, tout supprimer'}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+        </>
+    );
+};
+
+export default ResetZonesButton;

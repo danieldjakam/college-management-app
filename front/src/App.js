@@ -27,6 +27,7 @@ import SchoolClasses from "./pages/SchoolClasses/SchoolClasses";
 import SchoolYears from "./pages/SchoolYears";
 import Sections from "./pages/Sections/Sections";
 import Settings from "./pages/Settings";
+import GeolocationZoneSettingsV2 from "./pages/Settings/GeolocationZoneSettingsV2";
 import UserProfile from "./pages/Profile/UserProfile";
 import SeriesStudents from "./pages/Students/SeriesStudents";
 
@@ -70,6 +71,9 @@ import TeacherDashboard from "./pages/Teacher/TeacherDashboard";
 import TeacherClassStudents from "./pages/Teacher/TeacherClassStudents";
 import Sequences from "./pages/Teacher/Sequences";
 import Trimesters from "./pages/Teacher/Trimesters";
+import Evaluations from "./pages/Teacher/Evaluations";
+import EvaluationCreate from "./pages/Teacher/EvaluationCreate";
+import GradeEntry from "./pages/Teacher/GradeEntry";
 
 // Departments
 import DepartmentManagement from "./pages/Departments/DepartmentManagement";
@@ -81,7 +85,7 @@ import NeedsManagement from "./pages/Needs/NeedsManagement";
 // Attendance
 import AttendanceScanner from "./pages/Attendance/AttendanceScanner";
 import TeacherAttendanceScanner from "./pages/Attendance/TeacherAttendanceScanner";
-import StaffAttendanceScanner from "./pages/Attendance/StaffAttendanceScanner";
+import StaffAttendanceScannerGeolocated from "./pages/Attendance/StaffAttendanceScannerGeolocated";
 import AttendanceReports from "./pages/Attendance/AttendanceReports";
 import TeacherDetailedStats from "./pages/Teachers/TeacherDetailedStats";
 
@@ -344,7 +348,7 @@ const AppContent = () => {
                 path="/staff-attendance-scanner"
                 element={
                   <ProtectedRoute requiredRoles={['admin', 'bibliothecaire']}>
-                    <StaffAttendanceScanner />
+                    <StaffAttendanceScannerGeolocated />
                   </ProtectedRoute>
                 }
               />
@@ -427,6 +431,15 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <Settings />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/geolocation-zones"
+                element={
+                  <AdminRoute>
+                    <GeolocationZoneSettingsV2 />
                   </AdminRoute>
                 }
               />
@@ -729,6 +742,33 @@ const AppContent = () => {
                 element={
                   <TeacherRoute>
                     <Trimesters />
+                  </TeacherRoute>
+                }
+              />
+              
+              <Route
+                path="/teacher/evaluations"
+                element={
+                  <TeacherRoute>
+                    <Evaluations />
+                  </TeacherRoute>
+                }
+              />
+              
+              <Route
+                path="/teacher/evaluations/create"
+                element={
+                  <TeacherRoute>
+                    <EvaluationCreate />
+                  </TeacherRoute>
+                }
+              />
+              
+              <Route
+                path="/teacher/evaluations/:evaluationId/grades"
+                element={
+                  <TeacherRoute>
+                    <GradeEntry />
                   </TeacherRoute>
                 }
               />

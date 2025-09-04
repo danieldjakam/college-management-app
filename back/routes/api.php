@@ -42,7 +42,12 @@ use App\Http\Controllers\DemandeExplicationController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\AcademicPeriodController;
 use App\Http\Controllers\EvaluationConfigController;
+use App\Http\Controllers\GeolocationZoneController;
 use App\Http\Controllers\GradingScaleController;
+use App\Http\Controllers\SequenceController;
+use App\Http\Controllers\TrimesterController;
+use App\Http\Controllers\EvaluationController;
+use App\Http\Controllers\GradeController;
 
 
 // Routes d'authentification
@@ -800,4 +805,75 @@ Route::middleware(['auth:api', 'role:admin'])->prefix('grading-scales')->group(f
     Route::delete('/{gradingScale}', [GradingScaleController::class, 'destroy']);
     Route::post('/create-default', [GradingScaleController::class, 'createDefaultScale']);
     Route::post('/get-grade-for-score', [GradingScaleController::class, 'getGradeForScore']);
+});
+
+// Routes pour le système d'évaluation (Séquences et Trimestres)
+Route::middleware(['auth:api'])->group(function () {
+    
+    // Routes pour les séquences
+    Route::prefix('sequences')->group(function () {
+        // Consultation (enseignants, admins, comptables)
+        Route::get('/', [SequenceController::class, 'index'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/current', [SequenceController::class, 'getCurrentSequence'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/{sequence}', [SequenceController::class, 'show'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/{sequence}/stats', [SequenceController::class, 'getStats'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        
+        // Gestion (admin uniquement)
+        Route::post('/{sequence}/activate', [SequenceController::class, 'activate'])->middleware(['role:admin']);
+    });
+
+    // Routes pour les trimestres
+    Route::prefix('trimesters')->group(function () {
+        // Consultation (enseignants, admins, comptables)
+        Route::get('/', [TrimesterController::class, 'index'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/current', [TrimesterController::class, 'getCurrentTrimester'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/{trimester}', [TrimesterController::class, 'show'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/{trimester}/stats', [TrimesterController::class, 'getStats'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        
+        // Gestion (admin uniquement)
+        Route::post('/{trimester}/activate', [TrimesterController::class, 'activate'])->middleware(['role:admin']);
+    });
+
+    // Routes pour les évaluations
+    Route::prefix('evaluations')->group(function () {
+        // Consultation (enseignants, admins, comptables)
+        Route::get('/', [EvaluationController::class, 'index'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/dashboard', [EvaluationController::class, 'dashboard'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/types', [EvaluationController::class, 'getTypes'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/{evaluation}/stats', [EvaluationController::class, 'getStats'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        
+        // Création et gestion (enseignants et admins)
+        Route::post('/', [EvaluationController::class, 'store'])->middleware(['role:admin,teacher']);
+    });
+
+    // Routes pour les notes
+    Route::prefix('grades')->group(function () {
+        // Consultation des notes par évaluation
+        Route::get('/evaluation/{evaluation}', [GradeController::class, 'getGradesByEvaluation'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        
+        // Saisie et gestion des notes (enseignants et admins)
+        Route::post('/', [GradeController::class, 'saveGrade'])->middleware(['role:admin,teacher']);
+        Route::post('/bulk', [GradeController::class, 'saveBulkGrades'])->middleware(['role:admin,teacher']);
+        Route::delete('/{grade}', [GradeController::class, 'deleteGrade'])->middleware(['role:admin,teacher']);
+        
+        // Statistiques
+        Route::get('/evaluation/{evaluation}/stats', [GradeController::class, 'getEvaluationStats'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+    });
+
+    // Routes pour les zones de géolocalisation
+    Route::prefix('geolocation-zones')->group(function () {
+        // Routes pour tous les utilisateurs authentifiés
+        Route::get('/enabled', [GeolocationZoneController::class, 'getEnabledZones']);
+        Route::post('/validate-position', [GeolocationZoneController::class, 'validatePosition']);
+        
+        // Routes CRUD pour les admins
+        Route::middleware(['role:admin'])->group(function () {
+            Route::get('/', [GeolocationZoneController::class, 'index']);
+            Route::post('/', [GeolocationZoneController::class, 'store']);
+            Route::get('/{zone}', [GeolocationZoneController::class, 'show']);
+            Route::put('/{zone}', [GeolocationZoneController::class, 'update']);
+            Route::delete('/{zone}', [GeolocationZoneController::class, 'destroy']);
+            Route::post('/{zone}/toggle-status', [GeolocationZoneController::class, 'toggleStatus']);
+        });
+    });
 });

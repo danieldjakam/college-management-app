@@ -194,6 +194,45 @@ const TeacherDashboard = () => {
                 </Col>
             </Row>
 
+            {/* Actions rapides */}
+            <Row className="mb-4">
+                <Col>
+                    <Card>
+                        <Card.Header className="bg-primary text-white">
+                            <h6 className="mb-0">
+                                <JournalBookmarkFill className="me-2" />
+                                Actions Rapides - Évaluations
+                            </h6>
+                        </Card.Header>
+                        <Card.Body>
+                            <div className="d-flex gap-3 flex-wrap">
+                                <Button 
+                                    variant="success"
+                                    onClick={() => navigate('/teacher/evaluations')}
+                                >
+                                    <Eye className="me-2" />
+                                    Mes Évaluations
+                                </Button>
+                                <Button 
+                                    variant="primary"
+                                    onClick={() => navigate('/teacher/evaluations/create')}
+                                >
+                                    <Calendar className="me-2" />
+                                    Créer Évaluation
+                                </Button>
+                                <Button 
+                                    variant="info"
+                                    onClick={() => navigate('/sequences')}
+                                >
+                                    <JournalBookmarkFill className="me-2" />
+                                    Voir Séquences
+                                </Button>
+                            </div>
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
             <Row>
                 {/* Classes où je suis professeur principal */}
                 {mainTeacherClasses.length > 0 && (

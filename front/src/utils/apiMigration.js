@@ -304,6 +304,16 @@ export const secureApiEndpoints = {
                 method: 'POST',
                 body: JSON.stringify({ user_ids: userIds })
             });
+        },
+        
+        // Alias pour compatibilité avec le scanner
+        getDailyAttendances: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/staff-attendance/daily-attendance${queryString ? '?' + queryString : ''}`);
+        },
+        getAttendanceStats: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/staff-attendance/entry-exit-stats${queryString ? '?' + queryString : ''}`);
         }
     },
 
@@ -1276,6 +1286,69 @@ export const secureApiEndpoints = {
         },
         getLowStockItems: () => secureApi.get('/inventory/low-stock'),
         testWhatsApp: () => secureApi.post('/inventory/test-whatsapp')
+    },
+
+    // === SEQUENCES ===
+    sequences: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/sequences${queryString ? '?' + queryString : ''}`);
+        },
+        getCurrent: () => secureApi.get('/sequences/current'),
+        getById: (id) => secureApi.get(`/sequences/${id}`),
+        activate: (id) => secureApi.post(`/sequences/${id}/activate`),
+        getStats: (id) => secureApi.get(`/sequences/${id}/stats`)
+    },
+
+    // === TRIMESTERS ===
+    trimesters: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/trimesters${queryString ? '?' + queryString : ''}`);
+        },
+        getCurrent: () => secureApi.get('/trimesters/current'),
+        getById: (id) => secureApi.get(`/trimesters/${id}`),
+        activate: (id) => secureApi.post(`/trimesters/${id}/activate`),
+        getStats: (id) => secureApi.get(`/trimesters/${id}/stats`)
+    },
+
+    // === EVALUATIONS ===
+    evaluations: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/evaluations${queryString ? '?' + queryString : ''}`);
+        },
+        getById: (id) => secureApi.get(`/evaluations/${id}`),
+        create: (data) => secureApi.post('/evaluations', data),
+        update: (id, data) => secureApi.put(`/evaluations/${id}`, data),
+        delete: (id) => secureApi.delete(`/evaluations/${id}`),
+        getTypes: () => secureApi.get('/evaluations/types'),
+        getStats: (id) => secureApi.get(`/evaluations/${id}/stats`),
+        getDashboard: () => secureApi.get('/evaluations/dashboard')
+    },
+
+    // === GRADES ===
+    grades: {
+        getByEvaluation: (evaluationId) => secureApi.get(`/grades/evaluation/${evaluationId}`),
+        save: (data) => secureApi.post('/grades', data),
+        saveBulk: (data) => secureApi.post('/grades/bulk', data),
+        delete: (id) => secureApi.delete(`/grades/${id}`),
+        getEvaluationStats: (evaluationId) => secureApi.get(`/grades/evaluation/${evaluationId}/stats`)
+    },
+
+    // === GEOLOCATION ZONES ===
+    geolocationZones: {
+        // Pour tous les utilisateurs authentifiés
+        getEnabledZones: () => secureApi.get('/geolocation-zones/enabled'),
+        validatePosition: (data) => secureApi.post('/geolocation-zones/validate-position', data),
+        
+        // Pour les admins seulement
+        getAll: () => secureApi.get('/geolocation-zones'),
+        getById: (id) => secureApi.get(`/geolocation-zones/${id}`),
+        create: (data) => secureApi.post('/geolocation-zones', data),
+        update: (id, data) => secureApi.put(`/geolocation-zones/${id}`, data),
+        delete: (id) => secureApi.delete(`/geolocation-zones/${id}`),
+        toggleStatus: (id) => secureApi.post(`/geolocation-zones/${id}/toggle-status`)
     }
 };
 

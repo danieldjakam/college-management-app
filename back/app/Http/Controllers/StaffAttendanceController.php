@@ -116,14 +116,20 @@ class StaffAttendanceController extends Controller
                 ->first();
 
             // PROTECTION CONTRE LES SCANS MULTIPLES
-            // Empêcher les scans dans un délai de 30 secondes
+            // Empêcher les scans dans un délai de 5 secondes (réduit de 30 à 5 secondes)
             if ($lastMovement && $lastMovement->scanned_at) {
                 $timeDifference = Carbon::parse($lastMovement->scanned_at)->diffInSeconds($now);
-                if ($timeDifference < 30) {
+                if ($timeDifference < 5) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Scan trop récent. Veuillez attendre ' . (30 - $timeDifference) . ' secondes avant de rescanner.',
-                        'time_remaining' => 30 - $timeDifference
+                        'message' => 'Scan trop récent. Veuillez attendre ' . (5 - $timeDifference) . ' secondes avant de rescanner.',
+                        'time_remaining' => 5 - $timeDifference,
+                        'last_scan_time' => $lastMovement->scanned_at,
+                        'debug' => [
+                            'current_time' => $now->format('Y-m-d H:i:s'),
+                            'last_scan' => $lastMovement->scanned_at,
+                            'diff_seconds' => $timeDifference
+                        ]
                     ], 429); // 429 Too Many Requests
                 }
             }
@@ -354,12 +360,32 @@ class StaffAttendanceController extends Controller
 
                     // Si il y a une entrée sans sortie (encore présent)
                     if ($currentEntry) {
-                        $entryExitPairs[] = [
-                            'entry_time' => $currentEntry['scanned_at'],
-                            'exit_time' => null,
-                            'working_minutes' => null,
-                            'working_hours' => 'En cours'
-                        ];
+                        // Déterminer si c'est du personnel permanent
+                        $staffType = $this->getStaffType($member);
+                        $isPermanentStaff = in_array($staffType, ['accountant', 'admin', 'secretaire', 'supervisor']);
+                        
+                        if ($isPermanentStaff) {
+                            // Personnel permanent: demi-journée automatique
+                            $halfDayMinutes = 4 * 60; // 4 heures
+                            $totalWorkingMinutes += $halfDayMinutes;
+                            
+                            $entryExitPairs[] = [
+                                'entry_time' => $currentEntry['scanned_at'],
+                                'exit_time' => 'Auto (17:30)',
+                                'working_minutes' => $halfDayMinutes,
+                                'working_hours' => $this->formatWorkingTime($halfDayMinutes) . ' (demi-journée)',
+                                'is_half_day' => true
+                            ];
+                        } else {
+                            // Enseignants: en cours
+                            $entryExitPairs[] = [
+                                'entry_time' => $currentEntry['scanned_at'],
+                                'exit_time' => null,
+                                'working_minutes' => null,
+                                'working_hours' => 'En cours',
+                                'is_half_day' => false
+                            ];
+                        }
                     }
                 }
 
@@ -496,12 +522,32 @@ class StaffAttendanceController extends Controller
 
                     // Si il y a une entrée sans sortie (encore présent)
                     if ($currentEntry) {
-                        $entryExitPairs[] = [
-                            'entry_time' => $currentEntry['scanned_at'],
-                            'exit_time' => null,
-                            'working_minutes' => null,
-                            'working_hours' => 'En cours'
-                        ];
+                        // Déterminer si c'est du personnel permanent
+                        $staffType = $this->getStaffType($member);
+                        $isPermanentStaff = in_array($staffType, ['accountant', 'admin', 'secretaire', 'supervisor']);
+                        
+                        if ($isPermanentStaff) {
+                            // Personnel permanent: demi-journée automatique
+                            $halfDayMinutes = 4 * 60; // 4 heures
+                            $totalWorkingMinutes += $halfDayMinutes;
+                            
+                            $entryExitPairs[] = [
+                                'entry_time' => $currentEntry['scanned_at'],
+                                'exit_time' => 'Auto (17:30)',
+                                'working_minutes' => $halfDayMinutes,
+                                'working_hours' => $this->formatWorkingTime($halfDayMinutes) . ' (demi-journée)',
+                                'is_half_day' => true
+                            ];
+                        } else {
+                            // Enseignants: en cours
+                            $entryExitPairs[] = [
+                                'entry_time' => $currentEntry['scanned_at'],
+                                'exit_time' => null,
+                                'working_minutes' => null,
+                                'working_hours' => 'En cours',
+                                'is_half_day' => false
+                            ];
+                        }
                     }
                 }
 
@@ -1381,7 +1427,7 @@ class StaffAttendanceController extends Controller
                 ->get();
 
             // Grouper les présences par jour et calculer les paires entrée-sortie
-            $dailyDetails = $this->calculateDailyWorkPairs($attendances);
+            $dailyDetails = $this->calculateDailyWorkPairs($attendances, $user);
 
             return response()->json([
                 'success' => true,
@@ -1506,7 +1552,9 @@ class StaffAttendanceController extends Controller
 
     /**
      * Calculer le temps de travail total pour une journée
-     * Règle: Fermeture à 17h30, pas d'heures supplémentaires comptées après
+     * Règle: 
+     * - Fermeture à 17h30, pas d'heures supplémentaires comptées après
+     * - Si entrée sans sortie (personnel administratif/permanent) = demi-journée (4h)
      */
     private function calculateDailyWorkTime($userId, $date, $schoolYearId)
     {
@@ -1521,6 +1569,11 @@ class StaffAttendanceController extends Controller
         
         // Heure limite de fermeture: 17h30
         $closingTime = Carbon::createFromTimeString('17:30:00');
+        
+        // Obtenir le type de personnel pour déterminer si c'est du personnel permanent
+        $user = User::find($userId);
+        $staffType = $this->getStaffType($user);
+        $isPermanentStaff = in_array($staffType, ['accountant', 'admin', 'secretaire', 'supervisor']);
 
         foreach ($movements as $movement) {
             if ($movement->event_type === 'entry') {
@@ -1540,6 +1593,22 @@ class StaffAttendanceController extends Controller
             }
         }
 
+        // NOUVELLE RÈGLE: Si il y a une entrée sans sortie (personnel permanent)
+        // Considérer comme demi-journée = 4 heures (240 minutes)
+        if ($entryTime && $isPermanentStaff) {
+            $halfDayMinutes = 4 * 60; // 4 heures = 240 minutes
+            $totalMinutes += $halfDayMinutes;
+            
+            \Log::info('Personnel permanent - Demi-journée appliquée', [
+                'user_id' => $userId,
+                'user_name' => $user->name,
+                'staff_type' => $staffType,
+                'entry_time' => $entryTime->format('H:i:s'),
+                'date' => $date,
+                'half_day_minutes' => $halfDayMinutes
+            ]);
+        }
+
         // Convertir en heures avec 2 décimales
         return round($totalMinutes / 60, 2);
     }
@@ -1547,10 +1616,14 @@ class StaffAttendanceController extends Controller
     /**
      * Calculer les paires entrée-sortie pour chaque jour
      */
-    private function calculateDailyWorkPairs($attendances)
+    private function calculateDailyWorkPairs($attendances, $user = null)
     {
         $groupedByDate = $attendances->groupBy('attendance_date');
         $dailyDetails = [];
+        
+        // Déterminer si c'est du personnel permanent
+        $staffType = $user ? $this->getStaffType($user) : null;
+        $isPermanentStaff = $staffType && in_array($staffType, ['accountant', 'admin', 'secretaire', 'supervisor']);
 
         foreach ($groupedByDate as $date => $dayAttendances) {
             $movements = $dayAttendances->sortBy('scanned_at');
@@ -1579,14 +1652,30 @@ class StaffAttendanceController extends Controller
                 }
             }
 
-            // Si il y a une entrée sans sortie (encore au travail)
+            // Si il y a une entrée sans sortie
             if ($entryTime) {
-                $workPairs[] = [
-                    'entry_time' => $entryTime->format('H:i'),
-                    'exit_time' => null,
-                    'duration_minutes' => null,
-                    'duration_formatted' => 'En cours...'
-                ];
+                $halfDayMinutes = 4 * 60; // 4 heures = 240 minutes
+                
+                // NOUVELLE RÈGLE: Personnel permanent sans sortie = demi-journée
+                if ($isPermanentStaff) {
+                    $totalDayMinutes += $halfDayMinutes;
+                    $workPairs[] = [
+                        'entry_time' => $entryTime->format('H:i'),
+                        'exit_time' => 'Auto (17:30)',
+                        'duration_minutes' => $halfDayMinutes,
+                        'duration_formatted' => $this->formatDuration($halfDayMinutes) . ' (demi-journée)',
+                        'is_half_day' => true
+                    ];
+                } else {
+                    // Pour les autres (enseignants), afficher "En cours"
+                    $workPairs[] = [
+                        'entry_time' => $entryTime->format('H:i'),
+                        'exit_time' => null,
+                        'duration_minutes' => null,
+                        'duration_formatted' => 'En cours...',
+                        'is_half_day' => false
+                    ];
+                }
             }
 
             $dailyDetails[] = [

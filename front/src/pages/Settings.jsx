@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Container, Row, Col, Card, Nav } from 'react-bootstrap';
-import { GearFill, Building, Award, Calendar, FileEarmarkText } from 'react-bootstrap-icons';
+import { GearFill, Building, Award, Calendar, FileEarmarkText, GeoAlt } from 'react-bootstrap-icons';
 import SchoolSettings from './Settings/SchoolSettings';
 import ClassScholarships from './Settings/ClassScholarships';
+import GeolocationZoneSettingsV2 from './Settings/GeolocationZoneSettingsV2';
+import GeolocationQuickAccess from '../components/GeolocationQuickAccess';
 
 function Settings() {
     const [activeTab, setActiveTab] = useState('school-settings');
@@ -19,6 +21,12 @@ function Settings() {
             title: 'Bourses par Classe',
             icon: <Award size={16} className="me-2" />,
             component: <ClassScholarships />
+        },
+        {
+            key: 'geolocation-zones',
+            title: 'Zones Géolocalisées',
+            icon: <GeoAlt size={16} className="me-2" />,
+            component: <GeolocationZoneSettingsV2 />
         }
     ];
 
@@ -59,6 +67,13 @@ function Settings() {
                             </Nav>
                         </Card.Body>
                     </Card>
+                </Col>
+            </Row>
+
+            {/* Accès rapide géolocalisation */}
+            <Row className="mb-4">
+                <Col lg={4}>
+                    <GeolocationQuickAccess />
                 </Col>
             </Row>
 

@@ -1,0 +1,533 @@
+/**
+ * Panneau d'administration pour configurer les zones géolocalisées
+ * Permet de définir les zones autorisées pour le scan de présence
+ */
+
+import React, { useState, useEffect } from 'react';
+import { 
+    Container, 
+    Card, 
+    Button, 
+    Form, 
+    Table, 
+    Modal, 
+    Alert, 
+    Badge,
+    Row,
+    Col,
+    InputGroup,
+    Spinner
+} from 'react-bootstrap';
+import { 
+    Map, 
+    PlusCircle, 
+    PencilSquare, 
+    Trash, 
+    GeoAlt, 
+    CheckCircle,
+    XCircle,
+    Bullseye,
+    Save,
+    Eye
+} from 'react-bootstrap-icons';
+import geolocationService from '../../services/geolocationService';
+import Swal from 'sweetalert2';
+import ClearOldZones from '../../components/ClearOldZones';
+import ZoneDebugInfo from '../../components/ZoneDebugInfo';
+import ShareZonesButton from '../../components/ShareZonesButton';
+import ResetZonesButton from '../../components/ResetZonesButton';
+
+const GeolocationZoneSettings = () => {
+    const [zones, setZones] = useState({});
+    const [showZoneModal, setShowZoneModal] = useState(false);
+    const [editingZone, setEditingZone] = useState(null);
+    const [currentLocation, setCurrentLocation] = useState(null);
+    const [testingZone, setTestingZone] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    const [zoneForm, setZoneForm] = useState({
+        id: '',
+        name: '',
+        latitude: '',
+        longitude: '',
+        radius: 50,
+        enabled: true,
+        description: ''
+    });
+
+    useEffect(() => {
+        loadZones();
+        getCurrentLocation();
+    }, []);
+
+    const loadZones = () => {
+        // Charger les zones depuis le service de géolocalisation
+        // Créer une nouvelle référence pour forcer le re-render
+        setZones({...geolocationService.AUTHORIZED_ZONES});
+    };
+
+    const getCurrentLocation = async () => {
+        try {
+            const position = await geolocationService.getCurrentPosition();
+            setCurrentLocation(position);
+        } catch (error) {
+            console.error('Impossible d\'obtenir la position:', error);
+        }
+    };
+
+    const openZoneModal = (zone = null) => {
+        if (zone) {
+            setEditingZone(zone.id);
+            setZoneForm({
+                id: zone.id,
+                name: zone.name,
+                latitude: zone.latitude.toString(),
+                longitude: zone.longitude.toString(),
+                radius: zone.radius,
+                enabled: zone.enabled,
+                description: zone.description || ''
+            });
+        } else {
+            setEditingZone(null);
+            setZoneForm({
+                id: `zone_${Date.now()}`,
+                name: '',
+                latitude: currentLocation ? currentLocation.latitude.toString() : '',
+                longitude: currentLocation ? currentLocation.longitude.toString() : '',
+                radius: 50,
+                enabled: true,
+                description: ''
+            });
+        }
+        setShowZoneModal(true);
+    };
+
+    const handleZoneSubmit = (e) => {
+        e.preventDefault();
+        
+        const zoneData = {
+            name: zoneForm.name,
+            latitude: parseFloat(zoneForm.latitude),
+            longitude: parseFloat(zoneForm.longitude),
+            radius: parseInt(zoneForm.radius),
+            enabled: zoneForm.enabled,
+            description: zoneForm.description
+        };
+
+        // Validation
+        if (!zoneData.name || !zoneData.latitude || !zoneData.longitude) {
+            Swal.fire('Erreur', 'Veuillez remplir tous les champs obligatoires', 'error');
+            return;
+        }
+
+        if (zoneData.radius < 10 || zoneData.radius > 1000) {
+            Swal.fire('Erreur', 'Le rayon doit être entre 10 et 1000 mètres', 'error');
+            return;
+        }
+
+        // Mise à jour du service
+        if (editingZone) {
+            geolocationService.updateZoneConfig(zoneForm.id, zoneData);
+        } else {
+            geolocationService.AUTHORIZED_ZONES[zoneForm.id] = zoneData;
+            geolocationService.updateZoneConfig(zoneForm.id, zoneData);
+        }
+
+        // Recharger les zones
+        loadZones();
+        setShowZoneModal(false);
+        
+        Swal.fire(
+            'Succès', 
+            editingZone ? 'Zone modifiée avec succès' : 'Zone créée avec succès', 
+            'success'
+        );
+    };
+
+    const deleteZone = (zoneId) => {
+        Swal.fire({
+            title: 'Supprimer la zone ?',
+            text: 'Cette action est irréversible',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Supprimer',
+            cancelButtonText: 'Annuler'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                delete geolocationService.AUTHORIZED_ZONES[zoneId];
+                localStorage.setItem(
+                    'geolocation_zones',
+                    JSON.stringify(geolocationService.AUTHORIZED_ZONES)
+                );
+                loadZones();
+                Swal.fire('Supprimé !', 'La zone a été supprimée.', 'success');
+            }
+        });
+    };
+
+    const toggleZone = (zoneId) => {
+        const zone = zones[zoneId];
+        if (!zone) {
+            console.error('Zone introuvable:', zoneId);
+            return;
+        }
+        
+        const newStatus = !zone.enabled;
+        console.log(`Basculement zone ${zoneId}: ${zone.enabled} -> ${newStatus}`);
+        
+        // Mise à jour immédiate de l'état local pour la réactivité
+        setZones(prevZones => ({
+            ...prevZones,
+            [zoneId]: {
+                ...prevZones[zoneId],
+                enabled: newStatus
+            }
+        }));
+        
+        // Mettre à jour la configuration dans le service
+        const success = geolocationService.updateZoneConfig(zoneId, { enabled: newStatus });
+        
+        if (success) {
+            Swal.fire(
+                'Zone ' + (newStatus ? 'activée' : 'désactivée'),
+                `La zone "${zone.name}" a été ${newStatus ? 'activée' : 'désactivée'}`,
+                'success'
+            );
+        } else {
+            // En cas d'erreur, restaurer l'ancien état
+            setZones(prevZones => ({
+                ...prevZones,
+                [zoneId]: {
+                    ...prevZones[zoneId],
+                    enabled: !newStatus
+                }
+            }));
+            Swal.fire('Erreur', 'Impossible de modifier la zone', 'error');
+        }
+    };
+
+    const testCurrentPosition = async () => {
+        setLoading(true);
+        try {
+            const validation = await geolocationService.validateScanLocation();
+            setTestingZone(validation);
+            
+            Swal.fire({
+                title: validation.success ? 'Position Autorisée ✅' : 'Position Non Autorisée ❌',
+                html: `
+                    <div class="text-start">
+                        <p><strong>Message:</strong> ${validation.message}</p>
+                        ${validation.validation ? `
+                            <p><strong>Zone la plus proche:</strong> ${validation.validation.closestZone.zoneName}</p>
+                            <p><strong>Distance:</strong> ${validation.validation.closestZone.distance}m</p>
+                            <p><strong>Rayon autorisé:</strong> ${validation.validation.closestZone.radius}m</p>
+                        ` : ''}
+                        ${validation.position ? `
+                            <hr>
+                            <p><strong>Coordonnées:</strong></p>
+                            <p>Latitude: ${validation.position.latitude.toFixed(6)}</p>
+                            <p>Longitude: ${validation.position.longitude.toFixed(6)}</p>
+                            <p>Précision: ${validation.position.accuracy}m</p>
+                        ` : ''}
+                    </div>
+                `,
+                icon: validation.success ? 'success' : 'error',
+                confirmButtonText: 'OK'
+            });
+        } catch (error) {
+            Swal.fire('Erreur', 'Impossible de tester la position: ' + error.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const useCurrentLocation = async () => {
+        try {
+            const position = await geolocationService.getCurrentPosition();
+            setZoneForm({
+                ...zoneForm,
+                latitude: position.latitude.toString(),
+                longitude: position.longitude.toString()
+            });
+            Swal.fire('Position mise à jour', 'Les coordonnées actuelles ont été utilisées', 'success');
+        } catch (error) {
+            Swal.fire('Erreur', 'Impossible d\'obtenir la position: ' + error.message, 'error');
+        }
+    };
+
+    return (
+        <Container fluid className="py-4">
+            <div className="d-flex justify-content-between align-items-center mb-4">
+                <h3>
+                    <Map className="me-2" />
+                    Configuration des Zones Géolocalisées
+                </h3>
+                <div>
+                    <Button 
+                        variant="outline-primary" 
+                        className="me-2"
+                        onClick={testCurrentPosition}
+                        disabled={loading}
+                    >
+                        {loading ? (
+                            <Spinner animation="border" size="sm" className="me-2" />
+                        ) : (
+                            <Bullseye className="me-2" />
+                        )}
+                        Tester Position
+                    </Button>
+                    <Button variant="primary" onClick={() => openZoneModal()}>
+                        <PlusCircle className="me-2" />
+                        Ajouter Zone
+                    </Button>
+                </div>
+            </div>
+
+            {currentLocation && (
+                <Alert variant="info" className="mb-4">
+                    <GeoAlt className="me-2" />
+                    <strong>Position actuelle:</strong> {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)} 
+                    (Précision: {currentLocation.accuracy}m)
+                </Alert>
+            )}
+
+            <div className="d-flex gap-2 flex-wrap mb-3">
+                <ShareZonesButton />
+                <ResetZonesButton onZonesReset={loadZones} />
+            </div>
+            
+            <ClearOldZones />
+            
+            <ZoneDebugInfo />
+
+            <Row>
+                <Col lg={12}>
+                    <Card>
+                        <Card.Header>
+                            <h5 className="mb-0">Zones Autorisées</h5>
+                        </Card.Header>
+                        <Card.Body>
+                            <Table striped bordered hover responsive>
+                                <thead>
+                                    <tr>
+                                        <th>Nom</th>
+                                        <th>Coordonnées</th>
+                                        <th>Rayon</th>
+                                        <th>Statut</th>
+                                        <th>Distance Actuelle</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {Object.entries(zones).map(([zoneId, zone]) => {
+                                        let currentDistance = null;
+                                        if (currentLocation) {
+                                            currentDistance = geolocationService.calculateDistance(
+                                                currentLocation.latitude,
+                                                currentLocation.longitude,
+                                                zone.latitude,
+                                                zone.longitude
+                                            );
+                                        }
+
+                                        return (
+                                            <tr key={zoneId}>
+                                                <td>
+                                                    <strong>{zone.name}</strong>
+                                                    {zone.description && (
+                                                        <div className="small text-muted">{zone.description}</div>
+                                                    )}
+                                                </td>
+                                                <td className="font-monospace small">
+                                                    {zone.latitude.toFixed(6)}, {zone.longitude.toFixed(6)}
+                                                </td>
+                                                <td>{zone.radius}m</td>
+                                                <td>
+                                                    <Badge bg={zone.enabled ? 'success' : 'secondary'}>
+                                                        {zone.enabled ? (
+                                                            <>
+                                                                <CheckCircle className="me-1" />
+                                                                Activé
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <XCircle className="me-1" />
+                                                                Désactivé
+                                                            </>
+                                                        )}
+                                                    </Badge>
+                                                </td>
+                                                <td>
+                                                    {currentDistance !== null ? (
+                                                        <span className={currentDistance <= zone.radius ? 'text-success' : 'text-muted'}>
+                                                            {Math.round(currentDistance)}m
+                                                            {currentDistance <= zone.radius && (
+                                                                <CheckCircle className="ms-1 text-success" />
+                                                            )}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-muted">-</span>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    <Button
+                                                        variant="outline-primary"
+                                                        size="sm"
+                                                        className="me-1"
+                                                        onClick={() => openZoneModal({ id: zoneId, ...zone })}
+                                                    >
+                                                        <PencilSquare />
+                                                    </Button>
+                                                    <Button
+                                                        variant={zone.enabled ? 'outline-warning' : 'outline-success'}
+                                                        size="sm"
+                                                        className="me-1"
+                                                        onClick={() => toggleZone(zoneId)}
+                                                    >
+                                                        {zone.enabled ? <XCircle /> : <CheckCircle />}
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline-danger"
+                                                        size="sm"
+                                                        onClick={() => deleteZone(zoneId)}
+                                                    >
+                                                        <Trash />
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </Table>
+
+                            {Object.keys(zones).length === 0 && (
+                                <div className="text-center py-4">
+                                    <p className="text-muted">Aucune zone configurée</p>
+                                    <Button variant="primary" onClick={() => openZoneModal()}>
+                                        <PlusCircle className="me-2" />
+                                        Créer votre première zone
+                                    </Button>
+                                </div>
+                            )}
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Modal de création/édition de zone */}
+            <Modal show={showZoneModal} onHide={() => setShowZoneModal(false)} size="lg">
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        {editingZone ? 'Modifier Zone' : 'Nouvelle Zone'}
+                    </Modal.Title>
+                </Modal.Header>
+                <Form onSubmit={handleZoneSubmit}>
+                    <Modal.Body>
+                        <Row>
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Nom de la zone *</Form.Label>
+                                    <Form.Control
+                                        type="text"
+                                        value={zoneForm.name}
+                                        onChange={(e) => setZoneForm({...zoneForm, name: e.target.value})}
+                                        placeholder="Ex: Bâtiment Principal"
+                                        required
+                                    />
+                                </Form.Group>
+
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Description</Form.Label>
+                                    <Form.Control
+                                        as="textarea"
+                                        rows={2}
+                                        value={zoneForm.description}
+                                        onChange={(e) => setZoneForm({...zoneForm, description: e.target.value})}
+                                        placeholder="Description optionnelle..."
+                                    />
+                                </Form.Group>
+
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Rayon autorisé *</Form.Label>
+                                    <InputGroup>
+                                        <Form.Control
+                                            type="number"
+                                            min="10"
+                                            max="1000"
+                                            value={zoneForm.radius}
+                                            onChange={(e) => setZoneForm({...zoneForm, radius: parseInt(e.target.value)})}
+                                            required
+                                        />
+                                        <InputGroup.Text>mètres</InputGroup.Text>
+                                    </InputGroup>
+                                    <Form.Text className="text-muted">
+                                        Entre 10 et 1000 mètres
+                                    </Form.Text>
+                                </Form.Group>
+                            </Col>
+                            
+                            <Col md={6}>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Latitude *</Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        step="any"
+                                        value={zoneForm.latitude}
+                                        onChange={(e) => setZoneForm({...zoneForm, latitude: e.target.value})}
+                                        placeholder="Ex: 3.8480"
+                                        required
+                                    />
+                                </Form.Group>
+
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Longitude *</Form.Label>
+                                    <Form.Control
+                                        type="number"
+                                        step="any"
+                                        value={zoneForm.longitude}
+                                        onChange={(e) => setZoneForm({...zoneForm, longitude: e.target.value})}
+                                        placeholder="Ex: 11.5021"
+                                        required
+                                    />
+                                </Form.Group>
+
+                                <div className="d-grid">
+                                    <Button 
+                                        variant="outline-primary" 
+                                        onClick={useCurrentLocation}
+                                        type="button"
+                                    >
+                                        <GeoAlt className="me-2" />
+                                        Utiliser Position Actuelle
+                                    </Button>
+                                </div>
+                            </Col>
+                        </Row>
+
+                        <Form.Check
+                            type="switch"
+                            id="zone-enabled"
+                            label="Zone activée"
+                            checked={zoneForm.enabled}
+                            onChange={(e) => setZoneForm({...zoneForm, enabled: e.target.checked})}
+                            className="mt-3"
+                        />
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="secondary" onClick={() => setShowZoneModal(false)}>
+                            Annuler
+                        </Button>
+                        <Button variant="primary" type="submit">
+                            <Save className="me-2" />
+                            {editingZone ? 'Modifier' : 'Créer'}
+                        </Button>
+                    </Modal.Footer>
+                </Form>
+            </Modal>
+        </Container>
+    );
+};
+
+export default GeolocationZoneSettings;
