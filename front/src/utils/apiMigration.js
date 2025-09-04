@@ -743,6 +743,7 @@ export const secureApiEndpoints = {
     // === SCHOOL YEARS ===
     schoolYears: {
         getAll: () => secureApi.get('/school-years'),
+        getCurrent: () => secureApi.get('/school-years/active'),
         create: (data) => secureApi.post('/school-years', data),
         update: (id, data) => secureApi.put(`/school-years/${id}`, data),
         setCurrent: (id) => secureApi.post(`/school-years/${id}/set-current`),
@@ -1296,6 +1297,7 @@ export const secureApiEndpoints = {
         },
         getCurrent: () => secureApi.get('/sequences/current'),
         getById: (id) => secureApi.get(`/sequences/${id}`),
+        create: (data) => secureApi.post('/sequences', data),
         activate: (id) => secureApi.post(`/sequences/${id}/activate`),
         getStats: (id) => secureApi.get(`/sequences/${id}/stats`)
     },
@@ -1306,8 +1308,10 @@ export const secureApiEndpoints = {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/trimesters${queryString ? '?' + queryString : ''}`);
         },
+        getTeacherTrimesters: () => secureApi.get('/trimesters/teacher'),
         getCurrent: () => secureApi.get('/trimesters/current'),
         getById: (id) => secureApi.get(`/trimesters/${id}`),
+        create: (data) => secureApi.post('/trimesters', data),
         activate: (id) => secureApi.post(`/trimesters/${id}/activate`),
         getStats: (id) => secureApi.get(`/trimesters/${id}/stats`)
     },
@@ -1409,6 +1413,20 @@ export const migrationUtils = {
         const hasNewData = !!authService.getToken();
 
         return hasOldData && !hasNewData;
+    },
+
+    // === EVALUATION CONFIGS ===
+    evaluationConfigs: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/evaluation-configs${queryString ? '?' + queryString : ''}`);
+        },
+        getById: (id) => secureApi.get(`/evaluation-configs/${id}`),
+        create: (data) => secureApi.post('/evaluation-configs', data),
+        update: (id, data) => secureApi.put(`/evaluation-configs/${id}`, data),
+        delete: (id) => secureApi.delete(`/evaluation-configs/${id}`),
+        getByLevel: (levelId) => secureApi.get(`/evaluation-configs/level/${levelId}`),
+        toggleStatus: (id) => secureApi.post(`/evaluation-configs/${id}/toggle-status`)
     },
 
     // === CONVENIENCE METHODS ===

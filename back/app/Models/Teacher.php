@@ -77,6 +77,14 @@ class Teacher extends Model
     }
 
     /**
+     * Relation avec les assignations (nouvelle structure)
+     */
+    public function assignments()
+    {
+        return $this->hasMany(TeacherAssignment::class);
+    }
+
+    /**
      * Relation avec les classes où l'enseignant est professeur principal
      */
     public function mainClasses()

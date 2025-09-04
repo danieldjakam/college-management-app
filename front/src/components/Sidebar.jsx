@@ -99,6 +99,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           items: [
             { name: "Configuration Évaluations", href: "/levels", icon: <BookFill /> },
             { name: "Barèmes de Notation", href: "/grading-scales", icon: <Award /> },
+            { name: "Trimestres & Séquences", href: "/admin/trimesters-sequences", icon: <Calendar /> },
           ],
         },
         {

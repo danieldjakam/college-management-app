@@ -138,6 +138,52 @@ class SequenceController extends Controller
     }
 
     /**
+     * Créer une nouvelle séquence
+     */
+    public function store(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'number' => 'required|integer|min:1|max:6',
+                'trimester_id' => 'required|exists:trimesters,id',
+                'school_year_id' => 'required|exists:school_years,id',
+                'start_date' => 'required|date',
+                'end_date' => 'required|date|after:start_date',
+                'is_active' => 'boolean',
+                'is_current' => 'boolean'
+            ]);
+
+            // Vérifier qu'il n'y a pas déjà une séquence avec ce numéro
+            $existingSequence = Sequence::where('school_year_id', $validated['school_year_id'])
+                ->where('number', $validated['number'])
+                ->first();
+
+            if ($existingSequence) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Une séquence #{$validated['number']} existe déjà pour cette année scolaire"
+                ], 422);
+            }
+
+            $sequence = Sequence::create($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Séquence créée avec succès',
+                'data' => $sequence->load(['trimester', 'schoolYear'])
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la création de la séquence',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Obtenir les statistiques d'une séquence
      */
     public function getStats(Sequence $sequence)

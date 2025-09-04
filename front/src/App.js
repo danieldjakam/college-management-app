@@ -124,6 +124,9 @@ import AcademicPeriodsManagement from "./pages/AcademicPeriods/AcademicPeriodsMa
 // Grading Scales
 import GradingScales from "./pages/GradingScales/GradingScales";
 
+// Admin Trimester & Sequence Management
+import TrimesterSequenceManagement from "./pages/Admin/TrimesterSequenceManagement";
+
 
 // Components
 import Sidebar from "./components/Sidebar";
@@ -404,6 +407,14 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <GradingScales />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/trimesters-sequences"
+                element={
+                  <AdminRoute>
+                    <TrimesterSequenceManagement />
                   </AdminRoute>
                 }
               />
