@@ -24,7 +24,14 @@ const Trimesters = () => {
             setError(null);
             
             const response = await secureApiEndpoints.trimesters.getTeacherTrimesters();
-            setTrimesters(response.data || []);
+            
+            // Filtrer pour afficher seulement le trimestre actif et les suivants à venir
+            const filteredTrimesters = (response.data || []).filter(trimester => {
+                // Afficher seulement le trimestre actuel (is_current) et les trimestres actifs futurs
+                return trimester.is_current || (trimester.is_active && !trimester.is_current);
+            });
+            
+            setTrimesters(filteredTrimesters);
             setTeacherInfo(response.teacher_info);
         } catch (error) {
             console.error('Erreur lors du chargement des trimestres:', error);
@@ -55,9 +62,8 @@ const Trimesters = () => {
     };
 
     const handleGradeEntry = (sequenceId, sequenceName) => {
-        // Navigation vers la saisie de notes par séquence
-        // TODO: Créer une page pour sélectionner l'évaluation dans la séquence
-        navigate(`/teacher/sequences/${sequenceId}/evaluations`);
+        // Navigation vers les matières de la séquence
+        navigate(`/teacher/sequences/${sequenceId}/subjects`);
     };
 
     if (loading) {
@@ -113,20 +119,35 @@ const Trimesters = () => {
             </Row>
 
             {/* Grille des trimestres avec séquences intégrées */}
-            <Row>
-                {trimesters.map((trimester) => {
+            {trimesters.length === 0 ? (
+                <Alert variant="info" className="text-center">
+                    <h6>Aucun trimestre disponible</h6>
+                    <p className="mb-0">
+                        Il n'y a actuellement aucun trimestre en cours ou à venir. 
+                        Contactez l'administration pour plus d'informations.
+                    </p>
+                </Alert>
+            ) : (
+                <Row>
+                    {trimesters.map((trimester) => {
                     const isCurrentTrimester = trimester.is_current;
+                    const now = new Date();
+                    const startDate = new Date(trimester.start_date);
+                    const isUpcoming = startDate > now;
                     const progressPercentage = trimester.getProgressPercentage || 0;
                     
                     return (
                         <Col xl={4} lg={6} key={trimester.id} className="mb-4">
-                            <Card className={isCurrentTrimester ? 'border-success shadow' : 'border-light'}>
-                                <Card.Header className={isCurrentTrimester ? 'bg-success text-white' : 'bg-light'}>
+                            <Card className={isCurrentTrimester ? 'border-success shadow' : isUpcoming ? 'border-info shadow-sm' : 'border-light'}>
+                                <Card.Header className={isCurrentTrimester ? 'bg-success text-white' : isUpcoming ? 'bg-info text-white' : 'bg-light'}>
                                     <div className="d-flex justify-content-between align-items-center">
                                         <h5 className="mb-0">
                                             {trimester.name}
                                             {isCurrentTrimester && (
-                                                <Badge bg="light" text="success" className="ms-2">Actuel</Badge>
+                                                <Badge bg="light" text="success" className="ms-2">En cours</Badge>
+                                            )}
+                                            {isUpcoming && (
+                                                <Badge bg="light" text="info" className="ms-2">À venir</Badge>
                                             )}
                                         </h5>
                                         <small className={isCurrentTrimester ? 'opacity-75' : 'text-muted'}>
@@ -210,7 +231,8 @@ const Trimesters = () => {
                         </Col>
                     );
                 })}
-            </Row>
+                </Row>
+            )}
 
             {/* Message informatif */}
             <Alert variant="info" className="mt-4">

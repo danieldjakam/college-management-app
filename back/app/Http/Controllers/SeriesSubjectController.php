@@ -53,6 +53,27 @@ class SeriesSubjectController extends Controller
     }
 
     /**
+     * Afficher une configuration de matière par série spécifique
+     */
+    public function show(SeriesSubject $seriesSubject)
+    {
+        try {
+            $seriesSubject->load(['schoolClass.level', 'subject']);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $seriesSubject
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération de la configuration',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Obtenir les matières configurées pour une série spécifique
      */
     public function getByClass(SchoolClass $schoolClass)

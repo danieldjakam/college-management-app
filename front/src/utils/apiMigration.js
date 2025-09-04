@@ -319,7 +319,10 @@ export const secureApiEndpoints = {
 
     // === STUDENTS ===
     students: {
-        getAll: () => secureApi.get('/students'),
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/students${queryString ? '?' + queryString : ''}`);
+        },
         getByClass: (classId) => secureApi.get(`/students/class/${classId}`),
         getByClassSeries: (seriesId) => secureApi.get(`/students/class-series/${seriesId}`),
         getById: (id) => secureApi.get(`/students/${id}`),
@@ -939,6 +942,7 @@ export const secureApiEndpoints = {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/series-subjects${queryString ? '?' + queryString : ''}`);
         },
+        getById: (id) => secureApi.get(`/series-subjects/${id}`),
         getByClass: (classId) => secureApi.get(`/series-subjects/class/${classId}`),
         create: (data) => secureApi.post('/series-subjects', data),
         update: (id, data) => secureApi.put(`/series-subjects/${id}`, data),
@@ -1299,6 +1303,8 @@ export const secureApiEndpoints = {
         getById: (id) => secureApi.get(`/sequences/${id}`),
         create: (data) => secureApi.post('/sequences', data),
         activate: (id) => secureApi.post(`/sequences/${id}/activate`),
+        markCompleted: (id) => secureApi.post(`/sequences/${id}/mark-completed`),
+        markIncomplete: (id) => secureApi.post(`/sequences/${id}/mark-incomplete`),
         getStats: (id) => secureApi.get(`/sequences/${id}/stats`)
     },
 
@@ -1312,6 +1318,11 @@ export const secureApiEndpoints = {
         getCurrent: () => secureApi.get('/trimesters/current'),
         getById: (id) => secureApi.get(`/trimesters/${id}`),
         create: (data) => secureApi.post('/trimesters', data),
+        update: (id, data) => secureApi.put(`/trimesters/${id}`, data),
+        delete: (id, options = {}) => {
+            const params = options.force ? '?force=true' : '';
+            return secureApi.delete(`/trimesters/${id}${params}`);
+        },
         activate: (id) => secureApi.post(`/trimesters/${id}/activate`),
         getStats: (id) => secureApi.get(`/trimesters/${id}/stats`)
     },

@@ -17,14 +17,16 @@ class Sequence extends Model
         'start_date',
         'end_date',
         'is_active',
-        'is_current'
+        'is_current',
+        'is_completed'
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
         'is_active' => 'boolean',
-        'is_current' => 'boolean'
+        'is_current' => 'boolean',
+        'is_completed' => 'boolean'
     ];
 
     /**

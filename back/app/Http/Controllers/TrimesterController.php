@@ -299,6 +299,118 @@ class TrimesterController extends Controller
     }
 
     /**
+     * Mettre à jour un trimestre
+     */
+    public function update(Request $request, Trimester $trimester)
+    {
+        try {
+            $validated = $request->validate([
+                'name' => 'sometimes|required|string|max:255',
+                'number' => 'sometimes|required|integer|min:1|max:3',
+                'start_date' => 'sometimes|required|date',
+                'end_date' => 'sometimes|required|date|after:start_date',
+                'is_active' => 'sometimes|boolean'
+            ]);
+
+            // Vérifier qu'il n'y a pas déjà un trimestre avec ce numéro (si le numéro change)
+            if (isset($validated['number']) && $validated['number'] !== $trimester->number) {
+                $existingTrimester = Trimester::where('school_year_id', $trimester->school_year_id)
+                    ->where('number', $validated['number'])
+                    ->where('id', '!=', $trimester->id)
+                    ->first();
+
+                if ($existingTrimester) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Un trimestre #{$validated['number']} existe déjà pour cette année scolaire"
+                    ], 422);
+                }
+            }
+
+            $trimester->update($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Trimestre mis à jour avec succès',
+                'data' => $trimester->load(['sequences', 'schoolYear'])
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour du trimestre',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Supprimer un trimestre
+     */
+    public function destroy(Request $request, Trimester $trimester)
+    {
+        try {
+            // Vérifier si le trimestre est actuellement actif
+            if ($trimester->is_current) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de supprimer le trimestre actuel. Activez d\'abord un autre trimestre.'
+                ], 422);
+            }
+
+            // Vérifier s'il y a des séquences ou évaluations liées
+            $sequencesCount = $trimester->sequences()->count();
+            $evaluationsCount = $trimester->evaluations()->count();
+            $forceDelete = $request->input('force', false);
+
+            if (($sequencesCount > 0 || $evaluationsCount > 0) && !$forceDelete) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Ce trimestre contient {$sequencesCount} séquence(s) et {$evaluationsCount} évaluation(s).",
+                    'data' => [
+                        'sequences_count' => $sequencesCount,
+                        'evaluations_count' => $evaluationsCount,
+                        'can_force_delete' => true
+                    ]
+                ], 422);
+            }
+
+            $trimesterName = $trimester->name;
+            
+            // Suppression en cascade si forcée
+            if ($forceDelete && ($sequencesCount > 0 || $evaluationsCount > 0)) {
+                // Supprimer d'abord toutes les évaluations liées aux séquences
+                $trimester->sequences()->each(function($sequence) {
+                    $sequence->evaluations()->each(function($evaluation) {
+                        // Supprimer les notes liées à l'évaluation
+                        $evaluation->grades()->delete();
+                        $evaluation->delete();
+                    });
+                    $sequence->delete();
+                });
+                
+                $message = "Le trimestre \"{$trimesterName}\" et tous ses éléments ({$sequencesCount} séquence(s), {$evaluationsCount} évaluation(s)) ont été supprimés avec succès";
+            } else {
+                $message = "Le trimestre \"{$trimesterName}\" a été supprimé avec succès";
+            }
+
+            $trimester->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => $message
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression du trimestre',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Obtenir les statistiques d'un trimestre
      */
     public function getStats(Trimester $trimester)
