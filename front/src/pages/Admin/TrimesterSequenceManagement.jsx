@@ -647,7 +647,7 @@ const TrimesterSequenceManagement = () => {
                                                         </div>
                                                     </td>
                                                     <td>
-                                                        <Badge bg="outline-secondary">
+                                                        <Badge bg="secondary" text="white">
                                                             {sequence.trimester?.name}
                                                         </Badge>
                                                     </td>

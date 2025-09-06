@@ -104,12 +104,64 @@ const EvaluationCreate = () => {
             const sequencesData = await secureApiEndpoints.sequences.getAll();
             setSequences(sequencesData.data || []);
 
-            // Charger les matières assignées à l'enseignant
-            const teacherAssignments = await secureApiEndpoints.seriesSubjects.getAll({
-                teacher_id: user.id,
-                active: true
+            // DEBUG COMPLET pour jean.dupont
+            console.log('=== DEBUG MATIÈRES ENSEIGNANT ===');
+            console.log('User complet:', user);
+            console.log('User ID:', user.id);
+            console.log('User name:', user.name);
+            console.log('User email:', user.email);
+
+            // Essayer d'abord avec l'endpoint teacherAssignments
+            const teacherId = user.teacher_id || user.id;
+            console.log('Teacher ID utilisé:', teacherId);
+            try {
+                const teacherAssignments = await secureApiEndpoints.teacherAssignments.getByTeacher(teacherId);
+                console.log('teacherAssignments response:', teacherAssignments);
+                console.log('teacherAssignments data:', teacherAssignments.data);
+                
+                if (teacherAssignments.success && teacherAssignments.data && teacherAssignments.data.assignments && teacherAssignments.data.assignments.length > 0) {
+                    // Convertir les assignments en format series_subject (même structure que le dashboard)
+                    const convertedSubjects = teacherAssignments.data.assignments.map(assignment => {
+                        console.log('Assignment:', assignment);
+                        return {
+                            id: assignment.series_subject?.id || assignment.id,
+                            subject: assignment.series_subject?.subject,
+                            school_class: assignment.series_subject?.school_class,
+                            series: assignment.series_subject?.series,
+                            teacher_id: assignment.teacher_id
+                        };
+                    });
+                    console.log('Matières converties depuis teacherAssignments:', convertedSubjects);
+                    setSeriesSubjects(convertedSubjects);
+                    return;
+                }
+            } catch (assignmentError) {
+                console.log('Erreur teacherAssignments:', assignmentError);
+            }
+
+            // Fallback vers seriesSubjects
+            console.log('Fallback vers seriesSubjects...');
+            const teacherSubjects = await secureApiEndpoints.seriesSubjects.getAll();
+            console.log('Toutes les seriesSubjects:', teacherSubjects.data);
+            
+            // Filtrer par teacher_id
+            const allSubjects = teacherSubjects.data || [];
+            console.log('Nombre total de matières:', allSubjects.length);
+            
+            const filteredSubjects = allSubjects.filter(ss => {
+                console.log('Vérification matière:', ss);
+                console.log('ss.teacher_id:', ss.teacher_id, 'vs user.id:', user.id);
+                console.log('ss.teacher:', ss.teacher);
+                console.log('ss.teachers:', ss.teachers);
+                
+                return ss.teacher_id === user.id || 
+                       ss.teacher?.id === user.id ||
+                       (Array.isArray(ss.teachers) && ss.teachers.some(t => t.id === user.id));
             });
-            setSeriesSubjects(teacherAssignments.data || []);
+            
+            console.log('Matières filtrées pour cet enseignant:', filteredSubjects);
+            console.log('Nombre de matières filtrées:', filteredSubjects.length);
+            setSeriesSubjects(filteredSubjects);
 
             // Charger les types d'évaluations
             const typesData = await secureApiEndpoints.evaluations.getTypes();

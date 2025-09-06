@@ -90,6 +90,7 @@ import TeacherAttendanceScanner from "./pages/Attendance/TeacherAttendanceScanne
 import StaffAttendanceScannerGeolocated from "./pages/Attendance/StaffAttendanceScannerGeolocated";
 import AttendanceReports from "./pages/Attendance/AttendanceReports";
 import TeacherDetailedStats from "./pages/Teachers/TeacherDetailedStats";
+import ParentNotifications from './pages/Admin/ParentNotifications';
 
 // Supervisor Management
 import SupervisorStatus from "./pages/SupervisorManagement/SupervisorStatus";
@@ -128,6 +129,10 @@ import GradingScales from "./pages/GradingScales/GradingScales";
 
 // Admin Trimester & Sequence Management
 import TrimesterSequenceManagement from "./pages/Admin/TrimesterSequenceManagement";
+
+// Parent Pages
+import ParentLogin from "./pages/Parent/ParentLogin";
+import ParentDashboard from "./pages/Parent/ParentDashboard";
 
 
 // Components
@@ -417,6 +422,15 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <TrimesterSequenceManagement />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/admin/parent-notifications"
+                element={
+                  <AdminRoute>
+                    <ParentNotifications />
                   </AdminRoute>
                 }
               />
@@ -802,6 +816,16 @@ const AppContent = () => {
                     <GradeEntry />
                   </TeacherRoute>
                 }
+              />
+
+              {/* Routes Parent - indépendantes du système d'auth principal */}
+              <Route
+                path="/parent/login"
+                element={<ParentLogin />}
+              />
+              <Route
+                path="/parent/dashboard"
+                element={<ParentDashboard />}
               />
 
               {/* 404 pour les utilisateurs connectés */}

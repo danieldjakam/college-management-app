@@ -1364,6 +1364,177 @@ export const secureApiEndpoints = {
         update: (id, data) => secureApi.put(`/geolocation-zones/${id}`, data),
         delete: (id) => secureApi.delete(`/geolocation-zones/${id}`),
         toggleStatus: (id) => secureApi.post(`/geolocation-zones/${id}/toggle-status`)
+    },
+
+    // === NOTIFICATIONS (Admin) ===
+    admin: {
+        notifications: {
+            index: async () => {
+                const token = authService.getToken();
+                const response = await fetch(`${host}/api/notifications`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                return await response.json();
+            },
+            store: async (data) => {
+                const token = authService.getToken();
+                const response = await fetch(`${host}/api/notifications`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                return await response.json();
+            },
+            getParents: async () => {
+                const token = authService.getToken();
+                const response = await fetch(`${host}/api/notifications/parents`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                return await response.json();
+            },
+            getStudents: async () => {
+                const token = authService.getToken();
+                const response = await fetch(`${host}/api/notifications/students`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                return await response.json();
+            },
+            getClasses: async () => {
+                const token = authService.getToken();
+                const response = await fetch(`${host}/api/notifications/classes`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                return await response.json();
+            },
+            stats: async () => {
+                const token = authService.getToken();
+                const response = await fetch(`${host}/api/notifications/stats`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                return await response.json();
+            },
+            destroy: async (id) => {
+                const token = authService.getToken();
+                const response = await fetch(`${host}/api/notifications/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                return await response.json();
+            }
+        }
+    },
+
+    // === MODULE PARENT ===
+    parent: {
+        // Connexion (pas d'auth requise)
+        login: async (data) => {
+            const response = await fetch(`${host}/api/parent/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            return await response.json();
+        },
+        
+        // Routes protégées (avec token parent)
+        dashboard: async () => {
+            const token = localStorage.getItem('parentToken');
+            const response = await fetch(`${host}/api/parent/dashboard`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+            return await response.json();
+        },
+        getChildren: async () => {
+            const token = localStorage.getItem('parentToken');
+            const response = await fetch(`${host}/api/parent/children`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+            return await response.json();
+        },
+        getNotifications: async () => {
+            const token = localStorage.getItem('parentToken');
+            const response = await fetch(`${host}/api/parent/notifications`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+            return await response.json();
+        },
+        markNotificationAsRead: async (id) => {
+            const token = localStorage.getItem('parentToken');
+            const response = await fetch(`${host}/api/parent/notifications/${id}/read`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({})
+            });
+            return await response.json();
+        },
+        getCalendarEvents: async () => {
+            const token = localStorage.getItem('parentToken');
+            const response = await fetch(`${host}/api/parent/calendar/events`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+            return await response.json();
+        },
+        getSchedules: async () => {
+            const token = localStorage.getItem('parentToken');
+            const response = await fetch(`${host}/api/parent/schedules`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+            return await response.json();
+        }
     }
 };
 

@@ -55,7 +55,7 @@ import { secureApiEndpoints } from '../../utils/apiMigration';
 import QrScanner from 'qr-scanner';
 import Swal from 'sweetalert2';
 
-// Styles pour les animations
+// Styles pour les animations et QrScanner
 const styles = `
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-20px); }
@@ -71,6 +71,15 @@ const styles = `
 }
 .scan-avatar {
     animation: pulse 0.8s ease-in-out;
+}
+/* Styles pour QrScanner */
+.qr-scanner-region-highlight {
+    position: absolute !important;
+}
+.qr-scanner-region-highlight-svg {
+    position: absolute !important;
+    box-sizing: border-box !important;
+    border: 2px solid #1a73e8 !important;
 }
 `;
 
@@ -172,34 +181,81 @@ const StaffAttendanceScanner = () => {
 
     const startScanning = async () => {
         try {
-            setIsScanning(true);
-            setMessage('Démarrage du scanner...');
+            setMessage('');
             setMessageType('info');
-
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'environment' } 
-            });
+            setIsScanning(true);
+            
+            console.log('🔍 Tentative de démarrage du scanner...');
+            
+            // Vérifier d'abord les permissions de caméra
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                console.log('✅ Permissions caméra accordées');
+                stream.getTracks().forEach(track => track.stop()); // Arrêter le stream de test
+            } catch (permError) {
+                console.error('❌ Permissions caméra refusées:', permError);
+                throw new Error('Permission denied: ' + permError.message);
+            }
+            
+            // Vérifier les caméras disponibles
+            const cameras = await QrScanner.listCameras(true);
+            console.log('📷 Caméras disponibles:', cameras);
+            
+            if (cameras.length === 0) {
+                throw new Error('Aucune caméra trouvée sur cet appareil');
+            }
             
             if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-                videoRef.current.play();
-
+                // Configuration EXACTEMENT identique au scanner élèves
                 scannerRef.current = new QrScanner(
                     videoRef.current,
                     (result) => handleScan(result.data),
                     {
+                        onDecodeError: error => {
+                            // Réduire le bruit des erreurs de décodage
+                            // console.log('Scan decode error:', error);
+                        },
                         highlightScanRegion: true,
                         highlightCodeOutline: true,
+                        preferredCamera: cameras.length > 1 ? 'environment' : cameras[0].id, // Utiliser la première caméra si une seule
+                        maxScansPerSecond: 3, // Réduire pour éviter la surcharge
+                        returnDetailedScanResult: false,
                     }
                 );
-
+                
+                console.log('⏳ Démarrage du scanner QR...');
                 await scannerRef.current.start();
+                console.log('✅ Scanner QR démarré avec succès');
+                
                 setMessage('Scanner prêt - Pointez vers un QR code du personnel');
                 setMessageType('success');
             }
         } catch (error) {
-            console.error('Erreur caméra:', error);
-            setMessage('Impossible d\'accéder à la caméra. Vérifiez les permissions.');
+            console.error('❌ Erreur lors du démarrage du scanner:', error);
+            console.error('Type d\'erreur:', error.constructor.name);
+            console.error('Message:', error.message);
+            
+            let errorMessage = 'Impossible d\'accéder à la caméra.';
+            let debugInfo = '';
+            
+            if (error.name === 'NotAllowedError' || error.message.includes('Permission denied')) {
+                errorMessage = '🚫 Accès à la caméra refusé par le navigateur.';
+                debugInfo = 'Cliquez sur l\'icône 🔒 dans la barre d\'adresse et autorisez la caméra.';
+            } else if (error.name === 'NotFoundError' || error.message.includes('Camera not found')) {
+                errorMessage = '📷 Aucune caméra trouvée.';
+                debugInfo = 'Vérifiez qu\'une caméra est connectée et fonctionnelle.';
+            } else if (error.name === 'NotSupportedError') {
+                errorMessage = '🌐 Votre navigateur ne supporte pas l\'accès à la caméra.';
+                debugInfo = 'Essayez avec Chrome, Firefox ou Safari récent.';
+            } else if (error.name === 'NotReadableError') {
+                errorMessage = '⚠️ Caméra occupée par une autre application.';
+                debugInfo = 'Fermez les autres applications utilisant la caméra.';
+            } else {
+                errorMessage = '🔧 Erreur technique du scanner.';
+                debugInfo = `Détails: ${error.message}`;
+            }
+            
+            setMessage(`${errorMessage} ${debugInfo}`);
             setMessageType('danger');
             setIsScanning(false);
         }
@@ -207,14 +263,9 @@ const StaffAttendanceScanner = () => {
 
     const stopScanning = () => {
         if (scannerRef.current) {
+            scannerRef.current.stop();
             scannerRef.current.destroy();
             scannerRef.current = null;
-        }
-        
-        if (videoRef.current && videoRef.current.srcObject) {
-            const tracks = videoRef.current.srcObject.getTracks();
-            tracks.forEach(track => track.stop());
-            videoRef.current.srcObject = null;
         }
         
         setIsScanning(false);
@@ -491,26 +542,50 @@ const StaffAttendanceScanner = () => {
                 </Col>
             </Row>
 
-            {/* Scanner vidéo */}
-            {isScanning && (
-                <Row className="mb-4">
-                    <Col>
-                        <Card>
-                            <Card.Body className="text-center">
+            {/* Scanner vidéo - TOUJOURS présent dans le DOM */}
+            <Row className="mb-4">
+                <Col>
+                    <Card>
+                        <Card.Body className="text-center">
+                            <div className="scanner-container" style={{ 
+                                position: 'relative',
+                                maxWidth: '500px',
+                                margin: '0 auto'
+                            }}>
                                 <video
                                     ref={videoRef}
                                     style={{
                                         width: '100%',
-                                        maxWidth: '500px',
                                         height: 'auto',
-                                        borderRadius: '10px'
+                                        border: '2px solid #dee2e6',
+                                        borderRadius: '10px',
+                                        backgroundColor: '#f8f9fa',
+                                        display: isScanning ? 'block' : 'none'
                                     }}
                                 />
-                            </Card.Body>
-                        </Card>
-                    </Col>
-                </Row>
-            )}
+                                {!isScanning && (
+                                    <div style={{
+                                        width: '100%',
+                                        height: '300px',
+                                        border: '2px solid #dee2e6',
+                                        borderRadius: '10px',
+                                        backgroundColor: '#f8f9fa',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: '#6c757d'
+                                    }}>
+                                        <div className="text-center">
+                                            <QrCodeScan size={48} className="mb-3" />
+                                            <p>Scanner prêt à démarrer</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
 
             {/* Informations du personnel scanné */}
             {currentScan && (

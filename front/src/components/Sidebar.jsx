@@ -14,6 +14,7 @@ import {
     FolderFill,
     Award,
     ExclamationTriangle,
+    Bell,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -68,8 +69,8 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           title: "Gestion Académique",
           items: [
             { name: "Années Scolaires", href: "/school-years", icon: <Calendar /> },
-            { name: "Cycles", href: "/levels", icon: <Award /> },
             { name: "Sections", href: "/sections", icon: <HospitalFill /> },
+            { name: "Niveaux", href: "/levels", icon: <BookFill /> },
             {
               name: "Classes",
               href: "/school-classes",
@@ -96,9 +97,9 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
         {
-          title: "Gestion des Notes",
+          title: "Configuration Notes & Évaluations",
           items: [
-            { name: "Configuration Évaluations", href: "/levels", icon: <BookFill /> },
+            { name: "Périodes Académiques", href: "/academic-periods", icon: <Calendar /> },
             { name: "Barèmes de Notation", href: "/grading-scales", icon: <Award /> },
             { name: "Trimestres & Séquences", href: "/admin/trimesters-sequences", icon: <Calendar /> },
           ],
@@ -119,6 +120,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
             { name: 'Utilisateurs', href: '/user-management', icon: <People/> },
             { name: 'Surveillants Généraux', href: '/supervisor-assignments', icon: <PersonCircle/> },
+            { name: "Notifications Parents", href: "/admin/parent-notifications", icon: <Bell /> },
             { name: "Profil", href: "/profile", icon: <PersonCircle /> },
             { name: "Paramètres", href: "/settings", icon: <GearFill /> },
           ],

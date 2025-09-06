@@ -1,0 +1,29 @@
+.parent-login-container {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+}
+
+.parent-login-container .card {
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+.parent-login-container .btn-group {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.parent-login-container .form-control:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+.parent-login-container input[name="pin_code"] {
+    letter-spacing: 10px;
+    font-weight: bold;
+}
+
+@media (max-width: 768px) {
+    .parent-login-container .card-body {
+        padding: 2rem !important;
+    }
+}

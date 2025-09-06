@@ -48,6 +48,9 @@ use App\Http\Controllers\SequenceController;
 use App\Http\Controllers\TrimesterController;
 use App\Http\Controllers\EvaluationController;
 use App\Http\Controllers\GradeController;
+use App\Http\Controllers\ParentController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ScheduleController;
 
 
 // Routes d'authentification
@@ -884,4 +887,39 @@ Route::middleware(['auth:api'])->group(function () {
             Route::post('/{zone}/toggle-status', [GeolocationZoneController::class, 'toggleStatus']);
         });
     });
+    
+    // Routes pour les notifications parent (admin uniquement)
+    Route::middleware(['auth:api', 'role:admin'])->prefix('notifications')->group(function () {
+        Route::get('/', [NotificationController::class, 'index']);
+        Route::post('/', [NotificationController::class, 'store']);
+        Route::get('/parents', [NotificationController::class, 'getParents']);
+        Route::get('/students', [NotificationController::class, 'getStudents']);
+        Route::get('/classes', [NotificationController::class, 'getClasses']);
+        Route::get('/stats', [NotificationController::class, 'stats']);
+        Route::delete('/{id}', [NotificationController::class, 'destroy']);
+    });
+
+    // Schedule routes for admin
+    Route::middleware(['auth:api', 'role:admin'])->prefix('schedules')->group(function () {
+        Route::get('/', [ScheduleController::class, 'index']);
+        Route::post('/', [ScheduleController::class, 'store']);
+        Route::post('/bulk', [ScheduleController::class, 'bulkStore']);
+        Route::put('/{id}', [ScheduleController::class, 'update']);
+        Route::delete('/{id}', [ScheduleController::class, 'destroy']);
+    });
+});
+
+// Routes publiques pour les parents
+Route::prefix('parent')->group(function () {
+    Route::post('/login', [ParentController::class, 'login']);
+});
+
+// Routes protégées pour les parents (avec authentification Sanctum)
+Route::middleware('auth:sanctum')->prefix('parent')->group(function () {
+    Route::get('/dashboard', [ParentController::class, 'dashboard']);
+    Route::get('/children', [ParentController::class, 'getChildren']);
+    Route::get('/notifications', [ParentController::class, 'getNotifications']);
+    Route::put('/notifications/{id}/read', [ParentController::class, 'markNotificationAsRead']);
+    Route::get('/calendar/events', [ParentController::class, 'getCalendarEvents']);
+    Route::get('/schedules', [ScheduleController::class, 'getParentChildrenSchedules']);
 });

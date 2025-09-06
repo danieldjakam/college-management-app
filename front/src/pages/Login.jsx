@@ -243,6 +243,29 @@ const Login = () => {
                                 </button>
                             </p>
                         </div>
+
+                        {/* Séparateur */}
+                        <div className="mt-6 mb-6 flex items-center">
+                            <div className="flex-1 border-t border-gray-200"></div>
+                            <span className="px-4 text-sm text-gray-500 bg-white">ou</span>
+                            <div className="flex-1 border-t border-gray-200"></div>
+                        </div>
+
+                        {/* Accès Parent */}
+                        <div className="text-center">
+                            <button
+                                type="button"
+                                onClick={() => navigate('/parent/login')}
+                                className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+                                disabled={isSubmitting}
+                            >
+                                <PersonFill className="mr-2" size={20} />
+                                Accès Espace Parent
+                            </button>
+                            <p className="text-xs text-gray-500 mt-2">
+                                Suivi scolaire de vos enfants
+                            </p>
+                        </div>
                     </Card.Content>
                 </Card>
 
