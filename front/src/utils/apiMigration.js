@@ -605,6 +605,7 @@ export const secureApiEndpoints = {
     schoolClasses: {
         getAll: () => secureApi.get('/school-classes'),
         getById: (id) => secureApi.get(`/school-classes/${id}`),
+        getStudents: (id) => secureApi.get(`/students/class/${id}`), // Utilise l'endpoint students existant
         create: (data) => secureApi.post('/school-classes', data),
         update: (id, data) => secureApi.put(`/school-classes/${id}`, data),
         delete: (id) => secureApi.delete(`/school-classes/${id}`),
@@ -1609,6 +1610,19 @@ export const migrationUtils = {
         delete: (id) => secureApi.delete(`/evaluation-configs/${id}`),
         getByLevel: (levelId) => secureApi.get(`/evaluation-configs/level/${levelId}`),
         toggleStatus: (id) => secureApi.post(`/evaluation-configs/${id}/toggle-status`)
+    },
+
+    // === STUDENT ATTENDANCE (Manual System) === 
+    attendance: {
+        saveManualAttendance: (data) => secureApi.post('/attendance/manual', data),
+        getDailyAttendanceByClass: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/attendance/class-daily${queryString ? '?' + queryString : ''}`);
+        },
+        getClassAttendanceStats: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/attendance/class-stats${queryString ? '?' + queryString : ''}`);
+        }
     },
 
     // === CONVENIENCE METHODS ===

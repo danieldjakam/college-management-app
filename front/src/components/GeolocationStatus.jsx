@@ -78,13 +78,29 @@ const GeolocationStatus = ({ onStatusChange, autoTrack = true, showControls = fa
                     error: data.error
                 });
             } else {
+                // Vérifier que closestZone existe avant d'accéder à ses propriétés
+                const closestZone = data.validation?.closestZone;
+                let message = '';
+                
+                if (data.validation.isAuthorized) {
+                    message = closestZone 
+                        ? `✅ Zone autorisée: ${closestZone.zoneName}`
+                        : `✅ Zone autorisée`;
+                } else {
+                    if (closestZone) {
+                        message = `❌ Hors zone autorisée (${closestZone.distance}m de ${closestZone.zoneName})`;
+                    } else if (data.validation.error) {
+                        message = `❌ ${data.validation.error}`;
+                    } else {
+                        message = `❌ Hors zone autorisée`;
+                    }
+                }
+                
                 const result = {
                     success: data.validation.isAuthorized,
                     position: data.position,
                     validation: data.validation,
-                    message: data.validation.isAuthorized
-                        ? `✅ Zone autorisée: ${data.validation.closestZone.zoneName}`
-                        : `❌ Hors zone autorisée (${data.validation.closestZone.distance}m de ${data.validation.closestZone.zoneName})`
+                    message: message
                 };
                 
                 setLocationStatus(result);

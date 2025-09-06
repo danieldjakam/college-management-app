@@ -1093,6 +1093,71 @@ class WhatsAppService
     }
 
     /**
+     * Envoyer une notification d'appel manuel aux parents
+     */
+    public function sendManualAttendanceNotification($studentAttendance, $student)
+    {
+        if (!$this->isWhatsAppConfigured()) {
+            return false;
+        }
+        
+        // Vérifier que l'étudiant a un contact parent
+        if (!$student || !$student->parent_phone) {
+            Log::info('Étudiant sans contact parent pour notification WhatsApp (appel manuel)', [
+                'student_attendance_id' => $studentAttendance->id,
+                'student_id' => $student ? $student->id : null
+            ]);
+            return false;
+        }
+
+        $message = $this->formatManualAttendanceMessage($studentAttendance, $student);
+        
+        $result = $this->sendMessage($student->parent_phone, $message);
+        
+        if ($result) {
+            Log::info('Notification WhatsApp envoyée pour appel manuel', [
+                'student_id' => $student->id,
+                'student_name' => $student->name,
+                'attendance_status' => $studentAttendance->is_present ? 'Présent' : 'Absent',
+                'parent_phone' => $student->parent_phone
+            ]);
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Formater le message de notification d'appel manuel
+     */
+    protected function formatManualAttendanceMessage($studentAttendance, $student)
+    {
+        $schoolName = SchoolSetting::getSettings()->school_name ?? 'École';
+        
+        $statusIcon = $studentAttendance->is_present ? '✅' : '❌';
+        $statusText = $studentAttendance->is_present ? 'PRÉSENT' : 'ABSENT';
+        $statusMessage = $studentAttendance->is_present 
+            ? 'était présent(e) lors de l\'appel en classe' 
+            : 'était absent(e) lors de l\'appel en classe';
+        
+        $className = 'N/A';
+        if ($studentAttendance->schoolClass) {
+            $className = $studentAttendance->schoolClass->name;
+        }
+        
+        return "{$statusIcon} *APPEL MANUEL - {$statusText} - {$schoolName}*\n\n" .
+               "👤 *Élève:* {$student->name}\n" .
+               "📚 *Classe:* {$className}\n" .
+               "📅 *Date:* " . $studentAttendance->attendance_date->format('d/m/Y') . "\n" .
+               "🕐 *Heure de l'appel:* " . $studentAttendance->created_at->format('H:i') . "\n\n" .
+               "📋 Votre enfant {$statusMessage}.\n\n" .
+               ($studentAttendance->is_present 
+                   ? "🎓 Bonne journée scolaire !" 
+                   : "📞 Veuillez contacter l'école si votre enfant devait être présent.") . "\n\n" .
+               "👨‍🏫 *Appel effectué par:* " . ($studentAttendance->markedBy->name ?? 'Personnel') . "\n\n" .
+               "📱 Notification automatique du système de gestion scolaire.";
+    }
+
+    /**
      * Récupérer la dernière erreur WhatsApp des logs
      */
     private function getRecentWhatsAppError()

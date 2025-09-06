@@ -192,7 +192,8 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les classes
     Route::prefix('school-classes')->group(function () {
         Route::get('/dashboard', [SchoolClassController::class, 'dashboard'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
-        Route::get('/', [SchoolClassController::class, 'index'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
+        Route::get('/', [SchoolClassController::class, 'index'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,bibliothecaire,surveillant_general']);
+        Route::get('/{id}/students', [SchoolClassController::class, 'getStudents'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,bibliothecaire,surveillant_general']);
         Route::get('/{schoolClass}', [SchoolClassController::class, 'show'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
 
         // Export routes
@@ -235,7 +236,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Route spéciale pour les enseignants pour voir les élèves de leurs classes (AVANT le groupe)
-    Route::get('/students/class/{classId}', [StudentController::class, 'getByClass'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,teacher']);
+    Route::get('/students/class/{classId}', [StudentController::class, 'getByClass'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,teacher,bibliothecaire,surveillant_general']);
 
     // Routes pour les élèves
     Route::prefix('students')->middleware(['role:admin,secretaire,accountant,comptable_superieur'])->group(function () {
@@ -655,6 +656,13 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les présences étudiants - Comptables
     Route::prefix('attendance')->group(function () {
+        // Appel manuel des étudiants
+        Route::post('/manual', [StudentAttendanceController::class, 'saveManualAttendance'])->middleware(['role:admin,accountant,comptable_superieur,bibliothecaire,surveillant_general']);
+        Route::get('/class-daily', [StudentAttendanceController::class, 'getDailyAttendanceByClass'])->middleware(['role:admin,accountant,comptable_superieur,bibliothecaire,surveillant_general']);
+        Route::get('/class-stats', [StudentAttendanceController::class, 'getClassAttendanceStats'])->middleware(['role:admin,accountant,comptable_superieur,bibliothecaire,surveillant_general']);
+        Route::get('/class-report', [StudentAttendanceController::class, 'getClassAttendanceReport'])->middleware(['role:admin,accountant,comptable_superieur,bibliothecaire,surveillant_general']);
+        
+        // Anciennes routes (à migrer ou supprimer)
         Route::get('/students', [StudentAttendanceController::class, 'getStudentAttendance'])->middleware(['role:admin,accountant,comptable_superieur']);
         Route::get('/students/stats', [StudentAttendanceController::class, 'getAttendanceStats'])->middleware(['role:admin,accountant,comptable_superieur']);
         Route::get('/students/export/pdf', [StudentAttendanceController::class, 'exportStudentAttendancePDF'])->middleware(['role:admin,accountant,comptable_superieur']);

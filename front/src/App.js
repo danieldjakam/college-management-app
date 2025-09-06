@@ -89,6 +89,7 @@ import AttendanceScanner from "./pages/Attendance/AttendanceScanner";
 import TeacherAttendanceScanner from "./pages/Attendance/TeacherAttendanceScanner";
 import StaffAttendanceScannerGeolocated from "./pages/Attendance/StaffAttendanceScannerGeolocated";
 import AttendanceReports from "./pages/Attendance/AttendanceReports";
+import ManualAttendance from "./pages/ManualAttendance";
 import TeacherDetailedStats from "./pages/Teachers/TeacherDetailedStats";
 import ParentNotifications from './pages/Admin/ParentNotifications';
 
@@ -344,6 +345,14 @@ const AppContent = () => {
                 }
               />
 
+              <Route
+                path="/manual-attendance"
+                element={
+                  <ProtectedRoute requiredRoles={['bibliothecaire', 'admin', 'accountant', 'comptable_superieur', 'surveillant_general']}>
+                    <ManualAttendance />
+                  </ProtectedRoute>
+                }
+              />
 
               <Route
                 path="/teacher-attendance-scanner"

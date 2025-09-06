@@ -97,10 +97,13 @@ const StaffAttendanceScanner = () => {
     const [showToast, setShowToast] = useState(false);
     const [toastMessage, setToastMessage] = useState('');
     const [isProcessingScan, setIsProcessingScan] = useState(false);
+    const [cheatAttempts, setCheatAttempts] = useState(0);
+    const [recentScans, setRecentScans] = useState(new Map()); // Map pour stocker les scans récents par QR code
 
     const videoRef = useRef(null);
     const scannerRef = useRef(null);
     const lastScanTime = useRef(0);
+    const canvasRef = useRef(null);
     const { user } = useAuth();
     const isOnline = true;
 
@@ -152,6 +155,262 @@ const StaffAttendanceScanner = () => {
             }
         };
     }, [selectedDate, selectedStaffType]);
+
+    // Nettoyage automatique des anciens scans pour éviter l'accumulation en mémoire
+    useEffect(() => {
+        const cleanup = setInterval(() => {
+            const currentTime = Date.now();
+            const CLEANUP_THRESHOLD = 60000; // Nettoyer les entrées plus anciennes que 1 minute
+            
+            setRecentScans(prev => {
+                const cleaned = new Map();
+                for (const [qrCode, timestamp] of prev.entries()) {
+                    if (currentTime - timestamp < CLEANUP_THRESHOLD) {
+                        cleaned.set(qrCode, timestamp);
+                    }
+                }
+                
+                if (cleaned.size !== prev.size) {
+                    console.log(`🧹 Nettoyage automatique: ${prev.size - cleaned.size} anciens scans supprimés`);
+                }
+                
+                return cleaned;
+            });
+        }, 30000); // Nettoyage toutes les 30 secondes
+
+        return () => clearInterval(cleanup);
+    }, []);
+
+    // ================== DÉTECTION ANTI-TRICHE ==================
+    
+    /**
+     * Détecte si l'image provient d'un écran ou d'un papier physique
+     */
+    const detectScreenVsPaper = (imageData, width, height) => {
+        const data = imageData.data;
+        let screenScore = 0;
+        let paperScore = 0;
+        
+        // 1. DÉTECTION DE PIXELS - Recherche de grilles régulières
+        const pixelPatterns = analyzePixelPatterns(data, width, height);
+        if (pixelPatterns.hasRegularGrid) {
+            screenScore += 30;
+            console.log('🔍 Grille de pixels détectée (ÉCRAN)');
+        } else {
+            paperScore += 20;
+        }
+        
+        // 2. ANALYSE DE RÉFLEXION - Zones très brillantes
+        const reflectionData = analyzeReflection(data, width, height);
+        if (reflectionData.hasSpecularReflection) {
+            screenScore += 25;
+            console.log('✨ Reflet spéculaire détecté (ÉCRAN)');
+        }
+        if (reflectionData.hasDiffuseReflection) {
+            paperScore += 15;
+        }
+        
+        // 3. ANALYSE DE TEXTURE - Uniformité vs rugosité
+        const textureData = analyzeTexture(data, width, height);
+        if (textureData.isUniform) {
+            screenScore += 20;
+            console.log('📱 Surface uniforme détectée (ÉCRAN)');
+        }
+        if (textureData.hasNaturalVariation) {
+            paperScore += 25;
+        }
+        
+        // 4. DÉTECTION DE NETTETÉ EXCESSIVE
+        const sharpness = analyzeSharpness(data, width, height);
+        if (sharpness.tooSharp) {
+            screenScore += 15;
+            console.log('🔪 Bords trop nets détectés (ÉCRAN)');
+        }
+        
+        const confidence = Math.abs(screenScore - paperScore) / 100;
+        const isScreen = screenScore > paperScore;
+        
+        console.log(`🎯 Score écran: ${screenScore}, papier: ${paperScore}, confiance: ${confidence.toFixed(2)}`);
+        
+        return {
+            isScreen,
+            confidence,
+            screenScore,
+            paperScore,
+            details: {
+                pixelPatterns,
+                reflectionData,
+                textureData,
+                sharpness
+            }
+        };
+    };
+    
+    /**
+     * Analyse les patterns de pixels pour détecter les grilles d'écran
+     */
+    const analyzePixelPatterns = (data, width, height) => {
+        let gridDetected = 0;
+        const sampleSize = Math.min(width, height, 200); // Échantillon pour performance
+        
+        // Recherche de patterns réguliers horizontaux et verticaux
+        for (let y = 0; y < sampleSize; y += 10) {
+            for (let x = 0; x < sampleSize; x += 10) {
+                const idx = (y * width + x) * 4;
+                const nextXIdx = (y * width + (x + 3)) * 4;
+                const nextYIdx = ((y + 3) * width + x) * 4;
+                
+                if (nextXIdx < data.length && nextYIdx < data.length) {
+                    // Recherche de patterns RGB répétitifs
+                    const rDiffX = Math.abs(data[idx] - data[nextXIdx]);
+                    const gDiffX = Math.abs(data[idx + 1] - data[nextXIdx + 1]);
+                    const bDiffX = Math.abs(data[idx + 2] - data[nextXIdx + 2]);
+                    
+                    const rDiffY = Math.abs(data[idx] - data[nextYIdx]);
+                    const gDiffY = Math.abs(data[idx + 1] - data[nextYIdx + 1]);
+                    const bDiffY = Math.abs(data[idx + 2] - data[nextYIdx + 2]);
+                    
+                    // Si les différences suivent un pattern régulier
+                    if ((rDiffX < 10 && gDiffX < 10 && bDiffX < 10) || 
+                        (rDiffY < 10 && gDiffY < 10 && bDiffY < 10)) {
+                        gridDetected++;
+                    }
+                }
+            }
+        }
+        
+        const gridRatio = gridDetected / ((sampleSize / 10) * (sampleSize / 10));
+        return {
+            hasRegularGrid: gridRatio > 0.5, // Seuil réduit de 0.7 à 0.5 pour être plus sensible
+            gridRatio
+        };
+    };
+    
+    /**
+     * Analyse les reflets pour différencier écran brillant vs papier mat
+     */
+    const analyzeReflection = (data, width, height) => {
+        let brightPixels = 0;
+        let veryBrightPixels = 0;
+        let totalPixels = 0;
+        
+        for (let i = 0; i < data.length; i += 16) { // Échantillonage pour performance
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            const brightness = (r + g + b) / 3;
+            
+            totalPixels++;
+            if (brightness > 200) brightPixels++;
+            if (brightness > 240) veryBrightPixels++;
+        }
+        
+        const brightRatio = brightPixels / totalPixels;
+        const veryBrightRatio = veryBrightPixels / totalPixels;
+        
+        return {
+            hasSpecularReflection: veryBrightRatio > 0.02, // Réduit de 5% à 2% pour être plus sensible
+            hasDiffuseReflection: brightRatio > 0.1 && veryBrightRatio < 0.02,
+            brightRatio,
+            veryBrightRatio
+        };
+    };
+    
+    /**
+     * Analyse la texture pour détecter l'uniformité d'un écran vs rugosité papier
+     */
+    const analyzeTexture = (data, width, height) => {
+        let variations = 0;
+        let totalComparisons = 0;
+        
+        // Analyse des variations locales
+        for (let y = 1; y < height - 1; y += 5) {
+            for (let x = 1; x < width - 1; x += 5) {
+                const centerIdx = (y * width + x) * 4;
+                const rightIdx = (y * width + (x + 1)) * 4;
+                const downIdx = ((y + 1) * width + x) * 4;
+                
+                if (rightIdx < data.length && downIdx < data.length) {
+                    const centerBright = (data[centerIdx] + data[centerIdx + 1] + data[centerIdx + 2]) / 3;
+                    const rightBright = (data[rightIdx] + data[rightIdx + 1] + data[rightIdx + 2]) / 3;
+                    const downBright = (data[downIdx] + data[downIdx + 1] + data[downIdx + 2]) / 3;
+                    
+                    const variationRight = Math.abs(centerBright - rightBright);
+                    const variationDown = Math.abs(centerBright - downBright);
+                    
+                    variations += variationRight + variationDown;
+                    totalComparisons += 2;
+                }
+            }
+        }
+        
+        const avgVariation = variations / totalComparisons;
+        
+        return {
+            isUniform: avgVariation < 10, // Très peu de variation = écran
+            hasNaturalVariation: avgVariation > 20, // Beaucoup de variation = papier
+            avgVariation
+        };
+    };
+    
+    /**
+     * Analyse la netteté pour détecter les bords trop parfaits d'un écran
+     */
+    const analyzeSharpness = (data, width, height) => {
+        let sharpEdges = 0;
+        let totalEdges = 0;
+        
+        // Détection des bords avec filtre Sobel simplifié
+        for (let y = 1; y < height - 1; y += 10) {
+            for (let x = 1; x < width - 1; x += 10) {
+                const idx = (y * width + x) * 4;
+                const leftIdx = (y * width + (x - 1)) * 4;
+                const rightIdx = (y * width + (x + 1)) * 4;
+                
+                if (leftIdx >= 0 && rightIdx < data.length) {
+                    const center = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+                    const left = (data[leftIdx] + data[leftIdx + 1] + data[leftIdx + 2]) / 3;
+                    const right = (data[rightIdx] + data[rightIdx + 1] + data[rightIdx + 2]) / 3;
+                    
+                    const edgeStrength = Math.abs(center - left) + Math.abs(center - right);
+                    
+                    if (edgeStrength > 50) {
+                        totalEdges++;
+                        if (edgeStrength > 100) sharpEdges++; // Bord très net
+                    }
+                }
+            }
+        }
+        
+        const sharpnessRatio = totalEdges > 0 ? sharpEdges / totalEdges : 0;
+        
+        return {
+            tooSharp: sharpnessRatio > 0.4, // Réduit de 60% à 40% pour être plus sensible
+            sharpnessRatio,
+            totalEdges,
+            sharpEdges
+        };
+    };
+    
+    /**
+     * Capture une image de la vidéo pour analyse
+     */
+    const captureVideoFrame = () => {
+        if (!videoRef.current || !canvasRef.current) return null;
+        
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        ctx.drawImage(video, 0, 0);
+        
+        return ctx.getImageData(0, 0, canvas.width, canvas.height);
+    };
+    
+    // ================== FIN DÉTECTION ANTI-TRICHE ==================
 
     const loadDailyAttendances = async () => {
         try {
@@ -268,6 +527,10 @@ const StaffAttendanceScanner = () => {
             scannerRef.current = null;
         }
         
+        // Réinitialiser le cache des scans récents quand le scanner est arrêté
+        setRecentScans(new Map());
+        console.log('🧹 Cache des scans récents vidé lors de l\'arrêt du scanner');
+        
         setIsScanning(false);
         setMessage('Scanner arrêté');
         setMessageType('info');
@@ -279,9 +542,28 @@ const StaffAttendanceScanner = () => {
             const currentTime = Date.now();
             const timeSinceLastScan = currentTime - lastScanTime.current;
             
-            // Empêcher les scans dans un délai de 3 secondes
+            // Empêcher les scans dans un délai de 3 secondes (protection globale)
             if (timeSinceLastScan < 3000) {
                 console.log('Scan ignoré - trop récent:', timeSinceLastScan + 'ms');
+                return;
+            }
+            
+            // NOUVEAU: Protection contre les scans répétés de la même personne
+            const lastScanForThisPerson = recentScans.get(qrCode);
+            const COOLDOWN_DURATION = 30000; // 30 secondes de cooldown par personne
+            
+            if (lastScanForThisPerson && (currentTime - lastScanForThisPerson) < COOLDOWN_DURATION) {
+                const remainingTime = Math.ceil((COOLDOWN_DURATION - (currentTime - lastScanForThisPerson)) / 1000);
+                console.log(`Scan ignoré - personne déjà scannée récemment. Attendre ${remainingTime}s`);
+                
+                setMessage(`⏱️ Cette personne a déjà été scannée récemment. Attendez ${remainingTime} secondes.`);
+                setMessageType('warning');
+                
+                // Vibration courte pour indiquer le cooldown
+                if ('vibrate' in navigator) {
+                    navigator.vibrate([100]);
+                }
+                
                 return;
             }
             
@@ -294,8 +576,67 @@ const StaffAttendanceScanner = () => {
             setIsProcessingScan(true);
             lastScanTime.current = currentTime;
             
-            setMessage('Traitement du scan...');
+            // Enregistrer ce scan pour le cooldown
+            setRecentScans(prev => new Map(prev).set(qrCode, currentTime));
+            
+            setMessage('Vérification anti-triche...');
             setMessageType('info');
+            
+            // ============ VALIDATION ANTI-TRICHE ============
+            try {
+                console.log('🛡️ Début validation anti-triche');
+                
+                // Capturer l'image actuelle de la vidéo pour analyse
+                const imageData = captureVideoFrame();
+                if (!imageData) {
+                    console.warn('⚠️ Impossible de capturer l\'image pour validation');
+                    // Continuer sans validation si capture échoue
+                } else {
+                    // Analyser l'image pour détecter écran vs papier
+                    const detection = detectScreenVsPaper(imageData, imageData.width, imageData.height);
+                    
+                    console.log('🔍 Résultat détection:', detection);
+                    
+                    // Si détection d'écran avec haute confiance, bloquer le scan (seuil réduit pour être plus strict)
+                    if (detection.isScreen && detection.confidence > 0.3) {
+                        console.error('🚫 TRICHE DÉTECTÉE - Carte affichée sur écran');
+                        
+                        // Incrémenter le compteur de tentatives de triche
+                        setCheatAttempts(prev => prev + 1);
+                        
+                        setMessage('⚠️ TRICHE DÉTECTÉE: Utilisation d\'un écran interdite. Présentez la carte physique uniquement.');
+                        setMessageType('danger');
+                        
+                        // Vibration pour alerter
+                        if ('vibrate' in navigator) {
+                            navigator.vibrate([200, 100, 200, 100, 200]);
+                        }
+                        
+                        // Log pour tracking
+                        console.log('📊 Détails de la triche:', {
+                            screenScore: detection.screenScore,
+                            paperScore: detection.paperScore,
+                            confidence: detection.confidence,
+                            qrCode: qrCode.substring(0, 10) + '...',
+                            timestamp: new Date().toISOString(),
+                            details: detection.details
+                        });
+                        
+                        return; // Arrêter le traitement
+                    }
+                    
+                    // Si pas de triche détectée, continuer normalement
+                    console.log('✅ Validation anti-triche réussie - Carte physique détectée');
+                    setMessage('✅ Carte physique validée - Traitement du scan...');
+                    setMessageType('success');
+                }
+            } catch (antiCheatError) {
+                console.error('Erreur validation anti-triche:', antiCheatError);
+                // Continuer le scan en cas d'erreur de validation
+                setMessage('Validation en cours - Traitement du scan...');
+                setMessageType('info');
+            }
+            // ============ FIN VALIDATION ANTI-TRICHE ============
             
             const response = await secureApiEndpoints.staff.scanQR({
                 staff_qr_code: qrCode,
@@ -416,10 +757,8 @@ const StaffAttendanceScanner = () => {
                 <Col md={3}>
                     <Card className="text-center border-info">
                         <Card.Body>
-                            <h5 className="text-info">
-                                {stats.by_staff_type ? Object.keys(stats.by_staff_type).length : 0}
-                            </h5>
-                            <small className="text-muted">Types présents</small>
+                            <h5 className="text-info">{stats.total_entries || 0}</h5>
+                            <small className="text-muted">Entrées</small>
                         </Card.Body>
                     </Card>
                 </Col>
@@ -518,20 +857,44 @@ const StaffAttendanceScanner = () => {
                     </Form.Group>
                 </Col>
                 <Col md={4} className="d-flex align-items-end">
-                    <ButtonGroup className="w-100">
-                        {!isScanning ? (
-                            <Button 
-                                variant="primary" 
-                                onClick={startScanning}
-                                className="d-flex align-items-center justify-content-center gap-2"
-                            >
-                                <QrCodeScan size={20} />
-                                Démarrer Scanner
-                            </Button>
-                        ) : (
-                            <Button 
-                                variant="danger" 
-                                onClick={stopScanning}
+                    {/* Alerte de sécurité compacte */}
+                    <div className="w-100">
+                        <div className="mb-2">
+                            <div className="d-flex justify-content-between align-items-center">
+                                <small className="text-muted d-flex align-items-center">
+                                    <ShieldCheck size={16} className="me-1 text-success" />
+                                    Anti-triche activé
+                                </small>
+                                <div className="d-flex align-items-center gap-3">
+                                    {recentScans.size > 0 && (
+                                        <small className="text-info d-flex align-items-center">
+                                            <Clock size={14} className="me-1" />
+                                            {recentScans.size} scan{recentScans.size > 1 ? 's' : ''} récent{recentScans.size > 1 ? 's' : ''}
+                                        </small>
+                                    )}
+                                    {cheatAttempts > 0 && (
+                                        <small className="text-danger d-flex align-items-center">
+                                            <ExclamationTriangle size={14} className="me-1" />
+                                            {cheatAttempts} triche{cheatAttempts > 1 ? 's' : ''} détectée{cheatAttempts > 1 ? 's' : ''}
+                                        </small>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <ButtonGroup className="w-100">
+                            {!isScanning ? (
+                                <Button 
+                                    variant="primary" 
+                                    onClick={startScanning}
+                                    className="d-flex align-items-center justify-content-center gap-2"
+                                >
+                                    <QrCodeScan size={20} />
+                                    Démarrer Scanner
+                                </Button>
+                            ) : (
+                                <Button 
+                                    variant="danger" 
+                                    onClick={stopScanning}
                                 className="d-flex align-items-center justify-content-center gap-2"
                             >
                                 <XCircleFill size={20} />
@@ -582,6 +945,13 @@ const StaffAttendanceScanner = () => {
                                     </div>
                                 )}
                             </div>
+                            
+                            {/* Canvas caché pour l'analyse anti-triche */}
+                            <canvas 
+                                ref={canvasRef}
+                                style={{ display: 'none' }}
+                                aria-hidden="true"
+                            />
                         </Card.Body>
                     </Card>
                 </Col>

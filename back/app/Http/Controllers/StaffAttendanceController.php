@@ -246,19 +246,61 @@ class StaffAttendanceController extends Controller
             // Grouper par type de personnel
             $groupedAttendances = $attendances->groupBy('staff_type');
 
-            // Statistiques du jour
+            // Statistiques du jour - calculer en fonction des personnes uniques
+            // Une personne est présente si elle a au moins une entrée, absente sinon
+            $uniquePersons = $attendances->groupBy('user_id');
+            
+            $totalPresent = 0;
+            $totalLate = 0;
+            $presentPersons = [];
+            
+            foreach ($uniquePersons as $userId => $userAttendances) {
+                $hasEntry = $userAttendances->where('event_type', 'entry')->count() > 0;
+                if ($hasEntry) {
+                    $totalPresent++;
+                    $presentPersons[] = $userId;
+                    
+                    // Vérifier si cette personne est en retard (au moins une entrée en retard)
+                    if ($userAttendances->where('event_type', 'entry')->where('late_minutes', '>', 0)->count() > 0) {
+                        $totalLate++;
+                    }
+                }
+            }
+
             $stats = [
-                'total_present' => $attendances->where('is_present', true)->count(),
-                'total_absent' => $attendances->where('is_present', false)->count(),
-                'total_late' => $attendances->where('late_minutes', '>', 0)->count(),
+                'total_present' => $totalPresent,
+                'total_absent' => 0, // On ne peut pas calculer les absents sans connaître le personnel total
+                'total_late' => $totalLate,
+                'total_entries' => $attendances->where('event_type', 'entry')->count(),
+                'total_exits' => $attendances->where('event_type', 'exit')->count(),
                 'by_staff_type' => []
             ];
 
             foreach ($groupedAttendances as $type => $typeAttendances) {
+                // Calculer les statistiques par type en comptant les personnes uniques
+                $uniquePersonsOfType = $typeAttendances->groupBy('user_id');
+                $presentOfType = 0;
+                $lateOfType = 0;
+                
+                foreach ($uniquePersonsOfType as $userId => $userAttendances) {
+                    $hasEntry = $userAttendances->where('event_type', 'entry')->count() > 0;
+                    if ($hasEntry) {
+                        $presentOfType++;
+                        
+                        // Vérifier si cette personne est en retard
+                        if ($userAttendances->where('event_type', 'entry')->where('late_minutes', '>', 0)->count() > 0) {
+                            $lateOfType++;
+                        }
+                    }
+                }
+                
                 $stats['by_staff_type'][$type] = [
-                    'total' => $typeAttendances->count(),
-                    'present' => $typeAttendances->where('is_present', true)->count(),
-                    'late' => $typeAttendances->where('late_minutes', '>', 0)->count()
+                    'total_movements' => $typeAttendances->count(),
+                    'unique_persons' => $uniquePersonsOfType->count(),
+                    'present' => $presentOfType,
+                    'late' => $lateOfType,
+                    'entries' => $typeAttendances->where('event_type', 'entry')->count(),
+                    'exits' => $typeAttendances->where('event_type', 'exit')->count()
                 ];
             }
 

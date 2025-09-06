@@ -628,4 +628,41 @@ class SchoolClassController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get students for a specific class
+     */
+    public function getStudents($classId)
+    {
+        try {
+            $class = SchoolClass::find($classId);
+            if (!$class) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Classe non trouvée'
+                ], 404);
+            }
+
+            // For now, since we don't have the proper class-student relationship set up,
+            // let's return all students and let the frontend filter
+            // This is temporary until proper relationships are established
+            $students = \App\Models\User::where('role', 'student')
+                ->where('is_active', true)
+                ->select('id', 'name', 'username', 'email')
+                ->orderBy('name')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $students,
+                'message' => 'Étudiants récupérés avec succès'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des étudiants',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

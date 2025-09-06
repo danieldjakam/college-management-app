@@ -15,6 +15,7 @@ import {
     Award,
     ExclamationTriangle,
     Bell,
+    ListCheck,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -209,6 +210,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           title: "Présences",
           items: [
             ...((userRole === "comptable_superieur" || userRole === "accountant") ? [
+            { name: "Appel Manuel Classes", href: "/manual-attendance", icon: <ListCheck /> },
             { name: "Suivi Présences Élèves", href: "/student-attendance-tracking", icon: <ClipboardCheckFill /> },
             { name: "Rapports Présence Étudiants", href: "/attendance-reports", icon: <FileTextFill /> },
             { name: "Suivi Présences Personnel", href: "/staff-daily-attendance", icon: <PeopleFill /> },
@@ -350,6 +352,14 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
     } else if (userRole === "surveillant_general") {
       return [
         {
+          title: "Présences",
+          items: [
+            { name: "Appel Manuel Classes", href: "/manual-attendance", icon: <ListCheck /> },
+            { name: "Scanner QR Personnel", href: "/staff-attendance-scanner", icon: <QrCodeScan /> },
+            { name: "Rapports Présence", href: "/attendance-reports", icon: <FileTextFill /> },
+          ],
+        },
+        {
           title: "Communication",
           items: [
             { name: "Mes Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
@@ -382,6 +392,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         {
           title: "Scan Étudiants",
           items: [
+            { name: "Appel Manuel Classes", href: "/manual-attendance", icon: <ListCheck /> },
             { name: "Scanner QR Étudiants", href: "/attendance", icon: <QrCodeScan /> },
             { name: "Rapports Présence Étudiants", href: "/attendance-reports", icon: <FileTextFill /> },
           ],
