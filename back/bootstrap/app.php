@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         
         $middleware->alias([
             'role' => \App\Http\Middleware\CheckRole::class,
+            'debug.jwt' => \App\Http\Middleware\DebugJWTAuth::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

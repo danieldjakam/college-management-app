@@ -18,7 +18,19 @@ function StaffDailyAttendance() {
     { value: 'admin', label: 'Administrateur' },
     { value: 'secretaire', label: 'Secrétaire' },
     { value: 'surveillant_general', label: 'Surveillant Général' },
-    { value: 'comptable_superieur', label: 'Comptable Supérieur' }
+    { value: 'comptable_superieur', label: 'Comptable Supérieur' },
+    { value: 'general_accountant', label: 'Comptable Général' },
+    { value: 'responsable_pedagogique', label: 'Responsable Pédagogique' },
+    { value: 'dean_of_studies', label: 'Doyen des Études' },
+    { value: 'censeur_esg', label: 'Censeur ESG' },
+    { value: 'censeur', label: 'Censeur' },
+    { value: 'surveillant_secteur', label: 'Surveillant de Secteur' },
+    { value: 'caissiere', label: 'Caissière' },
+    { value: 'bibliothecaire', label: 'Bibliothécaire' },
+    { value: 'chef_travaux', label: 'Chef des Travaux' },
+    { value: 'chef_securite', label: 'Chef Sécurité' },
+    { value: 'reprographe', label: 'Reprographe' },
+    { value: 'principal', label: 'Principal' }
   ]);
 
   useEffect(() => {
@@ -78,24 +90,115 @@ function StaffDailyAttendance() {
       const params = new URLSearchParams({ date: selectedDate });
       
       if (selectedRole) {
-        params.append('role', selectedRole);
+        params.append('staff_type', selectedRole); // Utiliser staff_type au lieu de role
       }
 
-      const response = await secureApi.get(`/staff-attendance/daily?${params.toString()}`);
-      console.log('Réponse staff attendance:', response);
+      console.log('🔍 DEBUG: Paramètres de requête:', {
+        date: selectedDate,
+        role: selectedRole,
+        fullUrl: `/staff-attendance/daily?${params.toString()}`
+      });
+      
+      const response = await secureApi.get(`/staff-attendance/daily-attendance?${params.toString()}`);
+      console.log('📥 DEBUG: Réponse staff attendance complète:', response);
+      console.log('📊 DEBUG: Type de response.data:', typeof response.data, Array.isArray(response.data));
+      console.log('📋 DEBUG: Contenu response.data:', response.data);
       
       let data = [];
       if (response.success) {
-        data = Array.isArray(response.data) ? response.data : [];
+        // Pour daily-attendance, les données sont dans response.data.attendances
+        if (response.data && Array.isArray(response.data.attendances)) {
+          data = response.data.attendances;
+        } else if (Array.isArray(response.data)) {
+          data = response.data;
+        }
       } else if (Array.isArray(response)) {
         data = response;
       }
       
-      setStaffData(data);
+      // Grouper les scans par utilisateur pour éviter les doublons
+      const groupedByUser = {};
+      data.forEach(attendance => {
+        const userId = attendance.user?.id || attendance.id;
+        if (!groupedByUser[userId]) {
+          groupedByUser[userId] = {
+            user: attendance.user,
+            scans: [],
+            staff_type: attendance.staff_type
+          };
+        }
+        groupedByUser[userId].scans.push(attendance);
+      });
+
+      // Transformer en format final pour l'affichage
+      const transformedData = Object.values(groupedByUser).map(userData => {
+        const scans = userData.scans.sort((a, b) => new Date(a.scanned_at) - new Date(b.scanned_at));
+        const entriesScans = scans.filter(s => s.event_type === 'entry');
+        const exitsScans = scans.filter(s => s.event_type === 'exit');
+        
+        // Déterminer le statut actuel (dernier scan)
+        const lastScan = scans[scans.length - 1];
+        const isPresent = lastScan ? lastScan.event_type === 'entry' : false;
+        
+        // Créer les paires entrée/sortie et calculer le temps
+        const entryExitPairs = [];
+        let totalWorkingMinutes = 0;
+        
+        for (let i = 0; i < entriesScans.length; i++) {
+          const entryTime = entriesScans[i].scanned_at;
+          const exitTime = exitsScans[i] ? exitsScans[i].scanned_at : null;
+          
+          let workingMinutes = 0;
+          if (exitTime) {
+            const entryDate = new Date(entryTime);
+            const exitDate = new Date(exitTime);
+            if (exitDate > entryDate) {
+              workingMinutes = (exitDate - entryDate) / (1000 * 60);
+              totalWorkingMinutes += workingMinutes;
+            }
+          }
+          
+          entryExitPairs.push({
+            entry_time: entryTime,
+            exit_time: exitTime,
+            working_minutes: workingMinutes,
+            working_hours: workingMinutes > 0 ? `${Math.floor(workingMinutes / 60)}h ${Math.round(workingMinutes % 60)}min` : 'En cours'
+          });
+        }
+        
+        // Formater le temps de travail total
+        const hours = Math.floor(totalWorkingMinutes / 60);
+        const minutes = Math.round(totalWorkingMinutes % 60);
+        const totalWorkingHours = `${hours}h ${minutes}min`;
+
+        return {
+          id: userData.user?.id,
+          name: userData.user?.name || 'Utilisateur inconnu',
+          username: userData.user?.username || '',
+          first_name: userData.user?.first_name || '',
+          last_name: userData.user?.last_name || '',
+          role: userData.user?.role || userData.staff_type,
+          staff_type: userData.staff_type,
+          employment_type: userData.user?.employment_type || 'P', // Par défaut permanent
+          is_present: isPresent,
+          first_arrival: entriesScans.length > 0 ? entriesScans[0].scanned_at : null,
+          last_exit: exitsScans.length > 0 ? exitsScans[exitsScans.length - 1].scanned_at : null,
+          entries_count: entriesScans.length,
+          exits_count: exitsScans.length,
+          total_scans: scans.length,
+          total_working_hours: totalWorkingHours,
+          total_working_minutes: Math.round(totalWorkingMinutes),
+          late_minutes: Math.max(...scans.map(s => s.late_minutes || 0), 0),
+          entry_exit_pairs: entryExitPairs, // Ajouter les paires pour l'affichage
+          scans: scans // Garder tous les scans pour les détails si nécessaire
+        };
+      });
       
-      // Calculer les statistiques
-      const total = data.length;
-      const present = data.filter(staff => staff.is_present).length;
+      setStaffData(transformedData);
+      
+      // Calculer les statistiques 
+      const total = transformedData.length;
+      const present = transformedData.filter(staff => staff.is_present).length;
       const absent = total - present;
       
       setStats({ total, present, absent });
@@ -125,6 +228,32 @@ function StaffDailyAttendance() {
     setSelectedDate(new Date().toISOString().split('T')[0]);
   };
 
+  // Fonction pour obtenir le libellé du rôle
+  const getRoleLabel = (role) => {
+    const roleLabels = {
+      'teacher': 'Enseignant',
+      'accountant': 'Comptable',
+      'admin': 'Administrateur',
+      'secretaire': 'Secrétaire',
+      'surveillant_general': 'Surveillant Général',
+      'comptable_superieur': 'Comptable Supérieur',
+      'general_accountant': 'Comptable Général',
+      'responsable_pedagogique': 'Responsable Pédagogique',
+      'dean_of_studies': 'Doyen des Études',
+      'censeur_esg': 'Censeur ESG',
+      'censeur': 'Censeur',
+      'surveillant_secteur': 'Surveillant de Secteur',
+      'caissiere': 'Caissière',
+      'bibliothecaire': 'Bibliothécaire',
+      'chef_travaux': 'Chef des Travaux',
+      'chef_securite': 'Chef Sécurité',
+      'reprographe': 'Reprographe',
+      'principal': 'Principal'
+    };
+    
+    return roleLabels[role] || role || 'Personnel';
+  };
+
   const handleExportPDF = async () => {
     if (!selectedDate) {
       setError('Veuillez sélectionner une date pour l\'export');
@@ -139,7 +268,7 @@ function StaffDailyAttendance() {
       const params = new URLSearchParams({ date: selectedDate });
       
       if (selectedRole) {
-        params.append('role', selectedRole);
+        params.append('staff_type', selectedRole); // Utiliser staff_type au lieu de role
       }
 
       const response = await fetch(`${host}/api/staff-attendance/export/pdf?${params.toString()}`, {
@@ -390,13 +519,7 @@ function StaffDailyAttendance() {
                       </td>
                       <td>
                         <Badge bg="secondary">
-                          {staff.role === 'teacher' ? 'Enseignant' :
-                           staff.role === 'accountant' ? 'Comptable' :
-                           staff.role === 'admin' ? 'Administrateur' :
-                           staff.role === 'secretaire' ? 'Secrétaire' :
-                           staff.role === 'surveillant_general' ? 'Surveillant' :
-                           staff.role === 'comptable_superieur' ? 'Comptable Sup.' :
-                           staff.role || 'Personnel'}
+                          {getRoleLabel(staff.role)}
                         </Badge>
                       </td>
                       <td>{getAttendanceBadge(staff.is_present)}</td>

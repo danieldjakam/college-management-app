@@ -1,0 +1,7 @@
+# Configuration HTTPS pour l'accès caméra
+# HTTPS=true
+# SSL_CRT_FILE=./certs/localhost.crt
+# SSL_KEY_FILE=./certs/localhost.key
+
+# Port personnalisé avec HTTPS
+# PORT=3006
