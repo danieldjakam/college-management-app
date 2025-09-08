@@ -24,11 +24,34 @@ class StaffAttendanceController extends Controller
      */
     public function scanQR(Request $request): JsonResponse
     {
+        // LOG: Début de la requête avec tous les détails
+        \Log::info('=== STAFF ATTENDANCE SCAN QR - DÉBUT DE REQUÊTE ===', [
+            'timestamp' => now()->toISOString(),
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'method' => $request->method(),
+            'url' => $request->fullUrl(),
+            'headers' => [
+                'authorization' => $request->header('Authorization') ? 'Bearer ***' : 'MANQUANT',
+                'content_type' => $request->header('Content-Type'),
+                'accept' => $request->header('Accept'),
+                'x_requested_with' => $request->header('X-Requested-With'),
+            ],
+            'request_data' => $request->except(['password', 'token']),
+            'authenticated_user' => auth('api')->check() ? auth('api')->user()->id : 'NON_AUTHENTIFIÉ',
+        ]);
+        
         try {
             $request->validate([
                 'staff_qr_code' => 'required|string',
                 'supervisor_id' => 'required|exists:users,id',
                 'event_type' => 'sometimes|in:entry,exit,auto'
+            ]);
+            
+            \Log::info('STAFF ATTENDANCE - Validation réussie', [
+                'staff_qr_code' => $request->staff_qr_code,
+                'supervisor_id' => $request->supervisor_id,
+                'event_type' => $request->event_type ?? 'auto'
             ]);
 
             // Chercher d'abord dans les users qui ont un QR code
@@ -108,15 +131,19 @@ class StaffAttendanceController extends Controller
             $today = $now->toDateString();
             $eventType = $request->event_type ?? 'auto';
 
-            // Vérifier le dernier mouvement pour déterminer l'action suivante
-            $lastMovement = StaffAttendance::where('user_id', $user->id)
+            // NOUVELLE LOGIQUE : 1 ENTRÉE + 1 SORTIE MAXIMUM PAR JOUR
+            $todaysMovements = StaffAttendance::where('user_id', $user->id)
                 ->where('attendance_date', $today)
                 ->where('school_year_id', $currentSchoolYear->id)
-                ->orderBy('scanned_at', 'desc')
-                ->first();
+                ->orderBy('scanned_at', 'asc')
+                ->get();
 
-            // PROTECTION CONTRE LES SCANS MULTIPLES
-            // Empêcher les scans dans un délai de 5 secondes (réduit de 30 à 5 secondes)
+            // Compter les entrées et sorties du jour
+            $entriesCount = $todaysMovements->where('event_type', 'entry')->count();
+            $exitsCount = $todaysMovements->where('event_type', 'exit')->count();
+
+            // PROTECTION CONTRE LES SCANS MULTIPLES RÉCENTS
+            $lastMovement = $todaysMovements->last();
             if ($lastMovement && $lastMovement->scanned_at) {
                 $timeDifference = Carbon::parse($lastMovement->scanned_at)->diffInSeconds($now);
                 if ($timeDifference < 5) {
@@ -134,14 +161,80 @@ class StaffAttendanceController extends Controller
                 }
             }
 
-            // Déterminer le type d'événement
-            if ($eventType === 'auto') {
-                // Auto-détection basée sur le dernier mouvement
-                if (!$lastMovement || $lastMovement->event_type === 'exit') {
-                    $eventType = 'entry';
-                } else {
-                    $eventType = 'exit';
+            // LOGIQUE STRICTE SELON LE BOUTON SÉLECTIONNÉ
+            if ($eventType === 'entry') {
+                // BOUTON ARRIVÉE : Vérifier qu'aucune entrée n'existe
+                if ($entriesCount >= 1) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Entrée déjà effectuée aujourd\'hui. Vous ne pouvez faire qu\'une seule entrée par jour.',
+                        'error_code' => 'ENTRY_ALREADY_RECORDED',
+                        'data' => [
+                            'entries_today' => $entriesCount,
+                            'first_entry' => $todaysMovements->where('event_type', 'entry')->first()->scanned_at,
+                            'suggestion' => 'Utilisez le bouton "Départ" pour scanner votre sortie'
+                        ]
+                    ], 422);
                 }
+                // ✅ OK pour l'entrée
+                
+            } elseif ($eventType === 'exit') {
+                // BOUTON DÉPART : Vérifier qu'une entrée existe ET qu'aucune sortie n'existe
+                if ($entriesCount === 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Aucune entrée trouvée aujourd\'hui. Vous devez d\'abord scanner votre arrivée avec le bouton "Arrivée".',
+                        'error_code' => 'NO_ENTRY_RECORDED',
+                        'data' => [
+                            'entries_today' => $entriesCount,
+                            'suggestion' => 'Utilisez d\'abord le bouton "Arrivée" pour scanner votre entrée'
+                        ]
+                    ], 422);
+                }
+                
+                if ($exitsCount >= 1) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Sortie déjà effectuée aujourd\'hui. Vous ne pouvez faire qu\'une seule sortie par jour.',
+                        'error_code' => 'EXIT_ALREADY_RECORDED',
+                        'data' => [
+                            'exits_today' => $exitsCount,
+                            'first_exit' => $todaysMovements->where('event_type', 'exit')->first()->scanned_at,
+                            'work_completed' => true
+                        ]
+                    ], 422);
+                }
+                // ✅ OK pour la sortie
+                
+            } elseif ($eventType === 'auto') {
+                // MODE AUTO (fallback) : gardé pour compatibilité mais préférer les boutons
+                if ($entriesCount === 0) {
+                    $eventType = 'entry';
+                } elseif ($entriesCount === 1 && $exitsCount === 0) {
+                    $eventType = 'exit';
+                } else {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Limite de scans atteinte pour aujourd\'hui. Utilisez les boutons "Arrivée" et "Départ" pour un contrôle précis.',
+                        'error_code' => 'DAILY_SCAN_LIMIT_EXCEEDED',
+                        'data' => [
+                            'entries_today' => $entriesCount,
+                            'exits_today' => $exitsCount,
+                            'suggestion' => 'Mode auto désactivé. Utilisez les boutons spécifiques.'
+                        ]
+                    ], 422);
+                }
+            } else {
+                // Type d'événement non reconnu
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Type d\'événement non reconnu. Utilisez "entry" (Arrivée) ou "exit" (Départ).',
+                    'error_code' => 'INVALID_EVENT_TYPE',
+                    'data' => [
+                        'received_event_type' => $eventType,
+                        'valid_types' => ['entry', 'exit']
+                    ]
+                ], 422);
             }
 
             // Calculer les minutes de retard (seulement pour les entrées)
@@ -216,10 +309,119 @@ class StaffAttendanceController extends Controller
                     ]
                 ]
             ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('STAFF ATTENDANCE - Erreur de validation', [
+                'errors' => $e->errors(),
+                'message' => $e->getMessage(),
+                'request_data' => $request->all()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation des données',
+                'errors' => $e->errors()
+            ], 422);
         } catch (\Exception $e) {
+            \Log::error('STAFF ATTENDANCE - Erreur système', [
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'error_trace' => $e->getTraceAsString(),
+                'request_data' => $request->all(),
+                'authenticated_user' => auth('api')->check() ? auth('api')->user()->id : 'NON_AUTHENTIFIÉ',
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'enregistrement de la présence',
+                'error' => $e->getMessage(),
+                'debug_info' => [
+                    'file' => basename($e->getFile()),
+                    'line' => $e->getLine(),
+                    'authenticated' => auth('api')->check()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * Supprimer les scans d'aujourd'hui pour un utilisateur (pour les tests)
+     */
+    public function clearTodayScans(Request $request): JsonResponse
+    {
+        try {
+            $request->validate([
+                'user_id' => 'sometimes|exists:users,id',
+                'date' => 'sometimes|date',
+                'clear_all' => 'sometimes|boolean'
+            ]);
+
+            $date = $request->date ?? Carbon::now()->toDateString();
+            
+            // Obtenir l'année scolaire actuelle
+            $currentSchoolYear = SchoolYear::where('is_current', true)->first();
+            if (!$currentSchoolYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire active trouvée'
+                ], 400);
+            }
+
+            $query = StaffAttendance::where('attendance_date', $date)
+                ->where('school_year_id', $currentSchoolYear->id);
+
+            // Si clear_all est true, supprimer tous les scans du jour
+            if ($request->clear_all === true) {
+                $deletedCount = $query->delete();
+                $message = "Suppression réussie de tous les {$deletedCount} scan(s) pour la date {$date}";
+                
+                \Log::info('STAFF ATTENDANCE - Suppression TOUS les scans du jour', [
+                    'date' => $date,
+                    'deleted_count' => $deletedCount,
+                    'school_year_id' => $currentSchoolYear->id
+                ]);
+            } else {
+                // Supprimer pour un utilisateur spécifique
+                $userId = $request->user_id;
+                if (!$userId) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'user_id requis si clear_all n\'est pas spécifié'
+                    ], 400);
+                }
+
+                $deletedCount = $query->where('user_id', $userId)->delete();
+                $message = "Suppression réussie de {$deletedCount} scan(s) pour l'utilisateur {$userId} le {$date}";
+                
+                \Log::info('STAFF ATTENDANCE - Suppression scans utilisateur', [
+                    'user_id' => $userId,
+                    'date' => $date,
+                    'deleted_count' => $deletedCount,
+                    'school_year_id' => $currentSchoolYear->id
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => [
+                    'date' => $date,
+                    'deleted_count' => $deletedCount,
+                    'clear_all' => $request->clear_all ?? false
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('STAFF ATTENDANCE - Erreur suppression scans', [
+                'error_message' => $e->getMessage(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'request_data' => $request->all()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression des scans',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -235,7 +437,7 @@ class StaffAttendanceController extends Controller
             $staffType = $request->get('staff_type'); // optionnel
 
             $query = StaffAttendance::with(['user', 'supervisor'])
-                ->forDate($date);
+                ->whereDate('created_at', $date);
 
             if ($staffType) {
                 $query->forStaffType($staffType);
@@ -326,6 +528,15 @@ class StaffAttendanceController extends Controller
      */
     public function getDailyStaffAttendance(Request $request)
     {
+        \Log::info('=== getDailyStaffAttendance APPELÉ ===', [
+            'url' => $request->fullUrl(),
+            'method' => $request->method(),
+            'params' => $request->all(),
+            'headers' => [
+                'authorization' => $request->header('Authorization') ? 'Bearer ***' : 'MANQUANT'
+            ]
+        ]);
+        
         $request->validate([
             'date' => 'required|date',
             'role' => 'sometimes|string',

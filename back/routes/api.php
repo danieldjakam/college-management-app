@@ -51,6 +51,7 @@ use App\Http\Controllers\GradeController;
 use App\Http\Controllers\ParentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\MobileAttendanceController;
 
 
 // Routes d'authentification
@@ -70,6 +71,187 @@ Route::middleware('auth:api')->group(function () {
 // Route de test
 Route::get('test', function () {
     return response()->json(['message' => 'API is working!']);
+});
+
+// Routes de test pour debug authentification et scan QR
+Route::prefix('test')->group(function () {
+    // Test simple sans auth
+    Route::post('scan-qr-no-auth', function (Illuminate\Http\Request $request) {
+        \Log::info('=== TEST SCAN QR SANS AUTH ===', [
+            'timestamp' => now()->toISOString(),
+            'ip_address' => $request->ip(),
+            'method' => $request->method(),
+            'url' => $request->fullUrl(),
+            'all_headers' => $request->headers->all(),
+            'request_data' => $request->all(),
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Test endpoint accessible',
+            'data' => [
+                'received_data' => $request->all(),
+                'timestamp' => now()->toISOString(),
+                'server_ip' => $_SERVER['SERVER_ADDR'] ?? 'inconnu'
+            ]
+        ]);
+    });
+    
+    // Test avec middleware debug JWT
+    Route::post('scan-qr-with-debug-auth', function (Illuminate\Http\Request $request) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Authentification JWT réussie',
+            'authenticated_user' => auth('api')->user(),
+            'request_data' => $request->all()
+        ]);
+    })->middleware('debug.jwt');
+    
+    // Test endpoint staff attendance avec logs détaillés
+    Route::post('staff-attendance-debug', [App\Http\Controllers\StaffAttendanceController::class, 'scanQR'])
+        ->middleware('debug.jwt');
+        
+    // Endpoint pour obtenir tous les staff types disponibles (pour la liste déroulante)
+    Route::get('staff-types', function () {
+        try {
+            // Récupérer tous les staff_types distincts depuis les attendances
+            $staffTypesFromAttendances = App\Models\StaffAttendance::distinct('staff_type')
+                ->whereNotNull('staff_type')
+                ->pluck('staff_type');
+                
+            // Récupérer tous les rôles des utilisateurs actifs
+            $rolesFromUsers = App\Models\User::where('is_active', true)
+                ->whereIn('role', ['principal', 'teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe'])
+                ->distinct('role')
+                ->pluck('role');
+                
+            // Mapper les rôles vers des labels français
+            $roleLabels = [
+                'principal' => 'Principal',
+                'teacher' => 'Enseignant',
+                'accountant' => 'Comptable',
+                'admin' => 'Administrateur',
+                'surveillant_general' => 'Surveillant Général',
+                'comptable_superieur' => 'Comptable Supérieur',
+                'general_accountant' => 'Comptable Général',
+                'secretaire' => 'Secrétaire',
+                'responsable_pedagogique' => 'Responsable Pédagogique',
+                'dean_of_studies' => 'Doyen des Études',
+                'censeur_esg' => 'Censeur ESG',
+                'censeur' => 'Censeur',
+                'surveillant_secteur' => 'Surveillant de Secteur',
+                'caissiere' => 'Caissière',
+                'bibliothecaire' => 'Bibliothécaire',
+                'chef_travaux' => 'Chef des Travaux',
+                'chef_securite' => 'Chef Sécurité',
+                'reprographe' => 'Reprographe'
+            ];
+            
+            $allRoles = $rolesFromUsers->unique()->values()->map(function($role) use ($roleLabels) {
+                return [
+                    'value' => $role,
+                    'label' => $roleLabels[$role] ?? ucfirst($role)
+                ];
+            });
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'staff_types_from_attendances' => $staffTypesFromAttendances,
+                    'available_roles' => $allRoles,
+                    'role_labels' => $roleLabels
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des types de personnel: ' . $e->getMessage()
+            ], 500);
+        }
+    });
+    
+    // Test endpoint pour voir les présences journalières sans auth
+    Route::get('daily-attendance-debug', function () {
+        try {
+            $date = request()->get('date', now()->format('Y-m-d'));
+            
+            \Log::info('=== TEST DAILY ATTENDANCE DEBUG ===', [
+                'date' => $date,
+                'request_params' => request()->all()
+            ]);
+            
+            $attendances = App\Models\StaffAttendance::with(['user', 'supervisor'])
+                ->whereDate('attendance_date', $date)
+                ->orderBy('scanned_at', 'desc')
+                ->get();
+                
+            $allStaffTypes = App\Models\StaffAttendance::distinct('staff_type')
+                ->whereNotNull('staff_type')
+                ->pluck('staff_type');
+                
+            // Grouper par type de personnel
+            $groupedAttendances = $attendances->groupBy('staff_type');
+            
+            \Log::info('DAILY ATTENDANCE RESULTS', [
+                'total_attendances' => $attendances->count(),
+                'staff_types_found' => $allStaffTypes->toArray(),
+                'grouped_count' => $groupedAttendances->map->count(),
+                'sample_attendance' => $attendances->first() ? [
+                    'user_name' => $attendances->first()->user->name ?? 'N/A',
+                    'staff_type' => $attendances->first()->staff_type,
+                    'event_type' => $attendances->first()->event_type,
+                    'scanned_at' => $attendances->first()->scanned_at,
+                ] : null
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'debug_info' => [
+                    'date' => $date,
+                    'total_attendances' => $attendances->count(),
+                    'staff_types_available' => $allStaffTypes,
+                    'grouped_by_type' => $groupedAttendances->map->count(),
+                ],
+                'data' => [
+                    'attendances' => $attendances->map(function($att) {
+                        return [
+                            'id' => $att->id,
+                            'user_name' => $att->user->name ?? 'Utilisateur inconnu',
+                            'staff_type' => $att->staff_type,
+                            'event_type' => $att->event_type,
+                            'scanned_at' => $att->scanned_at,
+                            'is_present' => $att->is_present,
+                            'late_minutes' => $att->late_minutes,
+                        ];
+                    }),
+                    'stats' => [
+                        'total_present' => $attendances->where('is_present', true)->count(),
+                        'by_staff_type' => $groupedAttendances->map(function($typeAttendances) {
+                            return [
+                                'total' => $typeAttendances->count(),
+                                'present' => $typeAttendances->where('is_present', true)->count(),
+                            ];
+                        })
+                    ]
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('DAILY ATTENDANCE DEBUG ERROR', [
+                'error_message' => $e->getMessage(),
+                'error_line' => $e->getLine(),
+                'error_file' => $e->getFile()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur debug: ' . $e->getMessage(),
+                'error_details' => [
+                    'file' => basename($e->getFile()),
+                    'line' => $e->getLine()
+                ]
+            ], 500);
+        }
+    });
 });
 
 // Route de test pour school-settings
@@ -138,7 +320,7 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les sections
     Route::prefix('sections')->group(function () {
         Route::get('/dashboard', [SectionController::class, 'dashboard'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
-        Route::get('/', [SectionController::class, 'index'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
+        Route::get('/', [SectionController::class, 'index'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,bibliothecaire']);
         Route::get('/{section}', [SectionController::class, 'show'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
 
         // Export routes
@@ -626,6 +808,9 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/daily-attendance', [StaffAttendanceController::class, 'getDailyAttendance'])->middleware(['role:admin,secretaire,comptable_superieur,accountant,bibliothecaire']);
         Route::get('/daily', [StaffAttendanceController::class, 'getDailyStaffAttendance'])->middleware(['role:admin,secretaire,comptable_superieur,accountant,bibliothecaire']);
         Route::get('/entry-exit-stats', [StaffAttendanceController::class, 'getEntryExitStats'])->middleware(['role:admin,secretaire,comptable_superieur,accountant,bibliothecaire']);
+        
+        // Route pour supprimer les scans de test (développement seulement)
+        Route::delete('/clear-today-scans', [StaffAttendanceController::class, 'clearTodayScans']);
 
         // Routes pour gestion des QR codes personnel
         Route::post('/generate-qr', [StaffAttendanceController::class, 'generateQRCode'])->middleware(['role:admin']);
@@ -666,6 +851,28 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/students', [StudentAttendanceController::class, 'getStudentAttendance'])->middleware(['role:admin,accountant,comptable_superieur']);
         Route::get('/students/stats', [StudentAttendanceController::class, 'getAttendanceStats'])->middleware(['role:admin,accountant,comptable_superieur']);
         Route::get('/students/export/pdf', [StudentAttendanceController::class, 'exportStudentAttendancePDF'])->middleware(['role:admin,accountant,comptable_superieur']);
+        
+        // Routes pour l'application mobile
+        Route::post('/students/submit', [MobileAttendanceController::class, 'submitBulkAttendance'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
+        Route::get('/students/mobile/stats', [MobileAttendanceController::class, 'getAttendanceStats'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
+        
+        // Routes pour la gestion manuelle des présences
+        Route::post('/students/mark', [MobileAttendanceController::class, 'markStudentAttendance'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
+        Route::post('/students/mark-absent-series', [MobileAttendanceController::class, 'markAllAbsentInSeries'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
+        Route::get('/students/status', [MobileAttendanceController::class, 'getStudentStatus'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
+        
+        // Routes pour la gestion des états d'appel quotidiens
+        Route::get('/daily-states', [MobileAttendanceController::class, 'getDailyAttendanceStates'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
+        Route::get('/series/{seriesId}/state', [MobileAttendanceController::class, 'getSeriesAttendanceState'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
+        Route::post('/series/{seriesId}/reset-state', [MobileAttendanceController::class, 'resetSeriesAttendanceState'])->middleware(['role:admin']);
+    });
+
+    // Routes de navigation hiérarchique pour mobile
+    Route::prefix('mobile')->middleware(['auth:api'])->group(function () {
+        Route::get('/sections/{sectionId}/levels', [MobileAttendanceController::class, 'getLevelsBySection'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
+        Route::get('/levels/{levelId}/classes', [MobileAttendanceController::class, 'getClassesByLevel'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
+        Route::get('/classes/{classId}/series', [MobileAttendanceController::class, 'getSeriesByClass'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
+        Route::get('/students/series/{seriesId}', [MobileAttendanceController::class, 'getStudentsBySeries'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
     });
 
     // Routes pour les départements
