@@ -71,7 +71,7 @@ const StudentActionsDropdown = ({
 
                 {/* Transférer */}
 
-                {(userRole === 'admin' || userRole === 'secretaire' || userRole === 'accountant' || userRole === 'comptable_superieur') && (
+                {(userRole === 'admin' || userRole === 'secretaire' || userRole === 'accountant' || userRole === 'comptable_superieur' || userRole === 'comptable') && (
                     <>
                         <Dropdown.Divider />
                         <Dropdown.Item 

@@ -376,6 +376,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/dashboard', [SchoolClassController::class, 'dashboard'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
         Route::get('/', [SchoolClassController::class, 'index'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,bibliothecaire,surveillant_general']);
         Route::get('/{id}/students', [SchoolClassController::class, 'getStudents'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,bibliothecaire,surveillant_general']);
+        Route::get('/{id}/series', [SchoolClassController::class, 'getSeries'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
         Route::get('/{schoolClass}', [SchoolClassController::class, 'show'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
 
         // Export routes

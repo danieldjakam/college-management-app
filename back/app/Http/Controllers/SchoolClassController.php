@@ -665,4 +665,40 @@ class SchoolClassController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get all series for a specific school class
+     */
+    public function getSeries($classId)
+    {
+        try {
+            $schoolClass = SchoolClass::with(['series' => function($query) {
+                $query->where('is_active', true)
+                      ->orderBy('name');
+            }])->find($classId);
+
+            if (!$schoolClass) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Classe non trouvée'
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $schoolClass->series,
+                'class_info' => [
+                    'id' => $schoolClass->id,
+                    'name' => $schoolClass->name
+                ],
+                'message' => 'Séries récupérées avec succès'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des séries',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

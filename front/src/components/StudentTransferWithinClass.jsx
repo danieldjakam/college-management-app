@@ -152,12 +152,21 @@ const StudentTransferWithinClass = ({ student, show, onHide, onTransferSuccess }
             const response = await secureApiEndpoints.students.transferWithinClass(student.id, selectedSeriesId);
 
             if (response.success) {
+                console.log('Transfer response data:', response.data);
+                
+                // Gérer différentes structures de réponse possible
+                const selectedSeries = getSelectedSeriesInfo();
+                const transferInfo = response.data?.transfer_info || response.data || {};
+                const className = transferInfo.class_name || currentClassInfo?.className || 'Classe inconnue';
+                const toSeries = transferInfo.to_series || selectedSeries?.name || 'Série inconnue';
+                const fromSeries = transferInfo.from_series || currentClassInfo?.currentSeriesName || 'Série précédente';
+                
                 Swal.fire({
                     title: 'Transfert réussi !',
                     html: `
                         <p><strong>${student.first_name} ${student.last_name}</strong> a été transféré(e) vers :</p>
-                        <p><strong>${response.data.transfer_info.class_name}</strong> - <strong>${response.data.transfer_info.to_series}</strong></p>
-                        <p><small>Capacité utilisée : ${response.data.transfer_info.capacity_used}/${response.data.transfer_info.capacity_total || '∞'}</small></p>
+                        <p><strong>${className}</strong> - <strong>${toSeries}</strong></p>
+                        <p><small>Série précédente : ${fromSeries}</small></p>
                     `,
                     icon: 'success',
                     timer: 4000,
@@ -166,9 +175,9 @@ const StudentTransferWithinClass = ({ student, show, onHide, onTransferSuccess }
 
                 if (onTransferSuccess) {
                     onTransferSuccess(response.data || student, {
-                        className: response.data.transfer_info.class_name,
-                        seriesName: response.data.transfer_info.to_series,
-                        fromSeries: response.data.transfer_info.from_series
+                        className: className,
+                        seriesName: toSeries,
+                        fromSeries: fromSeries
                     });
                 }
                 

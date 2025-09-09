@@ -32,6 +32,7 @@ import ImportExportButton from '../../components/ImportExportButton';
 import BulkPhotoUpload from '../../components/BulkPhotoUpload';
 import StudentCardPrint from '../../components/StudentCardPrint';
 import StudentTransfer from '../../components/StudentTransfer';
+import StudentTransferWithinClass from '../../components/StudentTransferWithinClass';
 import StudentActionsDropdown from '../../components/StudentActionsDropdown';
 import Swal from 'sweetalert2';
 import {
@@ -81,7 +82,7 @@ const StudentPhoto = ({ student, size = 40, className = "" }) => {
 };
 
 // Composant pour les éléments sortables
-const SortableStudent = ({ student, handleEdit, handleDelete, handlePrintCard, handleTransferStudent, handleViewStudent, handleViewPayments, handleStatusChange, navigate, userRole }) => {
+const SortableStudent = ({ student, handleEdit, handleDelete, handlePrintCard, handleTransferStudent, handleTransferWithinClass, handleViewStudent, handleViewPayments, handleStatusChange, navigate, userRole }) => {
     const {
         attributes,
         listeners,
@@ -199,6 +200,7 @@ const SortableStudent = ({ student, handleEdit, handleDelete, handlePrintCard, h
                     student={student}
                     onPrintCard={handlePrintCard}
                     onTransfer={handleTransferStudent}
+                    onTransferWithinClass={handleTransferWithinClass}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
                     onViewPayments={handleViewPayments}
@@ -244,6 +246,7 @@ const SeriesStudents = () => {
     const [showImportModal, setShowImportModal] = useState(false);
     const [showCardPrint, setShowCardPrint] = useState(false);
     const [showTransferModal, setShowTransferModal] = useState(false);
+    const [showTransferWithinClassModal, setShowTransferWithinClassModal] = useState(false);
     const [showStudentsListModal, setShowStudentsListModal] = useState(false);
     const [selectedStudent, setSelectedStudent] = useState(null);
     const [newStudentForCard, setNewStudentForCard] = useState(null);
@@ -571,6 +574,19 @@ const SeriesStudents = () => {
         
         setStudentToTransfer(enrichedStudent);
         setShowTransferModal(true);
+    };
+
+    const handleTransferWithinClass = (student) => {
+        // Enrichir les données de l'élève pour le transfert au sein de la classe
+        const enrichedStudent = {
+            ...student,
+            class_series: series,
+            class_series_id: series?.id,
+            current_class: series?.name
+        };
+        
+        setStudentToTransfer(enrichedStudent);
+        setShowTransferWithinClassModal(true);
     };
 
     const handleTransferSuccess = (transferredStudent, newClassInfo) => {
@@ -1462,6 +1478,7 @@ const SeriesStudents = () => {
                                                     student={student}
                                                     onPrintCard={handlePrintCard}
                                                     onTransfer={handleTransferStudent}
+                    onTransferWithinClass={handleTransferWithinClass}
                                                     onEdit={handleEdit}
                                                     onDelete={handleDelete}
                                                     onViewPayments={handleViewPayments}
@@ -1511,6 +1528,7 @@ const SeriesStudents = () => {
                                                             handleDelete={handleDelete}
                                                             handlePrintCard={handlePrintCard}
                                                             handleTransferStudent={handleTransferStudent}
+                                                            handleTransferWithinClass={handleTransferWithinClass}
                                                             handleViewStudent={handleViewStudent}
                                                             handleViewPayments={handleViewPayments}
                                                             handleStatusChange={handleStatusChange}
@@ -1989,6 +2007,19 @@ const SeriesStudents = () => {
                     show={showTransferModal}
                     onHide={() => {
                         setShowTransferModal(false);
+                        setStudentToTransfer(null);
+                    }}
+                    onTransferSuccess={handleTransferSuccess}
+                />
+            )}
+
+            {/* Modal de transfert au sein de la même classe */}
+            {showTransferWithinClassModal && studentToTransfer && (
+                <StudentTransferWithinClass
+                    student={studentToTransfer}
+                    show={showTransferWithinClassModal}
+                    onHide={() => {
+                        setShowTransferWithinClassModal(false);
                         setStudentToTransfer(null);
                     }}
                     onTransferSuccess={handleTransferSuccess}
