@@ -13,8 +13,8 @@ class GeolocationService {
         this.zonesCache = null;
         this.cacheExpiry = null;
         
-        // Charger les zones depuis l'API au démarrage
-        this.loadZoneConfig();
+        // Ne pas charger automatiquement au démarrage pour éviter les erreurs 401 sur la page de login
+        // Les zones seront chargées à la demande via loadZoneConfig()
     }
 
     /**
@@ -324,6 +324,13 @@ class GeolocationService {
      */
     async loadZoneConfig() {
         try {
+            // Vérifier si l'utilisateur est authentifié
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                console.log('⚠️ Pas de token d\'authentification - zones non chargées');
+                return;
+            }
+
             console.log('🔄 Chargement des zones depuis l\'API...');
             
             // Vérifier si on a un cache valide (5 minutes)

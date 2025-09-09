@@ -188,7 +188,7 @@ const TestStudentActionsAndTheme = () => {
                 </Col>
             </Row>
 
-            <style jsx>{`
+            <style>{`
                 .bg-pink {
                     background-color: #e83e8c !important;
                 }

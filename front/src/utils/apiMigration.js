@@ -222,7 +222,8 @@ export const secureApiEndpoints = {
         update: (id, data) => secureApi.put(`/users/${id}`, data),
         delete: (id) => secureApi.delete(`/users/${id}`),
         getProfile: () => secureApi.get('/users/profile'),
-        updateProfile: (data) => secureApi.put('/users/profile', data)
+        updateProfile: (data) => secureApi.put('/users/profile', data),
+        changePassword: (data) => secureApi.put('/users/change-password', data)
     },
 
     // === TEACHERS ===

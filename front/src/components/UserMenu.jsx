@@ -4,10 +4,12 @@ import {
     GearFill, 
     BoxArrowRight,
     ChevronDown,
-    ShieldFill
+    ShieldFill,
+    KeyFill
 } from 'react-bootstrap-icons';
 import { useAuth, useLogout, useTokenStatus } from '../hooks/useAuth';
 import { Button, LoadingSpinner } from './UI';
+import ChangePasswordModal from './ChangePasswordModal';
 
 /**
  * Menu utilisateur avec informations et déconnexion
@@ -17,6 +19,7 @@ const UserMenu = ({ className = '' }) => {
     const { handleLogout, isLoggingOut } = useLogout();
     const { tokenInfo, timeUntilExpiry } = useTokenStatus();
     const [isOpen, setIsOpen] = useState(false);
+    const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
     const menuRef = useRef(null);
 
     // Fermer le menu quand on clique ailleurs
@@ -178,6 +181,17 @@ const UserMenu = ({ className = '' }) => {
                             <GearFill size={16} className="mr-3 text-gray-400" />
                             Paramètres
                         </button>
+
+                        <button
+                            onClick={() => {
+                                setIsOpen(false);
+                                setShowChangePasswordModal(true);
+                            }}
+                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        >
+                            <KeyFill size={16} className="mr-3 text-gray-400" />
+                            Changer le mot de passe
+                        </button>
                     </div>
 
                     {/* Séparateur */}
@@ -200,6 +214,12 @@ const UserMenu = ({ className = '' }) => {
                     </div>
                 </div>
             )}
+
+            {/* Modal de changement de mot de passe */}
+            <ChangePasswordModal 
+                show={showChangePasswordModal}
+                onHide={() => setShowChangePasswordModal(false)}
+            />
         </div>
     );
 };

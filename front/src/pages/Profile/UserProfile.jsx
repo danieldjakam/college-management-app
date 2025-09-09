@@ -175,7 +175,8 @@ const UserProfile = () => {
             
             const response = await secureApiEndpoints.auth.changePassword({
                 current_password: passwordData.current_password,
-                new_password: passwordData.new_password
+                new_password: passwordData.new_password,
+                new_password_confirmation: passwordData.confirm_password
             });
             
             if (response.success) {

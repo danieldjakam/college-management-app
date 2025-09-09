@@ -123,4 +123,74 @@ class UserController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Change user password
+     */
+    public function changePassword(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Utilisateur non trouvé'
+                ], 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'current_password' => 'required|string',
+                'new_password' => 'required|string|min:8|confirmed',
+                'new_password_confirmation' => 'required|string'
+            ], [
+                'current_password.required' => 'Le mot de passe actuel est requis',
+                'new_password.required' => 'Le nouveau mot de passe est requis',
+                'new_password.min' => 'Le nouveau mot de passe doit contenir au moins 8 caractères',
+                'new_password.confirmed' => 'La confirmation du mot de passe ne correspond pas',
+                'new_password_confirmation.required' => 'La confirmation du mot de passe est requise'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreurs de validation',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Vérifier le mot de passe actuel
+            if (!Hash::check($request->current_password, $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Le mot de passe actuel est incorrect'
+                ], 422);
+            }
+
+            // Vérifier que le nouveau mot de passe est différent de l'actuel
+            if (Hash::check($request->new_password, $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Le nouveau mot de passe doit être différent du mot de passe actuel'
+                ], 422);
+            }
+
+            // Mettre à jour le mot de passe
+            $user->update([
+                'password' => Hash::make($request->new_password)
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Mot de passe modifié avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du changement de mot de passe',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

@@ -166,7 +166,7 @@ const ColorPicker = ({ value, onChange, label = "Couleur primaire" }) => {
                 </small>
             </div>
 
-            <style jsx>{`
+            <style>{`
                 .color-preset:hover {
                     transform: translateY(-1px);
                     box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;

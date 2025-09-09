@@ -17,29 +17,20 @@ const QRTestDebug = () => {
 
     const startDebugScan = async () => {
         try {
-            console.log('🚀 Démarrage du scanner debug...');
             
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 video: { facingMode: 'environment' }
             });
             
-            console.log('📱 Stream vidéo obtenu:', stream);
-            console.log('📱 Pistes vidéo:', stream.getVideoTracks());
             
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
                 await videoRef.current.play();
                 
-                console.log('📺 Vidéo en cours de lecture');
-                console.log('📺 Dimensions vidéo:', videoRef.current.videoWidth, 'x', videoRef.current.videoHeight);
                 
                 scannerRef.current = new QrScanner(
                     videoRef.current,
                     (result) => {
-                        console.log('🎯 QR Code détecté (debug):', result);
-                        console.log('🎯 Données:', result.data || result);
-                        console.log('🎯 Type:', typeof result);
-                        console.log('🎯 Résultat complet:', JSON.stringify(result, null, 2));
                         
                         const scanData = {
                             timestamp: new Date().toLocaleTimeString(),
@@ -65,10 +56,8 @@ const QRTestDebug = () => {
                     }
                 );
                 
-                console.log('🔧 Scanner QR créé:', scannerRef.current);
                 
                 scannerRef.current.start().then(() => {
-                    console.log('✅ Scanner démarré avec succès');
                     setIsScanning(true);
                 }).catch((error) => {
                     console.error('❌ Erreur démarrage scanner:', error);
@@ -78,11 +67,7 @@ const QRTestDebug = () => {
                 // Logs périodiques pour vérifier l'état
                 const debugInterval = setInterval(() => {
                     if (scannerRef.current) {
-                        console.log('🔄 État scanner:', {
-                            isFlashOn: scannerRef.current.isFlashOn(),
-                            hasCamera: scannerRef.current.hasCamera,
-                            cameras: scannerRef.current._qrEnginePromise ? 'Chargé' : 'Non chargé'
-                        });
+                        // Scanner status check can be added here if needed
                     } else {
                         clearInterval(debugInterval);
                     }

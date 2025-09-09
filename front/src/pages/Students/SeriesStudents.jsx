@@ -1959,7 +1959,7 @@ const SeriesStudents = () => {
             )}
 
             {/* CSS for hover effects and drag & drop */}
-            <style jsx>{`
+            <style>{`
                 .hover-card {
                     transition: box-shadow 0.2s ease-in-out;
                 }

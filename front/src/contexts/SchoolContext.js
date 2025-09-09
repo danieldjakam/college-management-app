@@ -86,7 +86,14 @@ export const SchoolProvider = ({ children }) => {
     };
 
     useEffect(() => {
-        loadSchoolSettings();
+        // Charger les paramètres seulement si un token d'authentification existe
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+            loadSchoolSettings();
+        } else {
+            // Si pas de token, arrêter le loading pour éviter un état de chargement infini
+            setLoading(false);
+        }
     }, []);
 
     const value = {

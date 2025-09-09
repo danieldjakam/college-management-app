@@ -56,13 +56,11 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
   // Navigation sections based on user role
   const getNavigationSections = () => {
     if (!user || !user.role) {
-      console.log('DEBUG: No user or role', { user, userRole: user?.role });
       return [];
 
     }
 
     const userRole = user.role;
-    console.log('DEBUG: User role detected:', userRole, { user });
 
     if (userRole === "admin") {
       return [

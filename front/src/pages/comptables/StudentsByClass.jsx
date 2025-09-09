@@ -253,7 +253,7 @@ const AccountantClassSeries = () => {
             )}
 
             {/* CSS for hover effects */}
-            <style jsx>{`
+            <style>{`
                 .hover-card {
                     transition: box-shadow 0.2s ease-in-out;
                 }

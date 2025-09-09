@@ -62,10 +62,11 @@ Route::prefix('auth')->group(function () {
 });
 
 // Routes protégées (authentification JWT requise)
-Route::middleware('auth:api')->group(function () {
+Route::middleware('auth:api')->prefix('auth')->group(function () {
     Route::post('logout', [AuthController::class, 'logout']);
     Route::post('refresh', [AuthController::class, 'refresh']);
     Route::get('me', [AuthController::class, 'me']);
+    Route::put('change-password', [AuthController::class, 'changePassword']);
 });
 
 // Route de test
@@ -459,6 +460,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/getInfos', [UserController::class, 'getInfos']);
         Route::get('/all', [UserController::class, 'all']);
         Route::put('/profile', [UserController::class, 'updateProfile']);
+        Route::put('/change-password', [UserController::class, 'changePassword']);
     });
 
     // Routes pour les comptables
