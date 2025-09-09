@@ -98,6 +98,14 @@ class Student extends Model
     }
 
     /**
+     * Relation avec les présences
+     */
+    public function attendances()
+    {
+        return $this->hasMany(Attendance::class);
+    }
+
+    /**
      * Relation avec les paiements
      */
     public function payments()

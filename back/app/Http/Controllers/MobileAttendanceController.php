@@ -226,7 +226,8 @@ class MobileAttendanceController extends Controller
             'students.*.student_id' => 'required|integer|exists:students,id',
             'students.*.is_present' => 'required|boolean',
             'students.*.student_number' => 'nullable|string',
-            'notes' => 'nullable|string|max:500'
+            'notes' => 'nullable|string|max:500',
+            'is_modification' => 'nullable|boolean'
         ]);
 
         try {
@@ -250,19 +251,47 @@ class MobileAttendanceController extends Controller
                 $currentSchoolYear->id
             );
 
-            if (!DailyAttendanceState::canTakeAttendance($request->series_id, $eventType, $attendanceDate, $currentSchoolYear->id)) {
-                $errorMessage = $eventType === 'entry' 
-                    ? 'L\'appel d\'entrée a déjà été effectué pour cette classe aujourd\'hui'
-                    : 'L\'appel de sortie ne peut pas être effectué (entrée non complétée ou sortie déjà effectuée)';
-                    
-                return response()->json([
-                    'success' => false,
-                    'message' => $errorMessage,
-                    'state' => [
-                        'entry_state' => $attendanceState->entry_state,
-                        'exit_state' => $attendanceState->exit_state
-                    ]
-                ], 422);
+            $isModification = $request->input('is_modification', false);
+
+            // Pour les modifications, on vérifie différemment
+            if (!$isModification) {
+                if (!DailyAttendanceState::canTakeAttendance($request->series_id, $eventType, $attendanceDate, $currentSchoolYear->id)) {
+                    $errorMessage = $eventType === 'entry' 
+                        ? 'L\'appel d\'entrée a déjà été effectué pour cette classe aujourd\'hui'
+                        : 'L\'appel de sortie ne peut pas être effectué (entrée non complétée ou sortie déjà effectuée)';
+                        
+                    return response()->json([
+                        'success' => false,
+                        'message' => $errorMessage,
+                        'state' => [
+                            'entry_state' => $attendanceState->entry_state,
+                            'exit_state' => $attendanceState->exit_state
+                        ]
+                    ], 422);
+                }
+            } else {
+                // Pour les modifications, vérifier que l'appel original existe
+                if ($eventType === 'entry' && !$attendanceState->canModifyEntry()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Impossible de modifier l\'appel d\'entrée pour cette date',
+                        'state' => [
+                            'entry_state' => $attendanceState->entry_state,
+                            'exit_state' => $attendanceState->exit_state
+                        ]
+                    ], 422);
+                }
+                
+                if ($eventType === 'exit' && !$attendanceState->canModifyExit()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Impossible de modifier l\'appel de sortie pour cette date',
+                        'state' => [
+                            'entry_state' => $attendanceState->entry_state,
+                            'exit_state' => $attendanceState->exit_state
+                        ]
+                    ], 422);
+                }
             }
             
             $successCount = 0;
@@ -273,42 +302,83 @@ class MobileAttendanceController extends Controller
 
             DB::beginTransaction();
             
-            // Marquer l'état comme "en cours"
-            if ($eventType === 'entry') {
-                $attendanceState->markEntryInProgress(auth()->id());
-            } else {
-                $attendanceState->markExitInProgress(auth()->id());
+            // Marquer l'état comme "en cours" seulement si ce n'est pas une modification
+            if (!$isModification) {
+                if ($eventType === 'entry') {
+                    $attendanceState->markEntryInProgress(auth()->id());
+                } else {
+                    $attendanceState->markExitInProgress(auth()->id());
+                }
             }
 
             foreach ($studentsData as $studentData) {
                 try {
                     $student = Student::findOrFail($studentData['student_id']);
                     
-                    if ($studentData['is_present']) {
-                        // Créer un enregistrement de présence
-                        $attendance = Attendance::create([
-                            'student_id' => $student->id,
-                            'supervisor_id' => auth()->id(),
-                            'school_class_id' => $series->schoolClass->id,
-                            'event_type' => $eventType,
-                            'attendance_date' => $attendanceDate,
-                            'scanned_at' => now(),
-                            'is_present' => true,
-                            'school_year_id' => $currentSchoolYear->id,
-                            'notes' => $request->notes,
-                            'parent_notified' => false
-                        ]);
-                        
-                        // Envoyer notification WhatsApp au parent
-                        try {
-                            $this->whatsappService->sendAttendanceNotification($attendance);
-                            $attendance->update(['parent_notified' => true, 'notified_at' => now()]);
-                        } catch (\Exception $e) {
-                            Log::warning('WhatsApp notification failed for student', [
-                                'student_id' => $student->id,
-                                'attendance_id' => $attendance->id,
-                                'error' => $e->getMessage()
+                    if ($isModification) {
+                        // Pour les modifications, chercher l'enregistrement existant
+                        $existingAttendance = Attendance::where('student_id', $student->id)
+                            ->whereDate('attendance_date', $attendanceDate)
+                            ->where('event_type', $eventType)
+                            ->where('school_year_id', $currentSchoolYear->id)
+                            ->first();
+                            
+                        if ($existingAttendance) {
+                            // Mettre à jour l'enregistrement existant
+                            $existingAttendance->update([
+                                'is_present' => $studentData['is_present'],
+                                'notes' => $request->notes,
+                                'supervisor_id' => auth()->id(),
+                                'scanned_at' => now()
                             ]);
+                            $attendance = $existingAttendance;
+                        } else {
+                            // Créer un nouvel enregistrement (présent ou absent)
+                            $attendance = Attendance::create([
+                                'student_id' => $student->id,
+                                'supervisor_id' => auth()->id(),
+                                'school_class_id' => $series->schoolClass->id,
+                                'event_type' => $eventType,
+                                'attendance_date' => $attendanceDate,
+                                'scanned_at' => now(),
+                                'is_present' => $studentData['is_present'],
+                                'school_year_id' => $currentSchoolYear->id,
+                                'notes' => $request->notes,
+                                'parent_notified' => false
+                            ]);
+                        }
+                    } else {
+                        // Mode normal: créer uniquement pour les présents
+                        if ($studentData['is_present']) {
+                            $attendance = Attendance::create([
+                                'student_id' => $student->id,
+                                'supervisor_id' => auth()->id(),
+                                'school_class_id' => $series->schoolClass->id,
+                                'event_type' => $eventType,
+                                'attendance_date' => $attendanceDate,
+                                'scanned_at' => now(),
+                                'is_present' => true,
+                                'school_year_id' => $currentSchoolYear->id,
+                                'notes' => $request->notes,
+                                'parent_notified' => false
+                            ]);
+                        }
+                    }
+                    
+                    // Envoyer notification WhatsApp au parent si présent (seulement pour nouveaux appels)
+                    if ($studentData['is_present'] && isset($attendance)) {
+                        // Ne pas envoyer de notification lors des modifications pour éviter les doublons
+                        if (!$isModification) {
+                            try {
+                                $this->whatsappService->sendAttendanceNotification($attendance);
+                                $attendance->update(['parent_notified' => true, 'notified_at' => now()]);
+                            } catch (\Exception $e) {
+                                Log::warning('WhatsApp notification failed for student', [
+                                    'student_id' => $student->id,
+                                    'attendance_id' => $attendance->id ?? 'unknown',
+                                    'error' => $e->getMessage()
+                                ]);
+                            }
                         }
                         
                         $presentCount++;
@@ -330,11 +400,13 @@ class MobileAttendanceController extends Controller
                 }
             }
             
-            // Marquer l'état comme "terminé"
-            if ($eventType === 'entry') {
-                $attendanceState->markEntryCompleted(auth()->id());
-            } else {
-                $attendanceState->markExitCompleted(auth()->id());
+            // Marquer l'état comme "terminé" seulement si ce n'est pas une modification
+            if (!$isModification) {
+                if ($eventType === 'entry') {
+                    $attendanceState->markEntryCompleted(auth()->id());
+                } else {
+                    $attendanceState->markExitCompleted(auth()->id());
+                }
             }
 
             DB::commit();
@@ -346,9 +418,11 @@ class MobileAttendanceController extends Controller
                 Log::warning('WhatsApp notification failed', ['error' => $e->getMessage()]);
             }
 
+            $message = $isModification ? 'Présences modifiées avec succès' : 'Présences enregistrées avec succès';
+
             return response()->json([
                 'success' => true,
-                'message' => 'Présences enregistrées avec succès',
+                'message' => $message,
                 'data' => [
                     'series_name' => $series->schoolClass->name . ' ' . $series->name,
                     'event_type' => $eventType,
@@ -359,6 +433,7 @@ class MobileAttendanceController extends Controller
                     'success_count' => $successCount,
                     'error_count' => $errorCount,
                     'errors' => $errors,
+                    'is_modification' => $isModification,
                     'attendance_state' => [
                         'entry_state' => $attendanceState->entry_state,
                         'exit_state' => $attendanceState->exit_state,
@@ -924,6 +999,10 @@ class MobileAttendanceController extends Controller
                             'exit_completed_at' => $state->exit_completed_at?->format('H:i'),
                             'can_take_entry' => $state->canDoEntry(),
                             'can_take_exit' => $state->canDoExit(),
+                            'can_reopen_entry' => $state->canReopenEntry(),
+                            'can_reopen_exit' => $state->canReopenExit(),
+                            'can_modify_entry' => $state->canModifyEntry(),
+                            'can_modify_exit' => $state->canModifyExit(),
                             'is_day_completed' => $state->isDayCompleted(),
                             'supervisor_name' => $state->supervisor?->name
                         ];
@@ -1013,6 +1092,110 @@ class MobileAttendanceController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération de l\'état d\'appel',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Récupérer les présences existantes d'une série pour modification
+     */
+    public function getExistingAttendance($seriesId, Request $request)
+    {
+        $request->validate([
+            'date' => 'nullable|date',
+            'event_type' => 'required|in:entry,exit'
+        ]);
+
+        try {
+            $date = $request->input('date', now()->format('Y-m-d'));
+            $eventType = $request->input('event_type');
+            $currentSchoolYear = SchoolYear::where('is_active', true)->first();
+            
+            if (!$currentSchoolYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire active trouvée'
+                ], 400);
+            }
+
+            $series = ClassSeries::with(['schoolClass.level.section'])->findOrFail($seriesId);
+
+            // Récupérer tous les étudiants de la série
+            $studentsQuery = Student::where('class_series_id', $seriesId)
+                ->where('is_active', true)
+                ->orderBy('last_name')
+                ->orderBy('first_name');
+
+            // Vérifier l'état d'appel pour cette série
+            $attendanceState = DailyAttendanceState::getOrCreateForSeriesAndDate(
+                $seriesId,
+                $date,
+                $currentSchoolYear->id
+            );
+            
+            // Déterminer si l'appel a déjà été fait pour ce type d'événement
+            $isCallCompleted = ($eventType === 'entry' && $attendanceState->entry_state === 'completed') ||
+                              ($eventType === 'exit' && $attendanceState->exit_state === 'completed');
+
+            $students = $studentsQuery->get()->map(function ($student) use ($date, $eventType, $currentSchoolYear, $isCallCompleted) {
+                // Chercher les présences existantes pour cet élève
+                $attendance = Attendance::where('student_id', $student->id)
+                    ->whereDate('attendance_date', $date)
+                    ->where('event_type', $eventType)
+                    ->where('school_year_id', $currentSchoolYear->id)
+                    ->first();
+                
+                // Si pas d'enregistrement mais appel complété = élève était absent
+                $attendanceStatus = null;
+                if ($attendance) {
+                    $attendanceStatus = $attendance->is_present ? 'present' : 'absent';
+                } elseif ($isCallCompleted) {
+                    $attendanceStatus = 'absent'; // Pas d'enregistrement = était absent
+                }
+                
+                return [
+                    'id' => $student->id,
+                    'first_name' => $student->first_name,
+                    'last_name' => $student->last_name,
+                    'student_id' => $student->student_id,
+                    'student_number' => $student->student_number,
+                    'gender' => $student->gender,
+                    'attendance_status' => $attendanceStatus,
+                    'notes' => $attendance?->notes,
+                    'scanned_at' => $attendance?->scanned_at?->format('H:i'),
+                    'existing_attendance_id' => $attendance?->id
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'date' => $date,
+                    'event_type' => $eventType,
+                    'series_info' => [
+                        'id' => $series->id,
+                        'name' => $series->name,
+                        'class_name' => $series->schoolClass->name,
+                        'level_name' => $series->schoolClass->level->name,
+                        'section_name' => $series->schoolClass->level->section->name,
+                        'full_name' => $series->schoolClass->name . ' ' . $series->name
+                    ],
+                    'students' => $students,
+                    'is_modification' => true
+                ],
+                'message' => 'Présences existantes récupérées avec succès'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error getting existing attendance', [
+                'series_id' => $seriesId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des présences existantes',
                 'error' => $e->getMessage()
             ], 500);
         }
