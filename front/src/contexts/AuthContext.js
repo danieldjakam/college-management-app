@@ -173,7 +173,7 @@ export const AuthProvider = ({ children }) => {
     const logout = async () => {
         // Éviter les appels multiples de logout
         if (state.isLoggingOut) {
-            console.log('Logout déjà en cours, ignorer');
+            // Silencieux - pas de log pour éviter le spam
             return;
         }
         
@@ -311,7 +311,7 @@ export const AuthProvider = ({ children }) => {
         const handleUnauthorized = () => {
             // Éviter les appels multiples si l'utilisateur n'est plus authentifié
             if (state.isAuthenticated) {
-                console.log('Session expirée détectée, déconnexion automatique');
+                // Déconnexion silencieuse sans log
                 dispatch({ type: 'SET_ERROR', payload: 'Session expirée' });
                 logout();
             }

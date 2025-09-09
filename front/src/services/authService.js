@@ -169,20 +169,30 @@ class AuthService {
 
     // Déconnexion
     async logout() {
-        try {
-            await this.makeRequest('/logout', {
-                method: 'POST'
-            });
-        } catch (error) {
-            console.error('Erreur lors de la déconnexion:', error);
-            // Continuer la déconnexion même en cas d'erreur serveur
-        } finally {
-            this.removeToken();
+        // Ne pas essayer d'appeler l'API si on n'a pas de token
+        const token = this.getToken();
+        if (token) {
+            try {
+                await this.makeRequest('/logout', {
+                    method: 'POST'
+                });
+            } catch (error) {
+                // Ignorer les erreurs de déconnexion (session déjà expirée, etc.)
+                // On nettoie localement dans tous les cas
+            }
         }
+        // Toujours nettoyer localement
+        this.removeToken();
     }
 
     // Refresh du token
     async refreshToken() {
+        // Ne pas essayer de rafraîchir si on n'a pas de token
+        const token = this.getToken();
+        if (!token) {
+            throw new Error('Pas de token à rafraîchir');
+        }
+
         try {
             const response = await this.makeRequest('/refresh', {
                 method: 'POST'
@@ -199,7 +209,10 @@ class AuthService {
                 throw new Error('Impossible de renouveler le token');
             }
         } catch (error) {
-            console.error('Erreur lors du refresh du token:', error);
+            // Ne pas logger l'erreur 401 car c'est attendu quand la session expire
+            if (!error.message.includes('Session expirée')) {
+                console.error('Erreur lors du refresh du token:', error);
+            }
             this.removeToken();
             throw error;
         }
