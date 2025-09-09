@@ -23,7 +23,8 @@ class StaffAttendance extends Model
         'work_hours',
         'late_minutes',
         'early_departure_minutes',
-        'notes'
+        'notes',
+        'class_id'             // Classe où l'enseignant va donner cours (Vacataire/Semi-Permanent)
     ];
 
     protected $casts = [
@@ -57,6 +58,31 @@ class StaffAttendance extends Model
     public function schoolYear()
     {
         return $this->belongsTo(SchoolYear::class, 'school_year_id');
+    }
+
+    /**
+     * Relation avec la classe (pour Vacataire/Semi-Permanent) - ANCIEN système
+     */
+    public function schoolClass()
+    {
+        return $this->belongsTo(SchoolClass::class, 'class_id');
+    }
+
+    /**
+     * Relation avec les classes multiples (NOUVEAU système)
+     */
+    public function schoolClasses()
+    {
+        return $this->belongsToMany(SchoolClass::class, 'staff_attendance_classes', 'staff_attendance_id', 'school_class_id')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Relation avec les enregistrements de classes multiples
+     */
+    public function attendanceClasses()
+    {
+        return $this->hasMany(StaffAttendanceClass::class);
     }
 
     /**
@@ -203,18 +229,39 @@ class StaffAttendance extends Model
     }
 
     /**
+     * Types de personnel connus avec leurs libellés
+     */
+    public static function getKnownStaffTypes()
+    {
+        return [
+            'teacher' => 'Enseignant',
+            'accountant' => 'Comptable', 
+            'supervisor' => 'Surveillant Général',
+            'admin' => 'Administrateur',
+            'bibliothecaire' => 'Bibliothécaire',
+            'permanent' => 'Personnel Permanent',
+            'vacataire' => 'Vacataire',
+            'semi_permanent' => 'Semi-Permanent',
+            'secretaire' => 'Secrétaire'
+        ];
+    }
+
+    /**
      * Obtenir le libellé du type de personnel
      */
     public function getStaffTypeLabel()
     {
-        $labels = [
-            'teacher' => 'Enseignant',
-            'accountant' => 'Comptable',
-            'supervisor' => 'Surveillant Général',
-            'admin' => 'Administrateur'
-        ];
+        $knownTypes = self::getKnownStaffTypes();
+        
+        // Si le type n'est pas connu, logger pour information (pas d'erreur)
+        if (!isset($knownTypes[$this->staff_type])) {
+            \Log::info("Nouveau type de personnel détecté: {$this->staff_type}", [
+                'staff_attendance_id' => $this->id,
+                'user_id' => $this->user_id
+            ]);
+        }
 
-        return $labels[$this->staff_type] ?? $this->staff_type;
+        return $knownTypes[$this->staff_type] ?? ucfirst(str_replace('_', ' ', $this->staff_type));
     }
 
     /**

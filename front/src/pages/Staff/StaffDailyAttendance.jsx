@@ -124,10 +124,22 @@ function StaffDailyAttendance() {
           groupedByUser[userId] = {
             user: attendance.user,
             scans: [],
-            staff_type: attendance.staff_type
+            staff_type: attendance.staff_type,
+            classes: [] // Pour collecter toutes les classes
           };
         }
         groupedByUser[userId].scans.push(attendance);
+        
+        // Collecter les classes pour chaque scan
+        if (attendance.school_classes && attendance.school_classes.length > 0) {
+          attendance.school_classes.forEach(classInfo => {
+            // Éviter les doublons de classes
+            const existingClass = groupedByUser[userId].classes.find(c => c.id === classInfo.id);
+            if (!existingClass) {
+              groupedByUser[userId].classes.push(classInfo);
+            }
+          });
+        }
       });
 
       // Transformer en format final pour l'affichage
@@ -179,7 +191,7 @@ function StaffDailyAttendance() {
           last_name: userData.user?.last_name || '',
           role: userData.user?.role || userData.staff_type,
           staff_type: userData.staff_type,
-          employment_type: userData.user?.employment_type || 'P', // Par défaut permanent
+          employment_type: userData.staff_type || 'permanent', // Utiliser staff_type du backend qui contient la valeur mappée
           is_present: isPresent,
           first_arrival: entriesScans.length > 0 ? entriesScans[0].scanned_at : null,
           last_exit: exitsScans.length > 0 ? exitsScans[exitsScans.length - 1].scanned_at : null,
@@ -190,7 +202,8 @@ function StaffDailyAttendance() {
           total_working_minutes: Math.round(totalWorkingMinutes),
           late_minutes: Math.max(...scans.map(s => s.late_minutes || 0), 0),
           entry_exit_pairs: entryExitPairs, // Ajouter les paires pour l'affichage
-          scans: scans // Garder tous les scans pour les détails si nécessaire
+          scans: scans, // Garder tous les scans pour les détails si nécessaire
+          classes: userData.classes || [] // Ajouter les classes collectées
         };
       });
       
@@ -499,6 +512,7 @@ function StaffDailyAttendance() {
                     <th>Type</th>
                     <th>Rôle</th>
                     <th>Statut</th>
+                    <th>Classes</th>
                     <th>Entrées</th>
                     <th>Sorties</th>
                     <th>Temps Total</th>
@@ -510,11 +524,10 @@ function StaffDailyAttendance() {
                       <td><strong>{staff.last_name || staff.name || '-'}</strong></td>
                       <td>{staff.first_name || '-'}</td>
                       <td>
-                        <Badge bg={staff.employment_type === 'P' ? 'primary' : 
-                                   staff.employment_type === 'SP' ? 'info' : 'warning'}>
-                          {staff.employment_type === 'P' ? 'Permanent (P)' : 
-                           staff.employment_type === 'SP' ? 'Semi-permanent (SP)' :
-                           staff.employment_type === 'V' ? 'Vacataire (V)' : 'Non défini'}
+                        <Badge bg={staff.employment_type === 'vacataire' ? 'warning' :
+                                   staff.employment_type === 'semi_permanent' ? 'info' : 'primary'}>
+                          {staff.employment_type === 'vacataire' ? 'Vacataire (V)' :
+                           staff.employment_type === 'semi_permanent' ? 'Semi-permanent (SP)' : 'Permanent (P)'}
                         </Badge>
                       </td>
                       <td>
@@ -523,6 +536,19 @@ function StaffDailyAttendance() {
                         </Badge>
                       </td>
                       <td>{getAttendanceBadge(staff.is_present)}</td>
+                      <td>
+                        {staff.classes && staff.classes.length > 0 ? (
+                          <div className="small">
+                            {staff.classes.map((classInfo, classIndex) => (
+                              <Badge key={classIndex} bg="info" className="me-1 mb-1">
+                                {classInfo.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted">-</span>
+                        )}
+                      </td>
                       <td>
                         {staff.entry_exit_pairs && staff.entry_exit_pairs.length > 0 ? (
                           <div className="small">

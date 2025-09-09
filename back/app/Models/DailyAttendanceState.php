@@ -70,6 +70,33 @@ class DailyAttendanceState extends Model
         return $this->entry_state === 'completed' && $this->exit_state === 'not_done';
     }
 
+    // Nouvelles méthodes pour permettre la réouverture/modification
+    public function canReopenEntry()
+    {
+        // Peut rouvrir l'entrée si elle est completed et c'est le même jour
+        return $this->entry_state === 'completed' && 
+               $this->attendance_date->isToday();
+    }
+
+    public function canReopenExit()
+    {
+        // Peut rouvrir la sortie si elle est completed et c'est le même jour
+        return $this->exit_state === 'completed' && 
+               $this->attendance_date->isToday();
+    }
+
+    public function canModifyEntry()
+    {
+        // Peut modifier l'entrée si elle est completed le même jour
+        return $this->canReopenEntry();
+    }
+
+    public function canModifyExit()
+    {
+        // Peut modifier la sortie si elle est completed le même jour
+        return $this->canReopenExit();
+    }
+
     public function isEntryInProgress()
     {
         return $this->entry_state === 'in_progress';
