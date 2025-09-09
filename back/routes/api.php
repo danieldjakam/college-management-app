@@ -805,6 +805,9 @@ Route::middleware('auth:api')->group(function () {
     Route::prefix('staff-attendance')->group(function () {
         // Routes pour scan QR du personnel
         Route::post('/scan-qr', [StaffAttendanceController::class, 'scanQR'])->middleware(['role:admin,bibliothecaire']);
+        Route::post('/scan-qr-with-class', [StaffAttendanceController::class, 'scanQRWithClass'])->middleware(['role:admin,bibliothecaire']);
+        Route::post('/scan-qr-with-classes', [StaffAttendanceController::class, 'scanQRWithClasses'])->middleware(['role:admin,bibliothecaire']);
+        Route::get('/today-entry-classes/{staffId}', [StaffAttendanceController::class, 'getTodayEntryClasses'])->middleware(['role:admin,bibliothecaire']);
         Route::get('/daily-attendance', [StaffAttendanceController::class, 'getDailyAttendance'])->middleware(['role:admin,secretaire,comptable_superieur,accountant,bibliothecaire']);
         Route::get('/daily', [StaffAttendanceController::class, 'getDailyStaffAttendance'])->middleware(['role:admin,secretaire,comptable_superieur,accountant,bibliothecaire']);
         Route::get('/entry-exit-stats', [StaffAttendanceController::class, 'getEntryExitStats'])->middleware(['role:admin,secretaire,comptable_superieur,accountant,bibliothecaire']);
@@ -864,6 +867,7 @@ Route::middleware('auth:api')->group(function () {
         // Routes pour la gestion des états d'appel quotidiens
         Route::get('/daily-states', [MobileAttendanceController::class, 'getDailyAttendanceStates'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
         Route::get('/series/{seriesId}/state', [MobileAttendanceController::class, 'getSeriesAttendanceState'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
+        Route::get('/series/{seriesId}/existing-attendance', [MobileAttendanceController::class, 'getExistingAttendance'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
         Route::post('/series/{seriesId}/reset-state', [MobileAttendanceController::class, 'resetSeriesAttendanceState'])->middleware(['role:admin']);
     });
 
