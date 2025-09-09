@@ -7,13 +7,15 @@ import {
     PencilSquare,
     Trash,
     CashCoin,
-    Eye
+    Eye,
+    ArrowLeftRight
 } from 'react-bootstrap-icons';
 
 const StudentActionsDropdown = ({ 
     student, 
     onPrintCard, 
     onTransfer, 
+    onTransferWithinClass,
     onEdit, 
     onDelete, 
     onViewPayments,
@@ -69,7 +71,7 @@ const StudentActionsDropdown = ({
 
                 {/* Transférer */}
 
-                {(userRole === 'admin' || userRole === 'secretaire') && (
+                {(userRole === 'admin' || userRole === 'secretaire' || userRole === 'accountant' || userRole === 'comptable_superieur') && (
                     <>
                         <Dropdown.Divider />
                         <Dropdown.Item 
@@ -77,9 +79,16 @@ const StudentActionsDropdown = ({
                             className="d-flex align-items-center"
                         >
                             <ArrowRightCircle size={16} className="me-2 text-warning" />
-                            Transférer
+                            Changer de classe
                         </Dropdown.Item>
 
+                        <Dropdown.Item 
+                            onClick={() => onTransferWithinClass?.(student)}
+                            className="d-flex align-items-center"
+                        >
+                            <ArrowLeftRight size={16} className="me-2 text-info" />
+                            Changer de série
+                        </Dropdown.Item>
 
                         {/* Modifier */}
                         <Dropdown.Item 
@@ -89,6 +98,12 @@ const StudentActionsDropdown = ({
                             <PencilSquare size={16} className="me-2 text-primary" />
                             Modifier
                         </Dropdown.Item>
+                    </>
+                )}
+                
+                {/* Supprimer - Seulement pour admin et secretaire */}
+                {(userRole === 'admin' || userRole === 'secretaire') && (
+                    <>
                         <Dropdown.Divider />
                         <Dropdown.Item 
                             onClick={() => onDelete?.(student)}

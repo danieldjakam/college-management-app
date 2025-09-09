@@ -1323,6 +1323,143 @@ class StudentController extends Controller
     }
 
     /**
+     * Transférer un élève vers une autre série de la même classe
+     */
+    public function transferWithinClass(Request $request, Student $student)
+    {
+        $validator = Validator::make($request->all(), [
+            'target_series_id' => 'required|exists:class_series,id'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Données invalides',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $targetSeriesId = $request->target_series_id;
+            $currentSeriesId = $student->class_series_id;
+
+            // Vérifier que la série cible est différente de l'actuelle
+            if ($currentSeriesId == $targetSeriesId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'L\'élève est déjà dans cette série'
+                ], 422);
+            }
+
+            // Récupérer les informations des séries
+            $currentSeries = ClassSeries::with(['schoolClass'])->find($currentSeriesId);
+            $targetSeries = ClassSeries::with(['schoolClass'])->find($targetSeriesId);
+
+            if (!$targetSeries) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Série de destination non trouvée'
+                ], 404);
+            }
+
+            // Vérifier que les deux séries appartiennent à la même classe
+            if (!$currentSeries || $currentSeries->class_id !== $targetSeries->class_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Les séries ne appartiennent pas à la même classe. Utilisez le transfert général pour changer de classe.'
+                ], 422);
+            }
+
+            // Vérifier que la série cible est active
+            if (!$targetSeries->is_active) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La série de destination n\'est pas active'
+                ], 422);
+            }
+
+            // Vérifier la capacité de la série cible
+            $currentStudentsCount = Student::where('class_series_id', $targetSeriesId)
+                ->where('school_year_id', $student->school_year_id)
+                ->where('is_active', true)
+                ->count();
+
+            if ($targetSeries->capacity && $currentStudentsCount >= $targetSeries->capacity) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "La série {$targetSeries->name} a atteint sa capacité maximale ({$targetSeries->capacity} élèves)"
+                ], 422);
+            }
+
+            // Déterminer le nouvel ordre dans la série cible
+            $maxOrder = Student::where('class_series_id', $targetSeriesId)
+                ->where('school_year_id', $student->school_year_id)
+                ->max('order') ?? 0;
+            $newOrder = $maxOrder + 1;
+
+            // Effectuer le transfert
+            $student->update([
+                'class_series_id' => $targetSeriesId,
+                'order' => $newOrder
+            ]);
+
+            // Log du transfert
+            \Log::info('Student within-class transfer completed', [
+                'student_id' => $student->id,
+                'student_name' => $student->first_name . ' ' . $student->last_name,
+                'class_name' => $currentSeries->schoolClass->name,
+                'from_series' => $currentSeries->name,
+                'to_series' => $targetSeries->name,
+                'new_order' => $newOrder,
+                'transferred_by' => Auth::user()->username ?? 'Unknown'
+            ]);
+
+            DB::commit();
+
+            // Recharger l'élève avec ses nouvelles relations
+            $student->load([
+                'classSeries',
+                'classSeries.schoolClass',
+                'schoolYear'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => sprintf(
+                    'Élève transféré avec succès de %s vers %s dans la classe %s',
+                    $currentSeries->name,
+                    $targetSeries->name,
+                    $targetSeries->schoolClass->name
+                ),
+                'data' => $student,
+                'transfer_info' => [
+                    'class_name' => $targetSeries->schoolClass->name,
+                    'from_series' => $currentSeries->name,
+                    'to_series' => $targetSeries->name,
+                    'new_order' => $newOrder,
+                    'capacity_used' => $currentStudentsCount + 1,
+                    'capacity_total' => $targetSeries->capacity
+                ]
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error during within-class transfer', [
+                'student_id' => $student->id ?? null,
+                'error' => $e->getMessage(),
+                'stack' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du transfert au sein de la classe',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Export students to Excel (global export with filters)
      */
     public function exportStudentsExcel(Request $request)

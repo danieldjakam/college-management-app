@@ -439,6 +439,7 @@ Route::middleware('auth:api')->group(function () {
         Route::patch('/{student}/status', [StudentController::class, 'updateStatus']);
         Route::post('/{student}/update-with-photo', [StudentController::class, 'updateWithPhoto']);
         Route::post('/{student}/transfer-series', [StudentController::class, 'transferToSeries']);
+        Route::post('/{student}/transfer-within-class', [StudentController::class, 'transferWithinClass']);
         Route::delete('/{student}', [StudentController::class, 'destroy']);
         Route::post('/import/csv', [StudentController::class, 'importCsv']);
         Route::post('/import/excel', [StudentController::class, 'importExcel']);
