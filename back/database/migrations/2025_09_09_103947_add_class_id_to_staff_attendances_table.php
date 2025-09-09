@@ -12,11 +12,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('staff_attendances', function (Blueprint $table) {
-            $table->foreignId('class_id')->nullable()->constrained('school_classes')->onDelete('set null')
-                  ->comment('Classe où l\'enseignant va donner cours (pour Vacataire/Semi-Permanent)');
+            // Vérifier si la colonne class_id n'existe pas déjà
+            if (!Schema::hasColumn('staff_attendances', 'class_id')) {
+                $table->foreignId('class_id')->nullable()->constrained('school_classes')->onDelete('set null')
+                      ->comment('Classe où l\'enseignant va donner cours (pour Vacataire/Semi-Permanent)');
+            }
             
-            // Ajouter un index pour optimiser les requêtes
-            $table->index(['class_id', 'attendance_date']);
+            // Ajouter un index pour optimiser les requêtes (seulement si pas déjà présent)
+            if (!collect(\DB::select("SHOW INDEX FROM staff_attendances"))->where('Key_name', 'staff_attendances_class_id_attendance_date_index')->count()) {
+                $table->index(['class_id', 'attendance_date']);
+            }
         });
     }
 
