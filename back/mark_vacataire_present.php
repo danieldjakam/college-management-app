@@ -100,9 +100,11 @@ $nomsCibles = [
 
 // Chercher les enseignants correspondant aux noms dans la liste
 $vacataireTeachers = collect();
+$surveillantUsers = collect();
 
 foreach ($nomsCibles as $nom => $horaires) {
-    $teachers = Teacher::where('type_personnel', 'V')
+    // 1. Chercher dans les enseignants (Vacataires ET Semi-Permanents)
+    $teachers = Teacher::whereIn('type_personnel', ['V', 'SP']) // Inclure les Semi-Permanents
         ->where('is_active', 1)
         ->where(function($query) use ($nom) {
             $query->where('first_name', 'LIKE', "%{$nom}%")
@@ -112,22 +114,48 @@ foreach ($nomsCibles as $nom => $horaires) {
         ->get();
     
     foreach ($teachers as $teacher) {
+        // Si l'enseignant n'a pas de compte utilisateur, on le skip pour l'instant
         if ($teacher->user) {
-            echo "✅ Trouvé: {$teacher->first_name} {$teacher->last_name} pour '{$nom}'\n";
+            echo "✅ Trouvé ENSEIGNANT: {$teacher->first_name} {$teacher->last_name} (Type: {$teacher->type_personnel}) pour '{$nom}'\n";
             $teacher->horaires_fixes = $horaires;
             $vacataireTeachers->push($teacher);
+        } else {
+            echo "⚠️  Trouvé ENSEIGNANT SANS COMPTE: {$teacher->first_name} {$teacher->last_name} pour '{$nom}'\n";
         }
+    }
+    
+    // 2. Chercher directement dans les utilisateurs (surveillants, etc.)
+    $users = User::whereIn('role', ['surveillant_general', 'surveillant_secteur', 'principal'])
+        ->where('is_active', 1)
+        ->where(function($query) use ($nom) {
+            $query->where('name', 'LIKE', "%{$nom}%")
+                  ->orWhere('username', 'LIKE', "%{$nom}%");
+        })
+        ->get();
+    
+    foreach ($users as $user) {
+        echo "✅ Trouvé SURVEILLANT/STAFF: {$user->name} (Role: {$user->role}) pour '{$nom}'\n";
+        $user->horaires_fixes = $horaires;
+        $surveillantUsers->push($user);
     }
 }
 
-echo "Enseignants vacataires ciblés trouvés: " . $vacataireTeachers->count() . " personnes\n";
+echo "Enseignants trouvés: " . $vacataireTeachers->count() . " personnes\n";
+echo "Surveillants/Staff trouvés: " . $surveillantUsers->count() . " personnes\n";
 
-// Convertir en collection d'utilisateurs pour compatibilité avec le reste du script
+// Combiner les enseignants et les surveillants
 $potentialVacataires = $vacataireTeachers->map(function($teacher) {
     $user = $teacher->user;
     $user->horaires_fixes = $teacher->horaires_fixes; // Transférer les horaires
+    $user->personnel_type = 'teacher'; // Marquer comme enseignant
     return $user;
 })->filter(); // Supprimer les null (enseignants sans compte utilisateur)
+
+// Ajouter les surveillants directement
+foreach ($surveillantUsers as $user) {
+    $user->personnel_type = $user->role; // Garder le rôle original
+    $potentialVacataires->push($user);
+}
 
 echo "Personnel vacataire trouvé: " . $potentialVacataires->count() . " personnes\n\n";
 
@@ -172,15 +200,79 @@ foreach ($potentialVacataires as $user) {
         
         $arrivalTime = $date->copy()->setTime((int)$hour, (int)$minute, (int)$second);
         
-        // Vérifier s'il existe déjà une présence pour cet utilisateur ce jour
-        $existingAttendance = StaffAttendance::where('user_id', $user->id)
+        // Vérifier s'il existe déjà une présence d'ENTRÉE pour cet utilisateur ce jour
+        $existingEntryAttendance = StaffAttendance::where('user_id', $user->id)
             ->whereDate('attendance_date', $date)
-            ->where('staff_type', 'teacher')
+            ->where('event_type', 'entry') // Vérifier spécifiquement les entrées
             ->first();
         
-        if ($existingAttendance) {
-            echo "  ⚠️  {$user->name} ({$user->username}) - Déjà marqué présent\n";
+        if ($existingEntryAttendance) {
+            echo "  ⚠️  {$user->name} ({$user->username}) - Entrée déjà enregistrée à " . 
+                 $existingEntryAttendance->scanned_at->format('H:i:s') . "\n";
+            
+            // Si l'utilisateur a une heure de sortie ET pas encore de sortie enregistrée, on peut ajouter la sortie
+            if ($user->horaires_fixes['heure_sortie']) {
+                $existingExitAttendance = StaffAttendance::where('user_id', $user->id)
+                    ->whereDate('attendance_date', $date)
+                    ->where('event_type', 'exit')
+                    ->first();
+                    
+                if (!$existingExitAttendance) {
+                    // Créer seulement la sortie
+                    $heureSortie = $user->horaires_fixes['heure_sortie'];
+                    list($exitHour, $exitMinute, $exitSecond) = explode(':', $heureSortie);
+                    $exitTime = $date->copy()->setTime((int)$exitHour, (int)$exitMinute, (int)$exitSecond);
+                    
+                    $staffType = isset($user->personnel_type) && $user->personnel_type != 'teacher' 
+                        ? $user->personnel_type 
+                        : 'teacher';
+                    
+                    $exitAttendance = StaffAttendance::create([
+                        'user_id' => $user->id,
+                        'supervisor_id' => 1,
+                        'school_year_id' => $schoolYearId,
+                        'attendance_date' => $date->format('Y-m-d'),
+                        'scanned_at' => $exitTime,
+                        'scanned_qr_code' => $user->qr_code ?? 'AUTO_' . strtoupper(uniqid()),
+                        'is_present' => true,
+                        'event_type' => 'exit',
+                        'staff_type' => $staffType,
+                        'work_hours' => 2.5,
+                        'late_minutes' => 0,
+                        'early_departure_minutes' => 0,
+                        'notes' => 'Sortie automatique générée (entrée existante)'
+                    ]);
+                    
+                    echo "    🚪 Sortie ajoutée à " . $exitTime->format('H:i:s') . " (entrée existante)\n";
+                    $successCount++;
+                }
+            }
             continue;
+        }
+        
+        // Déterminer le type de personnel approprié
+        $staffType = 'teacher'; // Par défaut
+        $noteType = 'Enseignant vacataire';
+        
+        if (isset($user->personnel_type)) {
+            switch($user->personnel_type) {
+                case 'surveillant_general':
+                    $staffType = 'supervisor';
+                    $noteType = 'Surveillant général';
+                    break;
+                case 'surveillant_secteur':
+                    $staffType = 'supervisor';
+                    $noteType = 'Surveillant secteur';
+                    break;
+                case 'principal':
+                    $staffType = 'admin';
+                    $noteType = 'Principal';
+                    break;
+                default:
+                    $staffType = 'teacher';
+                    $noteType = 'Enseignant';
+                    break;
+            }
         }
         
         // Créer la présence d'entrée
@@ -193,11 +285,11 @@ foreach ($potentialVacataires as $user) {
             'scanned_qr_code' => $user->qr_code ?? 'AUTO_' . strtoupper(uniqid()),
             'is_present' => true,
             'event_type' => 'entry',
-            'staff_type' => 'teacher',
+            'staff_type' => $staffType,
             'work_hours' => 8.0,
             'late_minutes' => 0,
             'early_departure_minutes' => 0,
-            'notes' => 'Présence automatique générée - Enseignant vacataire (ENTRÉE)'
+            'notes' => "Présence automatique générée - {$noteType} (ENTRÉE)"
         ]);
         
         echo "  ✅ {$user->name} ({$user->username}) - Marqué présent à " . 
@@ -240,11 +332,11 @@ foreach ($potentialVacataires as $user) {
                 'scanned_qr_code' => $user->qr_code ?? 'AUTO_' . strtoupper(uniqid()),
                 'is_present' => true,
                 'event_type' => 'exit',
-                'staff_type' => 'teacher',
+                'staff_type' => $staffType, // Utiliser le même type que l'entrée
                 'work_hours' => 2.5, // 2h30 de travail (7h30-10h00)
                 'late_minutes' => 0,
                 'early_departure_minutes' => 0,
-                'notes' => 'Sortie automatique générée - Enseignant vacataire (SORTIE)'
+                'notes' => "Sortie automatique générée - {$noteType} (SORTIE)"
             ]);
             
             echo "    🚪 Sortie ajoutée à " . $exitTime->format('H:i:s') . "\n";
