@@ -46,7 +46,8 @@ class StaffAttendanceController extends Controller
             $request->validate([
                 'staff_qr_code' => 'required|string',
                 'supervisor_id' => 'required|exists:users,id',
-                'event_type' => 'sometimes|in:entry,exit,auto'
+                'event_type' => 'sometimes|in:entry,exit,auto',
+                'skip_class_selection' => 'sometimes|boolean'  // Nouveau paramètre pour forcer le scan sans classes
             ]);
             
             \Log::info('STAFF ATTENDANCE - Validation réussie', [
@@ -145,8 +146,8 @@ class StaffAttendanceController extends Controller
             // Déterminer le type de personnel
             $staffType = $this->getStaffType($user, $teacher);
 
-            // SI VACATAIRE OU SEMI-PERMANENT -> Demander sélection de classe
-            if (in_array($staffType, ['vacataire', 'semi_permanent'])) {
+            // SI VACATAIRE OU SEMI-PERMANENT -> Demander sélection de classe (SAUF si skip_class_selection = true)
+            if (in_array($staffType, ['vacataire', 'semi_permanent']) && !$request->get('skip_class_selection', false)) {
                 \Log::info('STAFF ATTENDANCE - Enseignant Vacataire/Semi-Permanent détecté', [
                     'user_id' => $user->id,
                     'user_name' => $user->name,
@@ -214,52 +215,8 @@ class StaffAttendanceController extends Controller
                 }
             }
 
-            // LOGIQUE STRICTE SELON LE BOUTON SÉLECTIONNÉ
-            if ($eventType === 'entry') {
-                // BOUTON ARRIVÉE : Vérifier qu'aucune entrée n'existe
-                if ($entriesCount >= 1) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Entrée déjà effectuée aujourd\'hui. Vous ne pouvez faire qu\'une seule entrée par jour.',
-                        'error_code' => 'ENTRY_ALREADY_RECORDED',
-                        'data' => [
-                            'entries_today' => $entriesCount,
-                            'first_entry' => $todaysMovements->where('event_type', 'entry')->first()->scanned_at,
-                            'suggestion' => 'Utilisez le bouton "Départ" pour scanner votre sortie'
-                        ]
-                    ], 422);
-                }
-                // ✅ OK pour l'entrée
-                
-            } elseif ($eventType === 'exit') {
-                // BOUTON DÉPART : Vérifier qu'une entrée existe ET qu'aucune sortie n'existe
-                if ($entriesCount === 0) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Aucune entrée trouvée aujourd\'hui. Vous devez d\'abord scanner votre arrivée avec le bouton "Arrivée".',
-                        'error_code' => 'NO_ENTRY_RECORDED',
-                        'data' => [
-                            'entries_today' => $entriesCount,
-                            'suggestion' => 'Utilisez d\'abord le bouton "Arrivée" pour scanner votre entrée'
-                        ]
-                    ], 422);
-                }
-                
-                if ($exitsCount >= 1) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Sortie déjà effectuée aujourd\'hui. Vous ne pouvez faire qu\'une seule sortie par jour.',
-                        'error_code' => 'EXIT_ALREADY_RECORDED',
-                        'data' => [
-                            'exits_today' => $exitsCount,
-                            'first_exit' => $todaysMovements->where('event_type', 'exit')->first()->scanned_at,
-                            'work_completed' => true
-                        ]
-                    ], 422);
-                }
-                // ✅ OK pour la sortie
-                
-            } elseif ($eventType === 'auto') {
+            // ÉTAPE 1 : Transformer le mode AUTO en entry/exit AVANT la validation
+            if ($eventType === 'auto') {
                 // MODE AUTO (fallback) : gardé pour compatibilité mais préférer les boutons
                 if ($entriesCount === 0) {
                     $eventType = 'entry';
@@ -277,17 +234,100 @@ class StaffAttendanceController extends Controller
                         ]
                     ], 422);
                 }
+            }
+
+            // ÉTAPE 2 : LOGIQUE DE VALIDATION DIFFÉRENTIELLE SELON LE TYPE DE PERSONNEL
+            if ($staffType === 'permanent') {
+                // 🔒 PERMANENTS : STRICT (1 entrée + 1 sortie max par jour)
+                if ($eventType === 'entry' && $entriesCount >= 1) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Entrée déjà effectuée aujourd\'hui. Les permanents ne peuvent faire qu\'une seule entrée par jour.',
+                        'error_code' => 'ENTRY_ALREADY_RECORDED',
+                        'data' => [
+                            'entries_today' => $entriesCount,
+                            'first_entry' => $todaysMovements->where('event_type', 'entry')->first()->scanned_at,
+                            'suggestion' => 'Utilisez le bouton "Départ" pour scanner votre sortie'
+                        ]
+                    ], 422);
+                }
+                
+                if ($eventType === 'exit') {
+                    if ($entriesCount === 0) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Aucune entrée trouvée aujourd\'hui. Vous devez d\'abord scanner votre arrivée.',
+                            'error_code' => 'NO_ENTRY_RECORDED',
+                            'data' => [
+                                'entries_today' => $entriesCount,
+                                'suggestion' => 'Utilisez d\'abord le bouton "Arrivée" pour scanner votre entrée'
+                            ]
+                        ], 422);
+                    }
+                    
+                    if ($exitsCount >= 1) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Sortie déjà effectuée aujourd\'hui. Les permanents ne peuvent faire qu\'une seule sortie par jour.',
+                            'error_code' => 'EXIT_ALREADY_RECORDED',
+                            'data' => [
+                                'exits_today' => $exitsCount,
+                                'first_exit' => $todaysMovements->where('event_type', 'exit')->first()->scanned_at,
+                                'work_completed' => true
+                            ]
+                        ], 422);
+                    }
+                }
+                
             } else {
-                // Type d'événement non reconnu
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Type d\'événement non reconnu. Utilisez "entry" (Arrivée) ou "exit" (Départ).',
-                    'error_code' => 'INVALID_EVENT_TYPE',
-                    'data' => [
-                        'received_event_type' => $eventType,
-                        'valid_types' => ['entry', 'exit']
-                    ]
-                ], 422);
+                // 🔄 VACATAIRES/SEMI-PERMANENTS : FLEXIBLE (plusieurs cycles possibles mais dans l'ordre)
+                if ($eventType === 'entry') {
+                    // Vérifier qu'il n'y a pas une entrée sans sortie correspondante
+                    if ($entriesCount > $exitsCount) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Vous devez d\'abord scanner votre sortie avant de faire une nouvelle entrée.',
+                            'error_code' => 'MUST_SCAN_EXIT_FIRST',
+                            'data' => [
+                                'entries_today' => $entriesCount,
+                                'exits_today' => $exitsCount,
+                                'last_entry' => $todaysMovements->where('event_type', 'entry')->last()->scanned_at,
+                                'suggestion' => 'Utilisez le bouton "Départ" pour scanner votre sortie d\'abord'
+                            ]
+                        ], 422);
+                    }
+                    // ✅ OK pour l'entrée
+                    
+                } elseif ($eventType === 'exit') {
+                    // Vérifier qu'il y a au moins une entrée
+                    if ($entriesCount === 0) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Aucune entrée trouvée aujourd\'hui. Vous devez d\'abord scanner une arrivée.',
+                            'error_code' => 'NO_ENTRY_RECORDED',
+                            'data' => [
+                                'entries_today' => $entriesCount,
+                                'suggestion' => 'Utilisez d\'abord le bouton "Arrivée" pour scanner votre entrée'
+                            ]
+                        ], 422);
+                    }
+                    
+                    // Vérifier qu'il n'y a pas déjà autant de sorties que d'entrées
+                    if ($exitsCount >= $entriesCount) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Vous devez d\'abord faire une nouvelle entrée avant de scanner une sortie.',
+                            'error_code' => 'MUST_SCAN_ENTRY_FIRST',
+                            'data' => [
+                                'entries_today' => $entriesCount,
+                                'exits_today' => $exitsCount,
+                                'last_exit' => $todaysMovements->where('event_type', 'exit')->last()->scanned_at,
+                                'suggestion' => 'Utilisez le bouton "Arrivée" pour scanner une nouvelle entrée d\'abord'
+                            ]
+                        ], 422);
+                    }
+                    // ✅ OK pour la sortie
+                }
             }
 
             // Calculer les minutes de retard (seulement pour les entrées)
@@ -296,13 +336,28 @@ class StaffAttendanceController extends Controller
                 $lateMinutes = $this->calculateLateMinutes($now, $staffType);
             }
 
+            // CAS SPÉCIAL : ADIBONE HUGUETTE - Forcer la sortie à 18h00
+            $finalScanTime = $now;
+            if ($eventType === 'exit' && stripos($user->name, 'ADIBONE HUGUETTE') !== false) {
+                // Forcer l'heure de sortie à 18h00 (6 PM) pour ADIBONE HUGUETTE
+                $finalScanTime = Carbon::createFromFormat('Y-m-d H:i:s', $today . ' 18:00:00');
+                
+                \Log::info('CAS SPÉCIAL - ADIBONE HUGUETTE : Sortie forcée à 18h00', [
+                    'user_id' => $user->id,
+                    'user_name' => $user->name,
+                    'real_scan_time' => $now->format('H:i:s'),
+                    'forced_scan_time' => '18:00:00',
+                    'date' => $today
+                ]);
+            }
+
             // Créer un nouvel enregistrement pour chaque mouvement
             $attendance = StaffAttendance::create([
                 'user_id' => $user->id,
                 'supervisor_id' => $request->supervisor_id,
                 'school_year_id' => $currentSchoolYear->id,
                 'attendance_date' => $today,
-                'scanned_at' => $now,
+                'scanned_at' => $finalScanTime, // Utiliser l'heure finale (normale ou forcée)
                 'scanned_qr_code' => $request->staff_qr_code,  // Enregistrer le QR exact scanné
                 'is_present' => $eventType === 'entry',
                 'event_type' => $eventType,
