@@ -13,8 +13,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Ajouter le middleware CORS
+        // Ajouter le middleware CORS forcé en premier
         $middleware->api(prepend: [
+            \App\Http\Middleware\ForceCorsFix::class,
             \Illuminate\Http\Middleware\HandleCors::class,
         ]);
         
