@@ -36,7 +36,10 @@ class TokenManager {
      */
     isTokenExpired(token, bufferSeconds = 60) {
         const payload = this.decodeToken(token);
-        if (!payload || !payload.exp) return true;
+        if (!payload) return true;
+        
+        // Si pas d'exp, le token est permanent (ne expire jamais)
+        if (!payload.exp) return false;
         
         const currentTime = Math.floor(Date.now() / 1000);
         const expirationTime = payload.exp - bufferSeconds; // Buffer de sécurité
@@ -49,7 +52,10 @@ class TokenManager {
      */
     getTimeUntilExpiry(token) {
         const payload = this.decodeToken(token);
-        if (!payload || !payload.exp) return 0;
+        if (!payload) return 0;
+        
+        // Si pas d'exp, le token est permanent (retourner -1 pour indiquer "infini")
+        if (!payload.exp) return -1;
         
         const currentTime = Math.floor(Date.now() / 1000);
         return Math.max(0, payload.exp - currentTime);
@@ -191,6 +197,12 @@ class TokenManager {
         if (!token || !refreshCallback) return null;
         
         const timeUntilExpiry = this.getTimeUntilExpiry(token);
+        
+        // Si token permanent (timeUntilExpiry = -1), pas besoin de refresh
+        if (timeUntilExpiry === -1) {
+            return null;
+        }
+        
         const refreshTime = Math.max(0, (timeUntilExpiry - (bufferMinutes * 60)) * 1000);
         
         if (refreshTime <= 0) {
@@ -282,8 +294,8 @@ class TokenManager {
             isValid: this.validateTokenStructure(currentToken),
             isExpired: this.isTokenExpired(currentToken),
             timeUntilExpiry: this.getTimeUntilExpiry(currentToken),
-            issuedAt: new Date(payload.iat * 1000).toISOString(),
-            expiresAt: new Date(payload.exp * 1000).toISOString(),
+            issuedAt: payload.iat ? new Date(payload.iat * 1000).toISOString() : null,
+            expiresAt: payload.exp ? new Date(payload.exp * 1000).toISOString() : null,
             user: this.getUserFromToken(currentToken),
             rawPayload: payload
         };
