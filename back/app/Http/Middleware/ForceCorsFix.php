@@ -19,6 +19,8 @@ class ForceCorsFix
         $allowedOrigins = [
             'http://admin.cpb-douala.com',
             'https://admin.cpb-douala.com',
+            'http://admin1.cpb-douala.com',  // Backend domain
+            'https://admin1.cpb-douala.com', // Backend HTTPS
             'http://localhost:3006',
             'http://localhost:3000'
         ];

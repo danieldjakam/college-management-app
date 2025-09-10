@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Login Production</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #f5f5f5; 
+        }
+        .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button { 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        .result { 
+            margin-top: 20px; 
+            padding: 10px; 
+            border-radius: 4px; 
+            white-space: pre-wrap; 
+            font-family: monospace;
+        }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background: #e2f3ff; border: 1px solid #bee5eb; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test de connexion en production</h1>
+        <p>Ce test vérifie que l'authentification fonctionne correctement entre <code>admin.cpb-douala.com</code> et <code>admin1.cpb-douala.com</code></p>
+        
+        <div>
+            <button onclick="testLogin()">🔐 Tester la connexion admin</button>
+            <button onclick="testCors()">🌐 Tester CORS (OPTIONS)</button>
+            <button onclick="testMe()">👤 Tester /api/me</button>
+            <button onclick="clearResults()">🧹 Effacer les résultats</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://admin1.cpb-douala.com/api';
+        let currentToken = null;
+
+        function addResult(content, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.textContent = content;
+            document.getElementById('results').appendChild(div);
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        async function testLogin() {
+            addResult('🔄 Test de connexion en cours...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'password123'
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    currentToken = data.access_token;
+                    addResult(`✅ Connexion réussie!
+Status: ${response.status}
+Message: ${data.message}
+Token: ${data.access_token.substring(0, 50)}...
+Role: ${data.user.role}
+Expires in: ${data.expires_in}s`, 'success');
+                } else {
+                    addResult(`❌ Échec de la connexion
+Status: ${response.status}
+Erreur: ${data.message || data.error || 'Erreur inconnue'}`, 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Erreur de connexion: ${error.message}
+Cela peut indiquer un problème CORS ou de réseau.`, 'error');
+            }
+        }
+
+        async function testCors() {
+            addResult('🔄 Test CORS (preflight) en cours...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Access-Control-Request-Method': 'POST',
+                        'Access-Control-Request-Headers': 'Content-Type, Authorization'
+                    }
+                });
+
+                const headers = {};
+                for (const [key, value] of response.headers) {
+                    if (key.startsWith('access-control-')) {
+                        headers[key] = value;
+                    }
+                }
+
+                addResult(`✅ Preflight CORS réussi!
+Status: ${response.status}
+Headers CORS:
+${Object.entries(headers).map(([k, v]) => `  ${k}: ${v}`).join('\n')}`, 'success');
+                
+            } catch (error) {
+                addResult(`❌ Erreur CORS: ${error.message}`, 'error');
+            }
+        }
+
+        async function testMe() {
+            if (!currentToken) {
+                addResult('⚠️ Aucun token disponible. Connectez-vous d\'abord.', 'error');
+                return;
+            }
+
+            addResult('🔄 Test de /api/me en cours...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/me`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`,
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    addResult(`✅ Profil utilisateur récupéré!
+Status: ${response.status}
+Utilisateur: ${data.name} (${data.username})
+Email: ${data.email}
+Rôle: ${data.role}
+ID: ${data.id}`, 'success');
+                } else {
+                    addResult(`❌ Échec de récupération du profil
+Status: ${response.status}
+Erreur: ${data.message || 'Erreur inconnue'}`, 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Erreur lors du test /api/me: ${error.message}`, 'error');
+            }
+        }
+
+        // Test automatique au chargement
+        window.addEventListener('load', () => {
+            addResult(`🚀 Page de test chargée
+Origin: ${window.location.origin}
+Test automatique des headers CORS...`, 'info');
+            setTimeout(testCors, 1000);
+        });
+    </script>
+</body>
+</html>
