@@ -13,6 +13,7 @@ $kernel->bootstrap();
 use App\Models\User;
 use App\Models\StaffAttendance;
 use App\Models\SchoolYear;
+use App\Services\WhatsAppService;
 use Carbon\Carbon;
 
 echo "===========================================\n";
@@ -108,8 +109,13 @@ if ($existingAttendances->count() > 0) {
 
 echo "🎯 Marquage des présences...\n\n";
 
+// Initialiser le service WhatsApp
+$whatsAppService = new WhatsAppService();
+
 $successCount = 0;
 $errorCount = 0;
+$whatsappSuccessCount = 0;
+$whatsappErrorCount = 0;
 
 foreach ($potentialVacataires as $user) {
     try {
@@ -156,6 +162,26 @@ foreach ($potentialVacataires as $user) {
         
         $successCount++;
         
+        // Envoyer la notification WhatsApp
+        if ($user->contact && strlen($user->contact) >= 8) {
+            try {
+                $whatsappResult = $whatsAppService->sendStaffAttendanceNotification($attendance);
+                if ($whatsappResult) {
+                    echo "    📱 WhatsApp envoyé au {$user->contact}\n";
+                    $whatsappSuccessCount++;
+                } else {
+                    echo "    ⚠️  Échec WhatsApp au {$user->contact}\n";
+                    $whatsappErrorCount++;
+                }
+            } catch (Exception $whatsappError) {
+                echo "    ❌ Erreur WhatsApp: " . $whatsappError->getMessage() . "\n";
+                $whatsappErrorCount++;
+            }
+        } else {
+            echo "    ⚠️  Pas de numéro WhatsApp configuré\n";
+            $whatsappErrorCount++;
+        }
+        
     } catch (Exception $e) {
         echo "  ❌ {$user->name} ({$user->username}) - Erreur: " . $e->getMessage() . "\n";
         $errorCount++;
@@ -167,12 +193,17 @@ echo "RÉSUMÉ DU TRAITEMENT\n";
 echo "===========================================\n";
 echo "Date traitée: $targetDate\n";
 echo "Personnel traité: " . $potentialVacataires->count() . "\n";
-echo "✅ Succès: $successCount\n";
-echo "❌ Erreurs: $errorCount\n";
+echo "✅ Présences créées: $successCount\n";
+echo "❌ Erreurs présences: $errorCount\n";
+echo "📱 WhatsApp envoyés: $whatsappSuccessCount\n";
+echo "📱 WhatsApp échoués: $whatsappErrorCount\n";
 
 if ($successCount > 0) {
     echo "\n🎉 Marquage terminé avec succès!\n";
     echo "Les personnels vacataires ont été marqués présents avec des heures d'arrivée entre 6h10 et 8h14.\n";
+    if ($whatsappSuccessCount > 0) {
+        echo "📱 $whatsappSuccessCount notification(s) WhatsApp envoyée(s) avec succès.\n";
+    }
 } else {
     echo "\n⚠️ Aucune nouvelle présence créée.\n";
 }
