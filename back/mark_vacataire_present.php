@@ -11,6 +11,7 @@ $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
 use App\Models\User;
+use App\Models\Teacher;
 use App\Models\StaffAttendance;
 use App\Models\SchoolYear;
 use App\Services\WhatsAppService;
@@ -53,34 +54,80 @@ if (!$schoolYearId) {
     echo "Année scolaire: {$schoolYear->name}\n";
 }
 
-// Rechercher tous les utilisateurs avec des rôles qui pourraient être vacataires
-echo "\n🔍 Recherche des personnels vacataires...\n";
+// Rechercher les enseignants vacataires
+echo "\n🔍 Recherche des enseignants vacataires...\n";
 
-// D'abord, chercher les présences existantes de type 'vacataire' pour avoir une idée
-$existingVacataires = StaffAttendance::where('staff_type', 'vacataire')
-    ->distinct()
-    ->pluck('user_id')
-    ->toArray();
+// Liste des noms spécifiques à traiter avec heures fixes
+$nomsCibles = [
+    'Jacqueline' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Yagai' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Tizi' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Ouandji' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Libon' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Math' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Mba' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Dickson' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Kwamo' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'NNoho' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Djioleu' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Nkongho' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Tambe' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Gabriel' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'NGO' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Samnik' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Heuyo' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Patrice' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Atemnkeng' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Fotsop' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Pamowa' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Lekeaka' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Prince' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Beti' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Joseiphine' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Josephine' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Odele' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Fokou' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Gisele' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Lokio' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Lionie' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'NGueyon' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Hubert' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'TCHANANG' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'ADIBONE' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'HUGUETTE' => ['heure_entree' => '07:30:00', 'heure_sortie' => null],
+    'Mirable' => ['heure_entree' => '07:30:00', 'heure_sortie' => '10:00:00'], // Cas spécial : entrée ET sortie
+];
 
-echo "Personnel déjà marqué comme vacataire: " . count($existingVacataires) . " personnes\n";
+// Chercher les enseignants correspondant aux noms dans la liste
+$vacataireTeachers = collect();
 
-// Chercher les utilisateurs qui pourraient être vacataires
-// (enseignants, personnel divers, etc.)
-$potentialVacataires = User::whereIn('role', ['teacher', 'user', 'surveillant_general'])
-    ->whereIn('id', $existingVacataires) // Ne traiter que ceux déjà identifiés comme vacataires
-    ->where('is_active', 1)
-    ->get();
-
-if ($potentialVacataires->isEmpty()) {
-    echo "⚠️ Aucun personnel vacataire trouvé.\n";
-    echo "Tentative de recherche plus large...\n";
-    
-    // Recherche plus large si aucun vacataire spécifique trouvé
-    $potentialVacataires = User::where('role', 'teacher')
+foreach ($nomsCibles as $nom => $horaires) {
+    $teachers = Teacher::where('type_personnel', 'V')
         ->where('is_active', 1)
-        ->limit(10) // Limiter pour éviter de marquer tout le monde
+        ->where(function($query) use ($nom) {
+            $query->where('first_name', 'LIKE', "%{$nom}%")
+                  ->orWhere('last_name', 'LIKE', "%{$nom}%");
+        })
+        ->with('user')
         ->get();
+    
+    foreach ($teachers as $teacher) {
+        if ($teacher->user) {
+            echo "✅ Trouvé: {$teacher->first_name} {$teacher->last_name} pour '{$nom}'\n";
+            $teacher->horaires_fixes = $horaires;
+            $vacataireTeachers->push($teacher);
+        }
+    }
 }
+
+echo "Enseignants vacataires ciblés trouvés: " . $vacataireTeachers->count() . " personnes\n";
+
+// Convertir en collection d'utilisateurs pour compatibilité avec le reste du script
+$potentialVacataires = $vacataireTeachers->map(function($teacher) {
+    $user = $teacher->user;
+    $user->horaires_fixes = $teacher->horaires_fixes; // Transférer les horaires
+    return $user;
+})->filter(); // Supprimer les null (enseignants sans compte utilisateur)
 
 echo "Personnel vacataire trouvé: " . $potentialVacataires->count() . " personnes\n\n";
 
@@ -91,7 +138,7 @@ if ($potentialVacataires->isEmpty()) {
 
 // Vérifier s'il y a déjà des présences pour cette date
 $existingAttendances = StaffAttendance::whereDate('attendance_date', $date)
-    ->where('staff_type', 'vacataire')
+    ->where('staff_type', 'teacher')
     ->whereIn('user_id', $potentialVacataires->pluck('id'))
     ->get();
 
@@ -119,20 +166,16 @@ $whatsappErrorCount = 0;
 
 foreach ($potentialVacataires as $user) {
     try {
-        // Générer une heure d'arrivée aléatoire entre 6h10 et 8h14
-        $minTime = 6 * 60 + 10; // 6h10 en minutes
-        $maxTime = 8 * 60 + 14; // 8h14 en minutes
-        $randomMinutes = rand($minTime, $maxTime);
+        // Utiliser l'heure fixe (7h30) au lieu d'une heure aléatoire
+        $heureEntree = $user->horaires_fixes['heure_entree'];
+        list($hour, $minute, $second) = explode(':', $heureEntree);
         
-        $hours = intval($randomMinutes / 60);
-        $minutes = $randomMinutes % 60;
-        
-        $arrivalTime = $date->copy()->setTime($hours, $minutes, rand(0, 59));
+        $arrivalTime = $date->copy()->setTime((int)$hour, (int)$minute, (int)$second);
         
         // Vérifier s'il existe déjà une présence pour cet utilisateur ce jour
         $existingAttendance = StaffAttendance::where('user_id', $user->id)
             ->whereDate('attendance_date', $date)
-            ->where('staff_type', 'vacataire')
+            ->where('staff_type', 'teacher')
             ->first();
         
         if ($existingAttendance) {
@@ -140,7 +183,7 @@ foreach ($potentialVacataires as $user) {
             continue;
         }
         
-        // Créer la présence
+        // Créer la présence d'entrée
         $attendance = StaffAttendance::create([
             'user_id' => $user->id,
             'supervisor_id' => 1, // Admin par défaut
@@ -149,12 +192,12 @@ foreach ($potentialVacataires as $user) {
             'scanned_at' => $arrivalTime,
             'scanned_qr_code' => $user->qr_code ?? 'AUTO_' . strtoupper(uniqid()),
             'is_present' => true,
-            'event_type' => 'auto',
-            'staff_type' => 'vacataire',
-            'work_hours' => 8.0, // 8 heures par défaut
+            'event_type' => 'entry',
+            'staff_type' => 'teacher',
+            'work_hours' => 8.0,
             'late_minutes' => 0,
             'early_departure_minutes' => 0,
-            'notes' => 'Présence automatique générée - Personnel vacataire'
+            'notes' => 'Présence automatique générée - Enseignant vacataire (ENTRÉE)'
         ]);
         
         echo "  ✅ {$user->name} ({$user->username}) - Marqué présent à " . 
@@ -162,24 +205,67 @@ foreach ($potentialVacataires as $user) {
         
         $successCount++;
         
-        // Envoyer la notification WhatsApp
+        // Envoyer la notification WhatsApp pour l'entrée
         if ($user->contact && strlen($user->contact) >= 8) {
             try {
                 $whatsappResult = $whatsAppService->sendStaffAttendanceNotification($attendance);
                 if ($whatsappResult) {
-                    echo "    📱 WhatsApp envoyé au {$user->contact}\n";
+                    echo "    📱 WhatsApp entrée envoyé au {$user->contact}\n";
                     $whatsappSuccessCount++;
                 } else {
-                    echo "    ⚠️  Échec WhatsApp au {$user->contact}\n";
+                    echo "    ⚠️  Échec WhatsApp entrée au {$user->contact}\n";
                     $whatsappErrorCount++;
                 }
             } catch (Exception $whatsappError) {
-                echo "    ❌ Erreur WhatsApp: " . $whatsappError->getMessage() . "\n";
+                echo "    ❌ Erreur WhatsApp entrée: " . $whatsappError->getMessage() . "\n";
                 $whatsappErrorCount++;
             }
         } else {
             echo "    ⚠️  Pas de numéro WhatsApp configuré\n";
             $whatsappErrorCount++;
+        }
+        
+        // Si l'utilisateur a une heure de sortie (cas de Mirable), créer aussi la sortie
+        if ($user->horaires_fixes['heure_sortie']) {
+            $heureSortie = $user->horaires_fixes['heure_sortie'];
+            list($exitHour, $exitMinute, $exitSecond) = explode(':', $heureSortie);
+            $exitTime = $date->copy()->setTime((int)$exitHour, (int)$exitMinute, (int)$exitSecond);
+            
+            $exitAttendance = StaffAttendance::create([
+                'user_id' => $user->id,
+                'supervisor_id' => 1,
+                'school_year_id' => $schoolYearId,
+                'attendance_date' => $date->format('Y-m-d'),
+                'scanned_at' => $exitTime,
+                'scanned_qr_code' => $user->qr_code ?? 'AUTO_' . strtoupper(uniqid()),
+                'is_present' => true,
+                'event_type' => 'exit',
+                'staff_type' => 'teacher',
+                'work_hours' => 2.5, // 2h30 de travail (7h30-10h00)
+                'late_minutes' => 0,
+                'early_departure_minutes' => 0,
+                'notes' => 'Sortie automatique générée - Enseignant vacataire (SORTIE)'
+            ]);
+            
+            echo "    🚪 Sortie ajoutée à " . $exitTime->format('H:i:s') . "\n";
+            $successCount++;
+            
+            // Envoyer notification WhatsApp pour la sortie
+            if ($user->contact && strlen($user->contact) >= 8) {
+                try {
+                    $whatsappResult = $whatsAppService->sendStaffAttendanceNotification($exitAttendance);
+                    if ($whatsappResult) {
+                        echo "    📱 WhatsApp sortie envoyé au {$user->contact}\n";
+                        $whatsappSuccessCount++;
+                    } else {
+                        echo "    ⚠️  Échec WhatsApp sortie au {$user->contact}\n";
+                        $whatsappErrorCount++;
+                    }
+                } catch (Exception $whatsappError) {
+                    echo "    ❌ Erreur WhatsApp sortie: " . $whatsappError->getMessage() . "\n";
+                    $whatsappErrorCount++;
+                }
+            }
         }
         
     } catch (Exception $e) {
@@ -214,7 +300,8 @@ echo "===========================================\n";
 
 $totalPresences = StaffAttendance::whereDate('attendance_date', $date)->count();
 $vacatairePresences = StaffAttendance::whereDate('attendance_date', $date)
-    ->where('staff_type', 'vacataire')
+    ->where('staff_type', 'teacher')
+    ->whereIn('user_id', Teacher::where('type_personnel', 'V')->pluck('user_id'))
     ->count();
 
 echo "Total présences du jour: $totalPresences\n";
