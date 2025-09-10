@@ -311,7 +311,7 @@ const AppContent = () => {
               <Route
                 path="/staff-attendance-report"
                 element={
-                  <ProtectedRoute requiredRoles={['accountant', 'comptable_superieur', 'admin', 'bibliothecaire']}>
+                  <ProtectedRoute requiredRoles={['accountant', 'comptable_superieur', 'admin', 'bibliothecaire', 'surveillant_general', 'surveillant_secteur']}>
                     <StaffAttendanceReportCompt />
                   </ProtectedRoute>
                 }
@@ -339,7 +339,7 @@ const AppContent = () => {
               <Route
                 path="/attendance"
                 element={
-                  <ProtectedRoute requiredRoles={['bibliothecaire', 'admin']}>
+                  <ProtectedRoute requiredRoles={['bibliothecaire', 'admin', 'surveillant_general', 'surveillant_secteur']}>
                     <AttendanceScanner />
                   </ProtectedRoute>
                 }
@@ -348,7 +348,7 @@ const AppContent = () => {
               <Route
                 path="/manual-attendance"
                 element={
-                  <ProtectedRoute requiredRoles={['bibliothecaire', 'admin', 'accountant', 'comptable_superieur', 'surveillant_general']}>
+                  <ProtectedRoute requiredRoles={['bibliothecaire', 'admin', 'accountant', 'comptable_superieur', 'surveillant_general', 'surveillant_secteur']}>
                     <ManualAttendance />
                   </ProtectedRoute>
                 }
@@ -366,7 +366,7 @@ const AppContent = () => {
               <Route
                 path="/staff-attendance-scanner"
                 element={
-                  <ProtectedRoute requiredRoles={['admin', 'bibliothecaire']}>
+                  <ProtectedRoute requiredRoles={['admin', 'bibliothecaire', 'surveillant_general', 'surveillant_secteur']}>
                     <StaffAttendanceScannerGeolocated />
                   </ProtectedRoute>
                 }
@@ -384,7 +384,7 @@ const AppContent = () => {
               <Route
                 path="/attendance-reports"
                 element={
-                  <ProtectedRoute requiredRoles={['bibliothecaire', 'admin', 'accountant', 'comptable_superieur']}>
+                  <ProtectedRoute requiredRoles={['bibliothecaire', 'admin', 'accountant', 'comptable_superieur', 'surveillant_general', 'surveillant_secteur']}>
                     <AttendanceReports />
                   </ProtectedRoute>
                 }

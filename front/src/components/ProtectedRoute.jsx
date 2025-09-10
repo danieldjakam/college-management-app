@@ -214,6 +214,7 @@ export const RoleBasedRedirect = ({ children }) => {
       accountant: "/class-comp",
       comptable_superieur: "/class-comp",
       surveillant_general: "/attendance",
+      surveillant_secteur: "/staff-attendance-scanner",
       user: "/profile",
     };
 

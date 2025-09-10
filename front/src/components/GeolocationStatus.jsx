@@ -30,8 +30,40 @@ const GeolocationStatus = ({ onStatusChange, autoTrack = true, showControls = fa
         // Auto-vérification de position au chargement
         const performAutoCheck = async () => {
             if (!autoCheckDone) {
-                console.log('🎯 Vérification automatique de position au chargement...');
+                // Afficher le log seulement en développement
+                if (process.env.NODE_ENV === 'development') {
+                    console.log('🎯 Vérification automatique de position au chargement...');
+                }
                 setIsLoading(true);
+                
+                // Vérifier d'abord si des zones sont configurées avant de démarrer la géolocalisation
+                try {
+                    await geolocationService.loadAuthorizedZones();
+                    // Si aucune zone n'est configurée, ne pas faire de vérification automatique
+                    if (!geolocationService.AUTHORIZED_ZONES || Object.keys(geolocationService.AUTHORIZED_ZONES).length === 0) {
+                        setLocationStatus({
+                            isAuthorized: true,
+                            message: 'Géolocalisation non configurée - Accès autorisé',
+                            zones: [],
+                            position: null
+                        });
+                        setIsLoading(false);
+                        setAutoCheckDone(true);
+                        return;
+                    }
+                } catch (error) {
+                    // Si erreur de chargement des zones, autoriser par défaut
+                    setLocationStatus({
+                        isAuthorized: true,
+                        message: 'Géolocalisation non configurée - Accès autorisé',
+                        zones: [],
+                        position: null
+                    });
+                    setIsLoading(false);
+                    setAutoCheckDone(true);
+                    return;
+                }
+                
                 await checkCurrentLocation();
                 setAutoCheckDone(true);
                 

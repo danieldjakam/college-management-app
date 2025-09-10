@@ -99,12 +99,15 @@ class GeolocationService {
         
         // Vérifier s'il y a des zones configurées
         if (!this.AUTHORIZED_ZONES || Object.keys(this.AUTHORIZED_ZONES).length === 0) {
-            console.warn('Aucune zone autorisée configurée');
+            // Afficher le warning seulement en mode debug ou développement
+            if (process.env.NODE_ENV === 'development') {
+                console.warn('Aucune zone autorisée configurée');
+            }
             return {
-                isAuthorized: false,
+                isAuthorized: true, // Autoriser par défaut si aucune zone n'est configurée
                 zones: [],
                 closestZone: null,
-                error: 'Aucune zone configurée'
+                error: null // Pas d'erreur si aucune zone n'est configurée
             };
         }
         

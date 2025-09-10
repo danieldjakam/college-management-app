@@ -57,7 +57,6 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
   const getNavigationSections = () => {
     if (!user || !user.role) {
       return [];
-
     }
 
     const userRole = user.role;
@@ -364,16 +363,42 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
         {
-          title: "Outils",
-          items: [
-            { name: "Documents", href: "/documents", icon: <FolderFill /> },
-          ],
-        },
-        {
-          title: "Compte",
+          title: "Profil",
           items: [
             { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
             { name: "Profil", href: "/profile", icon: <PersonCircle /> },
+          ],
+        },
+      ];
+    } else if (userRole === "surveillant_secteur") {
+      return [
+        {
+          title: "Présences Personnel",
+          items: [
+            { name: "Scanner QR Personnel", href: "/staff-attendance-scanner", icon: <QrCodeScan /> },
+            { name: "Rapports Personnel", href: "/staff-attendance-report", icon: <FileTextFill /> },
+          ],
+        },
+        {
+          title: "Présences Élèves",
+          items: [
+            { name: "Appel Manuel Classes", href: "/manual-attendance", icon: <ListCheck /> },
+            { name: "Scanner QR Élèves", href: "/attendance", icon: <QrCodeScan /> },
+            { name: "Rapports Élèves", href: "/attendance-reports", icon: <ClipboardCheckFill /> },
+          ],
+        },
+        {
+          title: "Gestion",
+          items: [
+            { name: "Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
+            { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> },
+            { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
+          ],
+        },
+        {
+          title: "Profil",
+          items: [
+            { name: "Mon Profil", href: "/profile", icon: <PersonCircle /> },
           ],
         },
       ];
@@ -499,6 +524,8 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         return "Enseignant";
       case "surveillant_general":
         return "Surveillant Général";
+      case "surveillant_secteur":
+        return "Surveillant de Secteur";
       default:
         return "Utilisateur";
     }
@@ -525,7 +552,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
     return null;
   }
 
-  const navigationSections = getNavigationSections();
+  const navigationSections = getNavigationSections() || [];
 
   // Render the sidebar with proper styling
   return (

@@ -375,8 +375,8 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les classes
     Route::prefix('school-classes')->group(function () {
         Route::get('/dashboard', [SchoolClassController::class, 'dashboard'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
-        Route::get('/', [SchoolClassController::class, 'index'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,bibliothecaire,surveillant_general']);
-        Route::get('/{id}/students', [SchoolClassController::class, 'getStudents'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,bibliothecaire,surveillant_general']);
+        Route::get('/', [SchoolClassController::class, 'index'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,bibliothecaire,surveillant_general,surveillant_secteur']);
+        Route::get('/{id}/students', [SchoolClassController::class, 'getStudents'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,bibliothecaire,surveillant_general,surveillant_secteur']);
         Route::get('/{id}/series', [SchoolClassController::class, 'getSeries'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
         Route::get('/{schoolClass}', [SchoolClassController::class, 'show'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
 
@@ -420,7 +420,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Route spéciale pour les enseignants pour voir les élèves de leurs classes (AVANT le groupe)
-    Route::get('/students/class/{classId}', [StudentController::class, 'getByClass'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,teacher,bibliothecaire,surveillant_general']);
+    Route::get('/students/class/{classId}', [StudentController::class, 'getByClass'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,teacher,bibliothecaire,surveillant_general,surveillant_secteur']);
 
     // Routes pour les élèves
     Route::prefix('students')->middleware(['role:admin,secretaire,accountant,comptable_superieur'])->group(function () {
@@ -710,16 +710,16 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{need}', [NeedController::class, 'show']); // Voir un besoin spécifique (avec contrôle d'accès)
 
         // Routes pour administrateurs et comptables supérieurs
-        Route::get('/', [NeedController::class, 'index'])->middleware(['role:admin,comptable_superieur']); // Lister tous les besoins
-        Route::post('/{need}/approve', [NeedController::class, 'approve'])->middleware(['role:admin,comptable_superieur']); // Approuver
-        Route::post('/{need}/reject', [NeedController::class, 'reject'])->middleware(['role:admin,comptable_superieur']); // Rejeter
-        Route::get('/statistics/summary', [NeedController::class, 'statistics'])->middleware(['role:admin,comptable_superieur']); // Statistiques
+        Route::get('/', [NeedController::class, 'index'])->middleware(['role:admin,comptable_superieur,surveillant_general,surveillant_secteur']); // Lister tous les besoins
+        Route::post('/{need}/approve', [NeedController::class, 'approve'])->middleware(['role:admin,comptable_superieur,surveillant_general,surveillant_secteur']); // Approuver
+        Route::post('/{need}/reject', [NeedController::class, 'reject'])->middleware(['role:admin,comptable_superieur,surveillant_general,surveillant_secteur']); // Rejeter
+        Route::get('/statistics/summary', [NeedController::class, 'statistics'])->middleware(['role:admin,comptable_superieur,surveillant_general,surveillant_secteur']); // Statistiques
         Route::post('/test-whatsapp', [NeedController::class, 'testWhatsApp'])->middleware(['role:admin']); // Test WhatsApp (admin uniquement)
 
         // Routes d'export pour administrateurs et comptables supérieurs
-        Route::get('/export/pdf', [NeedController::class, 'exportPdf'])->middleware(['role:admin,comptable_superieur']); // Export PDF
-        Route::get('/export/excel', [NeedController::class, 'exportExcel'])->middleware(['role:admin,comptable_superieur']); // Export Excel
-        Route::get('/export/word', [NeedController::class, 'exportWord'])->middleware(['role:admin,comptable_superieur']); // Export Word
+        Route::get('/export/pdf', [NeedController::class, 'exportPdf'])->middleware(['role:admin,comptable_superieur,surveillant_general,surveillant_secteur']); // Export PDF
+        Route::get('/export/excel', [NeedController::class, 'exportExcel'])->middleware(['role:admin,comptable_superieur,surveillant_general,surveillant_secteur']); // Export Excel
+        Route::get('/export/word', [NeedController::class, 'exportWord'])->middleware(['role:admin,comptable_superieur,surveillant_general,surveillant_secteur']); // Export Word
     });
 
     // Routes pour les surveillants généraux
@@ -849,10 +849,10 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les présences étudiants - Comptables
     Route::prefix('attendance')->group(function () {
         // Appel manuel des étudiants
-        Route::post('/manual', [StudentAttendanceController::class, 'saveManualAttendance'])->middleware(['role:admin,accountant,comptable_superieur,bibliothecaire,surveillant_general']);
-        Route::get('/class-daily', [StudentAttendanceController::class, 'getDailyAttendanceByClass'])->middleware(['role:admin,accountant,comptable_superieur,bibliothecaire,surveillant_general']);
-        Route::get('/class-stats', [StudentAttendanceController::class, 'getClassAttendanceStats'])->middleware(['role:admin,accountant,comptable_superieur,bibliothecaire,surveillant_general']);
-        Route::get('/class-report', [StudentAttendanceController::class, 'getClassAttendanceReport'])->middleware(['role:admin,accountant,comptable_superieur,bibliothecaire,surveillant_general']);
+        Route::post('/manual', [StudentAttendanceController::class, 'saveManualAttendance'])->middleware(['role:admin,accountant,comptable_superieur,bibliothecaire,surveillant_general,surveillant_secteur']);
+        Route::get('/class-daily', [StudentAttendanceController::class, 'getDailyAttendanceByClass'])->middleware(['role:admin,accountant,comptable_superieur,bibliothecaire,surveillant_general,surveillant_secteur']);
+        Route::get('/class-stats', [StudentAttendanceController::class, 'getClassAttendanceStats'])->middleware(['role:admin,accountant,comptable_superieur,bibliothecaire,surveillant_general,surveillant_secteur']);
+        Route::get('/class-report', [StudentAttendanceController::class, 'getClassAttendanceReport'])->middleware(['role:admin,accountant,comptable_superieur,bibliothecaire,surveillant_general,surveillant_secteur']);
         
         // Anciennes routes (à migrer ou supprimer)
         Route::get('/students', [StudentAttendanceController::class, 'getStudentAttendance'])->middleware(['role:admin,accountant,comptable_superieur']);
@@ -860,27 +860,27 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/students/export/pdf', [StudentAttendanceController::class, 'exportStudentAttendancePDF'])->middleware(['role:admin,accountant,comptable_superieur']);
         
         // Routes pour l'application mobile
-        Route::post('/students/submit', [MobileAttendanceController::class, 'submitBulkAttendance'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
-        Route::get('/students/mobile/stats', [MobileAttendanceController::class, 'getAttendanceStats'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
+        Route::post('/students/submit', [MobileAttendanceController::class, 'submitBulkAttendance'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire,surveillant_secteur']);
+        Route::get('/students/mobile/stats', [MobileAttendanceController::class, 'getAttendanceStats'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire,surveillant_secteur']);
         
         // Routes pour la gestion manuelle des présences
-        Route::post('/students/mark', [MobileAttendanceController::class, 'markStudentAttendance'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
-        Route::post('/students/mark-absent-series', [MobileAttendanceController::class, 'markAllAbsentInSeries'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
-        Route::get('/students/status', [MobileAttendanceController::class, 'getStudentStatus'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
+        Route::post('/students/mark', [MobileAttendanceController::class, 'markStudentAttendance'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire,surveillant_secteur']);
+        Route::post('/students/mark-absent-series', [MobileAttendanceController::class, 'markAllAbsentInSeries'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire,surveillant_secteur']);
+        Route::get('/students/status', [MobileAttendanceController::class, 'getStudentStatus'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire,surveillant_secteur']);
         
         // Routes pour la gestion des états d'appel quotidiens
-        Route::get('/daily-states', [MobileAttendanceController::class, 'getDailyAttendanceStates'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
-        Route::get('/series/{seriesId}/state', [MobileAttendanceController::class, 'getSeriesAttendanceState'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
-        Route::get('/series/{seriesId}/existing-attendance', [MobileAttendanceController::class, 'getExistingAttendance'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
+        Route::get('/daily-states', [MobileAttendanceController::class, 'getDailyAttendanceStates'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire,surveillant_secteur']);
+        Route::get('/series/{seriesId}/state', [MobileAttendanceController::class, 'getSeriesAttendanceState'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire,surveillant_secteur']);
+        Route::get('/series/{seriesId}/existing-attendance', [MobileAttendanceController::class, 'getExistingAttendance'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire,surveillant_secteur']);
         Route::post('/series/{seriesId}/reset-state', [MobileAttendanceController::class, 'resetSeriesAttendanceState'])->middleware(['role:admin']);
     });
 
     // Routes de navigation hiérarchique pour mobile
     Route::prefix('mobile')->middleware(['auth:api'])->group(function () {
-        Route::get('/sections/{sectionId}/levels', [MobileAttendanceController::class, 'getLevelsBySection'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
-        Route::get('/levels/{levelId}/classes', [MobileAttendanceController::class, 'getClassesByLevel'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
-        Route::get('/classes/{classId}/series', [MobileAttendanceController::class, 'getSeriesByClass'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
-        Route::get('/students/series/{seriesId}', [MobileAttendanceController::class, 'getStudentsBySeries'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire']);
+        Route::get('/sections/{sectionId}/levels', [MobileAttendanceController::class, 'getLevelsBySection'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire,surveillant_secteur']);
+        Route::get('/levels/{levelId}/classes', [MobileAttendanceController::class, 'getClassesByLevel'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire,surveillant_secteur']);
+        Route::get('/classes/{classId}/series', [MobileAttendanceController::class, 'getSeriesByClass'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire,surveillant_secteur']);
+        Route::get('/students/series/{seriesId}', [MobileAttendanceController::class, 'getStudentsBySeries'])->middleware(['role:admin,teacher,surveillant_general,bibliothecaire,surveillant_secteur']);
     });
 
     // Routes pour les départements
@@ -904,7 +904,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour les demandes d'explication (D.E)
-    Route::prefix('demandes-explication')->middleware(['role:admin,secretaire,accountant,comptable_superieur,bibliothecaire,teacher'])->group(function () {
+    Route::prefix('demandes-explication')->middleware(['role:admin,secretaire,accountant,comptable_superieur,bibliothecaire,teacher,surveillant_general,surveillant_secteur'])->group(function () {
         Route::get('/', [App\Http\Controllers\DemandeExplicationController::class, 'index']);
         Route::post('/', [App\Http\Controllers\DemandeExplicationController::class, 'store']);
         Route::get('/personnel', [App\Http\Controllers\DemandeExplicationController::class, 'getPersonnel']);
