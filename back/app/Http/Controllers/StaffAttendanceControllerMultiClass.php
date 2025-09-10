@@ -115,52 +115,78 @@ public function scanQRWithClasses(Request $request): JsonResponse
             }
         }
 
-        // VALIDATION STRICTE selon le bouton cliqué
+        // 🔄 VALIDATION FLEXIBLE pour Vacataires/Semi-Permanents (plusieurs cycles possibles mais dans l'ordre)
         if ($eventType === 'entry') {
-            if ($entriesCount >= 1) {
+            // Vérifier qu'il n'y a pas une entrée sans sortie correspondante
+            if ($entriesCount > $exitsCount) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Entrée déjà effectuée aujourd\'hui.',
-                    'error_code' => 'ENTRY_ALREADY_RECORDED',
+                    'message' => 'Vous devez d\'abord scanner votre sortie avant de faire une nouvelle entrée.',
+                    'error_code' => 'MUST_SCAN_EXIT_FIRST',
                     'data' => [
-                        'error_code' => 'ENTRY_ALREADY_RECORDED',
+                        'error_code' => 'MUST_SCAN_EXIT_FIRST',
                         'entries_today' => $entriesCount,
-                        'first_entry' => $todaysMovements->where('event_type', 'entry')->first()->scanned_at
+                        'exits_today' => $exitsCount,
+                        'last_entry' => $todaysMovements->where('event_type', 'entry')->last()->scanned_at,
+                        'suggestion' => 'Utilisez le bouton "Départ" pour scanner votre sortie d\'abord'
                     ]
                 ], 422);
             }
+            // ✅ OK pour l'entrée (première ou après une sortie)
             
         } elseif ($eventType === 'exit') {
+            // Vérifier qu'il y a au moins une entrée
             if ($entriesCount === 0) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Aucune entrée trouvée aujourd\'hui.',
+                    'message' => 'Aucune entrée trouvée aujourd\'hui. Vous devez d\'abord scanner une arrivée.',
                     'error_code' => 'NO_ENTRY_RECORDED',
                     'data' => [
                         'error_code' => 'NO_ENTRY_RECORDED',
-                        'entries_today' => $entriesCount
+                        'entries_today' => $entriesCount,
+                        'suggestion' => 'Utilisez d\'abord le bouton "Arrivée" pour scanner votre entrée'
                     ]
                 ], 422);
             }
             
-            if ($exitsCount >= 1) {
+            // Vérifier qu'il n'y a pas déjà autant de sorties que d'entrées
+            if ($exitsCount >= $entriesCount) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Sortie déjà effectuée aujourd\'hui.',
-                    'error_code' => 'EXIT_ALREADY_RECORDED',
+                    'message' => 'Vous devez d\'abord faire une nouvelle entrée avant de scanner une sortie.',
+                    'error_code' => 'MUST_SCAN_ENTRY_FIRST',
                     'data' => [
-                        'error_code' => 'EXIT_ALREADY_RECORDED',
+                        'error_code' => 'MUST_SCAN_ENTRY_FIRST',
+                        'entries_today' => $entriesCount,
                         'exits_today' => $exitsCount,
-                        'first_exit' => $todaysMovements->where('event_type', 'exit')->first()->scanned_at
+                        'last_exit' => $todaysMovements->where('event_type', 'exit')->last()->scanned_at,
+                        'suggestion' => 'Utilisez le bouton "Arrivée" pour scanner une nouvelle entrée d\'abord'
                     ]
                 ], 422);
             }
+            // ✅ OK pour la sortie
         }
 
         // Calculer le retard
         $lateMinutes = 0;
         if ($eventType === 'entry') {
             $lateMinutes = $this->calculateLateMinutes($now, $staffType);
+        }
+
+        // CAS SPÉCIAL : ADIBONE HUGUETTE - Forcer la sortie à 18h00 (également pour les Vacataires/Semi-Permanents)
+        $finalScanTime = $now;
+        if ($eventType === 'exit' && stripos($user->name, 'ADIBONE HUGUETTE') !== false) {
+            // Forcer l'heure de sortie à 18h00 (6 PM) pour ADIBONE HUGUETTE
+            $finalScanTime = Carbon::createFromFormat('Y-m-d H:i:s', $today . ' 18:00:00');
+            
+            \Log::info('CAS SPÉCIAL - ADIBONE HUGUETTE (Multi-classes) : Sortie forcée à 18h00', [
+                'user_id' => $user->id,
+                'user_name' => $user->name,
+                'real_scan_time' => $now->format('H:i:s'),
+                'forced_scan_time' => '18:00:00',
+                'date' => $today,
+                'class_ids' => $request->class_ids
+            ]);
         }
 
         // Utiliser une transaction pour créer l'attendance et les liens avec les classes
@@ -172,7 +198,7 @@ public function scanQRWithClasses(Request $request): JsonResponse
                 'supervisor_id' => $request->supervisor_id,
                 'school_year_id' => $currentSchoolYear->id,
                 'attendance_date' => $today,
-                'scanned_at' => $now,
+                'scanned_at' => $finalScanTime, // Utiliser l'heure finale (normale ou forcée)
                 'scanned_qr_code' => $request->staff_qr_code,
                 'is_present' => $eventType === 'entry',
                 'event_type' => $eventType,
