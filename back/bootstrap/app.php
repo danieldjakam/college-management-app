@@ -13,9 +13,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Ajouter le middleware CORS forcé en premier
+        // Utiliser uniquement le middleware Laravel CORS officiel
         $middleware->api(prepend: [
-            \App\Http\Middleware\ForceCorsFix::class,
             \Illuminate\Http\Middleware\HandleCors::class,
         ]);
         
