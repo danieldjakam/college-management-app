@@ -8,6 +8,7 @@
     # Handle CORS Headers
     SetEnvIf Origin "^http://localhost:3006$" CORS_ORIGIN=$0
     SetEnvIf Origin "^http://admin\.cpb-douala\.com$" CORS_ORIGIN=$0
+    SetEnvIf Origin "^https://admin\.cpb-douala\.com$" CORS_ORIGIN=$0
     Header always set Access-Control-Allow-Origin "%{CORS_ORIGIN}e" env=CORS_ORIGIN
     Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
     Header always set Access-Control-Allow-Headers "X-Requested-With, Content-Type, X-Token-Auth, Authorization, Accept"
