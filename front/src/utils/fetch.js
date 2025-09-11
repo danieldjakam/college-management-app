@@ -5,6 +5,6 @@ const isDevelopment =
 
 export const host = isDevelopment
   ? "http://127.0.0.1:8000" // Développement local
-  : "http://admin1.cpb-douala.com"; // Production - HTTP
+  : window.location.protocol + "//admin1.cpb-douala.com"; // Production - S'adapte au protocole de la page
 
 //analyse le role de surve
