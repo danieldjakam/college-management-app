@@ -765,4 +765,336 @@ class TeacherController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Générer un badge pour un enseignant
+     */
+    public function generateBadge(Teacher $teacher)
+    {
+        try {
+            // Vérifier que l'enseignant est actif
+            if (!$teacher->is_active) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de générer un badge pour un enseignant inactif'
+                ], 400);
+            }
+
+            // Utiliser la même logique que StaffAttendanceController mais pour les enseignants
+            // Rediriger vers StaffAttendanceController si l'enseignant a un compte utilisateur
+            if ($teacher->user_id && $teacher->user) {
+                $staffController = new StaffAttendanceController();
+                return $staffController->downloadBadgePDF(new Request(['user_id' => $teacher->user_id]));
+            }
+
+            // Si pas de compte utilisateur, générer un badge simple pour l'enseignant
+            return $this->generateTeacherBadgePDF($teacher);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du badge',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Générer plusieurs badges d'enseignants (2 par page A4)
+     */
+    public function generateMultipleBadges(Request $request)
+    {
+        try {
+            $request->validate([
+                'teacher_ids' => 'required|array|min:1',
+                'teacher_ids.*' => 'required|exists:teachers,id',
+            ]);
+
+            $teacherIds = $request->teacher_ids;
+            $teachers = Teacher::whereIn('id', $teacherIds)
+                ->where('is_active', true)
+                ->get();
+
+            if ($teachers->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun enseignant valide trouvé'
+                ], 400);
+            }
+
+            // Générer le HTML avec plusieurs badges (2 par page)
+            $html = $this->generateMultipleTeacherBadgesHtml($teachers);
+
+            // Configuration DomPDF
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHtml($html);
+            $pdf->setPaper('A4', 'portrait');
+            $pdf->setOptions([
+                'isPhpEnabled' => false,
+                'isRemoteEnabled' => true,
+                'defaultFont' => 'Arial',
+                'dpi' => 96,
+                'enable_css_float' => false,
+                'enable_html5_parser' => false
+            ]);
+
+            // Nom du fichier
+            $filename = 'badges_enseignants_' . count($teachers) . '_' . date('Y-m-d_H-i-s') . '.pdf';
+            
+            return $pdf->download($filename);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération des badges',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Générer le HTML pour plusieurs badges d'enseignants (2 par page A4)
+     */
+    private function generateMultipleTeacherBadgesHtml($teachers)
+    {
+        $schoolSettings = \App\Models\SchoolSetting::first();
+        
+        // Charger l'image de background
+        $backgroundBase64 = '';
+        $backgroundPath = public_path('assets/images/card-background-cpb.png');
+        if (file_exists($backgroundPath)) {
+            $backgroundContent = file_get_contents($backgroundPath);
+            $backgroundBase64 = 'data:image/png;base64,' . base64_encode($backgroundContent);
+        }
+
+        $badgesHtml = '';
+        $badgeCount = 0;
+
+        foreach ($teachers as $teacher) {
+            // Générer QR code si nécessaire
+            $qrCode = $teacher->qr_code ?: 'TEACHER_' . $teacher->id;
+            if (!$teacher->qr_code) {
+                $teacher->update(['qr_code' => $qrCode]);
+            }
+
+            // Convertir la photo en base64 (si elle existe)
+            $photoBase64 = '';
+            // Vous pouvez ajouter la logique de photo ici si nécessaire
+
+            // Générer le HTML du badge
+            $badgeHtml = $this->generateSingleTeacherBadgeHtml($teacher, $qrCode, $photoBase64, $schoolSettings);
+
+            // Ajouter le badge avec gestion des sauts de page (2 badges par page)
+            if ($badgeCount > 0 && $badgeCount % 2 === 0) {
+                $badgesHtml .= '<div style="page-break-before: always;"></div>';
+            }
+
+            $badgesHtml .= '<div class="badge-wrapper">' . $badgeHtml . '</div>';
+            $badgeCount++;
+        }
+
+        return "
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset='UTF-8'>
+        <title>Badges Enseignants - " . count($teachers) . " badges</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: 'Arial', 'Helvetica', sans-serif;
+                background: white;
+                padding: 15mm 10mm;
+                text-align: center;
+            }
+
+            .badge-wrapper {
+                display: inline-block;
+                margin: 8mm auto;
+                page-break-inside: avoid;
+                width: 100%;
+                text-align: center;
+                margin-bottom: 15mm;
+            }
+
+            .badge-container {
+                width: 95.6mm;
+                height: 54mm;
+                position: relative;
+                background-image: url('{$backgroundBase64}');
+                background-size: cover;
+                background-position: center;
+                background-repeat: no-repeat;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                margin: 0 auto;
+            }
+            
+            .teacher-name {
+                position: absolute;
+                top: 8mm;
+                left: 8mm;
+                right: 8mm;
+                font-size: 11pt;
+                font-weight: bold;
+                color: #2c3e50;
+                text-align: center;
+                background: rgba(255,255,255,0.9);
+                padding: 2mm;
+                border-radius: 4px;
+            }
+            
+            .teacher-role {
+                position: absolute;
+                top: 18mm;
+                left: 8mm;
+                right: 8mm;
+                font-size: 9pt;
+                color: #7f8c8d;
+                text-align: center;
+                background: rgba(255,255,255,0.8);
+                padding: 1mm;
+                border-radius: 3px;
+            }
+            
+            .qr-code {
+                position: absolute;
+                bottom: 5mm;
+                right: 5mm;
+                width: 15mm;
+                height: 15mm;
+            }
+            
+            .school-name {
+                position: absolute;
+                bottom: 8mm;
+                left: 5mm;
+                font-size: 8pt;
+                color: #34495e;
+                font-weight: bold;
+            }
+
+            @media print {
+                .badge-wrapper {
+                    page-break-inside: avoid;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        {$badgesHtml}
+    </body>
+    </html>";
+    }
+
+    /**
+     * Générer le HTML d'un badge individuel pour enseignant
+     */
+    private function generateSingleTeacherBadgeHtml($teacher, $qrCode, $photoBase64, $schoolSettings)
+    {
+        $schoolName = $schoolSettings->school_name ?? 'École';
+        
+        return "
+        <div class='badge-container'>
+            <div class='teacher-name'>{$teacher->full_name}</div>
+            <div class='teacher-role'>Enseignant</div>
+            <div class='school-name'>{$schoolName}</div>
+            <img src='https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" . urlencode($qrCode) . "&margin=1' alt='QR Code' class='qr-code'>
+        </div>";
+    }
+
+    /**
+     * Générer un PDF de badge simple pour un enseignant
+     */
+    private function generateTeacherBadgePDF($teacher)
+    {
+        $qrCode = $teacher->qr_code ?: 'TEACHER_' . $teacher->id;
+        if (!$teacher->qr_code) {
+            $teacher->update(['qr_code' => $qrCode]);
+        }
+
+        $schoolSettings = \App\Models\SchoolSetting::first();
+        $html = $this->generateSingleTeacherBadgeHtml($teacher, $qrCode, '', $schoolSettings);
+
+        $fullHtml = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <title>Badge - {$teacher->full_name}</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    font-family: 'Arial', 'Helvetica', sans-serif;
+                    padding: 20mm;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                }
+                .badge-container {
+                    width: 95.6mm;
+                    height: 54mm;
+                    position: relative;
+                    border: 1px solid #ddd;
+                    border-radius: 8px;
+                    overflow: hidden;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                }
+                .teacher-name {
+                    position: absolute;
+                    top: 8mm;
+                    left: 8mm;
+                    right: 8mm;
+                    font-size: 11pt;
+                    font-weight: bold;
+                    color: white;
+                    text-align: center;
+                    background: rgba(0,0,0,0.3);
+                    padding: 2mm;
+                    border-radius: 4px;
+                }
+                .teacher-role {
+                    position: absolute;
+                    top: 18mm;
+                    left: 8mm;
+                    right: 8mm;
+                    font-size: 9pt;
+                    color: #ecf0f1;
+                    text-align: center;
+                    background: rgba(0,0,0,0.2);
+                    padding: 1mm;
+                    border-radius: 3px;
+                }
+                .qr-code {
+                    position: absolute;
+                    bottom: 5mm;
+                    right: 5mm;
+                    width: 15mm;
+                    height: 15mm;
+                    background: white;
+                    padding: 1mm;
+                    border-radius: 2px;
+                }
+                .school-name {
+                    position: absolute;
+                    bottom: 8mm;
+                    left: 5mm;
+                    font-size: 8pt;
+                    color: white;
+                    font-weight: bold;
+                }
+            </style>
+        </head>
+        <body>
+            {$html}
+        </body>
+        </html>";
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHtml($fullHtml);
+        $pdf->setPaper([0, 0, 270.236, 153.071], 'landscape'); // Format carte de crédit
+        
+        $filename = 'badge_enseignant_' . $teacher->full_name . '_' . date('Y-m-d') . '.pdf';
+        return $pdf->download($filename);
+    }
 }

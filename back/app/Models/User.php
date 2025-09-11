@@ -31,6 +31,7 @@ class User extends Authenticatable implements JWTSubject
         'email_verified_at',
         'working_school_year_id',
         'qr_code',
+        'staff_identifier',
     ];
 
     /**
@@ -81,5 +82,32 @@ class User extends Authenticatable implements JWTSubject
     public function teacher()
     {
         return $this->hasOne(Teacher::class);
+    }
+
+    /**
+     * Générer l'identifiant personnel selon le rôle
+     */
+    public function generateStaffIdentifier()
+    {
+        if ($this->staff_identifier) {
+            return $this->staff_identifier;
+        }
+
+        $prefix = $this->role === 'teacher' ? 'TCH_' : 'STAF_';
+        $identifier = $prefix . $this->id;
+
+        $this->update(['staff_identifier' => $identifier]);
+        return $identifier;
+    }
+
+    /**
+     * Accessor pour obtenir l'identifiant personnel
+     */
+    public function getStaffIdentifierAttribute($value)
+    {
+        if (!$value) {
+            return $this->generateStaffIdentifier();
+        }
+        return $value;
     }
 }

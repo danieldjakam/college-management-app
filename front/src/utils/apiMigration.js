@@ -216,7 +216,7 @@ export const secureApiEndpoints = {
 
     // === USERS ===
     users: {
-        getAll: () => secureApi.get('/users'),
+        getAll: () => secureApi.get('/users/all'),
         getById: (id) => secureApi.get(`/users/${id}`),
         create: (data) => secureApi.post('/users', data),
         update: (id, data) => secureApi.put(`/users/${id}`, data),
@@ -246,9 +246,7 @@ export const secureApiEndpoints = {
             return secureApi.get(`/teachers/${id}/stats${queryString ? '?' + queryString : ''}`);
         },
         generateBadge: (teacherId) => {
-            return secureApi.post('/teachers/generate-badge', {
-                teacher_id: teacherId
-            }, {
+            return secureApi.get(`/teachers/${teacherId}/generate-badge`, {
                 responseType: 'blob' // Important pour recevoir le PDF en blob
             });
         },

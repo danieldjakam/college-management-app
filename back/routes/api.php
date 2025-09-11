@@ -630,8 +630,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{teacher}/stats', [TeacherController::class, 'getStats'])->middleware(['role:admin,secretaire,accountant']);
 
         // Routes pour les badges d'enseignants
-        Route::post('/generate-badge', [TeacherAttendanceController::class, 'generateTeacherBadge'])->name('teacher.generate.badge');
-        Route::post('/generate-multiple-badges', [TeacherAttendanceController::class, 'generateMultipleTeacherBadges'])->name('teacher.generate.multiple.badges');
+        Route::get('/{teacher}/generate-badge', [TeacherController::class, 'generateBadge'])->middleware(['role:admin']);
+        Route::post('/generate-multiple-badges', [TeacherController::class, 'generateMultipleBadges'])->middleware(['role:admin']);
 
         // Export routes
         Route::get('/export/excel', [TeacherController::class, 'exportExcel'])->middleware(['role:admin,secretaire,accountant']);
@@ -808,9 +808,9 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les présences du personnel (remplace teacher-attendance)
     Route::prefix('staff-attendance')->group(function () {
         // Routes pour scan QR du personnel
-        Route::post('/scan-qr', [StaffAttendanceController::class, 'scanQR'])->middleware(['role:admin,bibliothecaire']);
-        Route::post('/scan-qr-with-class', [StaffAttendanceController::class, 'scanQRWithClass'])->middleware(['role:admin,bibliothecaire']);
-        Route::post('/scan-qr-with-classes', [StaffAttendanceController::class, 'scanQRWithClasses'])->middleware(['role:admin,bibliothecaire']);
+        Route::post('/scan-qr', [StaffAttendanceController::class, 'scanQR'])->middleware(['role:admin,bibliothecaire,surveillant_secteur,surveillant_general']);
+        Route::post('/scan-qr-with-class', [StaffAttendanceController::class, 'scanQRWithClass'])->middleware(['role:admin,bibliothecaire,surveillant_secteur,surveillant_general']);
+        Route::post('/scan-qr-with-classes', [StaffAttendanceController::class, 'scanQRWithClasses'])->middleware(['role:admin,bibliothecaire,surveillant_secteur,surveillant_general']);
         Route::get('/today-entry-classes/{staffId}', [StaffAttendanceController::class, 'getTodayEntryClasses'])->middleware(['role:admin,bibliothecaire']);
         Route::get('/daily-attendance', [StaffAttendanceController::class, 'getDailyAttendance'])->middleware(['role:admin,secretaire,comptable_superieur,accountant,bibliothecaire']);
         Route::get('/daily', [StaffAttendanceController::class, 'getDailyStaffAttendance'])->middleware(['role:admin,secretaire,comptable_superieur,accountant,bibliothecaire']);

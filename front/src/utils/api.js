@@ -385,7 +385,49 @@ export const apiEndpoints = {
         return api.post('/students/import/csv', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
-    }
+    },
+
+    // Card Templates
+    getCardTemplates: () => api.get('/card-templates'),
+    getCardTemplate: (id) => api.get(`/card-templates/${id}`),
+    saveCardTemplate: (data) => {
+        const formData = new FormData();
+        if (data.template_file) {
+            formData.append('template_file', data.template_file);
+        }
+        formData.append('name', data.name);
+        formData.append('qr_x', data.qr_x);
+        formData.append('qr_y', data.qr_y);
+        formData.append('qr_size', data.qr_size);
+        formData.append('id_x', data.id_x);
+        formData.append('id_y', data.id_y);
+        formData.append('id_font_size', data.id_font_size);
+        formData.append('is_default', data.is_default ? 1 : 0);
+        
+        return api.post('/card-templates', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+    updateCardTemplate: (id, data) => {
+        const formData = new FormData();
+        if (data.template_file) {
+            formData.append('template_file', data.template_file);
+        }
+        formData.append('name', data.name);
+        formData.append('qr_x', data.qr_x);
+        formData.append('qr_y', data.qr_y);
+        formData.append('qr_size', data.qr_size);
+        formData.append('id_x', data.id_x);
+        formData.append('id_y', data.id_y);
+        formData.append('id_font_size', data.id_font_size);
+        formData.append('is_default', data.is_default ? 1 : 0);
+        formData.append('_method', 'PUT');
+        
+        return api.post(`/card-templates/${id}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+    deleteCardTemplate: (id) => api.delete(`/card-templates/${id}`)
 };
 
 export default api;

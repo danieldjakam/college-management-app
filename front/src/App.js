@@ -99,6 +99,9 @@ import SupervisorStatus from "./pages/SupervisorManagement/SupervisorStatus";
 // Search
 import Search from "./pages/Search";
 
+// Card Generator
+import CardGenerator from "./pages/CardGenerator/CardGenerator";
+
 // Stats
 import Stats from "./pages/Stats";
 
@@ -462,6 +465,14 @@ const AppContent = () => {
                 }
               />
 
+              <Route
+                path="/card-generator"
+                element={
+                  <AdminRoute>
+                    <CardGenerator />
+                  </AdminRoute>
+                }
+              />
               <Route
                 path="/settings"
                 element={

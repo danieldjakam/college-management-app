@@ -18,7 +18,7 @@ class UserManagementController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = User::select('id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'qualification', 'is_active', 'created_at')
+            $query = User::select('id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'qualification', 'is_active', 'created_at', 'staff_identifier')
                 ->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'accountant', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe']); // Tous les rôles gérables
 
             // Système de recherche

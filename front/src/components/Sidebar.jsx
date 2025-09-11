@@ -119,6 +119,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: 'Utilisateurs', href: '/user-management', icon: <People/> },
             { name: 'Surveillants Généraux', href: '/supervisor-assignments', icon: <PersonCircle/> },
             { name: "Notifications Parents", href: "/admin/parent-notifications", icon: <Bell /> },
+            { name: "Générateur de Cartes", href: "/card-generator", icon: <QrCode /> },
             { name: "Profil", href: "/profile", icon: <PersonCircle /> },
             { name: "Paramètres", href: "/settings", icon: <GearFill /> },
           ],

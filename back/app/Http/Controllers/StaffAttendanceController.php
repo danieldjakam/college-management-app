@@ -57,10 +57,8 @@ class StaffAttendanceController extends Controller
             ]);
 
             // Chercher d'abord dans les users qui ont un QR code
-            // Inclure tous les rôles de personnel possible
-            $staffRoles = ['principal', 'teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe'];
+            // ACCEPTER TOUS LES UTILISATEURS ACTIFS - Pas de restriction de rôle
             $user = User::where('qr_code', $request->staff_qr_code)
-                ->whereIn('role', $staffRoles)
                 ->where('is_active', true)
                 ->first();
 
@@ -109,36 +107,11 @@ class StaffAttendanceController extends Controller
                     'scanned_at' => now()
                 ]);
 
-                // Vérifier si le QR code existe mais avec un rôle différent
-                $userWithDifferentRole = User::where('qr_code', $request->staff_qr_code)
-                    ->where('is_active', true)
-                    ->first();
-
-                if ($userWithDifferentRole) {
-                    \Log::warning('QR code staff attendance - Rôle non autorisé', [
-                        'scanned_qr_code' => $request->staff_qr_code,
-                        'user_name' => $userWithDifferentRole->name,
-                        'user_role' => $userWithDifferentRole->role,
-                        'supervisor_id' => $request->supervisor_id
-                    ]);
-
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Code QR invalide - rôle non autorisé pour la présence personnel',
-                        'debug_info' => [
-                            'scanned_qr' => $request->staff_qr_code,
-                            'found_user' => $userWithDifferentRole->name,
-                            'user_role' => $userWithDifferentRole->role
-                        ]
-                    ], 403);
-                }
-
                 return response()->json([
                     'success' => false,
                     'message' => 'Code QR invalide - membre du personnel non trouvé ou inactif',
                     'debug_info' => [
-                        'scanned_qr' => $request->staff_qr_code,
-                        'searched_roles' => $staffRoles
+                        'scanned_qr' => $request->staff_qr_code
                     ]
                 ], 404);
             }
@@ -1731,8 +1704,8 @@ class StaffAttendanceController extends Controller
             // Générer le HTML du badge
             $badgeHtml = $this->generateSingleBadgeHtml($user, $qrCode, $photoBase64, '', $schoolSettings);
 
-            // Ajouter le badge avec gestion des sauts de page
-            if ($badgeCount > 0 && $badgeCount % 4 === 0) {
+            // Ajouter le badge avec gestion des sauts de page (2 badges par page)
+            if ($badgeCount > 0 && $badgeCount % 2 === 0) {
                 $badgesHtml .= '<div style="page-break-before: always;"></div>';
             }
 
@@ -1751,13 +1724,17 @@ class StaffAttendanceController extends Controller
             body {
                 font-family: 'Arial', 'Helvetica', sans-serif;
                 background: white;
-                padding: 10mm;
+                padding: 15mm 10mm;
+                text-align: center;
             }
 
             .badge-wrapper {
                 display: inline-block;
-                margin: 5mm;
+                margin: 8mm auto;
                 page-break-inside: avoid;
+                width: 100%;
+                text-align: center;
+                margin-bottom: 15mm;
             }
 
             .badge-container {

@@ -166,6 +166,9 @@ const UserManagement = () => {
     useEffect(() => {
         let filtered = users;
 
+        // Exclure les utilisateurs avec le rôle "enseignant" de cette section
+        filtered = filtered.filter(user => user.role !== 'enseignant');
+
         // Filtrage par terme de recherche
         if (searchTerm) {
             filtered = filtered.filter(user => 
@@ -1046,7 +1049,7 @@ const UserManagement = () => {
                                 Gestion des Utilisateurs
                             </h2>
                             <p className="text-muted">
-                                Gérer les comptes des surveillants généraux, comptables et secrétaires (enseignants créés via gestion des utilisateurs)
+                                Gérer les comptes des surveillants généraux, comptables et secrétaires (les enseignants sont gérés dans leur section dédiée)
                             </p>
                         </div>
                         <ButtonGroup>
@@ -1118,7 +1121,6 @@ const UserManagement = () => {
                                         <option value="comptable_superieur">Comptables Supérieurs</option>
                                         <option value="comptable">Comptables</option>
                                         <option value="secretaire">Secrétaires</option>
-                                        <option value="enseignant">Enseignants</option>
                                         <option value="teacher">Enseignants (anciens)</option>
                                         <option value="accountant">Comptables (anciens)</option>
                                     </optgroup>
@@ -1257,6 +1259,7 @@ const UserManagement = () => {
                                     <th>Photo</th>
                                     <th>Nom</th>
                                     <th>Email</th>
+                                    <th>ID Personnel</th>
                                     <th>Contact</th>
                                     <th>Rôle</th>
                                     <th>Qualification</th>
@@ -1298,6 +1301,11 @@ const UserManagement = () => {
                                             </td>
                                         <td>{user.name}</td>
                                         <td>{user.email}</td>
+                                        <td>
+                                            <Badge bg="secondary" className="font-monospace">
+                                                {user.staff_identifier || '-'}
+                                            </Badge>
+                                        </td>
                                         <td>{user.contact || '-'}</td>
                                         <td>
                                             <Badge bg={roleColors[user.role]}>
