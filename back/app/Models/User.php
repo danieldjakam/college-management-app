@@ -89,14 +89,22 @@ class User extends Authenticatable implements JWTSubject
      */
     public function generateStaffIdentifier()
     {
-        if ($this->staff_identifier) {
-            return $this->staff_identifier;
+        // Vérifier si la colonne staff_identifier existe dans les attributs
+        if (isset($this->attributes['staff_identifier']) && $this->attributes['staff_identifier']) {
+            return $this->attributes['staff_identifier'];
         }
 
         $prefix = $this->role === 'teacher' ? 'TCH_' : 'STAF_';
         $identifier = $prefix . $this->id;
 
-        $this->update(['staff_identifier' => $identifier]);
+        // Essayer de sauvegarder seulement si la colonne existe
+        try {
+            $this->update(['staff_identifier' => $identifier]);
+        } catch (\Exception $e) {
+            // Si la colonne n'existe pas, on retourne juste l'identifiant généré
+            \Log::info("staff_identifier column might not exist for user {$this->id}");
+        }
+        
         return $identifier;
     }
 
