@@ -13,7 +13,7 @@ class ForceCorsFix
         if ($request->isMethod('OPTIONS')) {
             $response = response()->json([], 200);
         } else {
-            // Process the request 
+            // Process the request
             try {
                 $response = $next($request);
             } catch (\Exception $e) {
@@ -25,27 +25,25 @@ class ForceCorsFix
                 ], 500);
             }
         }
-        
+
         // Toujours ajouter les en-têtes CORS
         $origin = $request->header('Origin');
-        
-        // Liste des origines autorisées  
+
+        // Liste des origines autorisées
         $allowedOrigins = [
-            'http://admin.cpb-douala.com',
-            'https://admin.cpb-douala.com',
-            'http://admin1.cpb-douala.com',  // Backend domain
-            'https://admin1.cpb-douala.com', // Backend HTTPS
-            'http://localhost:3006',
-            'http://localhost:3000'
+            'http://admin.cpb-douala.com',   // Frontend production
+            'http://admin1.cpb-douala.com',  // Backend production  
+            'http://localhost:3000',         // Frontend dev
+            'http://127.0.0.1:3000'         // Frontend dev (IP)
         ];
-        
+
         if (in_array($origin, $allowedOrigins)) {
             $response->headers->set('Access-Control-Allow-Origin', $origin);
             $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
             $response->headers->set('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, X-Token-Auth, Authorization, Accept');
             $response->headers->set('Access-Control-Allow-Credentials', 'true');
         }
-        
+
         return $response;
     }
 }
