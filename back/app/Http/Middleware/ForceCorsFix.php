@@ -9,13 +9,27 @@ class ForceCorsFix
 {
     public function handle(Request $request, Closure $next)
     {
-        // Process the request first
-        $response = $next($request);
+        // Gérer les requêtes OPTIONS en premier
+        if ($request->isMethod('OPTIONS')) {
+            $response = response()->json([], 200);
+        } else {
+            // Process the request 
+            try {
+                $response = $next($request);
+            } catch (\Exception $e) {
+                // En cas d'erreur, créer une réponse d'erreur avec CORS
+                $response = response()->json([
+                    'success' => false,
+                    'message' => 'Erreur serveur',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        }
         
-        // Always add CORS headers, even on error responses
+        // Toujours ajouter les en-têtes CORS
         $origin = $request->header('Origin');
         
-        // Liste des origines autorisées
+        // Liste des origines autorisées  
         $allowedOrigins = [
             'http://admin.cpb-douala.com',
             'https://admin.cpb-douala.com',
