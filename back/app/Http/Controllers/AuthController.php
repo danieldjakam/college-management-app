@@ -18,26 +18,53 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
+        // PATCH TEMPORAIRE CORS
+        $origin = $request->header('Origin');
+        $allowedOrigins = [
+            'http://admin.cpb-douala.com',
+            'https://admin.cpb-douala.com'
+        ];
+        
+        if (in_array($origin, $allowedOrigins)) {
+            header('Access-Control-Allow-Origin: ' . $origin);
+            header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+            header('Access-Control-Allow-Headers: X-Requested-With, Content-Type, X-Token-Auth, Authorization, Accept');
+            header('Access-Control-Allow-Credentials: true');
+        }
+        
         $validator = Validator::make($request->all(), [
             'username' => 'required|string',
             'password' => 'required|string',
         ]);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            $response = response()->json($validator->errors(), 422);
+            if (in_array($origin, $allowedOrigins)) {
+                $response->header('Access-Control-Allow-Origin', $origin);
+            }
+            return $response;
         }
 
         $credentials = $request->only('username', 'password');
 
         if (!$token = auth()->attempt($credentials)) {
-            return response()->json([
+            $response = response()->json([
                 'success' => false,
                 'message' => 'Identifiants invalides. Vérifiez votre nom d\'utilisateur et mot de passe.',
                 'error' => 'Unauthorized'
             ], 401);
+            
+            if (in_array($origin, $allowedOrigins)) {
+                $response->header('Access-Control-Allow-Origin', $origin);
+            }
+            return $response;
         }
 
-        return $this->respondWithToken($token);
+        $response = $this->respondWithToken($token);
+        if (in_array($origin, $allowedOrigins)) {
+            $response->header('Access-Control-Allow-Origin', $origin);
+        }
+        return $response;
     }
 
     public function register(Request $request)
