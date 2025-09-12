@@ -22,6 +22,7 @@ import {
   Building,
   Calendar,
   CashCoin,
+  CheckSquare,
   Download,
   FileEarmarkText,
   FileText,
@@ -53,6 +54,9 @@ const Reports = () => {
     // Filtres par dates
     startDate: "",
     endDate: "",
+
+    // Filtres pour les solvables
+    solvable_type: "all", // all, total, inscription, tranche_1, tranche_2, tranche_3, pension
   });
 
   const [availableOptions, setAvailableOptions] = useState({
@@ -449,6 +453,30 @@ const Reports = () => {
           }
           break;
 
+        case "solvable":
+          if (data.students && Array.isArray(data.students)) {
+            const studentsData = data.students.map((student) => ({
+              Étudiant: cleanValue(student?.student?.full_name),
+              "Classe/Série": cleanValue(student?.student?.class_series),
+              "Total Requis": cleanValue(student?.total_required),
+              "Total Payé": cleanValue(student?.total_paid),
+              "Type de Solde": cleanValue(student?.solvable_type_label),
+              "Date de Solde": cleanValue(student?.payment_completed_date),
+              "Tranches Soldées":
+                student?.completed_tranches
+                  ?.map((t) => t?.tranche_name)
+                  .join(", ") || "",
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(studentsData);
+            XLSX.utils.book_append_sheet(
+              workbook,
+              worksheet,
+              "Élèves Solvables"
+            );
+          }
+          break;
+
         case "payments":
           if (data.students && Array.isArray(data.students)) {
             const paymentsData = data.students.map((student) => ({
@@ -604,6 +632,11 @@ const Reports = () => {
       switch (reportType) {
         case "insolvable":
           response = await secureApiEndpoints.reports.getInsolvableReport(
+            filters
+          );
+          break;
+        case "solvable":
+          response = await secureApiEndpoints.reports.getSolvableReport(
             filters
           );
           break;
@@ -826,6 +859,30 @@ const Reports = () => {
               />
             </Form.Group>
           </Col>
+          {activeTab === "solvable" && (
+            <Col md={3}>
+              <Form.Group className="mb-3">
+                <Form.Label>Type de Solde</Form.Label>
+                <Form.Select
+                  value={filters.solvable_type}
+                  onChange={(e) => {
+                    setFilters({
+                      ...filters,
+                      solvable_type: e.target.value,
+                    });
+                  }}
+                >
+                  <option value="all">Tous les solvables</option>
+                  <option value="total">Total (100% solvable)</option>
+                  <option value="inscription">Inscription seulement</option>
+                  <option value="tranche_1">1ère Tranche seulement</option>
+                  <option value="tranche_2">2ème Tranche seulement</option>
+                  <option value="tranche_3">3ème Tranche seulement</option>
+                  <option value="pension">Pension (3 tranches solvables)</option>
+                </Form.Select>
+              </Form.Group>
+            </Col>
+          )}
         </Row>
         <Row>
           <Col className="d-flex gap-2">
@@ -874,6 +931,154 @@ const Reports = () => {
             )}
           </Col>
         </Row>
+      </Card.Body>
+    </Card>
+  );
+
+  const renderSolvableReport = () => (
+    <Card>
+      <Card.Header>
+        <h5 className="mb-0">
+          État des Solvables - Élèves ayant soldé leurs frais
+        </h5>
+        {filters.solvable_type !== "all" && (
+          <small className="text-muted">
+            Filtre actif : {
+              filters.solvable_type === "total" ? "Total (100% solvable)" :
+              filters.solvable_type === "inscription" ? "Inscription seulement" :
+              filters.solvable_type === "tranche_1" ? "1ère Tranche seulement" :
+              filters.solvable_type === "tranche_2" ? "2ème Tranche seulement" :
+              filters.solvable_type === "tranche_3" ? "3ème Tranche seulement" :
+              filters.solvable_type === "pension" ? "Pension (3 tranches)" : "Tous"
+            }
+          </small>
+        )}
+      </Card.Header>
+      <Card.Body>
+        {paginatedReportData ? (
+          <>
+            <div className="mb-3">
+              <Badge bg="success">
+                Total des élèves solvables:{" "}
+                {paginatedReportData?.total_solvable_students || 0}
+              </Badge>
+              {paginatedReportData?.solvable_summary && (
+                <div className="mt-2 d-flex flex-wrap gap-2">
+                  {paginatedReportData.solvable_summary.total_count > 0 && (
+                    <Badge bg="primary" className="me-1">
+                      Total solvable: {paginatedReportData.solvable_summary.total_count}
+                    </Badge>
+                  )}
+                  {paginatedReportData.solvable_summary.inscription_count > 0 && (
+                    <Badge bg="info" className="me-1">
+                      Inscription: {paginatedReportData.solvable_summary.inscription_count}
+                    </Badge>
+                  )}
+                  {paginatedReportData.solvable_summary.tranche_1_count > 0 && (
+                    <Badge bg="warning" className="me-1">
+                      1ère Tranche: {paginatedReportData.solvable_summary.tranche_1_count}
+                    </Badge>
+                  )}
+                  {paginatedReportData.solvable_summary.tranche_2_count > 0 && (
+                    <Badge bg="secondary" className="me-1">
+                      2ème Tranche: {paginatedReportData.solvable_summary.tranche_2_count}
+                    </Badge>
+                  )}
+                  {paginatedReportData.solvable_summary.tranche_3_count > 0 && (
+                    <Badge bg="dark" className="me-1">
+                      3ème Tranche: {paginatedReportData.solvable_summary.tranche_3_count}
+                    </Badge>
+                  )}
+                  {paginatedReportData.solvable_summary.pension_count > 0 && (
+                    <Badge bg="success" className="me-1">
+                      Pension: {paginatedReportData.solvable_summary.pension_count}
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </div>
+            <Table responsive striped size="sm">
+              <thead>
+                <tr>
+                  <SortableHeader sortKey="student.full_name">
+                    Étudiant
+                  </SortableHeader>
+                  <SortableHeader sortKey="student.class_series">
+                    Classe/Série
+                  </SortableHeader>
+                  <SortableHeader sortKey="total_required">
+                    Total Requis
+                  </SortableHeader>
+                  <SortableHeader sortKey="total_paid">
+                    Total Payé
+                  </SortableHeader>
+                  <th>Type de Solde</th>
+                  <SortableHeader sortKey="payment_completed_date">
+                    Date de Solde
+                  </SortableHeader>
+                  <th>Tranches Soldées</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedReportData.students?.map(
+                  (studentData, studentIndex) => (
+                    <tr key={studentIndex}>
+                      <td>{studentData?.student?.full_name}</td>
+                      <td>{studentData?.student?.class_series}</td>
+                      <td>
+                        {formatCurrency(studentData?.total_required || 0)}
+                      </td>
+                      <td className="text-success">
+                        {formatCurrency(studentData?.total_paid || 0)}
+                      </td>
+                      <td>
+                        <Badge 
+                          bg={
+                            studentData?.solvable_type === "total" ? "success" :
+                            studentData?.solvable_type === "inscription" ? "info" :
+                            studentData?.solvable_type === "pension" ? "primary" :
+                            "warning"
+                          }
+                        >
+                          {studentData?.solvable_type_label || "Solvable"}
+                        </Badge>
+                      </td>
+                      <td>
+                        {studentData?.payment_completed_date 
+                          ? new Date(studentData.payment_completed_date).toLocaleDateString('fr-FR')
+                          : '-'
+                        }
+                      </td>
+                      <td>
+                        {studentData.completed_tranches?.map(
+                          (tranche, trancheIndex) => (
+                            <div key={trancheIndex}>
+                              <small className="text-success">
+                                <strong>{tranche?.tranche_name}:</strong>{" "}
+                                {formatCurrency(tranche?.paid_amount || 0)}
+                                <span className="text-success">
+                                  {" ✓ Soldé"}
+                                </span>
+                              </small>
+                            </div>
+                          )
+                        )}
+                      </td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </Table>
+            <PaginationControls
+              dataArray={sortedReportData?.students}
+              dataType="élèves solvables"
+            />
+          </>
+        ) : (
+          <p className="text-muted text-center">
+            Générez un rapport pour voir les données
+          </p>
+        )}
       </Card.Body>
     </Card>
   );
@@ -1982,6 +2187,12 @@ const Reports = () => {
                 </Nav.Link>
               </Nav.Item>
               <Nav.Item>
+                <Nav.Link eventKey="solvable">
+                  <CheckSquare className="me-2" />
+                  État des Solvables
+                </Nav.Link>
+              </Nav.Item>
+              <Nav.Item>
                 <Nav.Link eventKey="payments">
                   <CashCoin className="me-2" />
                   Paiements
@@ -2010,6 +2221,9 @@ const Reports = () => {
             <Tab.Content>
               <Tab.Pane eventKey="insolvable">
                 {renderInsolvableReport()}
+              </Tab.Pane>
+              <Tab.Pane eventKey="solvable">
+                {renderSolvableReport()}
               </Tab.Pane>
               <Tab.Pane eventKey="payments">{renderPaymentsReport()}</Tab.Pane>
               <Tab.Pane eventKey="rame">{renderRameReport()}</Tab.Pane>

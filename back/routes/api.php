@@ -560,6 +560,7 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les rapports (comptables et admins)
     Route::prefix('reports')->middleware(['role:admin,secretaire,accountant,comptable_superieur'])->group(function () {
         Route::get('/insolvable', [ReportsController::class, 'getInsolvableReport']);
+        Route::get('/solvable', [ReportsController::class, 'getSolvableReport']);
         Route::get('/payments', [ReportsController::class, 'getPaymentsReport']);
         Route::get('/rame', [ReportsController::class, 'getRameReport']);
         Route::get('/recovery', [ReportsController::class, 'getRecoveryReport']);

@@ -404,6 +404,234 @@ class ReportsController extends Controller
     }
 
     /**
+     * Rapport des solvables - Liste des élèves ayant soldé leurs frais
+     */
+    public function getSolvableReport(Request $request)
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire définie'
+                ], 400);
+            }
+
+            // Récupérer les filtres
+            $sectionId = $request->get('sectionId');
+            $classId = $request->get('classId');
+            $seriesId = $request->get('seriesId');
+            $solvableType = $request->get('solvable_type', 'all');
+            $startDate = $request->get('startDate');
+            $endDate = $request->get('endDate');
+
+            // Construire la requête des élèves
+            $studentsQuery = Student::with([
+                'classSeries.schoolClass.level.section',
+                'classSeries.paymentTranches',
+                'payments' => function($q) use ($workingYear) {
+                    $q->where('school_year_id', $workingYear->id)
+                      ->whereNotNull('validation_date');
+                }
+            ])->where('school_year_id', $workingYear->id)
+              ->where('is_active', true);
+
+            // Appliquer les filtres
+            if ($sectionId) {
+                $studentsQuery->whereHas('classSeries.schoolClass.level.section', function($q) use ($sectionId) {
+                    $q->where('id', $sectionId);
+                });
+            }
+
+            if ($classId) {
+                $studentsQuery->whereHas('classSeries.schoolClass', function($q) use ($classId) {
+                    $q->where('id', $classId);
+                });
+            }
+
+            if ($seriesId) {
+                $studentsQuery->where('class_series_id', $seriesId);
+            }
+
+            $students = $studentsQuery->get();
+            $solvableStudents = [];
+            
+            // Compteurs pour le résumé
+            $solvableSummary = [
+                'total_count' => 0,
+                'inscription_count' => 0,
+                'tranche_1_count' => 0,
+                'tranche_2_count' => 0,
+                'tranche_3_count' => 0,
+                'pension_count' => 0
+            ];
+
+            foreach ($students as $student) {
+                if (!$student->classSeries) continue;
+
+                $tranches = $student->classSeries->paymentTranches ?? collect();
+                $studentTotalRequired = 0;
+                $studentTotalPaid = 0;
+                $studentTotalReductions = 0; // AJOUTÉ: pour tenir compte des réductions
+                $completedTranches = [];
+                $solvableTypes = [];
+
+                // Calculer pour chaque tranche
+                foreach ($tranches as $tranche) {
+                    $requiredAmount = 0;
+                    $paidAmount = 0;
+
+                    // Obtenir le montant requis pour cette tranche
+                    $classPaymentAmount = DB::table('class_payment_amounts')
+                        ->where('class_id', $student->classSeries->class_id)
+                        ->where('payment_tranche_id', $tranche->id)
+                        ->first();
+
+                    if ($classPaymentAmount) {
+                        $requiredAmount = $classPaymentAmount->amount;
+                    }
+
+                    // Calculer le montant payé
+                    foreach ($student->payments as $payment) {
+                        if ($startDate && $payment->payment_date < $startDate) continue;
+                        if ($endDate && $payment->payment_date > $endDate) continue;
+
+                        $paymentDetails = $payment->paymentDetails()
+                            ->where('payment_tranche_id', $tranche->id)
+                            ->get();
+
+                        foreach ($paymentDetails as $detail) {
+                            $paidAmount += $detail->amount_allocated; // CORRIGÉ: amount_allocated au lieu de amount_paid
+                        }
+                    }
+
+                    $studentTotalRequired += $requiredAmount;
+                    $studentTotalPaid += $paidAmount;
+
+                    // Vérifier si la tranche est soldée (avec une tolérance de 1 FCFA pour les arrondis)
+                    if ($paidAmount >= ($requiredAmount - 1) && $requiredAmount > 0) {
+                        $completedTranches[] = [
+                            'tranche_name' => $tranche->name,
+                            'required_amount' => $requiredAmount,
+                            'paid_amount' => $paidAmount
+                        ];
+
+                        // Identifier les types de soldes
+                        if (stripos($tranche->name, 'inscription') !== false) {
+                            $solvableTypes[] = 'inscription';
+                        } elseif (stripos($tranche->name, '1') !== false || stripos($tranche->name, 'première') !== false) {
+                            $solvableTypes[] = 'tranche_1';
+                        } elseif (stripos($tranche->name, '2') !== false || stripos($tranche->name, 'deuxième') !== false) {
+                            $solvableTypes[] = 'tranche_2';
+                        } elseif (stripos($tranche->name, '3') !== false || stripos($tranche->name, 'troisième') !== false) {
+                            $solvableTypes[] = 'tranche_3';
+                        }
+                    }
+                }
+
+                // Calculer le total des réductions accordées à cet étudiant
+                foreach ($student->payments as $payment) {
+                    if ($startDate && $payment->payment_date < $startDate) continue;
+                    if ($endDate && $payment->payment_date > $endDate) continue;
+                    $studentTotalReductions += $payment->reduction_amount ?? 0;
+                }
+
+                // Déterminer le type de solvabilité (CORRIGÉ: tenir compte des réductions)
+                $effectiveRequired = $studentTotalRequired - $studentTotalReductions;
+                $isTotalSolvable = ($studentTotalPaid >= ($effectiveRequired - 1)) && $effectiveRequired > 0;
+                $isPensionSolvable = (in_array('tranche_1', $solvableTypes) && 
+                                    in_array('tranche_2', $solvableTypes) && 
+                                    in_array('tranche_3', $solvableTypes));
+
+                // Déterminer le type principal
+                $primarySolvableType = '';
+                $solvableTypeLabel = '';
+
+                if ($isTotalSolvable) {
+                    $primarySolvableType = 'total';
+                    $solvableTypeLabel = 'Total (100% solvable)';
+                } elseif ($isPensionSolvable) {
+                    $primarySolvableType = 'pension';
+                    $solvableTypeLabel = 'Pension (3 tranches)';
+                } elseif (in_array('inscription', $solvableTypes)) {
+                    $primarySolvableType = 'inscription';
+                    $solvableTypeLabel = 'Inscription';
+                } elseif (count($solvableTypes) == 1) {
+                    $primarySolvableType = $solvableTypes[0];
+                    $solvableTypeLabel = match($solvableTypes[0]) {
+                        'tranche_1' => '1ère Tranche',
+                        'tranche_2' => '2ème Tranche',
+                        'tranche_3' => '3ème Tranche',
+                        default => 'Partiellement solvable'
+                    };
+                }
+
+                // Filtrer selon le type de solvable demandé
+                $includeStudent = false;
+                if ($solvableType === 'all' && count($completedTranches) > 0) {
+                    $includeStudent = true;
+                } elseif ($solvableType === $primarySolvableType) {
+                    $includeStudent = true;
+                }
+
+                if ($includeStudent) {
+                    // Mettre à jour les compteurs
+                    if ($isTotalSolvable) $solvableSummary['total_count']++;
+                    if (in_array('inscription', $solvableTypes)) $solvableSummary['inscription_count']++;
+                    if (in_array('tranche_1', $solvableTypes)) $solvableSummary['tranche_1_count']++;
+                    if (in_array('tranche_2', $solvableTypes)) $solvableSummary['tranche_2_count']++;
+                    if (in_array('tranche_3', $solvableTypes)) $solvableSummary['tranche_3_count']++;
+                    if ($isPensionSolvable) $solvableSummary['pension_count']++;
+
+                    // Obtenir la date du dernier paiement
+                    $lastPaymentDate = null;
+                    if ($student->payments->count() > 0) {
+                        $lastPaymentDate = $student->payments->max('payment_date');
+                    }
+
+                    $solvableStudents[] = [
+                        'student' => [
+                            'id' => $student->id,
+                            'first_name' => $student->first_name ?? '',
+                            'last_name' => $student->last_name ?? '',
+                            'full_name' => ($student->last_name ?? '') . ' ' . ($student->first_name ?? ''),
+                            'class_series' => ($student->classSeries && $student->classSeries->schoolClass)
+                                ? $student->classSeries->schoolClass->name . ' - ' . $student->classSeries->name
+                                : 'Non défini'
+                        ],
+                        'total_required' => $studentTotalRequired,
+                        'total_paid' => $studentTotalPaid,
+                        'completed_tranches' => $completedTranches,
+                        'solvable_type' => $primarySolvableType,
+                        'solvable_type_label' => $solvableTypeLabel,
+                        'payment_completed_date' => $lastPaymentDate
+                    ];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'students' => $solvableStudents,
+                    'total_solvable_students' => count($solvableStudents),
+                    'solvable_summary' => $solvableSummary,
+                    'school_year' => $workingYear,
+                    'filters' => $request->all()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in ReportsController@getSolvableReport: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du rapport des solvables',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Obtenir la clé de groupement pour un étudiant
      */
     private function getGroupKey($student, $groupBy)

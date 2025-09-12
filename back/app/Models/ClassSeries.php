@@ -122,4 +122,19 @@ class ClassSeries extends Model
     {
         return $this->activeSubjects()->count();
     }
+
+    /**
+     * Relation avec les tranches de paiement via la classe parent
+     */
+    public function paymentTranches()
+    {
+        return $this->hasManyThrough(
+            \App\Models\PaymentTranche::class,
+            \App\Models\ClassPaymentAmount::class,
+            'class_id', // Clé étrangère dans ClassPaymentAmount
+            'id', // Clé primaire dans PaymentTranche
+            'class_id', // Clé dans ClassSeries (via schoolClass)
+            'payment_tranche_id' // Clé dans ClassPaymentAmount
+        );
+    }
 }

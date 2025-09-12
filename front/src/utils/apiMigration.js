@@ -652,6 +652,10 @@ export const secureApiEndpoints = {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/reports/insolvable?${queryString}`);
         },
+        getSolvableReport: (params) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/reports/solvable?${queryString}`);
+        },
         getPaymentsReport: (params) => {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/reports/payments?${queryString}`);

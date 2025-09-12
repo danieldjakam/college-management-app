@@ -25,6 +25,8 @@ return [
         'http://localhost:3001',
         'http://127.0.0.1:3001',
         'http://admin1.cpb-douala.com',
+        'http://admin.cpb-douala.com',
+        'https://admin.cpb-douala.com',
         'https://admin1.cpb-douala.com'
     ],
 
