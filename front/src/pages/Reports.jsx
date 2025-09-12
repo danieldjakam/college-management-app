@@ -708,14 +708,35 @@ const Reports = () => {
       if (response.success) {
         // Ouvrir le HTML dans une nouvelle fenêtre pour impression/sauvegarde PDF
         const printWindow = window.open("", "_blank");
-        printWindow.document.write(response.data);
-        printWindow.document.close();
+        
+        if (printWindow) {
+          printWindow.document.write(response.data);
+          printWindow.document.close();
 
-        // Attendre un peu que le contenu se charge puis déclencher l'impression
-        setTimeout(() => {
-          printWindow.focus();
-          printWindow.print();
-        }, 500);
+          // Attendre un peu que le contenu se charge puis déclencher l'impression
+          setTimeout(() => {
+            printWindow.focus();
+            printWindow.print();
+          }, 500);
+        } else {
+          // Pop-up bloqué - utiliser une méthode alternative
+          const blob = new Blob([response.data], { type: 'text/html' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `rapport_${activeTab}_${new Date().getTime()}.html`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
+          Swal.fire(
+            "Information",
+            "Les pop-ups sont bloquées. Le rapport a été téléchargé en HTML.",
+            "info"
+          );
+          return;
+        }
 
         Swal.fire(
           "Succès",
