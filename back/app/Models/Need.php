@@ -36,18 +36,26 @@ class Need extends Model
 
     /**
      * Relation avec l'utilisateur qui a créé le besoin
+     * Peut être NULL si l'utilisateur a été supprimé
      */
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class)->withDefault([
+            'name' => '[Utilisateur supprimé]',
+            'email' => 'deleted@example.com'
+        ]);
     }
 
     /**
      * Relation avec l'utilisateur qui a approuvé/rejeté le besoin
+     * Peut être NULL si l'utilisateur a été supprimé
      */
     public function approvedBy()
     {
-        return $this->belongsTo(User::class, 'approved_by');
+        return $this->belongsTo(User::class, 'approved_by')->withDefault([
+            'name' => '[Approbateur supprimé]',
+            'email' => 'deleted@example.com'
+        ]);
     }
 
     /**

@@ -528,6 +528,25 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/test-whatsapp', [SchoolSettingsController::class, 'testWhatsApp'])->middleware(['role:admin']); // Test WhatsApp
     });
 
+    // Route spécifique pour servir les fichiers logos de manière sécurisée (pour les exports PDF)
+    Route::get('/school/logo/{filename}', function($filename) {
+        $logoPath = storage_path('app/public/logos/' . $filename);
+        
+        if (!file_exists($logoPath)) {
+            abort(404, 'Logo not found');
+        }
+
+        $mimeType = mime_content_type($logoPath);
+        if (!str_starts_with($mimeType, 'image/')) {
+            abort(403, 'Invalid file type');
+        }
+
+        return response()->file($logoPath, [
+            'Content-Type' => $mimeType,
+            'Cache-Control' => 'public, max-age=3600',
+        ]);
+    });
+
     // Routes pour les bourses de classe
     Route::prefix('class-scholarships')->middleware(['role:admin'])->group(function () {
         Route::get('/', [ClassScholarshipController::class, 'index']);

@@ -22,7 +22,6 @@ import {
   People,
   QrCode,
   Save,
-  Trash,
   Upload,
 } from "react-bootstrap-icons";
 import { useAuth } from "../../hooks/useAuth";
@@ -31,21 +30,21 @@ import { secureApiEndpoints } from "../../utils/apiMigration";
 // ========================================
 // CONFIGURATION DES POSITIONS PAR DÉFAUT
 // ========================================
-// Modifiez ces valeurs pour changer les positions par défaut
+// Positions optimisées pour le template PERSONNEL.png
 const DEFAULT_POSITIONS = {
-  // Position du QR Code - Centré en bas où il y a "Phone"
+  // Position du QR Code - CENTRE DE LA CARTE POUR TEST
   QR: {
-    x: 220, // Position horizontale (pixels depuis la gauche) - centré
-    y: 790, // Position verticale (pixels depuis le haut) - en bas
-    size: 120, // Taille du QR code (carré)
+    x: 350, // Position horizontale - centre gauche pour être sûr de le voir
+    y: 300, // Position verticale - centre pour être sûr de le voir
+    size: 150, // Taille du QR code - TRÈS GRANDE pour être sûr de le voir
   },
 
-  // Position de l'ID (STAF_XX) - Centré en bas de "PERSONNEL"
+  // Position de l'ID - CENTRE DROIT POUR TEST
   ID: {
-    x: 150, // Position horizontale (pixels depuis la gauche) - un peu à droite
-    y: 620, // Position verticale (pixels depuis le haut) - plus bas sous "PERSONNEL"
-    fontSize: 70, // Taille de la police
-    color: "#000", // Couleur du texte
+    x: 130, // Position horizontale - plus à droite pour être sûr de le voir
+    y: 230, // Position verticale - centre pour être sûr de le voir
+    fontSize: 50, // Taille de la police - plus petite pour ne pas déborder
+    color: "#7B2CBF", // Couleur VIOLETTE du logo - comme l'ancienne carte TCH_107
   },
 };
 
@@ -61,17 +60,17 @@ const CardGenerator = () => {
   const [template, setTemplate] = useState(null);
   const [templatePreview, setTemplatePreview] = useState(null);
   // Utiliser les positions par défaut définies en haut du fichier
-  const [qrPosition, setQrPosition] = useState({
+  const [qrPosition, setQrPosition] = useState(() => ({
     x: DEFAULT_POSITIONS.QR.x,
     y: DEFAULT_POSITIONS.QR.y,
     size: DEFAULT_POSITIONS.QR.size,
-  });
-  const [idPosition, setIdPosition] = useState({
+  }));
+  const [idPosition, setIdPosition] = useState(() => ({
     x: DEFAULT_POSITIONS.ID.x,
     y: DEFAULT_POSITIONS.ID.y,
     fontSize: DEFAULT_POSITIONS.ID.fontSize,
     color: DEFAULT_POSITIONS.ID.color,
-  });
+  }));
   const [staffCategories, setStaffCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [staffList, setStaffList] = useState([]);
@@ -94,33 +93,259 @@ const CardGenerator = () => {
 
   // Catégories de personnel
   const categories = [
-    { value: "admin", label: "Personnel Administratif", prefix: "STAF_" },
+    {
+      value: "all_staff",
+      label: "🎯 TOUT LE PERSONNEL (203 personnes)",
+      prefix: "STAF_",
+      description: "Tous les utilisateurs système + tous les enseignants",
+    },
+    {
+      value: "admin",
+      label: "Personnel Administratif (82)",
+      prefix: "STAF_",
+      description: "Utilisateurs avec comptes système",
+    },
     {
       value: "teacher_permanent",
       label: "Enseignants Permanents",
       prefix: "TCH_",
+      description: "Enseignants avec comptes système",
     },
     {
       value: "teacher_semi",
       label: "Enseignants Semi-permanents",
       prefix: "TCH_",
+      description: "Enseignants avec comptes système",
     },
     {
       value: "teacher_vacataire",
-      label: "Enseignants Vacataires",
+      label: "Enseignants Vacataires (121)",
       prefix: "TCH_",
+      description: "Enseignants sans compte système",
     },
   ];
 
   // Fonction pour obtenir le préfixe selon la catégorie
   const getStaffPrefix = (categoryValue) => {
-    const category = categories.find(cat => cat.value === categoryValue);
+    const category = categories.find((cat) => cat.value === categoryValue);
     return category ? category.prefix : "STAF_";
+  };
+
+  // Charger TOUT le personnel (fusion users + teachers)
+  const loadAllStaff = async () => {
+    console.log("=== CHARGEMENT DE TOUT LE PERSONNEL ===");
+
+    try {
+      setLoading(true);
+      let allStaff = [];
+
+      // 1. Charger TOUS les utilisateurs système (82 personnes)
+      console.log("📊 Chargement des utilisateurs système...");
+      console.log("API endpoint utilisé:", secureApiEndpoints.users);
+
+      let users = [];
+      try {
+        const usersResponse = await secureApiEndpoints.users.getAll();
+        console.log("Response complète users:", usersResponse);
+        users = usersResponse?.data || [];
+
+        // Si la réponse est vide ou n'a pas la structure attendue, essayer la structure alternative
+        if (users.length === 0 && usersResponse) {
+          console.log("🔄 Tentative structure alternative...");
+          // Parfois la data est directement dans la réponse
+          users = Array.isArray(usersResponse) ? usersResponse : [];
+          // Ou dans un autre champ
+          if (users.length === 0 && usersResponse.users) {
+            users = usersResponse.users;
+          }
+          console.log(`🔄 Structure alternative: ${users.length} utilisateurs`);
+        }
+      } catch (apiError) {
+        console.error("❌ Erreur API users:", apiError);
+        users = [];
+      }
+
+      console.log(`✅ ${users.length} utilisateurs système chargés`);
+
+      if (users.length === 0) {
+        console.warn("⚠️ PROBLÈME: Aucun utilisateur système trouvé!");
+        console.warn("🔧 Cela peut être dû à:");
+        console.warn("   - Permissions insuffisantes");
+        console.warn("   - Endpoint API différent");
+        console.warn("   - Structure de réponse différente");
+      } else {
+        console.log("👤 Exemple d'utilisateur:", users[0]);
+      }
+
+      // Transformer les users en format uniforme
+      const usersFormatted = users.map((user) => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        contact: user.contact || user.phone,
+        role: user.role,
+        photo: user.photo,
+        source: "users", // Identifier la source
+        staff_id: `STAF_${String(user.id).padStart(3, "0")}`,
+        qr_code: `STAF_${String(user.id).padStart(3, "0")}`,
+        unique_id: `STAF_${String(user.id).padStart(3, "0")}`,
+      }));
+
+      allStaff = [...usersFormatted];
+
+      // 2. Charger TOUS les enseignants (121 total dont 50 avec comptes et 71 sans comptes)
+      console.log("📚 Chargement de tous les enseignants...");
+      console.log("API endpoint utilisé:", secureApiEndpoints.teachers);
+      const teachersResponse = await secureApiEndpoints.teachers.getAll();
+      console.log("Response complète teachers:", teachersResponse);
+      const teachers = teachersResponse?.data || [];
+      console.log(`✅ ${teachers.length} enseignants chargés`);
+
+      if (teachers.length === 0) {
+        console.warn("⚠️ PROBLÈME: Aucun enseignant trouvé!");
+      } else {
+        console.log("👨‍🏫 Exemple d'enseignant:", teachers[0]);
+      }
+
+      // Transformer les teachers en format uniforme et éviter les doublons
+      console.log("🔍 Filtrage des enseignants pour éviter doublons...");
+      const teachersBeforeFilter = teachers.length;
+      let ignoredCount = 0;
+      const teachersFormatted = teachers
+        .filter((teacher) => {
+          // Exclure les enseignants qui ont déjà un compte utilisateur (éviter doublons)
+          const hasUserAccount =
+            teacher.user_id &&
+            users.find((user) => user.id === teacher.user_id);
+          if (hasUserAccount) {
+            ignoredCount++;
+            console.log(
+              `🔄 Enseignant ${teacher.first_name} ${teacher.last_name} ignoré (a déjà un compte utilisateur ID: ${teacher.user_id})`
+            );
+          }
+          return !hasUserAccount;
+        })
+        .map((teacher) => ({
+          id: teacher.id,
+          name: `${teacher.first_name} ${teacher.last_name}`,
+          email: teacher.email,
+          contact: teacher.phone_number,
+          role: "teacher",
+          photo: teacher.photo,
+          source: "teachers", // Identifier la source
+          staff_id:
+            teacher.teacher_id || `TCH_${String(teacher.id).padStart(3, "0")}`,
+          qr_code:
+            teacher.teacher_id || `TCH_${String(teacher.id).padStart(3, "0")}`,
+          unique_id:
+            teacher.teacher_id || `TCH_${String(teacher.id).padStart(3, "0")}`,
+          // Infos supplémentaires pour les enseignants
+          first_name: teacher.first_name,
+          last_name: teacher.last_name,
+          type_personnel: teacher.type_personnel,
+          qualification: teacher.qualification,
+          specialization: teacher.specialization,
+        }));
+
+      allStaff = [...allStaff, ...teachersFormatted];
+
+      console.log("=== RÉSUMÉ CHARGEMENT ===");
+      console.log(`👥 Utilisateurs système: ${usersFormatted.length}`);
+      console.log(`📚 Enseignants bruts: ${teachersBeforeFilter}`);
+      console.log(`🔄 Enseignants avec comptes ignorés: ${ignoredCount}`);
+      console.log(`👨‍🏫 Enseignants sans compte: ${teachersFormatted.length}`);
+      console.log(`📊 TOTAL FINAL: ${allStaff.length} personnes`);
+      console.log(
+        `🎯 ATTENDU BD: 153 personnes (82 users + 71 teachers sans compte)`
+      );
+      console.log(`🔍 DIAGNOSTIC:`);
+      console.log(`   - Si users API = 0 → Problème API users`);
+      console.log(
+        `   - Si enseignants ignorés ≠ 50 → Problème correspondances user_id`
+      );
+      console.log(`   - Si total ≠ 153 → Vérifiez les logs ci-dessus`);
+
+      if (allStaff.length < 150) {
+        console.warn("⚠️ WARNING: Moins de personnes que prévu chargées!");
+        console.log("- Causes possibles:");
+        console.log("  1. API users vide ou erreur");
+        console.log("  2. API teachers ne retourne pas tous les enseignants");
+        console.log("  3. Problème de correspondance user_id dans teachers");
+      } else if (allStaff.length === 153) {
+        console.log("✅ PARFAIT: Nombre exact selon vérification BD!");
+      } else if (allStaff.length === 121) {
+        console.warn("⚠️ PROBLÈME IDENTIFIÉ: API users probablement vide!");
+        console.log(
+          "→ Seuls les enseignants (121) sont chargés, pas les users système"
+        );
+      }
+      console.log("=========================");
+
+      setStaffList(allStaff);
+    } catch (error) {
+      console.error(
+        "❌ Erreur lors du chargement du personnel complet:",
+        error
+      );
+
+      // Solution de contournement : charger via les catégories existantes
+      console.log("🔄 Tentative de chargement via catégories existantes...");
+      try {
+        // Charger les admins via la logique existante
+        const adminResponse = await secureApiEndpoints.users.getAll();
+        const adminUsers = adminResponse?.data || [];
+        console.log(`🔄 Chargement admin: ${adminUsers.length} utilisateurs`);
+
+        // Charger les enseignants vacataires
+        const teachersResponse = await secureApiEndpoints.teachers.getAll();
+        const allTeachers = teachersResponse?.data || [];
+        const vacataireTeachers = allTeachers.filter(
+          (t) => t.type_personnel === "V" || !t.user_id
+        );
+        console.log(
+          `🔄 Chargement vacataires: ${vacataireTeachers.length} enseignants`
+        );
+
+        // Combiner en urgence
+        const emergencyStaff = [
+          ...adminUsers.map((user) => ({
+            id: user.id,
+            name: user.name,
+            source: "users",
+            staff_id: `STAF_${user.id}`,
+            role: user.role,
+          })),
+          ...vacataireTeachers.map((teacher) => ({
+            id: teacher.id,
+            name: `${teacher.first_name} ${teacher.last_name}`,
+            source: "teachers",
+            staff_id: teacher.teacher_id || `TCH_${teacher.id}`,
+            role: "teacher",
+          })),
+        ];
+
+        console.log(
+          `🔄 Chargement d'urgence: ${emergencyStaff.length} personnes`
+        );
+        setStaffList(emergencyStaff);
+      } catch (fallbackError) {
+        console.error("❌ Erreur même en mode dégradé:", fallbackError);
+        setStaffList([]);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Charger la liste du personnel selon la catégorie
   const loadStaffByCategory = async (category) => {
     if (!category) return;
+
+    // Si c'est "tout le personnel", utiliser la fonction spéciale
+    if (category === "all_staff") {
+      await loadAllStaff();
+      return;
+    }
 
     setLoading(true);
     try {
@@ -199,30 +424,21 @@ const CardGenerator = () => {
     setLoading(false);
   };
 
-  // Charger les templates sauvegardés (temporairement depuis localStorage)
+  // Charger les templates sauvegardés (positions seulement)
   const loadSavedTemplates = async () => {
     try {
-      // Temporaire : utiliser localStorage en attendant l'API
       const savedTemplatesData = localStorage.getItem("cardTemplates");
       const templates = savedTemplatesData
         ? JSON.parse(savedTemplatesData)
         : [];
       setSavedTemplates(templates);
-
-      // DÉSACTIVÉ : Ne plus charger automatiquement le template par défaut
-      // pour permettre l'utilisation des positions du code source
-      // const defaultTemplate = templates.find((t) => t.is_default);
-      // if (defaultTemplate) {
-      //   await loadTemplate(defaultTemplate);
-      // }
     } catch (error) {
       console.error("Erreur lors du chargement des templates:", error);
-      // Fallback vers un tableau vide
       setSavedTemplates([]);
     }
   };
 
-  // Charger un template spécifique
+  // Charger un template spécifique (positions seulement)
   const loadTemplate = async (templateData) => {
     try {
       setCurrentTemplateId(templateData.id);
@@ -243,15 +459,11 @@ const CardGenerator = () => {
         color: templateData.id_color || DEFAULT_POSITIONS.ID.color,
       });
 
-      // Charger l'image du template si elle existe
-      if (templateData.template_preview) {
-        setTemplatePreview(templateData.template_preview);
-        // Créer un fichier fictif pour maintenir la compatibilité
-        const response = await fetch(templateData.template_preview);
-        const blob = await response.blob();
-        const file = new File([blob], "template.png", { type: blob.type });
-        setTemplate(file);
-      }
+      // Note: L'image du template doit être rechargée manuellement
+      // car elle n'est plus stockée pour éviter les erreurs de quota
+      alert(
+        `Template "${templateData.name}" chargé avec succès !\n\nVeuillez recharger votre image template PERSONNEL.png si nécessaire.`
+      );
     } catch (error) {
       console.error("Erreur lors du chargement du template:", error);
     }
@@ -272,17 +484,18 @@ const CardGenerator = () => {
         localStorage.getItem("cardTemplates") || "[]"
       );
 
-      // Créer l'objet template
+      // Créer l'objet template SANS l'image pour éviter QuotaExceededError
       const templateData = {
         id: currentTemplateId || Date.now().toString(),
         name: templateName,
-        template_preview: templatePreview, // Stocker l'image en base64
+        // template_preview: templatePreview, // SUPPRIMÉ pour éviter quota exceeded
         qr_x: qrPosition.x,
         qr_y: qrPosition.y,
         qr_size: qrPosition.size,
         id_x: idPosition.x,
         id_y: idPosition.y,
         id_font_size: idPosition.fontSize,
+        id_color: idPosition.color,
         is_default: isDefaultTemplate,
         created_at: new Date().toISOString(),
       };
@@ -358,33 +571,85 @@ const CardGenerator = () => {
     setLoading(false);
   };
 
-  // useEffect pour charger les templates au démarrage
-  useEffect(() => {
-    // Charger les templates mais ne pas appliquer automatiquement le template par défaut
-    const loadTemplatesWithoutDefault = async () => {
-      try {
-        const savedTemplatesData = localStorage.getItem("cardTemplates");
-        const templates = savedTemplatesData
-          ? JSON.parse(savedTemplatesData)
-          : [];
-        setSavedTemplates(templates);
-
-        // Commenté temporairement pour éviter l'écrasement des positions
-        // const defaultTemplate = templates.find(t => t.is_default);
-        // if (defaultTemplate) {
-        //     await loadTemplate(defaultTemplate);
-        // }
-      } catch (error) {
-        console.error("Erreur lors du chargement des templates:", error);
-        setSavedTemplates([]);
+  // Restaurer le template sauvegardé au chargement
+  const restoreSavedTemplate = () => {
+    try {
+      const savedTemplate = localStorage.getItem("currentTemplate");
+      console.log("🔍 Vérification template sauvegardé:", !!savedTemplate);
+      if (savedTemplate) {
+        console.log(
+          "📁 Template trouvé, taille:",
+          savedTemplate.length,
+          "chars"
+        );
+        setTemplate(savedTemplate);
+        setTemplatePreview(savedTemplate);
+        console.log("✅ Template restauré depuis le stockage");
+        // Confirmer que les états sont mis à jour
+        console.log("State template mis à jour:", !!savedTemplate);
+        console.log("State templatePreview mis à jour:", !!savedTemplate);
+      } else {
+        console.log("❌ Aucun template sauvegardé trouvé");
       }
-    };
+    } catch (error) {
+      console.error("Erreur lors de la restauration du template:", error);
+    }
+  };
 
-    loadTemplatesWithoutDefault();
+  // Utiliser DEFAULT_POSITIONS au chargement et restaurer le template
+  useEffect(() => {
+    console.log("🎯 Initialisation avec DEFAULT_POSITIONS");
+    console.log("QR Position:", DEFAULT_POSITIONS.QR);
+    console.log("ID Position:", DEFAULT_POSITIONS.ID);
+
+    // FORCER la réinitialisation des positions au chargement pour éviter les problèmes
+    setQrPosition({
+      x: DEFAULT_POSITIONS.QR.x,
+      y: DEFAULT_POSITIONS.QR.y,
+      size: DEFAULT_POSITIONS.QR.size,
+    });
+    setIdPosition({
+      x: DEFAULT_POSITIONS.ID.x,
+      y: DEFAULT_POSITIONS.ID.y,
+      fontSize: DEFAULT_POSITIONS.ID.fontSize,
+      color: DEFAULT_POSITIONS.ID.color,
+    });
+    console.log("🔄 Positions forcées aux valeurs par défaut");
+
+    // Charger les templates sauvegardés si besoin
+    loadSavedTemplates();
+
+    // Restaurer l'image au chargement
+    restoreSavedTemplate();
   }, []);
 
   // Upload du template
-  const handleTemplateUpload = (event) => {
+  // Fonction pour compresser l'image
+  const compressImage = (file, maxWidth = 800, quality = 0.7) => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+
+      img.onload = () => {
+        // Calculer les nouvelles dimensions en gardant le ratio
+        const ratio = Math.min(maxWidth / img.width, maxWidth / img.height);
+        canvas.width = img.width * ratio;
+        canvas.height = img.height * ratio;
+
+        // Dessiner l'image redimensionnée
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Convertir en data URL avec compression
+        const compressedDataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve(compressedDataUrl);
+      };
+
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handleTemplateUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -393,30 +658,76 @@ const CardGenerator = () => {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setTemplate(e.target.result);
-      setTemplatePreview(e.target.result);
-    };
-    reader.readAsDataURL(file);
+    try {
+      setLoading(true);
+
+      // Lire l'image originale en haute qualité pour le rendu
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const originalImage = e.target.result;
+        setTemplate(originalImage);
+        setTemplatePreview(originalImage);
+
+        // Compresser l'image pour le stockage
+        const compressedImage = await compressImage(file);
+
+        // Sauvegarder automatiquement l'image compressée
+        try {
+          localStorage.setItem("currentTemplate", compressedImage);
+          console.log("Template sauvegardé automatiquement (compressé)");
+        } catch (storageError) {
+          console.warn(
+            "Impossible de sauvegarder le template:",
+            storageError.message
+          );
+          // L'image restera disponible jusqu'à actualisation
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error("Erreur lors du traitement de l'image:", error);
+      alert("Erreur lors du chargement de l'image");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Générer un QR code
   const generateQRCode = async (staffId) => {
+    console.log("🎯 generateQRCode appelé avec staffId:", staffId);
+    console.log("📐 QR size:", qrPosition.size);
     try {
-      return await QRCode.toDataURL(staffId, {
+      const qrDataUrl = await QRCode.toDataURL(staffId, {
         width: qrPosition.size,
         margin: 1,
       });
+      console.log("✅ QR code généré avec succès, longueur:", qrDataUrl.length);
+      return qrDataUrl;
     } catch (error) {
-      console.error("Erreur génération QR:", error);
+      console.error("❌ Erreur génération QR:", error);
       return null;
     }
   };
 
   // Générer une carte pour un personnel
   const generateCard = async (staff) => {
-    if (!template || !templatePreview) return null;
+    console.log("🎯 generateCard appelé pour:", staff.name);
+    console.log(
+      "📋 État template:",
+      !!template,
+      "templatePreview:",
+      !!templatePreview
+    );
+
+    if (!template || !templatePreview) {
+      console.log(
+        "❌ Template manquant - template:",
+        !!template,
+        "templatePreview:",
+        !!templatePreview
+      );
+      return null;
+    }
 
     return new Promise((resolve) => {
       const canvas = document.createElement("canvas");
@@ -428,7 +739,7 @@ const CardGenerator = () => {
         canvas.width = img.width;
         canvas.height = img.height;
 
-        console.log("Image dimensions:", {
+        console.log("✅ Template image chargée. Dimensions:", {
           width: img.width,
           height: img.height,
         });
@@ -438,37 +749,49 @@ const CardGenerator = () => {
 
         // Dessiner le template
         ctx.drawImage(img, 0, 0);
+        console.log("✅ Template dessiné sur canvas");
 
         // Générer et dessiner le QR code - Utiliser le VRAI QR code de la base de données
-        const staffQRCode = staff.qr_code || staff.staff_id || staff.unique_id || `${getStaffPrefix(selectedCategory)}${staff.id}`;
+        const staffQRCode =
+          staff.qr_code ||
+          staff.staff_id ||
+          staff.unique_id ||
+          `${getStaffPrefix(selectedCategory)}${staff.id}`;
         const qrDataUrl = await generateQRCode(staffQRCode);
-        
+
         console.log(`Staff: ${staff.name}, QR Code utilisé: ${staffQRCode}`);
+        console.log(
+          "📊 QR Data URL reçu:",
+          !!qrDataUrl,
+          qrDataUrl ? "longueur: " + qrDataUrl.length : "NULL"
+        );
         if (qrDataUrl) {
+          console.log("✅ QR code existe, création de l'image...");
           const qrImg = new Image();
           qrImg.onload = () => {
-            // FORCER l'utilisation des positions du code source
-            const qrX = DEFAULT_POSITIONS.QR.x;
-            const qrY = DEFAULT_POSITIONS.QR.y;
-            const qrSize = DEFAULT_POSITIONS.QR.size;
+            console.log("✅ Image QR chargée, dessin sur canvas...");
+            // UTILISER LES VRAIES POSITIONS DES SLIDERS (au lieu de forcer DEFAULT_POSITIONS)
+            const qrX = qrPosition.x;
+            const qrY = qrPosition.y;
+            const qrSize = qrPosition.size;
 
             console.log(
-              `FORCED: Using DEFAULT_POSITIONS - QR at X=${qrX}, Y=${qrY}, Size=${qrSize}`
+              `USING SLIDER VALUES - QR at X=${qrX}, Y=${qrY}, Size=${qrSize}`
             );
             console.log(`Drawing QR at: X=${qrX}, Y=${qrY}, Size=${qrSize}`);
             ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
 
-            // FORCER l'utilisation des positions ID du code source
-            const idX = DEFAULT_POSITIONS.ID.x;
-            const idY = DEFAULT_POSITIONS.ID.y;
-            const fontSize = DEFAULT_POSITIONS.ID.fontSize;
+            // UTILISER LES VRAIES POSITIONS ID DES SLIDERS (au lieu de forcer DEFAULT_POSITIONS)
+            const idX = idPosition.x;
+            const idY = idPosition.y;
+            const fontSize = idPosition.fontSize;
 
             ctx.font = `bold ${fontSize}px Arial`;
-            ctx.fillStyle = DEFAULT_POSITIONS.ID.color || "#000000";
+            ctx.fillStyle = idPosition.color || "#000000";
             ctx.textAlign = "left";
 
             console.log(
-              `FORCED: Using DEFAULT_POSITIONS - ID at X=${idX}, Y=${idY}, Font=${fontSize}px`
+              `USING SLIDER VALUES - ID at X=${idX}, Y=${idY}, Font=${fontSize}px`
             );
 
             const idText = staffQRCode; // Utiliser le même QR code que pour la génération
@@ -478,15 +801,43 @@ const CardGenerator = () => {
 
             ctx.fillText(idText, idX, idY);
 
+            // Canvas prêt - tous les éléments sont dessinés
+            console.log("✅ Carte complète générée avec QR code et ID");
+
             resolve({
               staff: staff,
               cardDataUrl: canvas.toDataURL("image/png"),
               id: staffQRCode, // Utiliser le même QR code cohérent
             });
           };
+          qrImg.onerror = (err) => {
+            console.error("❌ Erreur chargement image QR:", err);
+            resolve(null);
+          };
+          console.log("🔄 Assignation src à l'image QR...");
           qrImg.src = qrDataUrl;
         } else {
-          resolve(null);
+          console.log("❌ Pas de QR code généré, résolution sans QR");
+          // Même si pas de QR, dessiner quand même l'ID
+          const idX = idPosition.x;
+          const idY = idPosition.y;
+          const fontSize = idPosition.fontSize;
+
+          ctx.font = `bold ${fontSize}px Arial`;
+          ctx.fillStyle = idPosition.color || "#000000";
+          ctx.textAlign = "left";
+
+          const idText = staffQRCode;
+          console.log(
+            `Drawing ID "${idText}" at: X=${idX}, Y=${idY}, Font=${fontSize}px`
+          );
+          ctx.fillText(idText, idX, idY);
+
+          resolve({
+            staff: staff,
+            cardDataUrl: canvas.toDataURL("image/png"),
+            id: staffQRCode,
+          });
         }
       };
       img.src = templatePreview;
@@ -543,11 +894,17 @@ const CardGenerator = () => {
           if (card) {
             cards.push(card);
             console.log(
-              `✅ Carte ${i + 1}/${selectedStaff.length} générée avec succès pour ${staff.name || staff.first_name + ' ' + staff.last_name}`
+              `✅ Carte ${i + 1}/${
+                selectedStaff.length
+              } générée avec succès pour ${
+                staff.name || staff.first_name + " " + staff.last_name
+              }`
             );
           } else {
             console.log(
-              `❌ Échec génération carte ${i + 1}/${selectedStaff.length} pour ${staff.name || staff.first_name + ' ' + staff.last_name}`
+              `❌ Échec génération carte ${i + 1}/${
+                selectedStaff.length
+              } pour ${staff.name || staff.first_name + " " + staff.last_name}`
             );
           }
         } catch (error) {
@@ -564,7 +921,7 @@ const CardGenerator = () => {
       console.log(`Cartes échouées: ${selectedStaff.length - cards.length}`);
       console.log("Array cards avant setPreviewCards:", cards);
       console.log("=========================");
-      
+
       setPreviewCards(cards);
       setShowPreviewModal(true);
 
@@ -578,8 +935,10 @@ const CardGenerator = () => {
         );
       } else {
         // Toutes les cartes ont été générées avec succès
-        console.log("✅ Toutes les cartes générées avec succès. Prêt pour le PDF.");
-        
+        console.log(
+          "✅ Toutes les cartes générées avec succès. Prêt pour le PDF."
+        );
+
         // Stocker les cartes dans une variable temporaire pour le PDF
         window.tempCards = cards;
       }
@@ -593,118 +952,218 @@ const CardGenerator = () => {
     setLoading(false);
   };
 
-  // Générer un PDF A4 avec 4 cartes par page (grille 2x2)
+  // Générer un PDF A4 avec 8 cartes par page (grille 2x4)
   const generatePDFA4 = async (cardsToGenerate = null) => {
     // Utiliser les cartes passées en paramètre ou celles de l'état
     const cardsToUse = cardsToGenerate || previewCards;
-    
+
     console.log("=== GÉNÉRATION PDF A4 ===");
     console.log("Nombre de cartes sélectionnées:", selectedStaff.length);
     console.log("Nombre de cartes à utiliser:", cardsToUse.length);
-    console.log("Source des cartes:", cardsToGenerate ? "Paramètre direct" : "previewCards state");
+    console.log(
+      "Source des cartes:",
+      cardsToGenerate ? "Paramètre direct" : "previewCards state"
+    );
     console.log("cardsToUse:", cardsToUse);
 
     if (cardsToUse.length === 0) {
-      alert("Aucune carte à générer. Veuillez d'abord prévisualiser les cartes.");
+      alert(
+        "Aucune carte à générer. Veuillez d'abord prévisualiser les cartes."
+      );
       return;
     }
 
     try {
       setLoading(true);
-      
+
       // Importer jsPDF dynamiquement
-      const { jsPDF } = await import('jspdf');
-      
+      const { jsPDF } = await import("jspdf");
+
       const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
       });
 
       const pageWidth = 210; // A4 width in mm
       const pageHeight = 297; // A4 height in mm
-      
-      // Marges minimales pour l'impression (5mm de chaque côté)
-      const margin = 5;
-      
-      // Espacement minimal entre cartes pour faciliter la découpe (2mm)
-      const spacing = 2;
-      
-      // Calcul des dimensions des cartes pour occuper tout l'espace
-      const availableWidth = pageWidth - (2 * margin) - spacing; // Espace disponible largeur
-      const availableHeight = pageHeight - (2 * margin) - spacing; // Espace disponible hauteur
-      
-      const cardWidth = availableWidth / 2; // 2 cartes par ligne
-      const cardHeight = availableHeight / 2; // 2 lignes par page
-      
-      console.log(`Dimensions calculées: ${cardWidth.toFixed(1)}mm x ${cardHeight.toFixed(1)}mm par carte`);
-      
-      // Positions pour 4 cartes par page (grille 2x2) - plein écran
+
+      // Marges pour l'impression
+      const margin = 10;
+
+      // Espacement entre cartes
+      const spacing = 5;
+
+      // Calculer les dimensions basées sur le ratio 1920x1080 (16:9)
+      const cardRatio = 1920 / 1080; // Ratio largeur/hauteur = 1.778
+
+      // Calculer les dimensions pour 8 cartes par page (2x4 - 2 colonnes, 4 lignes)
+      // AUGMENTER LA TAILLE DES CARTES en réduisant les marges
+      const reducedMargin = 5; // Réduire les marges
+      const reducedSpacing = 3; // Réduire l'espacement
+
+      const availableHeight =
+        pageHeight - 2 * reducedMargin - 3 * reducedSpacing; // 3 espacements pour 4 lignes
+      const availableWidth = pageWidth - 2 * reducedMargin - reducedSpacing; // 1 espacement pour 2 colonnes
+
+      const cardHeight = availableHeight / 4; // 4 lignes par page
+      const cardWidth = availableWidth / 2; // 2 colonnes par page
+
+      // Vérifier si le ratio 1920x1080 peut être respecté
+      const targetCardWidth = cardHeight * cardRatio;
+
+      let finalCardWidth, finalCardHeight;
+      if (targetCardWidth <= cardWidth) {
+        // Le ratio peut être respecté avec la hauteur disponible
+        finalCardWidth = targetCardWidth;
+        finalCardHeight = cardHeight;
+      } else {
+        // Ajuster par la largeur disponible
+        finalCardWidth = cardWidth;
+        finalCardHeight = cardWidth / cardRatio;
+      }
+
+      console.log(
+        `Dimensions calculées (ratio 1920x1080): ${finalCardWidth.toFixed(
+          1
+        )}mm x ${finalCardHeight.toFixed(1)}mm par carte`
+      );
+      console.log(
+        `Ratio respecté: ${(finalCardWidth / finalCardHeight).toFixed(
+          3
+        )} (cible: 1.778)`
+      );
+
+      // Positions pour 8 cartes par page (grille 2x4) - optimisé pour 1920x1080
+      const centerOffsetX =
+        (pageWidth - (2 * finalCardWidth + reducedSpacing)) / 2;
+      const centerOffsetY =
+        (pageHeight - (4 * finalCardHeight + 3 * reducedSpacing)) / 2;
+
       const positions = [
-        { x: margin, y: margin }, // Carte 1: En haut à gauche
-        { x: margin + cardWidth + spacing, y: margin }, // Carte 2: En haut à droite  
-        { x: margin, y: margin + cardHeight + spacing }, // Carte 3: En bas à gauche
-        { x: margin + cardWidth + spacing, y: margin + cardHeight + spacing } // Carte 4: En bas à droite
+        // Ligne 1 (2 cartes)
+        { x: centerOffsetX, y: centerOffsetY }, // Carte 1
+        {
+          x: centerOffsetX + finalCardWidth + reducedSpacing,
+          y: centerOffsetY,
+        }, // Carte 2
+        // Ligne 2 (2 cartes)
+        {
+          x: centerOffsetX,
+          y: centerOffsetY + finalCardHeight + reducedSpacing,
+        }, // Carte 3
+        {
+          x: centerOffsetX + finalCardWidth + reducedSpacing,
+          y: centerOffsetY + finalCardHeight + reducedSpacing,
+        }, // Carte 4
+        // Ligne 3 (2 cartes)
+        {
+          x: centerOffsetX,
+          y: centerOffsetY + 2 * (finalCardHeight + reducedSpacing),
+        }, // Carte 5
+        {
+          x: centerOffsetX + finalCardWidth + reducedSpacing,
+          y: centerOffsetY + 2 * (finalCardHeight + reducedSpacing),
+        }, // Carte 6
+        // Ligne 4 (2 cartes)
+        {
+          x: centerOffsetX,
+          y: centerOffsetY + 3 * (finalCardHeight + reducedSpacing),
+        }, // Carte 7
+        {
+          x: centerOffsetX + finalCardWidth + reducedSpacing,
+          y: centerOffsetY + 3 * (finalCardHeight + reducedSpacing),
+        }, // Carte 8
       ];
+
+      // Les dimensions sont déjà dans finalCardWidth et finalCardHeight
 
       for (let i = 0; i < cardsToUse.length; i++) {
         const card = cardsToUse[i];
-        
-        // Nouvelle page après chaque 4 cartes (sauf pour la première page)
-        if (i > 0 && i % 4 === 0) {
+
+        // Nouvelle page après chaque 8 cartes (sauf pour la première page)
+        if (i > 0 && i % 8 === 0) {
           pdf.addPage();
           console.log(`Nouvelle page créée pour la carte ${i + 1}`);
         }
 
-        // Position sur la page : 0,1,2,3 pour grille 2x2
-        const positionIndex = i % 4;
+        // Position sur la page : 0,1,2,3,4,5,6,7 pour grille 2x4
+        const positionIndex = i % 8;
         const position = positions[positionIndex];
-        
-        console.log(`Carte ${i + 1}: Position ${positionIndex} (${position.x}, ${position.y})`);
-        
+
+        console.log(
+          `Carte ${i + 1}: Position ${positionIndex} (${position.x}, ${
+            position.y
+          })`
+        );
+
         try {
           // Convertir le data URL en image et l'ajouter au PDF
           pdf.addImage(
             card.cardDataUrl,
-            'PNG',
+            "PNG",
             position.x,
             position.y,
-            cardWidth,
-            cardHeight
+            finalCardWidth,
+            finalCardHeight
           );
-          
+
           console.log(`Carte ${i + 1} ajoutée avec succès`);
         } catch (error) {
           console.error(`Erreur ajout carte ${i + 1}:`, error);
         }
       }
 
-      // Ajouter des lignes de découpe pour faciliter la coupe au ciseau
-      console.log("Ajout des lignes de découpe...");
-      
-      // Ligne verticale centrale (entre cartes gauche et droite)
-      const centerX = margin + cardWidth + (spacing / 2);
+      // Ajouter des lignes de découpe pour 8 cartes (grille 2x4)
+      console.log("Ajout des lignes de découpe pour 8 cartes...");
+
       pdf.setDrawColor(200, 200, 200); // Gris clair
       pdf.setLineWidth(0.1);
+
+      // Ligne verticale centrale (1 ligne pour séparer 2 colonnes)
+      const centerX = centerOffsetX + finalCardWidth + reducedSpacing / 2;
       pdf.line(centerX, 0, centerX, pageHeight);
-      
-      // Ligne horizontale centrale (entre cartes haut et bas)  
-      const centerY = margin + cardHeight + (spacing / 2);
-      pdf.line(0, centerY, pageWidth, centerY);
-      
-      // Lignes de bordure (optionnel - pour délimiter la zone de coupe)
+
+      // Lignes horizontales (3 lignes pour séparer 4 lignes)
+      for (let i = 1; i < 4; i++) {
+        const lineY =
+          centerOffsetY +
+          i * (finalCardHeight + reducedSpacing) -
+          reducedSpacing / 2;
+        pdf.line(0, lineY, pageWidth, lineY);
+      }
+
+      // Bordure délimitant toute la zone des 8 cartes
       pdf.setDrawColor(150, 150, 150); // Gris plus foncé
-      pdf.rect(margin, margin, cardWidth * 2 + spacing, cardHeight * 2 + spacing);
+      pdf.rect(
+        centerOffsetX,
+        centerOffsetY,
+        2 * finalCardWidth + reducedSpacing,
+        4 * finalCardHeight + 3 * reducedSpacing
+      );
 
       // Télécharger le PDF
-      const filename = `cartes_personnel_${cardsToUse.length}_cartes_${new Date().toISOString().split('T')[0]}.pdf`;
+      const filename = `cartes_personnel_${cardsToUse.length}_cartes_${
+        new Date().toISOString().split("T")[0]
+      }.pdf`;
       pdf.save(filename);
-      
-      alert(`PDF généré avec succès !\n${cardsToUse.length} carte(s) sur ${Math.ceil(cardsToUse.length / 4)} page(s) A4\nDimensions: ${cardWidth.toFixed(1)}mm x ${cardHeight.toFixed(1)}mm par carte\nDisposition: 4 cartes par page (plein écran)\nLignes de découpe incluses pour faciliter la coupe au ciseau`);
 
+      alert(
+        `PDF généré avec succès !\n${
+          cardsToUse.length
+        } carte(s) sur ${Math.ceil(
+          cardsToUse.length / 8
+        )} page(s) A4\nDimensions: ${finalCardWidth.toFixed(
+          1
+        )}mm x ${finalCardHeight.toFixed(
+          1
+        )}mm par carte\nFormat: 1920x1080px (ratio 16:9) optimisé\nDisposition: 8 cartes par page (2x4) centrées\nLignes de découpe incluses pour faciliter la coupe`
+      );
     } catch (error) {
-      console.error('Erreur génération PDF:', error);
-      alert('Erreur lors de la génération du PDF. Assurez-vous que jsPDF est installé.');
+      console.error("Erreur génération PDF:", error);
+      alert(
+        "Erreur lors de la génération du PDF. Assurez-vous que jsPDF est installé."
+      );
     } finally {
       setLoading(false);
     }
@@ -726,6 +1185,7 @@ const CardGenerator = () => {
       width: 600,
       height: 400,
     });
+    const [isDragging, setIsDragging] = useState(null); // 'qr' ou 'id'
     const imgRef = useRef(null);
 
     useEffect(() => {
@@ -741,7 +1201,60 @@ const CardGenerator = () => {
           scale: scale,
         });
       }
-    }, [templatePreview]);
+    }, [templatePreview, qrPosition, idPosition]); // Ajouter les positions pour mise à jour temps réel
+
+    // Gérer le drag & drop manuel
+    const handleMouseDown = (e, elementType) => {
+      e.preventDefault();
+      setIsDragging(elementType);
+    };
+
+    const handleMouseMove = (e) => {
+      if (!isDragging || !imgRef.current) return;
+
+      const rect = imgRef.current.getBoundingClientRect();
+      const scale = imageDimensions.scale || 1;
+
+      // Calculer les nouvelles coordonnées en pixels réels
+      const newX = Math.max(
+        0,
+        Math.min(imageDimensions.width, (e.clientX - rect.left) / scale)
+      );
+      const newY = Math.max(
+        0,
+        Math.min(imageDimensions.height, (e.clientY - rect.top) / scale)
+      );
+
+      if (isDragging === "qr") {
+        setQrPosition({
+          ...qrPosition,
+          x: Math.round(newX - qrPosition.size / 2), // Centrer sur la souris
+          y: Math.round(newY - qrPosition.size / 2),
+        });
+      } else if (isDragging === "id") {
+        setIdPosition({
+          ...idPosition,
+          x: Math.round(newX),
+          y: Math.round(newY),
+        });
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(null);
+    };
+
+    // Ajouter les event listeners
+    useEffect(() => {
+      if (isDragging) {
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+        return () => {
+          document.removeEventListener("mousemove", handleMouseMove);
+          document.removeEventListener("mouseup", handleMouseUp);
+        };
+      }
+    }, [isDragging, imageDimensions, qrPosition, idPosition]);
 
     return (
       <div className="position-relative" style={{ maxWidth: "600px" }}>
@@ -766,7 +1279,7 @@ const CardGenerator = () => {
               }}
             />
 
-            {/* Indicateur position QR */}
+            {/* Indicateur position QR - DRAGGABLE MANUELLEMENT */}
             <div
               className="position-absolute border border-danger bg-danger bg-opacity-25 d-flex align-items-center justify-content-center"
               style={{
@@ -774,13 +1287,23 @@ const CardGenerator = () => {
                 top: `${qrPosition.y * (imageDimensions.scale || 1)}px`,
                 width: `${qrPosition.size * (imageDimensions.scale || 1)}px`,
                 height: `${qrPosition.size * (imageDimensions.scale || 1)}px`,
-                cursor: "move",
+                cursor: isDragging === "qr" ? "grabbing" : "grab",
+                zIndex: 10,
+                userSelect: "none",
+                border:
+                  isDragging === "qr"
+                    ? "3px solid #ff0000"
+                    : "2px solid #dc3545",
+                boxShadow:
+                  isDragging === "qr" ? "0 0 10px rgba(255,0,0,0.5)" : "none",
               }}
+              title={`QR Code: ${qrPosition.x}x${qrPosition.y}, Taille: ${qrPosition.size}px - Cliquez et glissez pour déplacer`}
+              onMouseDown={(e) => handleMouseDown(e, "qr")}
             >
               <small className="text-danger fw-bold">QR</small>
             </div>
 
-            {/* Indicateur position ID */}
+            {/* Indicateur position ID - DRAGGABLE MANUELLEMENT */}
             <div
               className="position-absolute"
               style={{
@@ -789,15 +1312,27 @@ const CardGenerator = () => {
                 fontSize: `${
                   idPosition.fontSize * (imageDimensions.scale || 1)
                 }px`,
-                color: "red",
+                color: idPosition.color || "red",
                 fontWeight: "bold",
-                cursor: "move",
-                backgroundColor: "rgba(255,255,255,0.8)",
-                padding: "2px 4px",
-                borderRadius: "2px",
+                cursor: isDragging === "id" ? "grabbing" : "grab",
+                backgroundColor:
+                  isDragging === "id"
+                    ? "rgba(255,255,0,0.9)"
+                    : "rgba(255,255,255,0.9)",
+                padding: "4px 8px",
+                borderRadius: "4px",
+                border:
+                  isDragging === "id" ? "3px solid #ff0000" : "2px solid red",
+                zIndex: 10,
+                userSelect: "none",
+                boxShadow:
+                  isDragging === "id" ? "0 0 10px rgba(255,0,0,0.5)" : "none",
+                transition: isDragging === "id" ? "none" : "all 0.2s ease",
               }}
+              title={`ID: ${idPosition.x}x${idPosition.y}, Police: ${idPosition.fontSize}px - Cliquez et glissez pour déplacer`}
+              onMouseDown={(e) => handleMouseDown(e, "id")}
             >
-              ID_SAMPLE
+              STAF_001
             </div>
           </div>
         )}
@@ -851,6 +1386,9 @@ const CardGenerator = () => {
                     />
                     <Form.Text className="text-muted">
                       Utilisez un template propre sans nom ni rôle
+                      <br />
+                      💾 L'image sera automatiquement sauvegardée (version
+                      compressée pour éviter les erreurs de stockage)
                     </Form.Text>
                   </Form.Group>
 
@@ -862,10 +1400,25 @@ const CardGenerator = () => {
                       <Button
                         variant="outline-primary"
                         size="sm"
+                        className="me-2"
                         onClick={() => setShowConfigModal(true)}
                       >
                         <Gear className="me-1" />
                         Configurer positions
+                      </Button>
+                      <Button
+                        variant="outline-danger"
+                        size="sm"
+                        onClick={() => {
+                          setTemplate(null);
+                          setTemplatePreview(null);
+                          localStorage.removeItem("currentTemplate");
+                          if (fileInputRef.current) {
+                            fileInputRef.current.value = "";
+                          }
+                        }}
+                      >
+                        🗑️ Supprimer template
                       </Button>
                     </div>
                   )}
@@ -889,74 +1442,28 @@ const CardGenerator = () => {
                 </Col>
               </Row>
 
-              {/* Section de gestion des templates */}
+              {/* Section simplifiée - plus de templates sauvegardés */}
               <hr />
               <Row>
-                <Col md={6}>
-                  <h6>Templates sauvegardés :</h6>
-                  {savedTemplates.length > 0 ? (
-                    <div className="mb-3">
-                      {savedTemplates.map((template, index) => (
-                        <div
-                          key={index}
-                          className="d-flex justify-content-between align-items-center border rounded p-2 mb-2"
-                        >
-                          <div>
-                            <strong>{template.name}</strong>
-                            {template.is_default && (
-                              <Badge bg="success" className="ms-2">
-                                Par défaut
-                              </Badge>
-                            )}
-                            {currentTemplateId === template.id && (
-                              <Badge bg="primary" className="ms-2">
-                                Actuel
-                              </Badge>
-                            )}
-                          </div>
-                          <div>
-                            <Button
-                              variant="outline-primary"
-                              size="sm"
-                              className="me-2"
-                              onClick={() => loadTemplate(template)}
-                            >
-                              Charger
-                            </Button>
-                            <Button
-                              variant="outline-danger"
-                              size="sm"
-                              onClick={() => deleteTemplate(template.id)}
-                            >
-                              <Trash />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-muted">Aucun template sauvegardé</p>
-                  )}
-                </Col>
-                <Col md={6}>
-                  <div className="d-flex gap-2">
-                    <Button
-                      variant="success"
-                      onClick={() => setShowSaveTemplateModal(true)}
-                      disabled={!template || loading}
-                    >
-                      <Save className="me-1" />
-                      {currentTemplateId ? "Mettre à jour" : "Sauvegarder"}
-                    </Button>
-
-                    {currentTemplateId && (
+                <Col>
+                  <Alert variant="info">
+                    <strong>💡 Positions par défaut :</strong>
+                    <br />• QR Code : X={DEFAULT_POSITIONS.QR.x}, Y=
+                    {DEFAULT_POSITIONS.QR.y}, Taille={DEFAULT_POSITIONS.QR.size}
+                    px
+                    <br />• ID Personnel : X={DEFAULT_POSITIONS.ID.x}, Y=
+                    {DEFAULT_POSITIONS.ID.y}, Police=
+                    {DEFAULT_POSITIONS.ID.fontSize}px
+                    <br />
+                    <small className="text-muted">
+                      Ces positions sont utilisées automatiquement et peuvent
+                      être ajustées manuellement.
+                    </small>
+                    <div className="mt-2">
                       <Button
-                        variant="warning"
+                        variant="outline-primary"
+                        size="sm"
                         onClick={() => {
-                          setCurrentTemplateId(null);
-                          setTemplateName("");
-                          setTemplate(null);
-                          setTemplatePreview(null);
                           setQrPosition({
                             x: DEFAULT_POSITIONS.QR.x,
                             y: DEFAULT_POSITIONS.QR.y,
@@ -968,12 +1475,15 @@ const CardGenerator = () => {
                             fontSize: DEFAULT_POSITIONS.ID.fontSize,
                             color: DEFAULT_POSITIONS.ID.color,
                           });
+                          alert(
+                            "Positions réinitialisées aux valeurs par défaut !"
+                          );
                         }}
                       >
-                        Nouveau template
+                        🔄 Réinitialiser les positions
                       </Button>
-                    )}
-                  </div>
+                    </div>
+                  </Alert>
                 </Col>
               </Row>
             </Card.Body>
@@ -998,6 +1508,21 @@ const CardGenerator = () => {
               </h5>
             </Card.Header>
             <Card.Body>
+              {selectedCategory === "all_staff" && (
+                <Alert variant="info" className="mb-3">
+                  <strong>🎯 TOUT LE PERSONNEL :</strong> Cette option charge{" "}
+                  <strong>TOUS</strong> les utilisateurs du système :<br />
+                  👤 <strong>Utilisateurs système</strong> : Personnel avec
+                  comptes (82 personnes)
+                  <br />
+                  👨‍🏫 <strong>Enseignants sans comptes</strong> : Personnel sans
+                  compte système (71 enseignants)
+                  <br />
+                  📊 <strong>TOTAL ATTENDU</strong> : 153 personnes (selon
+                  vérification BD)
+                </Alert>
+              )}
+
               <Row>
                 <Col md={4}>
                   <Form.Group className="mb-3">
@@ -1016,6 +1541,15 @@ const CardGenerator = () => {
                         </option>
                       ))}
                     </Form.Select>
+                    {selectedCategory && (
+                      <Form.Text className="text-muted">
+                        {
+                          categories.find(
+                            (cat) => cat.value === selectedCategory
+                          )?.description
+                        }
+                      </Form.Text>
+                    )}
                   </Form.Group>
                 </Col>
                 <Col md={8}>
@@ -1026,30 +1560,73 @@ const CardGenerator = () => {
                     <div>
                       <h6>Personnel disponible ({staffList.length}) :</h6>
                       <div style={{ maxHeight: "300px", overflowY: "auto" }}>
-                        {staffList.map((staff) => (
-                          <Form.Check
-                            key={staff.id}
-                            type="checkbox"
-                            label={`${staff.name} - ${
-                              staff.staff_id ||
-                              staff.unique_id ||
-                              `${getStaffPrefix(selectedCategory)}${staff.id}`
-                            }`}
-                            checked={selectedStaff.some(
-                              (s) => s.id === staff.id
-                            )}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedStaff([...selectedStaff, staff]);
-                              } else {
-                                setSelectedStaff(
-                                  selectedStaff.filter((s) => s.id !== staff.id)
-                                );
+                        {staffList.map((staff) => {
+                          const staffId =
+                            staff.staff_id ||
+                            staff.qr_code ||
+                            staff.unique_id ||
+                            `${getStaffPrefix(selectedCategory)}${staff.id}`;
+                          const sourceIcon =
+                            staff.source === "users" ? "👤" : "👨‍🏫";
+                          const roleText =
+                            staff.source === "users"
+                              ? ` (${staff.role})`
+                              : staff.type_personnel
+                              ? ` (${
+                                  staff.type_personnel === "P"
+                                    ? "Permanent"
+                                    : staff.type_personnel === "S"
+                                    ? "Semi-perm"
+                                    : "Vacataire"
+                                })`
+                              : "";
+
+                          return (
+                            <Form.Check
+                              key={`${staff.source}-${staff.id}`}
+                              type="checkbox"
+                              label={
+                                <span>
+                                  {sourceIcon} <strong>{staff.name}</strong> -{" "}
+                                  {staffId}
+                                  {roleText}
+                                  {staff.source === "users" && (
+                                    <span className="text-muted">
+                                      {" "}
+                                      (Compte système)
+                                    </span>
+                                  )}
+                                  {staff.source === "teachers" && (
+                                    <span className="text-muted">
+                                      {" "}
+                                      (Sans compte)
+                                    </span>
+                                  )}
+                                </span>
                               }
-                            }}
-                            className="mb-2"
-                          />
-                        ))}
+                              checked={selectedStaff.some(
+                                (s) =>
+                                  s.id === staff.id && s.source === staff.source
+                              )}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedStaff([...selectedStaff, staff]);
+                                } else {
+                                  setSelectedStaff(
+                                    selectedStaff.filter(
+                                      (s) =>
+                                        !(
+                                          s.id === staff.id &&
+                                          s.source === staff.source
+                                        )
+                                    )
+                                  );
+                                }
+                              }}
+                              className="mb-2"
+                            />
+                          );
+                        })}
                       </div>
 
                       <div className="mt-3">
@@ -1132,13 +1709,20 @@ const CardGenerator = () => {
 
                     {previewCards.length > 0 && (
                       <>
-                        <Button variant="success" onClick={downloadCards} className="me-2">
+                        <Button
+                          variant="success"
+                          onClick={downloadCards}
+                          className="me-2"
+                        >
                           <Download className="me-2" />
                           Télécharger individuelles ({previewCards.length})
                         </Button>
-                        <Button variant="primary" onClick={() => generatePDFA4(window.tempCards)}>
+                        <Button
+                          variant="primary"
+                          onClick={() => generatePDFA4(window.tempCards)}
+                        >
                           <Download className="me-2" />
-                          Générer PDF A4 (4 par page - 2x2)
+                          Générer PDF A4 (8 par page - 2x4)
                         </Button>
                       </>
                     )}
@@ -1165,40 +1749,98 @@ const CardGenerator = () => {
         <Modal.Body>
           <Row>
             <Col md={8}>
-              <h6>Aperçu du template avec positions :</h6>
-              <TemplateConfigurator />
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <h6 className="mb-0">Aperçu du template avec positions :</h6>
+                <div className="d-flex gap-2">
+                  <Badge bg="danger" className="d-flex align-items-center">
+                    <div
+                      className="me-1"
+                      style={{
+                        width: "12px",
+                        height: "12px",
+                        backgroundColor: "#dc3545",
+                        border: "1px solid white",
+                      }}
+                    ></div>
+                    QR Code
+                  </Badge>
+                  <Badge bg="warning" className="d-flex align-items-center">
+                    <div
+                      className="me-1"
+                      style={{
+                        width: "12px",
+                        height: "12px",
+                        backgroundColor: "#ffc107",
+                        border: "1px solid white",
+                      }}
+                    ></div>
+                    ID Personnel
+                  </Badge>
+                </div>
+              </div>
+              <div
+                className="border rounded p-3"
+                style={{ backgroundColor: "#f8f9fa" }}
+              >
+                <TemplateConfigurator />
+                <small className="text-muted d-block mt-2">
+                  💡 <strong>Astuce :</strong> Cliquez et glissez les éléments
+                  rouge (QR) et jaune (ID) directement sur l'image pour les
+                  positionner manuellement !
+                </small>
+              </div>
             </Col>
             <Col md={4}>
               <h6>Position du QR Code :</h6>
-              <div className="d-flex gap-2 mb-2">
+              <div className="d-flex gap-2 mb-3">
                 <Button
                   variant="outline-info"
                   size="sm"
                   onClick={() => {
-                    // Appliquer les positions par défaut du code source
-                    console.log(
-                      "Applying default positions from source code..."
-                    );
                     setQrPosition({
                       x: DEFAULT_POSITIONS.QR.x,
                       y: DEFAULT_POSITIONS.QR.y,
                       size: DEFAULT_POSITIONS.QR.size,
                     });
-                    setIdPosition({
-                      x: DEFAULT_POSITIONS.ID.x,
-                      y: DEFAULT_POSITIONS.ID.y,
-                      fontSize: DEFAULT_POSITIONS.ID.fontSize,
-                      color: DEFAULT_POSITIONS.ID.color,
-                    });
                   }}
                 >
-                  Positions exemple
+                  Position par défaut
                 </Button>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={() => setQrPosition({ x: 50, y: 50, size: 80 })}
+                >
+                  Haut-gauche
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={() => setQrPosition({ x: 1150, y: 50, size: 80 })}
+                >
+                  Haut-droite
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={() => setQrPosition({ x: 50, y: 800, size: 80 })}
+                >
+                  Bas-gauche
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={() => setQrPosition({ x: 1150, y: 800, size: 80 })}
+                >
+                  Bas-droite
+                </Button>
+              </div>
+
+              <div className="mb-3">
                 <Button
                   variant="outline-warning"
                   size="sm"
                   onClick={() => {
-                    // Nettoyer le localStorage et réinitialiser
                     localStorage.removeItem("cardTemplates");
                     setCurrentTemplateId(null);
                     setTemplateName("");
@@ -1216,9 +1858,14 @@ const CardGenerator = () => {
                     });
                     alert("Cache nettoyé et positions réinitialisées !");
                   }}
+                  className="me-2"
                 >
-                  Réinitialiser tout
+                  🗑️ Réinitialiser tout
                 </Button>
+                <Badge bg="info" className="p-2">
+                  💡 Astuce: Utilisez les boutons ou les sliders ci-dessous pour
+                  ajuster précisément
+                </Badge>
               </div>
               <Form.Group className="mb-2">
                 <Form.Label>Position X: {qrPosition.x}px</Form.Label>
@@ -1226,7 +1873,7 @@ const CardGenerator = () => {
                   <Form.Control
                     type="number"
                     min="0"
-                    max="800"
+                    max="1200"
                     value={qrPosition.x}
                     onChange={(e) =>
                       setQrPosition({
@@ -1238,7 +1885,7 @@ const CardGenerator = () => {
                   />
                   <Form.Range
                     min="0"
-                    max="800"
+                    max="1200"
                     value={qrPosition.x}
                     onChange={(e) =>
                       setQrPosition({
@@ -1259,7 +1906,7 @@ const CardGenerator = () => {
                   <Form.Control
                     type="number"
                     min="0"
-                    max="1200"
+                    max="900"
                     value={qrPosition.y}
                     onChange={(e) =>
                       setQrPosition({
@@ -1271,7 +1918,7 @@ const CardGenerator = () => {
                   />
                   <Form.Range
                     min="0"
-                    max="1200"
+                    max="900"
                     value={qrPosition.y}
                     onChange={(e) =>
                       setQrPosition({
@@ -1326,13 +1973,56 @@ const CardGenerator = () => {
               <hr />
 
               <h6>Position de l'ID :</h6>
+              <div className="d-flex gap-2 mb-3">
+                <Button
+                  variant="outline-info"
+                  size="sm"
+                  onClick={() => {
+                    setIdPosition({
+                      x: DEFAULT_POSITIONS.ID.x,
+                      y: DEFAULT_POSITIONS.ID.y,
+                      fontSize: DEFAULT_POSITIONS.ID.fontSize,
+                      color: DEFAULT_POSITIONS.ID.color,
+                    });
+                  }}
+                >
+                  Position par défaut
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={() =>
+                    setIdPosition({ ...idPosition, x: 100, y: 300 })
+                  }
+                >
+                  Centre-gauche
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={() =>
+                    setIdPosition({ ...idPosition, x: 600, y: 300 })
+                  }
+                >
+                  Centre
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  onClick={() =>
+                    setIdPosition({ ...idPosition, x: 1000, y: 300 })
+                  }
+                >
+                  Centre-droite
+                </Button>
+              </div>
               <Form.Group className="mb-2">
                 <Form.Label>Position X: {idPosition.x}px</Form.Label>
                 <div className="d-flex gap-2">
                   <Form.Control
                     type="number"
                     min="0"
-                    max="800"
+                    max="1200"
                     value={idPosition.x}
                     onChange={(e) =>
                       setIdPosition({
@@ -1344,7 +2034,7 @@ const CardGenerator = () => {
                   />
                   <Form.Range
                     min="0"
-                    max="800"
+                    max="1200"
                     value={idPosition.x}
                     onChange={(e) =>
                       setIdPosition({
@@ -1365,7 +2055,7 @@ const CardGenerator = () => {
                   <Form.Control
                     type="number"
                     min="0"
-                    max="1200"
+                    max="900"
                     value={idPosition.y}
                     onChange={(e) =>
                       setIdPosition({
@@ -1377,7 +2067,7 @@ const CardGenerator = () => {
                   />
                   <Form.Range
                     min="0"
-                    max="1200"
+                    max="900"
                     value={idPosition.y}
                     onChange={(e) =>
                       setIdPosition({
@@ -1492,75 +2182,7 @@ const CardGenerator = () => {
         </Modal.Footer>
       </Modal>
 
-      {/* Modal Sauvegarde Template */}
-      <Modal
-        show={showSaveTemplateModal}
-        onHide={() => setShowSaveTemplateModal(false)}
-      >
-        <Modal.Header closeButton>
-          <Modal.Title>
-            <Save className="me-2" />
-            {currentTemplateId
-              ? "Mettre à jour le template"
-              : "Sauvegarder le template"}
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Form.Group className="mb-3">
-            <Form.Label>Nom du template</Form.Label>
-            <Form.Control
-              type="text"
-              value={templateName}
-              onChange={(e) => setTemplateName(e.target.value)}
-              placeholder="Ex: Template Personnel 2024"
-            />
-          </Form.Group>
-
-          <Form.Group className="mb-3">
-            <Form.Check
-              type="checkbox"
-              label="Définir comme template par défaut"
-              checked={isDefaultTemplate}
-              onChange={(e) => setIsDefaultTemplate(e.target.checked)}
-            />
-            <Form.Text className="text-muted">
-              Le template par défaut sera automatiquement chargé au démarrage
-            </Form.Text>
-          </Form.Group>
-
-          {currentTemplateId && (
-            <Alert variant="info">
-              <strong>Mode modification :</strong> Ce template sera mis à jour
-              avec les nouvelles configurations.
-            </Alert>
-          )}
-        </Modal.Body>
-        <Modal.Footer>
-          <Button
-            variant="secondary"
-            onClick={() => setShowSaveTemplateModal(false)}
-          >
-            Annuler
-          </Button>
-          <Button
-            variant="success"
-            onClick={saveCurrentTemplate}
-            disabled={loading || !templateName.trim()}
-          >
-            {loading ? (
-              <>
-                <Spinner animation="border" size="sm" className="me-2" />
-                Sauvegarde...
-              </>
-            ) : (
-              <>
-                <Save className="me-1" />
-                {currentTemplateId ? "Mettre à jour" : "Sauvegarder"}
-              </>
-            )}
-          </Button>
-        </Modal.Footer>
-      </Modal>
+      {/* Modal de sauvegarde supprimé - utilise les positions par défaut du code */}
 
       <canvas ref={canvasRef} style={{ display: "none" }} />
     </Container>

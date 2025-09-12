@@ -1158,6 +1158,117 @@ class WhatsAppService
     }
 
     /**
+     * Envoyer une notification aux parents via WhatsApp
+     */
+    public function sendParentNotification($parentNotification)
+    {
+        if (!$this->isWhatsAppConfigured()) {
+            return false;
+        }
+
+        $parent = $parentNotification->parent;
+        
+        // Vérifier que le parent a un numéro de téléphone
+        if (!$parent || !$parent->phone) {
+            Log::info('Parent sans numéro de téléphone pour notification WhatsApp', [
+                'notification_id' => $parentNotification->id,
+                'parent_id' => $parent ? $parent->id : null
+            ]);
+            return false;
+        }
+
+        $message = $this->formatParentNotificationMessage($parentNotification);
+        
+        $result = $this->sendMessage($parent->phone, $message);
+        
+        if ($result) {
+            // Marquer la notification comme envoyée par WhatsApp
+            $parentNotification->update([
+                'whatsapp_sent' => true,
+                'whatsapp_sent_at' => now()
+            ]);
+            
+            Log::info('Notification parent WhatsApp envoyée avec succès', [
+                'notification_id' => $parentNotification->id,
+                'parent_id' => $parent->id,
+                'phone' => $parent->phone,
+                'title' => $parentNotification->title
+            ]);
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Formater le message de notification pour les parents
+     */
+    protected function formatParentNotificationMessage($parentNotification)
+    {
+        $schoolName = SchoolSetting::getSettings()->school_name ?? 'COLLÈGE POLYVALENT BILINGUE DE DOUALA';
+        
+        // Icônes selon le type de notification
+        $typeIcons = [
+            'general' => '📢',
+            'attendance' => '⚠️',
+            'academic' => '📚',
+            'behavior' => '🚨',
+            'payment' => '💰',
+            'event' => '📅'
+        ];
+        
+        $icon = $typeIcons[$parentNotification->type] ?? '📢';
+        
+        // Priorité
+        $priorityIcon = match($parentNotification->priority) {
+            'urgent' => '🚨 *URGENT*',
+            'high' => '⚠️ *PRIORITÉ ÉLEVÉE*',
+            'normal' => '📢 *INFORMATION*',
+            'low' => '💬 *NOTE*',
+            default => '📢 *NOTIFICATION*'
+        };
+        
+        $message = "{$icon} {$priorityIcon} - {$schoolName}\n\n";
+        
+        // Titre
+        $message .= "📋 *{$parentNotification->title}*\n\n";
+        
+        // Si c'est pour un élève spécifique
+        if ($parentNotification->student) {
+            $message .= "👤 *Élève concerné:* {$parentNotification->student->first_name} {$parentNotification->student->last_name}\n";
+            
+            // Ajouter la classe si disponible
+            if ($parentNotification->student->classSeries && $parentNotification->student->classSeries->first()) {
+                $className = $parentNotification->student->classSeries->first()->schoolClass->name ?? '';
+                if ($className) {
+                    $message .= "📚 *Classe:* {$className}\n";
+                }
+            }
+            $message .= "\n";
+        }
+        
+        // Message principal
+        $message .= $parentNotification->message . "\n\n";
+        
+        // Pied de page
+        $message .= "📅 *Date:* " . $parentNotification->created_at->format('d/m/Y à H:i') . "\n";
+        
+        if ($parentNotification->admin) {
+            $message .= "👨‍💼 *Envoyé par:* {$parentNotification->admin->name}\n";
+        }
+        
+        $message .= "\n📱 Notification automatique du système de gestion scolaire.";
+        
+        // Ajouter un appel à l'action selon la priorité
+        if ($parentNotification->priority === 'urgent') {
+            $message .= "\n\n🚨 *VEUILLEZ PRENDRE LES MESURES NÉCESSAIRES RAPIDEMENT*";
+        } elseif ($parentNotification->type === 'attendance') {
+            $message .= "\n\n📞 *Pour toute justification, contactez l'établissement.*";
+        }
+        
+        return $message;
+    }
+
+    /**
      * Récupérer la dernière erreur WhatsApp des logs
      */
     private function getRecentWhatsAppError()

@@ -18,12 +18,16 @@ class ParentNotification extends Model
         'type',
         'priority',
         'is_read',
-        'read_at'
+        'read_at',
+        'whatsapp_sent',
+        'whatsapp_sent_at'
     ];
 
     protected $casts = [
         'is_read' => 'boolean',
-        'read_at' => 'datetime'
+        'read_at' => 'datetime',
+        'whatsapp_sent' => 'boolean',
+        'whatsapp_sent_at' => 'datetime'
     ];
 
     // Types de notifications

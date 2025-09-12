@@ -5,12 +5,19 @@ namespace App\Http\Controllers;
 use App\Models\ParentNotification;
 use App\Models\ParentGuardian;
 use App\Models\Student;
+use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 
 class NotificationController extends Controller
 {
+    protected $whatsAppService;
+
+    public function __construct(WhatsAppService $whatsAppService)
+    {
+        $this->whatsAppService = $whatsAppService;
+    }
     /**
      * Obtenir toutes les notifications (pour l'admin)
      */
@@ -139,10 +146,36 @@ class NotificationController extends Controller
             
             DB::commit();
             
+            // Envoyer les notifications via WhatsApp
+            $whatsappResults = [];
+            foreach ($notificationsCreated as $notification) {
+                try {
+                    $whatsappSent = $this->whatsAppService->sendParentNotification($notification);
+                    $whatsappResults[] = [
+                        'notification_id' => $notification->id,
+                        'whatsapp_sent' => $whatsappSent
+                    ];
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Erreur envoi WhatsApp pour notification parent', [
+                        'notification_id' => $notification->id,
+                        'error' => $e->getMessage()
+                    ]);
+                    $whatsappResults[] = [
+                        'notification_id' => $notification->id,
+                        'whatsapp_sent' => false
+                    ];
+                }
+            }
+            
+            $whatsappSuccessCount = collect($whatsappResults)->where('whatsapp_sent', true)->count();
+            $whatsappMessage = $whatsappSuccessCount > 0 ? 
+                " (dont {$whatsappSuccessCount} envoyées via WhatsApp)" : '';
+            
             return response()->json([
                 'success' => true,
-                'message' => count($notificationsCreated) . ' notification(s) envoyée(s) avec succès',
-                'data' => $notificationsCreated
+                'message' => count($notificationsCreated) . ' notification(s) envoyée(s) avec succès' . $whatsappMessage,
+                'data' => $notificationsCreated,
+                'whatsapp_results' => $whatsappResults
             ]);
         } catch (\Exception $e) {
             DB::rollBack();

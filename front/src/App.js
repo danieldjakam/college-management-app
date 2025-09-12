@@ -101,6 +101,8 @@ import Search from "./pages/Search";
 
 // Card Generator
 import CardGenerator from "./pages/CardGenerator/CardGenerator";
+import BulkStaffCards from "./pages/BulkStaffCards/BulkStaffCards";
+import TestAPIEndpoints from "./components/TestAPIEndpoints";
 
 // Stats
 import Stats from "./pages/Stats";
@@ -470,6 +472,24 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <CardGenerator />
+                  </AdminRoute>
+                }
+              />
+              
+              <Route
+                path="/bulk-staff-cards"
+                element={
+                  <AdminRoute>
+                    <BulkStaffCards />
+                  </AdminRoute>
+                }
+              />
+              
+              <Route
+                path="/test-api-endpoints"
+                element={
+                  <AdminRoute>
+                    <TestAPIEndpoints />
                   </AdminRoute>
                 }
               />

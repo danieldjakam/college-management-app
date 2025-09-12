@@ -29,6 +29,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useSchool } from '../../contexts/SchoolContext';
 import { authService } from '../../services/authService';
 import ImportExportButton from '../../components/ImportExportButton';
+import StudentsExportButton from '../../components/StudentsExportButton';
 import BulkPhotoUpload from '../../components/BulkPhotoUpload';
 import StudentCardPrint from '../../components/StudentCardPrint';
 import StudentTransfer from '../../components/StudentTransfer';
@@ -1248,6 +1249,10 @@ const SeriesStudents = () => {
                         </div>
                         <div className="d-flex gap-2">
                             <div className="d-flex gap-2">
+                                <StudentsExportButton
+                                    seriesId={seriesId}
+                                    seriesName={series?.name || ''}
+                                />
                                 <ImportExportButton
                                     title="Élèves"
                                     apiBasePath="/api/students"

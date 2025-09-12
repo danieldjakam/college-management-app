@@ -17,6 +17,7 @@ const Teachers = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [formData, setFormData] = useState({
+        teacher_id: '',
         first_name: '',
         last_name: '',
         phone_number: '',
@@ -55,7 +56,8 @@ const Teachers = () => {
                 const fullName = `${teacher.first_name} ${teacher.last_name}`.toLowerCase();
                 return fullName.includes(searchTerm.toLowerCase()) ||
                        teacher.phone_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       teacher.email?.toLowerCase().includes(searchTerm.toLowerCase());
+                       teacher.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                       teacher.teacher_id?.toLowerCase().includes(searchTerm.toLowerCase());
             });
         }
 
@@ -133,6 +135,7 @@ const Teachers = () => {
         if (teacher) {
             setEditingTeacher(teacher);
             setFormData({
+                teacher_id: teacher.teacher_id || '',
                 first_name: teacher.first_name,
                 last_name: teacher.last_name,
                 phone_number: teacher.phone_number,
@@ -151,6 +154,7 @@ const Teachers = () => {
         } else {
             setEditingTeacher(null);
             setFormData({
+                teacher_id: '',
                 first_name: '',
                 last_name: '',
                 phone_number: '',
@@ -175,6 +179,7 @@ const Teachers = () => {
         setShowModal(false);
         setEditingTeacher(null);
         setFormData({
+            teacher_id: '',
             first_name: '',
             last_name: '',
             phone_number: '',
@@ -491,7 +496,7 @@ const Teachers = () => {
                                 <Search className="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" size={16} />
                                 <Form.Control
                                     type="text"
-                                    placeholder="Rechercher par nom, prénom, téléphone ou email..."
+                                    placeholder="Rechercher par nom, prénom, téléphone, email ou ID..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="ps-5"
@@ -535,12 +540,12 @@ const Teachers = () => {
                 <Table responsive>
                     <thead>
                         <tr>
+                            <th>ID</th>
                             <th>Nom complet</th>
                             <th>Contact</th>
                             <th>Qualification</th>
                             <th>Date d'embauche</th>
                             <th>Type de personnel</th>
-                            <th>Source</th>
                             <th>Statut</th>
                             <th width="200">Actions</th>
                         </tr>
@@ -550,6 +555,21 @@ const Teachers = () => {
                             filteredTeachers.map((teacher) => {
                                 return (
                                     <tr key={teacher.id}>
+                                        <td>
+                                            <div className="text-center">
+                                                {teacher.teacher_id ? (
+                                                    <Badge bg="primary" className="font-monospace">
+                                                        {teacher.teacher_id}
+                                                    </Badge>
+                                                ) : teacher.staff_identifier ? (
+                                                    <Badge bg="info" className="font-monospace">
+                                                        {teacher.staff_identifier}
+                                                    </Badge>
+                                                ) : (
+                                                    <span className="text-muted small">N/A</span>
+                                                )}
+                                            </div>
+                                        </td>
                                         <td>
                                             <div className="d-flex align-items-center">
                                                 <PersonFill className="text-muted me-2" />
@@ -590,24 +610,6 @@ const Teachers = () => {
                                         </td>
                                         <td>
                                             {getTypePersonnelBadge(teacher.type_personnel)}
-                                        </td>
-                                        <td>
-                                            {teacher.isUserAccount ? (
-                                                <Badge bg="info" className="d-flex align-items-center gap-1">
-                                                    <PersonFill size={12} />
-                                                    Compte Utilisateur
-                                                    {teacher.staff_identifier && (
-                                                        <small className="text-white-50">
-                                                            ({teacher.staff_identifier})
-                                                        </small>
-                                                    )}
-                                                </Badge>
-                                            ) : (
-                                                <Badge bg="secondary" className="d-flex align-items-center gap-1">
-                                                    <PersonFill size={12} />
-                                                    Enseignant Standard
-                                                </Badge>
-                                            )}
                                         </td>
                                         <td>
                                             {getStatusBadge(teacher.is_active)}
@@ -713,7 +715,27 @@ const Teachers = () => {
                         <Tabs defaultActiveKey="personal" className="mb-3">
                             <Tab eventKey="personal" title="Informations personnelles">
                                 <div className="row g-3">
-                                    <div className="col-md-6">
+                                    <div className="col-md-4">
+                                        <Form.Group>
+                                            <Form.Label>ID Enseignant</Form.Label>
+                                            <Form.Control
+                                                type="text"
+                                                name="teacher_id"
+                                                value={formData.teacher_id}
+                                                onChange={handleInputChange}
+                                                isInvalid={!!formErrors.teacher_id}
+                                                placeholder="Ex: TCH_001, STAF_027"
+                                                className="font-monospace"
+                                            />
+                                            <Form.Text className="text-muted">
+                                                Identifiant unique pour l'enseignant (optionnel)
+                                            </Form.Text>
+                                            <Form.Control.Feedback type="invalid">
+                                                {formErrors.teacher_id && formErrors.teacher_id[0]}
+                                            </Form.Control.Feedback>
+                                        </Form.Group>
+                                    </div>
+                                    <div className="col-md-4">
                                         <Form.Group>
                                             <Form.Label>Prénom <span className="text-danger">*</span></Form.Label>
                                             <Form.Control
@@ -729,7 +751,7 @@ const Teachers = () => {
                                             </Form.Control.Feedback>
                                         </Form.Group>
                                     </div>
-                                    <div className="col-md-6">
+                                    <div className="col-md-4">
                                         <Form.Group>
                                             <Form.Label>Nom de famille <span className="text-danger">*</span></Form.Label>
                                             <Form.Control

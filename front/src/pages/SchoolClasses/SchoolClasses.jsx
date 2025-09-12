@@ -8,7 +8,8 @@ import {
     ChevronDown,
     ChevronRight,
     Building,
-    Eye
+    Eye,
+    FileText
     // BookOpen
 } from 'react-bootstrap-icons';
 import { useAuth } from '../../hooks/useAuth';
@@ -146,6 +147,7 @@ const SchoolClasses = () => {
     const handleViewStudents = (seriesId) => {
         navigate(`/students/series/${seriesId}`);
     };
+
 
     const getSectionName = (sectionId) => {
         const section = sections.find(s => s.id === sectionId);

@@ -63,7 +63,6 @@ const UserManagement = () => {
         contact: '',
         photo: '',
         role: 'accountant',
-        qualification: '',
         is_active: true,
         generate_password: true
     });
@@ -280,7 +279,6 @@ const UserManagement = () => {
                 contact: '',
                 photo: '',
                 role: 'accountant',
-                qualification: '',
                 is_active: true,
                 generate_password: true
             });
@@ -291,7 +289,6 @@ const UserManagement = () => {
                 contact: user.contact || '',
                 photo: user.photo || '',
                 role: user.role,
-                qualification: user.qualification || '',
                 is_active: user.is_active,
                 generate_password: false
             });
@@ -973,21 +970,6 @@ const UserManagement = () => {
                         </Col>
                         <Col md={6}>
                             <Form.Group className="mb-3">
-                                <Form.Label>Qualification</Form.Label>
-                                <Form.Control
-                                    type="text"
-                                    placeholder="Ex: BAC, BTS, Licence, Maîtrise..."
-                                    value={formData.qualification}
-                                    onChange={(e) => setFormData({...formData, qualification: e.target.value})}
-                                    disabled={modalMode === 'view'}
-                                />
-                            </Form.Group>
-                        </Col>
-                    </Row>
-                    
-                    <Row>
-                        <Col md={6}>
-                            <Form.Group className="mb-3">
                                 <Form.Label>Statut</Form.Label>
                                 <Form.Check
                                     type="switch"
@@ -1262,7 +1244,6 @@ const UserManagement = () => {
                                     <th>ID Personnel</th>
                                     <th>Contact</th>
                                     <th>Rôle</th>
-                                    <th>Qualification</th>
                                     <th>Statut</th>
                                     <th>Date de création</th>
                                     <th>Actions</th>
@@ -1312,7 +1293,6 @@ const UserManagement = () => {
                                                 {roleLabels[user.role]}
                                             </Badge>
                                         </td>
-                                        <td>{user.qualification || '-'}</td>
                                         <td>
                                             <Badge bg={user.is_active ? 'success' : 'secondary'}>
                                                 {user.is_active ? 'Actif' : 'Inactif'}

@@ -33,14 +33,15 @@ class TeacherController extends Controller
                 $query->where('is_active', $isActive);
             }
 
-            // Recherche par nom, prénom ou téléphone
+            // Recherche par nom, prénom, téléphone ou teacher_id
             if ($request->has('search')) {
                 $search = $request->search;
                 $query->where(function($q) use ($search) {
                     $q->where('first_name', 'like', "%{$search}%")
                       ->orWhere('last_name', 'like', "%{$search}%")
                       ->orWhere('phone_number', 'like', "%{$search}%")
-                      ->orWhere('email', 'like', "%{$search}%");
+                      ->orWhere('email', 'like', "%{$search}%")
+                      ->orWhere('teacher_id', 'like', "%{$search}%");
                 });
             }
 
@@ -83,6 +84,7 @@ class TeacherController extends Controller
         try {
             \Log::info('Validation started');
             $validator = Validator::make($request->all(), [
+                'teacher_id' => 'nullable|string|max:50|unique:teachers,teacher_id',
                 'first_name' => 'required|string|max:255',
                 'last_name' => 'required|string|max:255',
                 'phone_number' => 'required|string|max:20',
@@ -138,6 +140,7 @@ class TeacherController extends Controller
             // Créer l'enseignant
             \Log::info('Creating teacher record');
             $teacher = Teacher::create([
+                'teacher_id' => $teacherData['teacher_id'] ?? null,
                 'first_name' => $teacherData['first_name'],
                 'last_name' => $teacherData['last_name'],
                 'phone_number' => $teacherData['phone_number'],
@@ -211,6 +214,7 @@ class TeacherController extends Controller
     {
         try {
             $validator = Validator::make($request->all(), [
+                'teacher_id' => 'nullable|string|max:50|unique:teachers,teacher_id,' . $teacher->id,
                 'first_name' => 'required|string|max:255',
                 'last_name' => 'required|string|max:255',
                 'phone_number' => 'required|string|max:20',

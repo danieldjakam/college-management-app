@@ -4,6 +4,7 @@ import { Download, Upload, FileText, FileSpreadsheet, FilePdf } from 'react-boot
 import { api } from '../utils/api';
 import { authService } from '../services/authService';
 import { host } from '../utils/fetch';
+import { secureApiEndpoints } from '../utils/apiMigration';
 
 const ImportExportModal = ({ 
     show, 
