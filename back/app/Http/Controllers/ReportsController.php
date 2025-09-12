@@ -326,44 +326,69 @@ class ReportsController extends Controller
             $insolvableStudents = [];
 
             foreach ($students as $student) {
+                if (!$student->classSeries) continue;
+                
                 $incompletesTranches = [];
                 $studentTotalRequired = 0;
                 $studentTotalPaid = 0;
+                $studentTotalReductions = 0; // AJOUTÉ: pour tenir compte des réductions
                 $hasIncompletePayments = false;
 
+                // Calculer les montants normaux requis
                 foreach ($paymentTranches as $tranche) {
-                    try {
-                        // Montant requis pour cette tranche (avec bourses OU réductions, jamais les deux)
-                        $requiredAmount = $tranche->getAmountForStudent($student, true, false, true, true) ?? 0;
-                    } catch (\Exception $e) {
-                        Log::warning("Erreur getAmountForStudent pour {$student->id}, tranche {$tranche->id}: " . $e->getMessage());
-                        $requiredAmount = 0;
-                    }
+                    $requiredAmount = DB::table('class_payment_amounts')
+                        ->where('class_id', $student->classSeries->class_id)
+                        ->where('payment_tranche_id', $tranche->id)
+                        ->value('amount') ?? 0;
+                    
+                    $studentTotalRequired += $requiredAmount;
+                }
 
-                    // Montant payé pour cette tranche
-                    $paidAmount = 0;
-                    foreach ($student->payments as $payment) {
-                        foreach ($payment->paymentDetails as $detail) {
-                            if ($detail->payment_tranche_id == $tranche->id) {
-                                $paidAmount += $detail->amount_allocated;
+                // Calculer les montants payés et les réductions appliquées
+                foreach ($student->payments as $payment) {
+                    if ($payment->validation_date) {
+                        $studentTotalPaid += $payment->total_amount;
+                        $studentTotalReductions += $payment->reduction_amount ?? 0;
+                    }
+                }
+
+                // Le montant requis effectif = montant normal - réductions accordées
+                $effectiveRequired = $studentTotalRequired - $studentTotalReductions;
+                
+                // Vérifier si l'étudiant est réellement insolvable
+                if ($studentTotalPaid < ($effectiveRequired - 1)) { // Tolérance de 1 FCFA
+                    $hasIncompletePayments = true;
+                    
+                    // Calculer les détails par tranche pour les insolvables
+                    foreach ($paymentTranches as $tranche) {
+                        $normalAmount = DB::table('class_payment_amounts')
+                            ->where('class_id', $student->classSeries->class_id)
+                            ->where('payment_tranche_id', $tranche->id)
+                            ->value('amount') ?? 0;
+
+                        // Montant payé pour cette tranche
+                        $paidAmount = 0;
+                        foreach ($student->payments as $payment) {
+                            if ($payment->validation_date) {
+                                foreach ($payment->paymentDetails as $detail) {
+                                    if ($detail->payment_tranche_id == $tranche->id) {
+                                        $paidAmount += $detail->amount_allocated;
+                                    }
+                                }
                             }
                         }
+
+                        $remainingAmount = max(0, $normalAmount - $paidAmount);
+
+                        if ($remainingAmount > 0) {
+                            $incompletesTranches[] = [
+                                'tranche_name' => $tranche->name,
+                                'required_amount' => $normalAmount,
+                                'paid_amount' => $paidAmount,
+                                'remaining_amount' => $remainingAmount
+                            ];
+                        }
                     }
-
-                    $remainingAmount = max(0, $requiredAmount - $paidAmount);
-
-                    if ($remainingAmount > 0) {
-                        $hasIncompletePayments = true;
-                        $incompletesTranches[] = [
-                            'tranche_name' => $tranche->name,
-                            'required_amount' => $requiredAmount,
-                            'paid_amount' => $paidAmount,
-                            'remaining_amount' => $remainingAmount
-                        ];
-                    }
-
-                    $studentTotalRequired += $requiredAmount;
-                    $studentTotalPaid += $paidAmount;
                 }
 
                 // Inclure seulement les élèves avec des paiements incomplets
@@ -378,9 +403,10 @@ class ReportsController extends Controller
                                 ? $student->classSeries->schoolClass->name . ' - ' . $student->classSeries->name
                                 : 'Non défini'
                         ],
-                        'total_required' => $studentTotalRequired,
+                        'total_required' => $effectiveRequired, // CORRIGÉ: utiliser montant après réductions
                         'total_paid' => $studentTotalPaid,
-                        'total_remaining' => max(0, $studentTotalRequired - $studentTotalPaid),
+                        'total_remaining' => max(0, $effectiveRequired - $studentTotalPaid), // CORRIGÉ
+                        'total_reductions' => $studentTotalReductions, // AJOUTÉ: info sur réductions
                         'incomplete_tranches' => $incompletesTranches
                     ];
                 }
@@ -1476,6 +1502,9 @@ class ReportsController extends Controller
                 case 'insolvable':
                     $response = $this->getInsolvableReport($request);
                     break;
+                case 'solvable':
+                    $response = $this->getSolvableReport($request);
+                    break;
                 case 'payments':
                     $response = $this->getPaymentsReport($request);
                     break;
@@ -1696,6 +1725,8 @@ class ReportsController extends Controller
         switch ($reportType) {
             case 'insolvable':
                 return $this->generateInsolvableContent($reportData);
+            case 'solvable':
+                return $this->generateSolvableContent($reportData);
             case 'payments':
                 return $this->generatePaymentsContent($reportData);
             case 'rame':
@@ -1753,6 +1784,92 @@ class ReportsController extends Controller
         }
 
         $html .= "</tbody></table>";
+
+        return $html;
+    }
+
+    /**
+     * Générer le contenu du rapport solvable
+     */
+    private function generateSolvableContent($reportData)
+    {
+        // Calculer le montant total collecté
+        $totalCollected = 0;
+        if (isset($reportData['students']) && is_array($reportData['students'])) {
+            foreach ($reportData['students'] as $studentData) {
+                $totalCollected += $studentData['total_paid'] ?? 0;
+            }
+        }
+        
+        $html = "<div class='summary'>";
+        $html .= "<h3>Résumé - Élèves Solvables</h3>";
+        $html .= "<p><strong>Total élèves solvables:</strong> {$reportData['total_solvable_students']}</p>";
+        $html .= "<p><strong>Montant total collecté:</strong> " . number_format($totalCollected, 0, ',', ' ') . " FCFA</p>";
+        $html .= "</div>";
+
+        $html .= "<table>
+            <thead>
+                <tr>
+                    <th>Étudiant</th>
+                    <th>Classe/Série</th>
+                    <th class='text-right'>Total Requis</th>
+                    <th class='text-right'>Total Payé</th>
+                    <th>Tranches Complétées</th>
+                    <th>Statut</th>
+                </tr>
+            </thead>
+            <tbody>";
+
+        if (isset($reportData['students']) && is_array($reportData['students'])) {
+            foreach ($reportData['students'] as $studentData) {
+                $completedTranches = '';
+                if (isset($studentData['completed_tranches'])) {
+                    foreach ($studentData['completed_tranches'] as $tranche) {
+                        $completedTranches .= $tranche['tranche_name'] . ': ' . number_format($tranche['paid_amount'], 0, ',', ' ') . ' FCFA<br>';
+                    }
+                }
+                
+                $status = $studentData['total_paid'] >= $studentData['total_required'] ? 
+                    '<span style="color: green;">✓ Complètement solvable</span>' : 
+                    '<span style="color: orange;">En règle</span>';
+
+                $html .= "<tr>
+                    <td>{$studentData['student']['full_name']}</td>
+                    <td>{$studentData['student']['class_series']}</td>
+                    <td class='text-right'>" . number_format($studentData['total_required'], 0, ',', ' ') . " FCFA</td>
+                    <td class='text-right'>" . number_format($studentData['total_paid'], 0, ',', ' ') . " FCFA</td>
+                    <td>{$completedTranches}</td>
+                    <td>{$status}</td>
+                </tr>";
+            }
+        }
+
+        $html .= "</tbody></table>";
+
+        // Ajouter un récapitulatif par tranche si disponible
+        if (isset($reportData['tranches_summary'])) {
+            $html .= "<div class='summary' style='margin-top: 30px;'>";
+            $html .= "<h3>Récapitulatif par Tranche</h3>";
+            $html .= "<table>
+                <thead>
+                    <tr>
+                        <th>Tranche</th>
+                        <th class='text-right'>Nombre d'élèves payés</th>
+                        <th class='text-right'>Montant total collecté</th>
+                    </tr>
+                </thead>
+                <tbody>";
+            
+            foreach ($reportData['tranches_summary'] as $tranche => $data) {
+                $html .= "<tr>
+                    <td>{$tranche}</td>
+                    <td class='text-right'>{$data['count']}</td>
+                    <td class='text-right'>" . number_format($data['amount'], 0, ',', ' ') . " FCFA</td>
+                </tr>";
+            }
+            
+            $html .= "</tbody></table></div>";
+        }
 
         return $html;
     }
