@@ -535,12 +535,25 @@ class ReportsController extends Controller
                     $studentTotalRequired += $requiredAmount;
                     $studentTotalPaid += $paidAmount;
 
-                    // Vérifier si la tranche est soldée (avec une tolérance de 1 FCFA pour les arrondis)
-                    if ($paidAmount >= ($requiredAmount - 1) && $requiredAmount > 0) {
+                    // Calculer la réduction appliquée pour cette tranche
+                    $reductionForTranche = 0;
+                    if (stripos($tranche->name, 'inscription') !== false) {
+                        // Pour l'inscription, inclure toute la réduction du paiement (logique haut→bas)
+                        foreach ($student->payments as $payment) {
+                            if ($payment->validation_date) {
+                                $reductionForTranche += $payment->reduction_amount ?? 0;
+                            }
+                        }
+                    }
+                    
+                    // Vérifier si la tranche est soldée (avec réductions pour inscription)
+                    $effectivePaidAmount = $paidAmount + $reductionForTranche;
+                    if ($effectivePaidAmount >= ($requiredAmount - 1) && $requiredAmount > 0) {
                         $completedTranches[] = [
                             'tranche_name' => $tranche->name,
                             'required_amount' => $requiredAmount,
-                            'paid_amount' => $paidAmount
+                            'paid_amount' => $paidAmount,
+                            'reduction_amount' => $reductionForTranche
                         ];
 
                         // Identifier les types de soldes
@@ -596,6 +609,9 @@ class ReportsController extends Controller
                 // Filtrer selon le type de solvable demandé
                 $includeStudent = false;
                 if ($solvableType === 'all' && count($completedTranches) > 0) {
+                    $includeStudent = true;
+                } elseif ($solvableType === 'inscription' && in_array('inscription', $solvableTypes)) {
+                    // Pour inscription: inclure TOUS les étudiants qui ont soldé l'inscription
                     $includeStudent = true;
                 } elseif ($solvableType === $primarySolvableType) {
                     $includeStudent = true;
