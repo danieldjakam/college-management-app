@@ -479,16 +479,31 @@ const Reports = () => {
 
         case "payments":
           if (data.students && Array.isArray(data.students)) {
-            const paymentsData = data.students.map((student) => ({
-              Étudiant: cleanValue(student?.student?.full_name),
-              "Classe/Série": cleanValue(student?.student?.class_series),
-              "Total Requis": cleanValue(student?.total_required),
-              "Total Payé": cleanValue(student?.total_paid),
-              Statut: cleanValue(student?.status),
-            }));
+            // Créer une ligne pour chaque tranche de chaque étudiant
+            const paymentsData = [];
+
+            data.students.forEach((student) => {
+              student.tranches_details?.forEach((tranche) => {
+                paymentsData.push({
+                  Étudiant: cleanValue(student?.student?.full_name),
+                  "Classe/Série": cleanValue(student?.student?.class_series),
+                  Tranche: cleanValue(tranche?.tranche_name),
+                  "Montant Base": cleanValue(tranche?.base_amount),
+                  "Bourse Appliquée": tranche?.scholarship_applied || 0,
+                  "Raison Bourse": cleanValue(tranche?.scholarship_reason),
+                  "Réduction Appliquée": tranche?.reduction_applied || 0,
+                  "Raison Réduction": cleanValue(tranche?.reduction_reason),
+                  "Total Avantages": tranche?.total_benefit || 0,
+                  "Montant Final": cleanValue(tranche?.required_amount),
+                  "Montant Payé": cleanValue(tranche?.paid_amount),
+                  "Reste à Payer": cleanValue(tranche?.remaining_amount),
+                  Statut: tranche?.status === "complete" ? "Complet" : "Incomplet"
+                });
+              });
+            });
 
             const worksheet = XLSX.utils.json_to_sheet(paymentsData);
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Paiements");
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Paiements par Tranches");
           }
           break;
 
@@ -1295,7 +1310,9 @@ const Reports = () => {
                   <thead>
                     <tr>
                       <th>Tranche</th>
-                      <th>Montant Requis</th>
+                      <th>Montant Base</th>
+                      <th>Avantages</th>
+                      <th>Montant Final</th>
                       <th>Montant Payé</th>
                       <th>Reste à Payer</th>
                       <th>Statut</th>
@@ -1305,8 +1322,50 @@ const Reports = () => {
                     {studentData?.tranches_details?.map(
                       (tranche, trancheIndex) => (
                         <tr key={trancheIndex}>
-                          <td>{tranche?.tranche_name}</td>
                           <td>
+                            <strong>{tranche?.tranche_name}</strong>
+                          </td>
+                          <td>
+                            {formatCurrency(tranche?.base_amount || 0)}
+                          </td>
+                          <td>
+                            {(tranche?.total_benefit || 0) > 0 ? (
+                              <div>
+                                <Badge bg="success" className="me-1">
+                                  -{formatCurrency(tranche.total_benefit)}
+                                </Badge>
+                                {tranche?.scholarship_applied > 0 && (
+                                  <div>
+                                    <small className="text-info">
+                                      <CashCoin size={12} className="me-1" />
+                                      Bourse: {formatCurrency(tranche.scholarship_applied)}
+                                    </small>
+                                    {tranche.scholarship_reason && (
+                                      <div className="text-muted" style={{fontSize: '0.75rem'}}>
+                                        {tranche.scholarship_reason}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                {tranche?.reduction_applied > 0 && (
+                                  <div>
+                                    <small className="text-warning">
+                                      <BarChart size={12} className="me-1" />
+                                      Réduction: {formatCurrency(tranche.reduction_applied)}
+                                    </small>
+                                    {tranche.reduction_reason && (
+                                      <div className="text-muted" style={{fontSize: '0.75rem'}}>
+                                        {tranche.reduction_reason}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted">-</span>
+                            )}
+                          </td>
+                          <td className="fw-bold">
                             {formatCurrency(tranche?.required_amount || 0)}
                           </td>
                           <td>{formatCurrency(tranche?.paid_amount || 0)}</td>

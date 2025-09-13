@@ -778,11 +778,42 @@ class ReportsController extends Controller
 
                 foreach ($studentTranches as $tranche) {
                     try {
-                        // Montant requis pour cette tranche (avec bourses OU réductions, jamais les deux)
+                        // Montant de base sans avantages
+                        $baseAmount = $tranche->getAmountForStudent($student, true, false, false, false) ?? 0;
+
+                        // Montant avec avantages (bourses OU réductions, jamais les deux)
                         $requiredAmount = $tranche->getAmountForStudent($student, true, false, true, true) ?? 0;
+
+                        // Calculer les avantages appliqués
+                        $discountCalculator = new \App\Services\DiscountCalculatorService();
+                        $scholarship = $discountCalculator->getClassScholarship($student);
+
+                        $scholarshipApplied = 0;
+                        $scholarshipReason = null;
+                        $reductionApplied = 0;
+                        $reductionReason = null;
+
+                        // Vérifier si une bourse s'applique à cette tranche
+                        if ($scholarship && $scholarship->payment_tranche_id == $tranche->id && $discountCalculator->isEligibleForScholarship(now())) {
+                            $scholarshipApplied = min($scholarship->amount, $baseAmount);
+                            $scholarshipReason = $scholarship->reason ?? 'Bourse de classe';
+                        } else {
+                            // Si pas de bourse, vérifier les réductions globales
+                            $schoolSettings = SchoolSetting::getSettings();
+                            $discountPercentage = $schoolSettings->reduction_percentage ?? 0;
+
+                            if ($discountPercentage > 0) {
+                                $reductionApplied = $baseAmount - $requiredAmount;
+                                $reductionReason = "Réduction globale ({$discountPercentage}%)";
+                            }
+                        }
+
                     } catch (\Exception $e) {
                         Log::warning("Erreur getAmountForStudent pour {$student->id}, tranche {$tranche->id}: " . $e->getMessage());
+                        $baseAmount = 0;
                         $requiredAmount = 0;
+                        $scholarshipApplied = 0;
+                        $reductionApplied = 0;
                     }
 
                     // Montant payé pour cette tranche
@@ -797,10 +828,16 @@ class ReportsController extends Controller
 
                     $tranchesDetails[] = [
                         'tranche_name' => $tranche->name,
+                        'base_amount' => $baseAmount,
                         'required_amount' => $requiredAmount,
                         'paid_amount' => $paidAmount,
                         'remaining_amount' => max(0, $requiredAmount - $paidAmount),
-                        'status' => $paidAmount >= $requiredAmount ? 'complete' : 'incomplete'
+                        'status' => $paidAmount >= $requiredAmount ? 'complete' : 'incomplete',
+                        'scholarship_applied' => $scholarshipApplied,
+                        'scholarship_reason' => $scholarshipReason,
+                        'reduction_applied' => $reductionApplied,
+                        'reduction_reason' => $reductionReason,
+                        'total_benefit' => $scholarshipApplied + $reductionApplied
                     ];
                 }
 
