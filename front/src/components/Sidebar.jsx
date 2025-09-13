@@ -16,6 +16,7 @@ import {
     ExclamationTriangle,
     Bell,
     ListCheck,
+    CardText,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -100,6 +101,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Périodes Académiques", href: "/academic-periods", icon: <Calendar /> },
             { name: "Barèmes de Notation", href: "/grading-scales", icon: <Award /> },
             { name: "Trimestres & Séquences", href: "/admin/trimesters-sequences", icon: <Calendar /> },
+            { name: "Bulletins Scolaires", href: "/admin/bulletins", icon: <CardText /> },
           ],
         },
         {

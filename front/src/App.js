@@ -135,6 +135,7 @@ import GradingScales from "./pages/GradingScales/GradingScales";
 
 // Admin Trimester & Sequence Management
 import TrimesterSequenceManagement from "./pages/Admin/TrimesterSequenceManagement";
+import BulletinManagement from "./pages/Admin/BulletinManagementNew";
 
 // Parent Pages
 import ParentLogin from "./pages/Parent/ParentLogin";
@@ -436,6 +437,14 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <TrimesterSequenceManagement />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/bulletins"
+                element={
+                  <AdminRoute>
+                    <BulletinManagement />
                   </AdminRoute>
                 }
               />

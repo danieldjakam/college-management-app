@@ -52,6 +52,7 @@ use App\Http\Controllers\ParentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\MobileAttendanceController;
+use App\Http\Controllers\BulletinController;
 
 
 // Routes d'authentification
@@ -1165,4 +1166,59 @@ Route::middleware('auth:sanctum')->prefix('parent')->group(function () {
     Route::put('/notifications/{id}/read', [ParentController::class, 'markNotificationAsRead']);
     Route::get('/calendar/events', [ParentController::class, 'getCalendarEvents']);
     Route::get('/schedules', [ScheduleController::class, 'getParentChildrenSchedules']);
+});
+
+// Routes pour les bulletins scolaires
+Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
+    // Consultation des bulletins disponibles
+    Route::get('/available/{studentId}', [BulletinController::class, 'availableBulletins'])
+        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+    
+    // Génération de bulletins (Admin et Teachers)
+    Route::post('/generate', [BulletinController::class, 'generate'])
+        ->middleware(['role:admin,teacher']);
+    
+    Route::post('/batch-generate', [BulletinController::class, 'batchGenerate'])
+        ->middleware(['role:admin,teacher']);
+    
+    // Téléchargement de bulletins
+    Route::get('/download/{bulletinId}', [BulletinController::class, 'download'])
+        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+    
+    // Visualisation des bulletins générés automatiquement (Admin)
+    Route::get('/generated-bulletins', [BulletinController::class, 'getGeneratedBulletins'])
+        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+    
+    // Structure hiérarchique pour l'interface organisée
+    Route::get('/hierarchical-structure', [BulletinController::class, 'getHierarchicalStructure'])
+        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+    
+    // Statut des bulletins par série/classe
+    Route::get('/students-status/{seriesId}', [BulletinController::class, 'getStudentsBulletinStatus'])
+        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+    
+    // Timeline académique actuelle
+    Route::get('/academic-timeline', [BulletinController::class, 'getAcademicTimeline'])
+        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+    
+    // Prévisualisation des bulletins
+    Route::post('/preview', [BulletinController::class, 'previewBulletin'])
+        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+    
+    // Forcer la régénération (Admin uniquement)
+    Route::post('/force-regenerate', [BulletinController::class, 'forceRegenerate'])
+        ->middleware(['role:admin']);
+    
+    // Téléchargement groupé de tous les bulletins
+    Route::post('/download-all', [BulletinController::class, 'downloadAllBulletins'])
+        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+    
+    // Gestion des templates (Admin uniquement)
+    Route::prefix('templates')->middleware(['role:admin'])->group(function () {
+        Route::get('/', [BulletinController::class, 'getTemplates']);
+        Route::post('/', [BulletinController::class, 'createTemplate']);
+        Route::put('/{templateId}', [BulletinController::class, 'updateTemplate']);
+        Route::delete('/{templateId}', [BulletinController::class, 'deleteTemplate']);
+        Route::post('/{templateId}/toggle-status', [BulletinController::class, 'toggleTemplateStatus']);
+    });
 });

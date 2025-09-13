@@ -12,6 +12,7 @@ class Evaluation extends Model
     protected $fillable = [
         'name',
         'type',
+        'evaluation_type',
         'sequence_id',
         'trimester_id',
         'school_year_id',
