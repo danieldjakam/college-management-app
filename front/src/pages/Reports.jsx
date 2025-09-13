@@ -756,6 +756,73 @@ const Reports = () => {
     }
   };
 
+  const downloadPdf = async () => {
+    if (!reportData) {
+      Swal.fire("Attention", "Aucun rapport à télécharger", "warning");
+      return;
+    }
+
+    try {
+      Swal.fire({
+        title: "Téléchargement en cours...",
+        text: "Génération du fichier PDF",
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        willOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      // Préparer les paramètres pour le téléchargement
+      const exportParams = {
+        ...filters,
+        report_type: activeTab,
+      };
+
+      // Créer l'URL pour télécharger le PDF
+      const queryParams = new URLSearchParams(exportParams).toString();
+      const baseUrl = secureApiEndpoints.reports.downloadPdf();
+      const downloadUrl = `${baseUrl}?${queryParams}`;
+
+
+      // Utiliser fetch pour télécharger avec authentification
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(downloadUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/pdf'
+        }
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+
+        // Créer un lien temporaire pour télécharger le fichier
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `rapport_${activeTab}_${new Date().toISOString().slice(0, 10)}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        Swal.fire({
+          icon: "success",
+          title: "Succès",
+          text: "Rapport PDF téléchargé avec succès",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      } else {
+        throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error("Error downloading PDF:", error);
+      Swal.fire("Erreur", "Erreur lors du téléchargement du PDF: " + error.message, "error");
+    }
+  };
+
   const renderFilterSection = () => (
     <Card className="mb-4">
       <Card.Header>
@@ -929,9 +996,18 @@ const Reports = () => {
                 <Button
                   variant="outline-success"
                   onClick={() => exportReport("pdf")}
+                  className="me-2"
+                >
+                  <FileEarmarkText className="me-2" />
+                  Imprimer PDF
+                </Button>
+                <Button
+                  variant="success"
+                  onClick={downloadPdf}
+                  className="me-2"
                 >
                   <Download className="me-2" />
-                  Exporter PDF
+                  Télécharger PDF
                 </Button>
                 <Button
                   variant="outline-primary"

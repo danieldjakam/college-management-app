@@ -588,6 +588,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/class-school-fees/export-pdf', [ReportsController::class, 'exportClassSchoolFeesPdf']);
 
         Route::get('/export-pdf', [ReportsController::class, 'exportPdf']);
+        Route::get('/download-pdf', [ReportsController::class, 'downloadPdf']);
     });
 
 

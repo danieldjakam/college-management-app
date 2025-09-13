@@ -4,14 +4,17 @@ namespace App\Exports;
 
 use App\Models\Student;
 use App\Models\SchoolYear;
+use App\Models\SchoolSetting;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithDrawings;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 
-class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
+class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize, WithDrawings
 {
     protected $filters;
     protected $schoolYearId;
@@ -71,6 +74,7 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
      */
     public function headings(): array
     {
+        // Retourner les en-têtes directement - l'espace pour le logo sera géré dans styles()
         return [
             'Numéro Étudiant',
             'Nom',
@@ -126,8 +130,47 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
      */
     public function styles(Worksheet $sheet)
     {
+        // Obtenir les informations de l'école
+        $schoolSettings = SchoolSetting::first();
+
+        // Insérer des lignes vides en haut pour faire de la place au logo
+        $sheet->insertNewRowBefore(1, 3);
+
+        // Ajouter le nom de l'école dans la cellule A3 (après l'insertion des lignes)
+        if ($schoolSettings) {
+            $sheet->setCellValue('A3', strtoupper($schoolSettings->school_name ?: 'COLLÈGE POLYVALENT BILINGUE DE DOUALA'));
+            $sheet->setCellValue('A4', 'LISTE DES ÉLÈVES - ' . date('Y'));
+            $sheet->mergeCells('A3:R3'); // Fusionner les cellules pour le titre
+            $sheet->mergeCells('A4:R4'); // Fusionner les cellules pour le sous-titre
+        }
+
         return [
-            1 => [
+            // Style pour le titre de l'école (ligne 3)
+            3 => [
+                'font' => [
+                    'bold' => true,
+                    'size' => 16,
+                    'color' => ['argb' => '000000']
+                ],
+                'alignment' => [
+                    'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                    'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER
+                ]
+            ],
+            // Style pour le sous-titre (ligne 4)
+            4 => [
+                'font' => [
+                    'bold' => true,
+                    'size' => 12,
+                    'color' => ['argb' => '666666']
+                ],
+                'alignment' => [
+                    'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                    'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER
+                ]
+            ],
+            // Style pour les en-têtes de colonnes (ligne 6 après insertion)
+            6 => [
                 'font' => [
                     'bold' => true,
                     'color' => ['argb' => 'FFFFFF']
@@ -138,5 +181,36 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
                 ]
             ]
         ];
+    }
+
+    /**
+     * @return array
+     */
+    public function drawings()
+    {
+        $drawings = [];
+
+        // Obtenir les paramètres de l'école
+        $schoolSettings = SchoolSetting::first();
+
+        if ($schoolSettings && $schoolSettings->school_logo) {
+            $logoPath = storage_path('app/public/' . $schoolSettings->school_logo);
+
+            // Vérifier si le fichier existe
+            if (file_exists($logoPath)) {
+                $drawing = new Drawing();
+                $drawing->setName('Logo');
+                $drawing->setDescription('Logo du collège');
+                $drawing->setPath($logoPath);
+                $drawing->setHeight(80); // Hauteur en pixels
+                $drawing->setCoordinates('A1'); // Position dans la cellule A1
+                $drawing->setOffsetX(10);
+                $drawing->setOffsetY(10);
+
+                $drawings[] = $drawing;
+            }
+        }
+
+        return $drawings;
     }
 }

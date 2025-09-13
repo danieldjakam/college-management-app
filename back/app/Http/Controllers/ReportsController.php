@@ -11,11 +11,13 @@ use App\Models\ClassSeries;
 use App\Models\ClassScholarship;
 use App\Models\Section;
 use App\Models\SchoolYear;
+use App\Models\SchoolSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ReportsController extends Controller
 {
@@ -5016,6 +5018,441 @@ class ReportsController extends Controller
             </div>
         </body>
         </html>";
+    }
+
+    /**
+     * Télécharger le PDF d'un rapport financier
+     */
+    public function downloadPdf(Request $request)
+    {
+        try {
+            // Augmenter la limite de mémoire pour la génération PDF
+            ini_set('memory_limit', '512M');
+            set_time_limit(300);
+
+            $reportType = $request->get('report_type', 'insolvable');
+
+            // Générer les données du rapport selon le type
+            $response = null;
+            switch ($reportType) {
+                case 'insolvable':
+                    $response = $this->getInsolvableReport($request);
+                    break;
+                case 'solvable':
+                    $response = $this->getSolvableReport($request);
+                    break;
+                case 'payments':
+                    $response = $this->getPaymentsReport($request);
+                    break;
+                case 'rame':
+                    $response = $this->getRameReport($request);
+                    break;
+                case 'scholarships_discounts':
+                    $response = $this->getScholarshipsDiscountsReport($request);
+                    break;
+                case 'recovery':
+                    $response = $this->getRecoveryReport($request);
+                    break;
+                case 'collection_details':
+                    $response = $this->getDetailedCollectionReport($request);
+                    break;
+                default:
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Type de rapport non reconnu'
+                    ], 400);
+            }
+
+            $responseData = $response->getData(true);
+
+            if (!$responseData['success']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $responseData['message'] ?? 'Erreur lors de la génération du rapport'
+                ], 500);
+            }
+
+            $reportData = $responseData['data'];
+
+            // Générer le HTML pour le PDF avec logo de l'école
+            $html = $this->generateDownloadableReportHtml($reportType, $reportData, $request);
+
+            // Créer le PDF avec DOMPDF
+            $pdf = PDF::loadHTML($html);
+            $pdf->setPaper('A4', 'landscape'); // Format paysage pour les tableaux larges
+
+            // Nom du fichier avec timestamp
+            $filename = $this->getReportFileName($reportType) . '_' . date('Y-m-d_H-i-s') . '.pdf';
+
+            // Télécharger le PDF
+            return $pdf->download($filename);
+
+        } catch (\Exception $e) {
+            Log::error('Error in ReportsController@downloadPdf: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du PDF: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Générer le HTML pour le PDF téléchargeable avec le logo de l'école
+     */
+    private function generateDownloadableReportHtml($reportType, $reportData, $request)
+    {
+        $workingYear = $this->getUserWorkingYear();
+        $schoolSettings = SchoolSetting::first();
+        $currentDate = now()->format('d/m/Y H:i');
+
+        $titles = [
+            'insolvable' => 'RAPPORT ÉTAT INSOLVABLE',
+            'solvable' => 'RAPPORT ÉTAT SOLVABLE',
+            'payments' => 'RAPPORT ÉTAT DES PAIEMENTS',
+            'rame' => 'RAPPORT ÉTAT DES RAME',
+            'scholarships_discounts' => 'RAPPORT BOURSES ET RABAIS',
+            'recovery' => 'RAPPORT DE RECOUVREMENT',
+            'collection_details' => 'RAPPORT ENCAISSEMENT DÉTAILLÉ'
+        ];
+
+        $title = $titles[$reportType] ?? 'RAPPORT FINANCIER';
+        $logoHtml = '';
+
+        // Récupérer le logo de l'école
+        if ($schoolSettings && $schoolSettings->school_logo) {
+            $logoPath = storage_path('app/public/' . $schoolSettings->school_logo);
+            if (file_exists($logoPath) && filesize($logoPath) < 2 * 1024 * 1024) { // Limite à 2MB
+                $logoBase64 = base64_encode(file_get_contents($logoPath));
+                $logoMimeType = mime_content_type($logoPath);
+                $logoHtml = "<img src='data:{$logoMimeType};base64,{$logoBase64}' style='height: 60px; margin-bottom: 10px;' alt='Logo'>";
+            }
+        }
+
+        $html = "
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset='UTF-8'>
+            <title>{$title}</title>
+            <style>
+                @page {
+                    margin: 15mm;
+                    margin-bottom: 20mm;
+                }
+                body {
+                    font-family: Arial, sans-serif;
+                    font-size: 10px;
+                    line-height: 1.3;
+                    margin: 0;
+                    padding: 0;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 25px;
+                    border-bottom: 2px solid #333;
+                    padding-bottom: 15px;
+                }
+                .school-name {
+                    font-size: 16px;
+                    font-weight: bold;
+                    color: #2c5aa0;
+                    margin: 5px 0;
+                }
+                .report-title {
+                    font-size: 14px;
+                    font-weight: bold;
+                    margin: 10px 0;
+                    color: #333;
+                }
+                .meta-info {
+                    font-size: 9px;
+                    color: #666;
+                    margin: 5px 0;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 10px 0;
+                    font-size: 8px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 4px 3px;
+                    text-align: left;
+                    word-wrap: break-word;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                    font-size: 7px;
+                }
+                .summary {
+                    background-color: #f9f9f9;
+                    padding: 10px;
+                    margin: 15px 0;
+                    border-left: 4px solid #2c5aa0;
+                    font-size: 10px;
+                }
+                .footer {
+                    text-align: center;
+                    font-size: 8px;
+                    color: #666;
+                    margin-top: 20px;
+                    padding-top: 10px;
+                    border-top: 1px solid #ddd;
+                }
+                .text-center { text-align: center; }
+                .text-right { text-align: right; }
+                .fw-bold { font-weight: bold; }
+                .total-row {
+                    background-color: #e8f4f8;
+                    font-weight: bold;
+                }
+            </style>
+        </head>
+        <body>
+            <div class='header'>
+                {$logoHtml}
+                <div class='school-name'>" . strtoupper($schoolSettings->school_name ?? 'COLLÈGE POLYVALENT BILINGUE DE DOUALA') . "</div>
+                <div class='report-title'>{$title}</div>
+                <div class='meta-info'>
+                    Année scolaire: " . ($workingYear ? $workingYear->name : 'Non définie') . " |
+                    Généré le: {$currentDate}
+                </div>
+            </div>";
+
+        // Ajouter le contenu spécifique selon le type de rapport
+        $html .= $this->generateSpecificReportContent($reportType, $reportData);
+
+        $html .= "
+            <div class='footer'>
+                <p>Rapport généré par le Système de Gestion Scolaire</p>
+                <p>" . ($schoolSettings->school_name ?? 'COLLÈGE POLYVALENT BILINGUE DE DOUALA') . "</p>
+            </div>
+        </body>
+        </html>";
+
+        return $html;
+    }
+
+    /**
+     * Obtenir le nom de fichier selon le type de rapport
+     */
+    private function getReportFileName($reportType)
+    {
+        $names = [
+            'insolvable' => 'Rapport_Etat_Insolvable',
+            'solvable' => 'Rapport_Etat_Solvable',
+            'payments' => 'Rapport_Etat_Paiements',
+            'rame' => 'Rapport_Etat_RAME',
+            'scholarships_discounts' => 'Rapport_Bourses_Rabais',
+            'recovery' => 'Rapport_Recouvrement',
+            'collection_details' => 'Rapport_Encaissement_Detaille'
+        ];
+
+        return $names[$reportType] ?? 'Rapport_Financier';
+    }
+
+    /**
+     * Générer le contenu spécifique selon le type de rapport
+     */
+    private function generateSpecificReportContent($reportType, $reportData)
+    {
+        switch ($reportType) {
+            case 'insolvable':
+                return $this->generateInsolvableTableContent($reportData);
+            case 'solvable':
+                return $this->generateSolvableTableContent($reportData);
+            case 'payments':
+                return $this->generatePaymentsTableContent($reportData);
+            case 'rame':
+                return $this->generateRameTableContent($reportData);
+            case 'scholarships_discounts':
+                return $this->generateScholarshipsTableContent($reportData);
+            case 'recovery':
+                return $this->generateRecoveryTableContent($reportData);
+            default:
+                return "<div class='summary'>Type de rapport non supporté.</div>";
+        }
+    }
+
+    /**
+     * Générer le contenu pour le rapport insolvable
+     */
+    private function generateInsolvableTableContent($reportData)
+    {
+        if (!isset($reportData['students']) || empty($reportData['students'])) {
+            return "<div class='summary'>Aucun élève insolvable trouvé.</div>";
+        }
+
+        $students = array_slice($reportData['students'], 0, 500);
+
+        $html = "
+        <div class='summary'>
+            <strong>Nombre d'élèves insolvables:</strong> " . count($students) .
+            (count($reportData['students']) > 500 ? " (limité aux 500 premiers)" : "") . "
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>N°</th>
+                    <th>Nom & Prénom</th>
+                    <th>Classe</th>
+                    <th>Montant Requis</th>
+                    <th>Montant Payé</th>
+                    <th>Reste à Payer</th>
+                    <th>% Payé</th>
+                </tr>
+            </thead>
+            <tbody>";
+
+        $counter = 1;
+        foreach ($students as $student) {
+            // Accéder aux données élève selon la structure du rapport
+            $studentData = $student['student'] ?? $student;
+            $fullName = $studentData['full_name'] ?? ($student['full_name'] ?? 'N/A');
+            $className = $studentData['class_series'] ?? ($student['class_name'] ?? 'N/A');
+
+            $html .= "
+                <tr>
+                    <td class='text-center'>{$counter}</td>
+                    <td>" . htmlspecialchars($fullName) . "</td>
+                    <td>" . htmlspecialchars($className) . "</td>
+                    <td class='text-right'>" . number_format($student['total_required'] ?? 0, 0, '.', ' ') . " FCFA</td>
+                    <td class='text-right'>" . number_format($student['total_paid'] ?? 0, 0, '.', ' ') . " FCFA</td>
+                    <td class='text-right'>" . number_format($student['remaining_amount'] ?? $student['total_remaining'] ?? 0, 0, '.', ' ') . " FCFA</td>
+                    <td class='text-center'>" . number_format($student['payment_percentage'] ?? 0, 1) . "%</td>
+                </tr>";
+            $counter++;
+        }
+
+        $html .= "</tbody></table>";
+        return $html;
+    }
+
+    /**
+     * Générer le contenu pour le rapport solvable
+     */
+    private function generateSolvableTableContent($reportData)
+    {
+        if (!isset($reportData['students']) || empty($reportData['students'])) {
+            return "<div class='summary'>Aucun élève solvable trouvé.</div>";
+        }
+
+        $students = array_slice($reportData['students'], 0, 500);
+
+        $html = "
+        <div class='summary'>
+            <strong>Nombre d'élèves solvables:</strong> " . count($students) .
+            (count($reportData['students']) > 500 ? " (limité aux 500 premiers)" : "") . "
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>N°</th>
+                    <th>Nom & Prénom</th>
+                    <th>Classe</th>
+                    <th>Montant Total</th>
+                    <th>Type Solvabilité</th>
+                    <th>Date Paiement</th>
+                </tr>
+            </thead>
+            <tbody>";
+
+        $counter = 1;
+        foreach ($students as $student) {
+            // Accéder aux données élève selon la structure du rapport
+            $studentData = $student['student'] ?? $student;
+            $fullName = $studentData['full_name'] ?? ($student['full_name'] ?? 'N/A');
+            $className = $studentData['class_series'] ?? ($student['class_name'] ?? 'N/A');
+
+            $html .= "
+                <tr>
+                    <td class='text-center'>{$counter}</td>
+                    <td>" . htmlspecialchars($fullName) . "</td>
+                    <td>" . htmlspecialchars($className) . "</td>
+                    <td class='text-right'>" . number_format($student['total_paid'] ?? $student['amount_paid'] ?? 0, 0, '.', ' ') . " FCFA</td>
+                    <td>" . htmlspecialchars($student['solvable_type'] ?? $student['payment_type'] ?? 'N/A') . "</td>
+                    <td class='text-center'>" . htmlspecialchars($student['payment_completed_date'] ?? $student['last_payment_date'] ?? $student['payment_date'] ?? 'N/A') . "</td>
+                </tr>";
+            $counter++;
+        }
+
+        $html .= "</tbody></table>";
+        return $html;
+    }
+
+    /**
+     * Générer le contenu pour le rapport des paiements
+     */
+    private function generatePaymentsTableContent($reportData)
+    {
+        if (!isset($reportData['students']) || empty($reportData['students'])) {
+            return "<div class='summary'>Aucun paiement trouvé.</div>";
+        }
+
+        $students = array_slice($reportData['students'], 0, 500);
+
+        $html = "
+        <div class='summary'>
+            <strong>Nombre de paiements:</strong> " . count($students) .
+            (count($reportData['students']) > 500 ? " (limité aux 500 premiers)" : "") . "
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>N°</th>
+                    <th>Nom & Prénom</th>
+                    <th>Classe</th>
+                    <th>Montant</th>
+                    <th>Type</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>";
+
+        $counter = 1;
+        foreach ($students as $student) {
+            // Accéder aux données élève selon la structure du rapport
+            $studentData = $student['student'] ?? $student;
+            $fullName = $studentData['full_name'] ?? ($student['full_name'] ?? 'N/A');
+            $className = $studentData['class_name'] ?? $studentData['class_series'] ?? ($student['class_name'] ?? 'N/A');
+
+            $html .= "
+                <tr>
+                    <td class='text-center'>{$counter}</td>
+                    <td>" . htmlspecialchars($fullName) . "</td>
+                    <td>" . htmlspecialchars($className) . "</td>
+                    <td class='text-right'>" . number_format($student['amount'] ?? $student['total_paid'] ?? 0, 0, '.', ' ') . " FCFA</td>
+                    <td>" . htmlspecialchars($student['payment_method_label'] ?? $student['payment_type'] ?? 'N/A') . "</td>
+                    <td class='text-center'>" . htmlspecialchars($student['payment_date'] ?? 'N/A') . "</td>
+                </tr>";
+            $counter++;
+        }
+
+        $html .= "</tbody></table>";
+        return $html;
+    }
+
+    /**
+     * Méthodes pour les autres types de rapports (à compléter selon vos besoins)
+     */
+    private function generateRameTableContent($reportData)
+    {
+        return "<div class='summary'>Rapport RAME en cours de développement.</div>";
+    }
+
+    private function generateScholarshipsTableContent($reportData)
+    {
+        return "<div class='summary'>Rapport Bourses et Rabais en cours de développement.</div>";
+    }
+
+    private function generateRecoveryTableContent($reportData)
+    {
+        return "<div class='summary'>Rapport de Recouvrement en cours de développement.</div>";
     }
 }
 

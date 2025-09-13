@@ -726,7 +726,8 @@ export const secureApiEndpoints = {
 
             const htmlContent = await response.text();
             return { success: true, data: htmlContent };
-        }
+        },
+        downloadPdf: () => `${secureApi.baseURL}/reports/download-pdf`
     },
 
     // === SEARCH ===
