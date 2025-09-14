@@ -33,7 +33,11 @@ class SequenceController extends Controller
                 $query->where('trimester_id', $request->trimester_id);
             }
 
-            $sequences = $query->orderBy('number')->get();
+            // Ordre personnalisé : Séquences par trimestre puis compositions
+            $sequences = $query->orderBy('trimester_id')
+                              ->orderByRaw('CASE WHEN is_composition = 0 THEN 0 ELSE 1 END')
+                              ->orderBy('number')
+                              ->get();
 
             return response()->json([
                 'success' => true,
@@ -116,19 +120,38 @@ class SequenceController extends Controller
     public function activate(Sequence $sequence)
     {
         try {
-            // Désactiver toutes les autres séquences
-            Sequence::where('school_year_id', $sequence->school_year_id)
-                ->update(['is_current' => false]);
+            // Si c'est une composition, la déverrouiller et l'activer
+            if ($sequence->is_composition) {
+                $sequence->update([
+                    'is_active' => true,
+                    'is_locked' => false,  // Déverrouiller la composition
+                    'is_current' => false, // Les compositions ne sont pas "current" mais disponibles
+                    'is_completed' => false
+                ]);
 
-            // Activer la séquence sélectionnée (et la retirer du statut terminé si nécessaire)
-            $sequence->update([
-                'is_current' => true,
-                'is_completed' => false  // Si elle était terminée, la réouvrir
-            ]);
+                $message = $sequence->is_composition ? 
+                    'Composition activée avec succès. Les enseignants peuvent maintenant saisir les notes.' : 
+                    'Séquence activée avec succès';
+
+            } else {
+                // Pour les séquences normales, désactiver les autres
+                Sequence::where('school_year_id', $sequence->school_year_id)
+                    ->where('is_composition', false) // Ne pas affecter les compositions
+                    ->update(['is_current' => false]);
+
+                // Activer la séquence sélectionnée
+                $sequence->update([
+                    'is_current' => true,
+                    'is_active' => true,
+                    'is_completed' => false
+                ]);
+
+                $message = 'Séquence activée avec succès';
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => 'Séquence activée avec succès',
+                'message' => $message,
                 'data' => $sequence->load(['trimester', 'schoolYear'])
             ]);
         } catch (\Exception $e) {

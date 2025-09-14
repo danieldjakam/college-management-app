@@ -76,10 +76,9 @@ class EvaluationController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
-                'type' => 'required|in:interrogation,devoir,composition,tp,controle',
+                'type' => 'required|in:composition,tp',
                 'sequence_id' => 'required|exists:sequences,id',
                 'series_subject_id' => 'required|exists:series_subjects,id',
-                'date' => 'required|date',
                 'max_score' => 'required|numeric|min:0|max:100',
                 'coefficient' => 'required|numeric|min:0.1|max:10',
                 'description' => 'nullable|string'
@@ -104,7 +103,7 @@ class EvaluationController extends Controller
                 'school_year_id' => $sequence->school_year_id,
                 'series_subject_id' => $request->series_subject_id,
                 'teacher_id' => $request->teacher_id,
-                'date' => $request->date,
+                'date' => now()->toDateString(), // Utiliser la date actuelle
                 'max_score' => $request->max_score,
                 'coefficient' => $request->coefficient,
                 'description' => $request->description,
@@ -135,6 +134,46 @@ class EvaluationController extends Controller
     }
 
     /**
+     * Supprimer une évaluation
+     */
+    public function destroy(Evaluation $evaluation)
+    {
+        try {
+            // Vérifier si l'enseignant peut supprimer cette évaluation
+            if (auth()->check() && $evaluation->teacher_id !== auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous nêtes pas autorisé à supprimer cette évaluation'
+                ], 403);
+            }
+
+            // Vérifier s'il y a des notes saisies
+            $hasGrades = $evaluation->grades()->exists();
+            
+            if ($hasGrades) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de supprimer cette évaluation car des notes ont été saisies'
+                ], 422);
+            }
+
+            $evaluationName = $evaluation->name;
+            $evaluation->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => "L'évaluation '{$evaluationName}' a été supprimée avec succès"
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression de lévaluation',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Obtenir les types d'évaluations disponibles
      */
     public function getTypes()
@@ -151,12 +190,15 @@ class EvaluationController extends Controller
     public function getStats(Evaluation $evaluation)
     {
         try {
+            $classAverage = $evaluation->getClassAverage();
+            $successRate = $evaluation->getSuccessRate();
+            
             $stats = [
-                'total_grades' => $evaluation->grades()->count(),
-                'graded_count' => $evaluation->grades()->whereNotNull('score')->count(),
-                'absent_count' => $evaluation->grades()->where('is_absent', true)->count(),
-                'class_average' => $evaluation->getClassAverage(),
-                'success_rate' => $evaluation->getSuccessRate(),
+                'total_grades' => (int) $evaluation->grades()->count(),
+                'graded_count' => (int) $evaluation->grades()->whereNotNull('score')->count(),
+                'absent_count' => (int) $evaluation->grades()->where('is_absent', true)->count(),
+                'class_average' => $classAverage ? round((float) $classAverage, 2) : null,
+                'success_rate' => $successRate ? round((float) $successRate, 2) : 0,
                 'type_label' => $evaluation->getTypeLabel()
             ];
 

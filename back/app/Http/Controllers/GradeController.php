@@ -110,6 +110,15 @@ class GradeController extends Controller
 
             $evaluation = Evaluation::findOrFail($request->evaluation_id);
 
+            // Vérifier si la séquence/composition est terminée
+            $sequence = \App\Models\Sequence::find($evaluation->sequence_id);
+            if ($sequence && $sequence->is_completed) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cette période est terminée et ne peut plus être modifiée.',
+                ], 403);
+            }
+
             // Validation de la note selon la note maximale de l'évaluation
             if ($request->score !== null && $request->score > $evaluation->max_score) {
                 return response()->json([
@@ -196,6 +205,16 @@ class GradeController extends Controller
             }
 
             $evaluation = Evaluation::findOrFail($request->evaluation_id);
+
+            // Vérifier si la séquence/composition est terminée
+            $sequence = \App\Models\Sequence::find($evaluation->sequence_id);
+            if ($sequence && $sequence->is_completed) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cette période est terminée et ne peut plus être modifiée.',
+                ], 403);
+            }
+            
             $savedGrades = [];
             $errors = [];
 

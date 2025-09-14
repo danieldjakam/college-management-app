@@ -122,6 +122,14 @@ class Student extends Model
     }
 
     /**
+     * Relation avec les générations de bulletins
+     */
+    public function bulletinGenerations()
+    {
+        return $this->hasMany(BulletinGeneration::class);
+    }
+
+    /**
      * Scope pour les étudiants actifs
      */
     public function scopeActive($query)

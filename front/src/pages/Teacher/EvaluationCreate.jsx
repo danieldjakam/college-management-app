@@ -20,11 +20,12 @@ const EvaluationCreate = () => {
         name: '',
         type: '',
         series_subject_id: '',
-        date: '',
         max_score: '20',
         coefficient: '1',
         description: ''
     });
+    
+    const [selectedSeriesSubject, setSelectedSeriesSubject] = useState(null);
 
     // États de l'interface
     const [loading, setLoading] = useState(false);
@@ -39,24 +40,8 @@ const EvaluationCreate = () => {
     const [seriesSubjects, setSeriesSubjects] = useState([]);
     const [evaluationTypes, setEvaluationTypes] = useState([]);
 
-    // Types d'évaluations camerounaises avec règles
+    // Types d'évaluations simplifiés
     const evaluationTypesConfig = {
-        interrogation: {
-            label: 'Interrogation écrite',
-            description: '15-30 min, note sur 10 ou 20',
-            maxScore: [10, 20],
-            coefficientRange: [0.5, 2],
-            color: 'info',
-            icon: FileText
-        },
-        devoir: {
-            label: 'Devoir surveillé', 
-            description: '1-2h, note sur 20',
-            maxScore: [20],
-            coefficientRange: [1, 3],
-            color: 'warning',
-            icon: Book
-        },
         composition: {
             label: 'Composition',
             description: '2-4h, note sur 20',
@@ -66,20 +51,12 @@ const EvaluationCreate = () => {
             icon: Award
         },
         tp: {
-            label: 'Travaux pratiques',
+            label: 'Travaux Pratiques',
             description: 'Évaluation pratique',
-            maxScore: [10, 20],
+            maxScore: [20],
             coefficientRange: [1, 3],
             color: 'secondary',
             icon: People
-        },
-        controle: {
-            label: 'Contrôle continu',
-            description: 'Évaluation continue',
-            maxScore: [10, 20],
-            coefficientRange: [0.5, 2],
-            color: 'primary',
-            icon: CheckCircle
         }
     };
 
@@ -190,13 +167,56 @@ const EvaluationCreate = () => {
             }));
         }
 
+        // Logique spéciale pour la sélection de matière
+        if (name === 'series_subject_id' && value) {
+            const selected = seriesSubjects.find(ss => ss.id.toString() === value);
+            setSelectedSeriesSubject(selected);
+            
+            console.log('Matière sélectionnée:', selected);
+            console.log('Coefficient trouvé:', selected?.coefficient);
+            
+            // Préremplir le coefficient depuis la configuration
+            let coefficientValue = '1'; // valeur par défaut
+            if (selected) {
+                // Essayer différentes propriétés pour trouver le coefficient
+                coefficientValue = selected.coefficient || 
+                                 selected.series_subject_coefficient || 
+                                 selected.subject_coefficient || 
+                                 '1';
+                
+                setFormData(prev => ({
+                    ...prev,
+                    coefficient: coefficientValue.toString()
+                }));
+            }
+            
+            // Réinitialiser le type et le nom quand on change de matière
+            setFormData(prev => ({
+                ...prev,
+                type: '',
+                name: ''
+            }));
+        }
+        
+        // Générer automatiquement le nom quand on sélectionne le type
+        if (name === 'type' && value && selectedSeriesSubject && currentSequence) {
+            const subjectName = selectedSeriesSubject.subject?.name || '';
+            const typeLabel = evaluationTypesConfig[value]?.label || '';
+            const sequenceName = currentSequence.name || '';
+            
+            const generatedName = `${sequenceName} [${typeLabel} de ${subjectName}]`;
+            setFormData(prev => ({
+                ...prev,
+                name: generatedName
+            }));
+        }
+
         // Ajustements automatiques selon le type d'évaluation
         if (name === 'type' && value && evaluationTypesConfig[value]) {
             const typeConfig = evaluationTypesConfig[value];
             setFormData(prev => ({
                 ...prev,
-                max_score: typeConfig.maxScore[0].toString(),
-                coefficient: typeConfig.coefficientRange[0].toString()
+                max_score: typeConfig.maxScore[0].toString()
             }));
         }
     };
@@ -221,48 +241,17 @@ const EvaluationCreate = () => {
             errors.series_subject_id = 'La matière est requise';
         }
 
-        // Validation date
-        if (!formData.date) {
-            errors.date = 'La date est requise';
-        } else {
-            const selectedDate = new Date(formData.date);
-            const today = new Date();
-            
-            if (selectedDate < today.setHours(0, 0, 0, 0)) {
-                errors.date = 'La date ne peut pas être dans le passé';
-            }
-
-            // Vérifier si la date est dans la séquence courante
-            if (currentSequence) {
-                const seqStart = new Date(currentSequence.start_date);
-                const seqEnd = new Date(currentSequence.end_date);
-                
-                if (selectedDate < seqStart || selectedDate > seqEnd) {
-                    errors.date = `La date doit être dans la séquence courante (${formatDate(seqStart)} - ${formatDate(seqEnd)})`;
-                }
-            }
-        }
 
         // Validation note maximale
         const maxScore = parseFloat(formData.max_score);
-        if (!maxScore || maxScore <= 0) {
-            errors.max_score = 'La note maximale doit être positive';
-        } else if (formData.type && evaluationTypesConfig[formData.type]) {
-            const validScores = evaluationTypesConfig[formData.type].maxScore;
-            if (!validScores.includes(maxScore)) {
-                errors.max_score = `Pour ce type d'évaluation, la note doit être : ${validScores.join(' ou ')}`;
-            }
+        if (!maxScore || maxScore <= 0 || maxScore !== 20) {
+            errors.max_score = 'La note maximale doit être 20';
         }
 
         // Validation coefficient
         const coefficient = parseFloat(formData.coefficient);
         if (!coefficient || coefficient <= 0) {
             errors.coefficient = 'Le coefficient doit être positif';
-        } else if (formData.type && evaluationTypesConfig[formData.type]) {
-            const [min, max] = evaluationTypesConfig[formData.type].coefficientRange;
-            if (coefficient < min || coefficient > max) {
-                errors.coefficient = `Pour ce type d'évaluation, le coefficient doit être entre ${min} et ${max}`;
-            }
         }
 
         return errors;
@@ -308,9 +297,6 @@ const EvaluationCreate = () => {
         return new Date(dateString).toLocaleDateString('fr-FR');
     };
 
-    const getSelectedSeriesSubject = () => {
-        return seriesSubjects.find(ss => ss.id.toString() === formData.series_subject_id);
-    };
 
     const getTypeConfig = (type) => {
         return evaluationTypesConfig[type] || {};
@@ -390,47 +376,8 @@ const EvaluationCreate = () => {
                         <Card.Body>
                             <Form onSubmit={handleSubmit}>
                                 <Row>
-                                    {/* Nom de l'évaluation */}
-                                    <Col md={12} className="mb-3">
-                                        <FloatingLabel label="Nom de l'évaluation">
-                                            <Form.Control
-                                                type="text"
-                                                name="name"
-                                                value={formData.name}
-                                                onChange={handleInputChange}
-                                                placeholder="Ex: Interrogation - Les nombres entiers"
-                                                isInvalid={!!validationErrors.name}
-                                            />
-                                            <Form.Control.Feedback type="invalid">
-                                                {validationErrors.name}
-                                            </Form.Control.Feedback>
-                                        </FloatingLabel>
-                                    </Col>
-
-                                    {/* Type d'évaluation */}
-                                    <Col md={6} className="mb-3">
-                                        <FloatingLabel label="Type d'évaluation">
-                                            <Form.Select
-                                                name="type"
-                                                value={formData.type}
-                                                onChange={handleInputChange}
-                                                isInvalid={!!validationErrors.type}
-                                            >
-                                                <option value="">Choisir le type...</option>
-                                                {Object.entries(evaluationTypesConfig).map(([key, config]) => (
-                                                    <option key={key} value={key}>
-                                                        {config.label}
-                                                    </option>
-                                                ))}
-                                            </Form.Select>
-                                            <Form.Control.Feedback type="invalid">
-                                                {validationErrors.type}
-                                            </Form.Control.Feedback>
-                                        </FloatingLabel>
-                                    </Col>
-
                                     {/* Matière */}
-                                    <Col md={6} className="mb-3">
+                                    <Col md={12} className="mb-3">
                                         <FloatingLabel label="Matière">
                                             <Form.Select
                                                 name="series_subject_id"
@@ -451,73 +398,112 @@ const EvaluationCreate = () => {
                                         </FloatingLabel>
                                     </Col>
 
-                                    {/* Date */}
-                                    <Col md={6} className="mb-3">
-                                        <FloatingLabel label="Date de l'évaluation">
-                                            <Form.Control
-                                                type="date"
-                                                name="date"
-                                                value={formData.date}
-                                                onChange={handleInputChange}
-                                                isInvalid={!!validationErrors.date}
-                                            />
-                                            <Form.Control.Feedback type="invalid">
-                                                {validationErrors.date}
-                                            </Form.Control.Feedback>
-                                        </FloatingLabel>
-                                    </Col>
+                                    {/* Type d'évaluation - N'apparaît que si une matière est sélectionnée */}
+                                    {selectedSeriesSubject && (
+                                        <Col md={12} className="mb-3">
+                                            <FloatingLabel label="Type d'évaluation">
+                                                <Form.Select
+                                                    name="type"
+                                                    value={formData.type}
+                                                    onChange={handleInputChange}
+                                                    isInvalid={!!validationErrors.type}
+                                                >
+                                                    <option value="">Choisir le type...</option>
+                                                    {Object.entries(evaluationTypesConfig).map(([key, config]) => (
+                                                        <option key={key} value={key}>
+                                                            {config.label}
+                                                        </option>
+                                                    ))}
+                                                </Form.Select>
+                                                <Form.Control.Feedback type="invalid">
+                                                    {validationErrors.type}
+                                                </Form.Control.Feedback>
+                                            </FloatingLabel>
+                                        </Col>
+                                    )}
 
-                                    {/* Note maximale */}
-                                    <Col md={3} className="mb-3">
-                                        <FloatingLabel label="Note maximale">
-                                            <Form.Control
-                                                type="number"
-                                                name="max_score"
-                                                value={formData.max_score}
-                                                onChange={handleInputChange}
-                                                step="0.5"
-                                                min="1"
-                                                max="20"
-                                                isInvalid={!!validationErrors.max_score}
-                                            />
-                                            <Form.Control.Feedback type="invalid">
-                                                {validationErrors.max_score}
-                                            </Form.Control.Feedback>
-                                        </FloatingLabel>
-                                    </Col>
+                                    {/* Nom de l'évaluation - N'apparaît que si type sélectionné */}
+                                    {selectedSeriesSubject && formData.type && (
+                                        <Col md={12} className="mb-3">
+                                            <FloatingLabel label="Nom de l'évaluation">
+                                                <Form.Control
+                                                    type="text"
+                                                    name="name"
+                                                    value={formData.name}
+                                                    onChange={handleInputChange}
+                                                    placeholder="Le nom sera généré automatiquement..."
+                                                    isInvalid={!!validationErrors.name}
+                                                />
+                                                <Form.Control.Feedback type="invalid">
+                                                    {validationErrors.name}
+                                                </Form.Control.Feedback>
+                                            </FloatingLabel>
+                                        </Col>
+                                    )}
 
-                                    {/* Coefficient */}
-                                    <Col md={3} className="mb-3">
-                                        <FloatingLabel label="Coefficient">
-                                            <Form.Control
-                                                type="number"
-                                                name="coefficient"
-                                                value={formData.coefficient}
-                                                onChange={handleInputChange}
-                                                step="0.1"
-                                                min="0.1"
-                                                max="10"
-                                                isInvalid={!!validationErrors.coefficient}
-                                            />
-                                            <Form.Control.Feedback type="invalid">
-                                                {validationErrors.coefficient}
-                                            </Form.Control.Feedback>
-                                        </FloatingLabel>
-                                    </Col>
 
-                                    {/* Description */}
-                                    <Col md={12} className="mb-3">
-                                        <FloatingLabel label="Description (optionnel)">
-                                            <Form.Control
-                                                as="textarea"
-                                                name="description"
-                                                value={formData.description}
-                                                onChange={handleInputChange}
-                                                style={{ height: '80px' }}
-                                                placeholder="Détails sur l'évaluation..."
-                                            />
-                                        </FloatingLabel>
-                                    </Col>
+                                    {/* Note maximale et Coefficient - N'apparaissent que si type sélectionné */}
+                                    {selectedSeriesSubject && formData.type && (
+                                        <>
+                                            <Col md={6} className="mb-3">
+                                                <FloatingLabel label="Note maximale">
+                                                    <Form.Control
+                                                        type="number"
+                                                        name="max_score"
+                                                        value={formData.max_score}
+                                                        onChange={handleInputChange}
+                                                        step="0.5"
+                                                        min="1"
+                                                        max="20"
+                                                        isInvalid={!!validationErrors.max_score}
+                                                        readOnly
+                                                    />
+                                                    <Form.Control.Feedback type="invalid">
+                                                        {validationErrors.max_score}
+                                                    </Form.Control.Feedback>
+                                                </FloatingLabel>
+                                            </Col>
+
+                                            <Col md={6} className="mb-3">
+                                                <FloatingLabel label="Coefficient">
+                                                    <Form.Control
+                                                        type="number"
+                                                        name="coefficient"
+                                                        value={formData.coefficient}
+                                                        onChange={handleInputChange}
+                                                        step="0.1"
+                                                        min="0.1"
+                                                        max="10"
+                                                        isInvalid={!!validationErrors.coefficient}
+                                                    />
+                                                    <Form.Control.Feedback type="invalid">
+                                                        {validationErrors.coefficient}
+                                                    </Form.Control.Feedback>
+                                                    {selectedSeriesSubject && (
+                                                        <Form.Text className="text-muted">
+                                                            Coefficient configuré: {selectedSeriesSubject.coefficient || 'Non défini'}
+                                                        </Form.Text>
+                                                    )}
+                                                </FloatingLabel>
+                                            </Col>
+                                        </>
+                                    )}
+
+                                    {/* Description - N'apparaît que si type sélectionné */}
+                                    {selectedSeriesSubject && formData.type && (
+                                        <Col md={12} className="mb-3">
+                                            <FloatingLabel label="Description (optionnel)">
+                                                <Form.Control
+                                                    as="textarea"
+                                                    name="description"
+                                                    value={formData.description}
+                                                    onChange={handleInputChange}
+                                                    style={{ height: '80px' }}
+                                                    placeholder="Détails sur l'évaluation..."
+                                                />
+                                            </FloatingLabel>
+                                        </Col>
+                                    )}
                                 </Row>
 
                                 {/* Boutons */}
@@ -531,7 +517,7 @@ const EvaluationCreate = () => {
                                     <Button
                                         type="submit"
                                         variant="primary"
-                                        disabled={submitting || !currentSequence}
+                                        disabled={submitting || !currentSequence || !selectedSeriesSubject || !formData.type}
                                     >
                                         {submitting ? (
                                             <>
@@ -594,7 +580,7 @@ const EvaluationCreate = () => {
                         </Card>
                     )}
 
-                    {/* Règles camerounaises */}
+                    {/* Règles pédagogiques */}
                     <Card className="mb-4">
                         <Card.Header>
                             <Book className="me-2" />
@@ -602,35 +588,35 @@ const EvaluationCreate = () => {
                         </Card.Header>
                         <Card.Body>
                             <ul className="small mb-0">
-                                <li>Interrogations : 15-30 min, coefficient 0.5-2</li>
-                                <li>Devoirs : 1-2h, coefficient 1-3</li>
-                                <li>Compositions : 2-4h, coefficient 2-5</li>
-                                <li>Notes sur 10 ou 20 selon le type</li>
-                                <li>Date dans la séquence courante</li>
+                                <li>Compositions : 2-4h, coefficient selon configuration</li>
+                                <li>Travaux Pratiques : Évaluation pratique, coefficient selon configuration</li>
+                                <li>Notes sur 20</li>
+                                <li>Le nom est généré automatiquement</li>
+                                <li>Le coefficient est récupéré de la configuration des matières</li>
                             </ul>
                         </Card.Body>
                     </Card>
 
                     {/* Matière sélectionnée */}
-                    {formData.series_subject_id && (
+                    {selectedSeriesSubject && (
                         <Card>
                             <Card.Header>
                                 <People className="me-2" />
                                 Matière Sélectionnée
                             </Card.Header>
                             <Card.Body>
-                                {(() => {
-                                    const selected = getSelectedSeriesSubject();
-                                    return selected ? (
-                                        <>
-                                            <h6>{selected.subject?.name}</h6>
-                                            <p className="text-muted mb-2">Classe: {selected.school_class?.name}</p>
-                                            <small className="text-muted">
-                                                Coefficient matière: {selected.coefficient}
-                                            </small>
-                                        </>
-                                    ) : null;
-                                })()}
+                                <h6>{selectedSeriesSubject.subject?.name}</h6>
+                                <p className="text-muted mb-2">Classe: {selectedSeriesSubject.school_class?.name}</p>
+                                <div className="mt-2">
+                                    <Badge bg="info" className="me-2">
+                                        Coefficient: {selectedSeriesSubject.coefficient || 'Non défini'}
+                                    </Badge>
+                                    {selectedSeriesSubject.school_class && (
+                                        <Badge bg="secondary">
+                                            {selectedSeriesSubject.school_class.name}
+                                        </Badge>
+                                    )}
+                                </div>
                             </Card.Body>
                         </Card>
                     )}

@@ -9,6 +9,7 @@ import {
     CheckCircle, XCircle, Gear, BarChart, Trash2, CheckSquare
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
+import TrimesterAcademicView from '../../components/TrimesterAcademicView';
 
 const TrimesterSequenceManagement = () => {
     const { user } = useAuth();
@@ -20,6 +21,7 @@ const TrimesterSequenceManagement = () => {
     const [schoolYear, setSchoolYear] = useState(null);
     const [trimesters, setTrimesters] = useState([]);
     const [sequences, setSequences] = useState([]);
+    const [evaluations, setEvaluations] = useState([]);
 
     // États des modals
     const [showCreateTrimester, setShowCreateTrimester] = useState(false);
@@ -78,8 +80,27 @@ const TrimesterSequenceManagement = () => {
                 school_year_id: schoolYearData.id
             });
             console.log('sequencesResponse:', sequencesResponse);
-            setSequences(sequencesResponse.data || []);
+            const allSequences = sequencesResponse.data || [];
+            console.log('All sequences loaded:', allSequences);
+            
+            // Debug: compter les compositions
+            const compositions = allSequences.filter(seq => seq.is_composition);
+            console.log('Compositions found:', compositions.length, compositions);
+            
+            setSequences(allSequences);
 
+            // Charger évaluations
+            console.log('Chargement évaluations...');
+            try {
+                const evaluationsResponse = await secureApiEndpoints.evaluations.getAll({
+                    school_year_id: schoolYearData.id
+                });
+                console.log('evaluationsResponse:', evaluationsResponse);
+                setEvaluations(evaluationsResponse.data || []);
+            } catch (evalError) {
+                console.warn('Erreur chargement évaluations (non critique):', evalError);
+                setEvaluations([]);
+            }
 
             console.log('=== FIN DEBUG loadData ===');
 
@@ -161,10 +182,74 @@ const TrimesterSequenceManagement = () => {
         }
     };
 
+    const handleActivateComposition = async (compositionId) => {
+        try {
+            setError(null);
+            
+            // Activer la composition et déverrouiller
+            await secureApiEndpoints.sequences.activate(compositionId);
+            
+            setSuccess('🎉 Composition activée ! Les enseignants peuvent maintenant saisir les notes de composition.');
+            await loadData();
+            setTimeout(() => setSuccess(null), 5000);
+        } catch (error) {
+            console.error('Erreur activation composition:', error);
+            setError('Erreur lors de l\'activation de la composition');
+        }
+    };
+
+    const checkAndActivateComposition = async (completedSequenceId) => {
+        try {
+            // Récupérer la séquence terminée pour connaître son trimestre
+            const completedSequence = sequences.find(seq => seq.id === completedSequenceId);
+            if (!completedSequence) return;
+
+            // Récupérer le trimestre correspondant
+            const trimester = trimesters.find(t => t.id === completedSequence.trimester_id);
+            if (!trimester) return;
+
+            // Vérifier toutes les séquences NORMALES de ce trimestre (exclure les compositions)
+            const trimesterSequences = sequences.filter(seq => 
+                seq.trimester_id === trimester.id && 
+                !seq.is_composition // Exclure les compositions de la vérification
+            );
+            const allSequencesCompleted = trimesterSequences.every(seq => 
+                seq.id === completedSequenceId || seq.is_completed
+            );
+
+            if (allSequencesCompleted && trimesterSequences.length > 0) {
+                // Trouver et activer les SÉQUENCES de composition de ce trimestre
+                const compositionSequences = sequences.filter(seq => 
+                    seq.trimester_id === trimester.id && 
+                    seq.is_composition === true &&
+                    !seq.is_active
+                );
+
+                for (const compositionSeq of compositionSequences) {
+                    try {
+                        // Utiliser la méthode activate au lieu de update
+                        await secureApiEndpoints.sequences.activate(compositionSeq.id);
+                        
+                        console.log(`Composition ${trimester.number} activée automatiquement comme séquence`);
+                        setSuccess(`🎉 Toutes les séquences terminées ! Composition ${trimester.number} maintenant disponible pour la saisie des notes.`);
+                    } catch (compositionError) {
+                        console.error('Erreur activation composition séquence:', compositionError);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Erreur vérification composition:', error);
+        }
+    };
+
     const handleMarkSequenceCompleted = async (sequenceId) => {
         try {
             setError(null);
             await secureApiEndpoints.sequences.markCompleted(sequenceId);
+            
+            // Vérifier si toutes les séquences du trimestre sont terminées pour déverrouiller la composition
+            await checkAndActivateComposition(sequenceId);
+            
             setSuccess('Séquence marquée comme terminée');
             await loadData();
             setTimeout(() => setSuccess(null), 3000);
@@ -386,39 +471,104 @@ const TrimesterSequenceManagement = () => {
         try {
             setError(null);
             
-            // Générer 2 séquences par trimestre par défaut
-            const numSequences = 2;
-            const sequences = [];
+            // Logique académique camerounaise
+            let sequences = [];
             
-            for (let i = 1; i <= numSequences; i++) {
-                const sequenceNumber = (trimester.number - 1) * 2 + i;
-                const duration = (new Date(trimester.end_date) - new Date(trimester.start_date)) / numSequences;
-                const startDate = new Date(new Date(trimester.start_date).getTime() + (i - 1) * duration);
-                const endDate = new Date(new Date(trimester.start_date).getTime() + i * duration);
+            if (trimester.number === 1) {
+                // Trimestre 1: Séquence 1, Séquence 2 + Composition 1
+                const duration = (new Date(trimester.end_date) - new Date(trimester.start_date)) / 3; // 3 périodes
                 
+                // Séquence 1
                 sequences.push({
-                    name: `Séquence ${sequenceNumber}`,
-                    number: sequenceNumber,
+                    name: 'Séquence 1',
+                    number: 1,
                     trimester_id: trimester.id,
                     school_year_id: trimester.school_year_id,
-                    start_date: startDate.toISOString().split('T')[0],
-                    end_date: endDate.toISOString().split('T')[0],
+                    start_date: trimester.start_date,
+                    end_date: new Date(new Date(trimester.start_date).getTime() + duration).toISOString().split('T')[0],
                     is_active: true,
-                    is_current: trimester.number === 1 && i === 1
+                    is_current: true
+                });
+                
+                // Séquence 2
+                sequences.push({
+                    name: 'Séquence 2',
+                    number: 2,
+                    trimester_id: trimester.id,
+                    school_year_id: trimester.school_year_id,
+                    start_date: new Date(new Date(trimester.start_date).getTime() + duration).toISOString().split('T')[0],
+                    end_date: new Date(new Date(trimester.start_date).getTime() + 2 * duration).toISOString().split('T')[0],
+                    is_active: false,
+                    is_current: false
+                });
+                
+            } else if (trimester.number === 2) {
+                // Trimestre 2: Séquence 3, Séquence 4 + Composition 2
+                const duration = (new Date(trimester.end_date) - new Date(trimester.start_date)) / 3;
+                
+                // Séquence 3
+                sequences.push({
+                    name: 'Séquence 3',
+                    number: 3,
+                    trimester_id: trimester.id,
+                    school_year_id: trimester.school_year_id,
+                    start_date: trimester.start_date,
+                    end_date: new Date(new Date(trimester.start_date).getTime() + duration).toISOString().split('T')[0],
+                    is_active: false,
+                    is_current: false
+                });
+                
+                // Séquence 4
+                sequences.push({
+                    name: 'Séquence 4',
+                    number: 4,
+                    trimester_id: trimester.id,
+                    school_year_id: trimester.school_year_id,
+                    start_date: new Date(new Date(trimester.start_date).getTime() + duration).toISOString().split('T')[0],
+                    end_date: new Date(new Date(trimester.start_date).getTime() + 2 * duration).toISOString().split('T')[0],
+                    is_active: false,
+                    is_current: false
                 });
             }
+            // Trimestre 3: Pas de séquences, seulement la composition 3
 
+            // Créer les séquences
             for (const sequenceData of sequences) {
                 await secureApiEndpoints.sequences.create(sequenceData);
             }
 
-            setSuccess(`${numSequences} séquences générées pour ${trimester.name}`);
+            // Créer la COMPOSITION comme une SÉQUENCE spéciale (verrouillée par défaut)
+            const compositionName = `Composition ${trimester.number}`;
+            const compositionSequenceData = {
+                name: compositionName,
+                number: trimester.number === 1 ? 3 : trimester.number === 2 ? 5 : 6, // Numéros : 3, 5, 6 pour les compositions
+                trimester_id: trimester.id,
+                school_year_id: trimester.school_year_id,
+                start_date: new Date(new Date(trimester.end_date).getTime() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 14 jours avant la fin
+                end_date: new Date(new Date(trimester.end_date).getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 3 jours avant la fin
+                is_active: false, // VERROUILLÉE par défaut
+                is_current: false,
+                is_completed: false,
+                is_composition: true, // Marquer comme composition pour la différencier
+                is_locked: true // Propriété pour indiquer qu'elle est verrouillée
+            };
+            
+            // Créer la composition comme SÉQUENCE
+            try {
+                await secureApiEndpoints.sequences.create(compositionSequenceData);
+                console.log(`Composition ${trimester.number} créée comme séquence`);
+            } catch (compositionError) {
+                console.error('Erreur création composition:', compositionError);
+                // Ne pas faire échouer tout le processus si la composition échoue
+            }
+
+            setSuccess(`${sequences.length} séquence(s) et 1 composition générées pour ${trimester.name}`);
             await loadData();
-            setTimeout(() => setSuccess(null), 3000);
+            setTimeout(() => setSuccess(null), 4000);
 
         } catch (error) {
             console.error('Erreur génération séquences:', error);
-            setError('Erreur lors de la génération des séquences');
+            setError('Erreur lors de la génération des séquences et compositions');
         }
     };
 
@@ -495,13 +645,32 @@ const TrimesterSequenceManagement = () => {
             )}
 
             {/* Onglets */}
-            <Tabs defaultActiveKey="trimesters" className="mb-4">
+            <Tabs defaultActiveKey="academic-view" className="mb-4">
                 
-                {/* Onglet Trimestres */}
+                {/* Vue Académique (nouvelle) */}
+                <Tab eventKey="academic-view" title={
+                    <span>
+                        <BarChart className="me-1" />
+                        Vue Académique
+                    </span>
+                }>
+                    <TrimesterAcademicView
+                        trimesters={trimesters}
+                        sequences={sequences}
+                        evaluations={evaluations}
+                        loading={loading}
+                        currentUser={user}
+                        onActivateSequence={handleActivateSequence}
+                        onCompleteSequence={handleMarkSequenceCompleted}
+                        onActivateTrimester={handleActivateTrimester}
+                    />
+                </Tab>
+                
+                {/* Onglet Trimestres (gestion) */}
                 <Tab eventKey="trimesters" title={
                     <span>
                         <Calendar className="me-1" />
-                        Trimestres ({trimesters.length})
+                        Gestion Trimestres ({trimesters.length})
                     </span>
                 }>
                     {trimesters.length === 0 ? (
@@ -641,9 +810,12 @@ const TrimesterSequenceManagement = () => {
                                             {sequences.map((sequence) => (
                                                 <tr key={sequence.id}>
                                                     <td>
-                                                        <strong>{sequence.name}</strong>
+                                                        <strong>
+                                                            {sequence.is_composition && '🏆 '}
+                                                            {sequence.name}
+                                                        </strong>
                                                         <div className="small text-muted">
-                                                            Séquence #{sequence.number}
+                                                            {sequence.is_composition ? 'Composition' : `Séquence #${sequence.number}`}
                                                         </div>
                                                     </td>
                                                     <td>
@@ -658,17 +830,35 @@ const TrimesterSequenceManagement = () => {
                                                         </small>
                                                     </td>
                                                     <td>
-                                                        {sequence.is_current ? (
+                                                        {sequence.is_locked ? (
+                                                            <Badge bg="danger">Verrouillée</Badge>
+                                                        ) : sequence.is_current ? (
                                                             <Badge bg="success">En cours</Badge>
                                                         ) : sequence.is_completed ? (
                                                             <Badge bg="info">Terminé</Badge>
+                                                        ) : sequence.is_active ? (
+                                                            <Badge bg="primary">Disponible</Badge>
                                                         ) : (
                                                             <Badge bg="secondary">Programmé</Badge>
                                                         )}
                                                     </td>
                                                     <td>
                                                         <div className="d-flex gap-1">
-                                                            {sequence.is_current ? (
+                                                            {sequence.is_locked ? (
+                                                                /* Composition verrouillée : peut être activée manuellement */
+                                                                <>
+                                                                    <Button 
+                                                                        size="sm" 
+                                                                        variant="success"
+                                                                        onClick={() => handleActivateComposition(sequence.id)}
+                                                                        title="Activer cette composition pour les enseignants"
+                                                                    >
+                                                                        <Play size={14} className="me-1" />
+                                                                        Activer
+                                                                    </Button>
+                                                                    <small className="text-danger align-self-center ms-1">🔒</small>
+                                                                </>
+                                                            ) : sequence.is_current ? (
                                                                 /* Séquence en cours : peut être marquée comme terminée */
                                                                 <Button 
                                                                     size="sm" 
@@ -695,7 +885,7 @@ const TrimesterSequenceManagement = () => {
                                                                         size="sm" 
                                                                         variant="outline-success"
                                                                         onClick={() => handleActivateSequence(sequence.id)}
-                                                                        title="Activer cette séquence"
+                                                                        title={sequence.is_composition ? "Activer cette composition" : "Activer cette séquence"}
                                                                     >
                                                                         <Play size={14} />
                                                                     </Button>

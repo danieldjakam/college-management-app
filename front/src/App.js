@@ -71,6 +71,7 @@ import TeacherDashboard from "./pages/Teacher/TeacherDashboard";
 import TeacherClassStudents from "./pages/Teacher/TeacherClassStudents";
 import Sequences from "./pages/Teacher/Sequences";
 import Trimesters from "./pages/Teacher/Trimesters";
+import DSDetails from "./pages/Teacher/DSDetails";
 import Evaluations from "./pages/Teacher/Evaluations";
 import EvaluationCreate from "./pages/Teacher/EvaluationCreate";
 import GradeEntry from "./pages/Teacher/GradeEntry";
@@ -135,6 +136,7 @@ import GradingScales from "./pages/GradingScales/GradingScales";
 
 // Admin Trimester & Sequence Management
 import TrimesterSequenceManagement from "./pages/Admin/TrimesterSequenceManagement";
+import BulletinManagement from "./pages/Admin/BulletinManagementNew";
 
 // Parent Pages
 import ParentLogin from "./pages/Parent/ParentLogin";
@@ -436,6 +438,14 @@ const AppContent = () => {
                 element={
                   <AdminRoute>
                     <TrimesterSequenceManagement />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/bulletins"
+                element={
+                  <AdminRoute>
+                    <BulletinManagement />
                   </AdminRoute>
                 }
               />
@@ -809,6 +819,15 @@ const AppContent = () => {
                 element={
                   <TeacherRoute>
                     <Trimesters />
+                  </TeacherRoute>
+                }
+              />
+              
+              <Route
+                path="/trimesters/:trimesterId/ds-details"
+                element={
+                  <TeacherRoute>
+                    <DSDetails />
                   </TeacherRoute>
                 }
               />
