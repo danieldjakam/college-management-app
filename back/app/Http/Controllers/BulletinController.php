@@ -364,6 +364,7 @@ class BulletinController extends Controller
             ->with(['schoolClass'])
             ->get();
 
+
         // Paramètre pour filtrer par période spécifique (optionnel)
         $viewPeriod = $request->get('period'); // ex: 'seq1', 'trim1', 'current', 'all'
         
@@ -509,11 +510,16 @@ class BulletinController extends Controller
      */
     private function calculateTrimesterCompletion($studentId, $trimesterNumber)
     {
-        $student = \App\Models\Student::find($studentId);
-        if (!$student || !$student->schoolClass) return 0;
+        try {
+            $student = \App\Models\Student::find($studentId);
+            if (!$student || !$student->schoolClass) {
+                return 0;
+            }
 
-        $subjects = \App\Models\SeriesSubject::where('school_class_id', $student->schoolClass->id)->get();
-        if ($subjects->count() === 0) return 0;
+            $subjects = \App\Models\SeriesSubject::where('school_class_id', $student->schoolClass->id)->get();
+            if ($subjects->count() === 0) {
+                return 0;
+            }
 
         $totalCompletion = 0;
         $currentActiveSequence = \App\Models\Sequence::where('is_active', true)->first();
@@ -526,9 +532,7 @@ class BulletinController extends Controller
             } else {
                 // Trimestre 1 ou 2: (DS + Composition) / 2
                 $dsCompletion = $this->checkDSCompletion($studentId, $trimesterNumber, $subject->id);
-                \Log::info("🔍 DS Completion for {$subject->subject->name}: {$dsCompletion}%");
                 $compositionCompletion = $this->checkCompositionCompletion($studentId, $trimesterNumber, $subject->id);
-                \Log::info("🔍 Composition Completion for {$subject->subject->name}: {$compositionCompletion}%");
                 
                 // Logique de mise à jour pendant les séquences:
                 // - Trimestre 1 se met à jour pendant séquences 1 et 2
@@ -548,15 +552,17 @@ class BulletinController extends Controller
                 }
                 
                 $subjectCompletion = ($dsCompletion + $compositionCompletion) / 2;
-                \Log::info("🔍 Subject {$subject->subject->name} completion: ({$dsCompletion} + {$compositionCompletion}) / 2 = {$subjectCompletion}%");
             }
             
             $totalCompletion += $subjectCompletion;
         }
 
-        $finalCompletion = round($totalCompletion / $subjects->count(), 1);
-        \Log::info("🔍 FINAL TRIMESTER COMPLETION: {$totalCompletion}/{$subjects->count()} = {$finalCompletion}%");
-        return $finalCompletion;
+            $finalCompletion = round($totalCompletion / $subjects->count(), 1);
+            return $finalCompletion;
+        } catch (\Exception $e) {
+            \Log::error("ERROR in calculateTrimesterCompletion for student {$studentId}, trimester {$trimesterNumber}: " . $e->getMessage());
+            return 0;
+        }
     }
 
     /**
@@ -564,7 +570,6 @@ class BulletinController extends Controller
      */
     private function checkDSCompletion($studentId, $trimesterNumber, $subjectId)
     {
-        \Log::info("🔍 checkDSCompletion: studentId={$studentId}, trimester={$trimesterNumber}, subjectId={$subjectId}");
         
         $sequenceNumbers = [];
         
@@ -587,7 +592,6 @@ class BulletinController extends Controller
                 $sequences->push($seq);
             }
         }
-        \Log::info("🔍 Found sequences: " . $sequences->pluck('number')->join(','));
         $gradedSequences = 0;
         
         foreach ($sequences as $sequence) {
@@ -598,7 +602,6 @@ class BulletinController extends Controller
                 ->whereNotNull('score')
                 ->exists();
             
-            \Log::info("🔍 Sequence {$sequence->number} (id={$sequence->id}): hasGrade=" . ($hasGrade ? 'YES' : 'NO'));
             
             if ($hasGrade) {
                 $gradedSequences++;
@@ -606,7 +609,6 @@ class BulletinController extends Controller
         }
         
         $completion = $sequences->count() > 0 ? ($gradedSequences / $sequences->count()) * 100 : 0;
-        \Log::info("🔍 DS Completion: {$gradedSequences}/{$sequences->count()} = {$completion}%");
         return $completion;
     }
 
@@ -615,14 +617,12 @@ class BulletinController extends Controller
      */
     private function checkCompositionCompletion($studentId, $trimesterNumber, $subjectId)
     {
-        \Log::info("🔍 checkCompositionCompletion: studentId={$studentId}, trimester={$trimesterNumber}, subjectId={$subjectId}");
         
-        $evaluation = \App\Models\Evaluation::where('evaluation_type', 'composition')
+        $evaluation = \App\Models\Evaluation::where('type', 'composition')
             ->where('trimester_id', $trimesterNumber)
             ->where('series_subject_id', $subjectId)
             ->first();
         
-        \Log::info("🔍 Composition evaluation found: " . ($evaluation ? "YES (id={$evaluation->id})" : "NO"));
         
         if (!$evaluation) {
             return 0;

@@ -440,7 +440,7 @@ function BulletinManagementNew() {
                     {getCurrentPeriodBadge(academicTimeline.current_sequence, 'sequence')}
                     {getCurrentPeriodBadge(academicTimeline.current_trimester, 'trimester')}
                   </Col>
-                  <Col md={6} className="text-end">
+                  {/* <Col md={6} className="text-end">
                     <div className="d-flex flex-wrap gap-1 justify-content-end">
                       {academicTimeline.sequences?.map(seq => (
                         <Badge 
@@ -451,7 +451,7 @@ function BulletinManagementNew() {
                         </Badge>
                       ))}
                     </div>
-                  </Col>
+                  </Col> */}
                 </Row>
               )}
             </Card.Body>
