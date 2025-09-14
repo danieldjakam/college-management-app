@@ -24,6 +24,10 @@ function BulletinManagementNew() {
   const [studentsData, setStudentsData] = useState([]);
   const [selectedPeriodType, setSelectedPeriodType] = useState('all');
   
+  // Navigation temporelle
+  const [availablePeriods, setAvailablePeriods] = useState([]);
+  const [selectedViewPeriod, setSelectedViewPeriod] = useState('current');
+  
   // Modal de preview
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewContent, setPreviewContent] = useState('');
@@ -38,7 +42,7 @@ function BulletinManagementNew() {
     if (selectedSeries) {
       fetchStudentsData();
     }
-  }, [selectedSeries]);
+  }, [selectedSeries, selectedViewPeriod]);
 
   const fetchHierarchicalStructure = async () => {
     try {
@@ -94,12 +98,17 @@ function BulletinManagementNew() {
     
     try {
       setLoading(true);
-      const response = await secureApi.get(`/bulletins/students-status/${selectedSeries}`);
+      // Ajouter le paramètre de période pour la navigation temporelle
+      const params = selectedViewPeriod !== 'current' ? `?period=${selectedViewPeriod}` : '';
+      const response = await secureApi.get(`/bulletins/students-status/${selectedSeries}${params}`);
+      
       // secureApi returns parsed JSON directly
-      if (response && response.success && response.students) {
-        setStudentsData(response.students);
+      if (response && response.success) {
+        setStudentsData(response.students || []);
+        setAvailablePeriods(response.available_periods || []);
       } else {
         setStudentsData([]);
+        setAvailablePeriods([]);
       }
     } catch (error) {
       console.error('Erreur étudiants:', error);
@@ -270,23 +279,39 @@ function BulletinManagementNew() {
     }
   };
 
-  const getCompletionBadge = (completionPercentage, isGenerated) => {
-    if (isGenerated) {
-      return <Badge bg="success" className="d-flex align-items-center">
-        <CheckCircle className="me-1" size={12} />
-        Généré ({completionPercentage}%)
-      </Badge>;
-    } else if (completionPercentage >= 50) {
-      return <Badge bg="warning" className="d-flex align-items-center">
-        <Clock className="me-1" size={12} />
-        Prêt ({completionPercentage}%)
-      </Badge>;
-    } else {
-      return <Badge bg="secondary" className="d-flex align-items-center">
-        <ExclamationCircle className="me-1" size={12} />
-        Incomplet ({completionPercentage}%)
+  const getCompletionBadge = (bulletin) => {
+    const { completion_percentage, is_generated, status, is_archived } = bulletin;
+    
+    if (is_archived) {
+      return <Badge bg="dark" className="d-flex align-items-center">
+        📁 <span className="ms-1">Archivé ({completion_percentage}%)</span>
       </Badge>;
     }
+    
+    if (is_generated) {
+      return <Badge bg="success" className="d-flex align-items-center">
+        <CheckCircle className="me-1" size={12} />
+        Généré ({completion_percentage}%)
+      </Badge>;
+    }
+    
+    if (status === 'future') {
+      return <Badge bg="light" text="dark" className="d-flex align-items-center">
+        ⏳ <span className="ms-1">Futur ({completion_percentage}%)</span>
+      </Badge>;
+    }
+    
+    if (completion_percentage >= 50) {
+      return <Badge bg="warning" className="d-flex align-items-center">
+        <Clock className="me-1" size={12} />
+        Prêt ({completion_percentage}%)
+      </Badge>;
+    }
+    
+    return <Badge bg="secondary" className="d-flex align-items-center">
+      <ExclamationCircle className="me-1" size={12} />
+      Incomplet ({completion_percentage}%)
+    </Badge>;
   };
 
   const getCurrentPeriodBadge = (current, type) => {
@@ -491,6 +516,62 @@ function BulletinManagementNew() {
         </Col>
       </Row>
 
+      {/* Sélecteur de navigation temporelle */}
+      {selectedSeries && availablePeriods.length > 0 && (
+        <Row className="mb-3">
+          <Col>
+            <Card>
+              <Card.Header className="d-flex justify-content-between align-items-center">
+                <h6 className="mb-0">🕐 Navigation Temporelle</h6>
+                <Badge bg="info">
+                  Vue: {availablePeriods.find(p => p.identifier === selectedViewPeriod)?.name || 'Actuelle'}
+                </Badge>
+              </Card.Header>
+              <Card.Body>
+                <Row>
+                  <Col>
+                    <Form.Label>Période à visualiser :</Form.Label>
+                    <Form.Select 
+                      value={selectedViewPeriod} 
+                      onChange={(e) => setSelectedViewPeriod(e.target.value)}
+                      className="mb-2"
+                    >
+                      {availablePeriods.map(period => (
+                        <option key={period.identifier} value={period.identifier}>
+                          {period.status === 'past' && '📁 '} 
+                          {period.status === 'current' && '▶️ '} 
+                          {period.status === 'future' && '⏳ '}
+                          {period.name}
+                          {period.status === 'past' && ' (Archive)'}
+                          {period.status === 'current' && ' (En cours)'}
+                          {period.status === 'future' && ' (Futur)'}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  </Col>
+                </Row>
+                <div className="d-flex gap-2 flex-wrap">
+                  {availablePeriods.filter(p => p.type !== 'view').map(period => (
+                    <Button
+                      key={period.identifier}
+                      variant={selectedViewPeriod === period.identifier ? "primary" : "outline-secondary"}
+                      size="sm"
+                      onClick={() => setSelectedViewPeriod(period.identifier)}
+                      className="d-flex align-items-center"
+                    >
+                      {period.status === 'past' && <span className="me-1">📁</span>}
+                      {period.status === 'current' && <span className="me-1">▶️</span>}
+                      {period.status === 'future' && <span className="me-1">⏳</span>}
+                      {period.name}
+                    </Button>
+                  ))}
+                </div>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      )}
+
       {/* Filtres des périodes */}
       {selectedSeries && (
         <Row className="mb-3">
@@ -604,10 +685,7 @@ function BulletinManagementNew() {
                             <td>
                               {student.bulletins.sequence_1 && (
                                 <div className="d-flex flex-column align-items-start">
-                                  {getCompletionBadge(
-                                    student.bulletins.sequence_1.completion_percentage, 
-                                    student.bulletins.sequence_1.is_generated
-                                  )}
+                                  {getCompletionBadge(student.bulletins.sequence_1)}
                                   {student.bulletins.sequence_1.completion_percentage > 0 && (
                                     <ProgressBar 
                                       now={student.bulletins.sequence_1.completion_percentage} 
@@ -624,10 +702,7 @@ function BulletinManagementNew() {
                             <td>
                               {student.bulletins.sequence_3 && (
                                 <div className="d-flex flex-column align-items-start">
-                                  {getCompletionBadge(
-                                    student.bulletins.sequence_3.completion_percentage, 
-                                    student.bulletins.sequence_3.is_generated
-                                  )}
+                                  {getCompletionBadge(student.bulletins.sequence_3)}
                                   {student.bulletins.sequence_3.completion_percentage > 0 && (
                                     <ProgressBar 
                                       now={student.bulletins.sequence_3.completion_percentage} 
@@ -645,10 +720,7 @@ function BulletinManagementNew() {
                               <td key={`trim_${trimNumber}`}>
                                 {student.bulletins[`trimester_${trimNumber}`] && (
                                   <div className="d-flex flex-column align-items-start">
-                                    {getCompletionBadge(
-                                      student.bulletins[`trimester_${trimNumber}`].completion_percentage, 
-                                      student.bulletins[`trimester_${trimNumber}`].is_generated
-                                    )}
+                                    {getCompletionBadge(student.bulletins[`trimester_${trimNumber}`])}
                                     {student.bulletins[`trimester_${trimNumber}`].completion_percentage > 0 && (
                                       <ProgressBar 
                                         now={student.bulletins[`trimester_${trimNumber}`].completion_percentage} 
@@ -666,29 +738,36 @@ function BulletinManagementNew() {
                             <td>
                               <div className="d-flex gap-1 flex-wrap">
                                 {Object.entries(student.bulletins).map(([key, bulletin]) => {
-                                  if (!bulletin.is_generated && bulletin.completion_percentage < 50) return null;
+                                  // Permettre l'affichage pour tous les bulletins avec données (pas seulement >= 50%)
+                                  if (!bulletin.can_preview && bulletin.completion_percentage < 10) return null;
                                   
                                   return (
                                     <div key={key} className="btn-group-vertical btn-group-sm">
-                                      {/* Preview */}
-                                      <Button
-                                        variant="outline-info"
-                                        size="sm"
-                                        onClick={() => handlePreviewBulletin(
-                                          student.id, 
-                                          `${student.first_name}_${student.last_name}`,
-                                          bulletin.type,
-                                          bulletin.identifier
-                                        )}
-                                        title={`Prévisualiser ${bulletin.name}`}
-                                      >
-                                        <Eye size={12} />
-                                      </Button>
+                                      {/* Preview - Toujours disponible si can_preview */}
+                                      {bulletin.can_preview && (
+                                        <Button
+                                          variant={bulletin.status === 'future' ? 'outline-secondary' : 
+                                                   bulletin.is_archived ? 'outline-dark' : 'outline-info'}
+                                          size="sm"
+                                          onClick={() => handlePreviewBulletin(
+                                            student.id, 
+                                            `${student.first_name}_${student.last_name}`,
+                                            bulletin.type,
+                                            bulletin.identifier
+                                          )}
+                                          title={`${bulletin.status === 'future' ? 'Aperçu futur' : 
+                                                   bulletin.is_archived ? 'Voir archive' : 'Prévisualiser'} ${bulletin.name}`}
+                                        >
+                                          <Eye size={12} />
+                                          {bulletin.status === 'future' && <span className="ms-1">⏳</span>}
+                                          {bulletin.is_archived && <span className="ms-1">📁</span>}
+                                        </Button>
+                                      )}
                                       
-                                      {/* Download */}
+                                      {/* Download - Seulement si généré */}
                                       {bulletin.is_generated && (
                                         <Button
-                                          variant="outline-success"
+                                          variant={bulletin.is_archived ? 'outline-dark' : 'outline-success'}
                                           size="sm"
                                           onClick={() => handleDownloadBulletin(
                                             bulletin.bulletin_id,
@@ -696,25 +775,28 @@ function BulletinManagementNew() {
                                             bulletin.type,
                                             bulletin.identifier
                                           )}
-                                          title={`Télécharger ${bulletin.name}`}
+                                          title={`Télécharger ${bulletin.name}${bulletin.is_archived ? ' (Archive)' : ''}`}
                                         >
                                           <Download size={12} />
+                                          {bulletin.is_archived && <span className="ms-1">📁</span>}
                                         </Button>
                                       )}
                                       
-                                      {/* Force Regenerate */}
-                                      <Button
-                                        variant="outline-warning"
-                                        size="sm"
-                                        onClick={() => handleForceRegenerate(
-                                          student.id,
-                                          bulletin.type,
-                                          bulletin.identifier
-                                        )}
-                                        title={`Forcer régénération ${bulletin.name}`}
-                                      >
-                                        <ArrowClockwise size={12} />
-                                      </Button>
+                                      {/* Force Regenerate - Seulement pour les périodes actuelles */}
+                                      {bulletin.status === 'current' && (
+                                        <Button
+                                          variant="outline-warning"
+                                          size="sm"
+                                          onClick={() => handleForceRegenerate(
+                                            student.id,
+                                            bulletin.type,
+                                            bulletin.identifier
+                                          )}
+                                          title={`Forcer régénération ${bulletin.name}`}
+                                        >
+                                          <ArrowClockwise size={12} />
+                                        </Button>
+                                      )}
                                     </div>
                                   );
                                 })}

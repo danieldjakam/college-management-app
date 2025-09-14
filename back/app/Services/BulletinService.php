@@ -31,43 +31,102 @@ class BulletinService
         }
         
         $grades = collect();
+        $foundSequenceNotes = 0;
+        
         foreach ($sequences as $sequence) {
+            $sequenceNote = null;
+            
+            // D'abord essayer de trouver une note directe avec sequence_id
             $grade = Grade::where('student_id', $studentId)
                          ->where('sequence_id', $sequence->id)
                          ->where('series_subject_id', $subjectId)
                          ->whereNotNull('score')
                          ->first();
             
+            // Si pas de note directe, chercher via les évaluations de la séquence
+            if (!$grade) {
+                $evaluations = Evaluation::where('sequence_id', $sequence->id)
+                                        ->where('series_subject_id', $subjectId)
+                                        ->get();
+                
+                foreach ($evaluations as $evaluation) {
+                    $grade = Grade::where('student_id', $studentId)
+                                 ->where('evaluation_id', $evaluation->id)
+                                 ->whereNotNull('score')
+                                 ->first();
+                    
+                    if ($grade) {
+                        break; // Prendre la première note trouvée pour cette séquence
+                    }
+                }
+            }
+            
             if ($grade) {
-                $grades->push($grade->getScoreOn20());
+                $sequenceNote = $grade->getScoreOn20();
+                $grades->push($sequenceNote);
+                $foundSequenceNotes++;
             }
         }
         
-        return $grades->count() > 0 ? $grades->average() : null;
+        // RÈGLE ACADÉMIQUE: DS n'existe que si les DEUX séquences ont des notes
+        // Si seulement une séquence a une note, pas de DS calculé
+        if ($foundSequenceNotes < 2) {
+            return null;
+        }
+        
+        return $grades->average();
     }
     
     /**
      * Calculate trimester grade for a student in a subject
      * Trimestre 1/2: (DS + COMPOSITION) / 2
      * Trimestre 3: COMPOSITION uniquement
+     * RÈGLE STRICTE: Pas de note de trimestre si données incomplètes
      */
     public function calculateTrimesterGrade($trimester, $studentId, $subjectId)
     {
         if ($trimester == 3) {
             // Trimestre 3: Composition 3 uniquement
             $compositionGrade = $this->getCompositionGrade(3, $studentId, $subjectId);
-            return $compositionGrade;
+            return $compositionGrade; // Peut être null si pas de composition
         }
         
         // Trimestres 1 et 2: (DS + COMPOSITION) / 2
         $dsAverage = $this->calculateDSAverage($trimester, $studentId, $subjectId);
         $compositionGrade = $this->getCompositionGrade($trimester, $studentId, $subjectId);
         
+        // RÈGLE ACADÉMIQUE STRICTE:
+        // - Si on a DS ET Composition: moyenne des deux
+        // - Si on a seulement DS ou seulement Composition: pas de note de trimestre
+        // - Exception: si une des deux parties n'existe pas dans le système, utiliser l'autre
+        
         if ($dsAverage !== null && $compositionGrade !== null) {
             return ($dsAverage + $compositionGrade) / 2;
         }
         
-        return null;
+        // Cas exceptionnels (pour la transition ou si système incomplet)
+        // Si seulement DS disponible ET composition pas encore créée
+        if ($dsAverage !== null && $compositionGrade === null) {
+            // Vérifier s'il existe une composition créée pour ce trimestre
+            $compositionExists = Evaluation::where('trimester_id', $trimester)
+                                          ->where('series_subject_id', $subjectId)
+                                          ->where(function($query) {
+                                              $query->where('type', 'composition')
+                                                    ->orWhere('evaluation_type', 'composition');
+                                          })
+                                          ->exists();
+            
+            if (!$compositionExists) {
+                return $dsAverage; // Utiliser DS seulement si pas de composition créée
+            }
+        }
+        
+        // Si seulement composition disponible
+        if ($compositionGrade !== null && $dsAverage === null) {
+            return $compositionGrade; // Utiliser composition seulement
+        }
+        
+        return null; // Pas assez de données
     }
     
     /**
@@ -75,10 +134,19 @@ class BulletinService
      */
     public function getCompositionGrade($trimester, $studentId, $subjectId)
     {
+        // Chercher d'abord avec evaluation_type
         $evaluation = Evaluation::where('evaluation_type', 'composition')
                                ->where('trimester_id', $trimester)
                                ->where('series_subject_id', $subjectId)
                                ->first();
+        
+        // Si pas trouvé, chercher avec le champ type
+        if (!$evaluation) {
+            $evaluation = Evaluation::where('type', 'composition')
+                                   ->where('trimester_id', $trimester)
+                                   ->where('series_subject_id', $subjectId)
+                                   ->first();
+        }
         
         if (!$evaluation) {
             return null;
@@ -275,7 +343,18 @@ class BulletinService
         $bulletinData = [
             'student' => $student,
             'trimester' => $trimester,
-            'subjects' => []
+            'subjects' => [],
+            // Données pour le template
+            'student_first_name' => $student->first_name,
+            'student_last_name' => $student->last_name,
+            'student_id' => $student->id,
+            'student_birth_date' => $student->birth_date ? $student->birth_date->format('d/m/Y') : 'N/A',
+            'student_matricule' => $student->matricule ?? 'N/A',
+            'class_name' => $student->schoolClass->name ?? 'N/A',
+            'class_size' => $student->schoolClass->students()->count() ?? 0,
+            'trimester_number' => $trimesterNumber,
+            'school_year' => date('Y') . '/' . (date('Y') + 1),
+            'subjects_rows' => ''
         ];
         
         $totalPoints = 0;
@@ -298,12 +377,15 @@ class BulletinService
                 'name' => $seriesSubject->subject->name,
                 'ds' => $dsAverage,
                 'composition' => $compositionGrade,
+                'score' => $trimesterGrade, // Pour compatibilité avec le template
                 'average' => $trimesterGrade,
                 'coefficient' => $seriesSubject->coefficient,
                 'total' => $weightedScore,
                 'rank' => $this->getTrimesterSubjectRank($trimesterNumber, $studentId, $seriesSubject->id),
                 'grade' => $this->getMention($trimesterGrade),
-                'teacher' => $teacherName
+                'teacher' => $teacherName,
+                'min_max' => $this->getTrimesterSubjectMinMax($trimesterNumber, $seriesSubject->id),
+                'appreciation' => $this->getAppreciation($trimesterGrade)
             ];
             
             if ($trimesterGrade) {
@@ -317,6 +399,12 @@ class BulletinService
         $bulletinData['total_coefficient'] = $totalCoefficient;
         $bulletinData['rank'] = $this->getTrimesterRank($trimesterNumber, $studentId);
         $bulletinData['mention'] = $this->getMention($bulletinData['average']);
+        
+        // Construire les lignes HTML pour le template
+        $bulletinData['subjects_rows'] = $this->buildSubjectRowsHTML($bulletinData['subjects'], 'trimester');
+        $bulletinData['first_average'] = 20; // TODO: Calculer vraiment
+        $bulletinData['last_average'] = 5;   // TODO: Calculer vraiment
+        $bulletinData['appreciation'] = $this->getAppreciation($bulletinData['average']);
         
         return $bulletinData;
     }
@@ -395,6 +483,16 @@ class BulletinService
     }
     
     /**
+     * Get subject min/max scores for trimester ranking
+     */
+    protected function getTrimesterSubjectMinMax($trimesterNumber, $seriesSubjectId)
+    {
+        // Pour l'instant, on retourne un placeholder
+        // TODO: Calculer le vrai min/max pour les trimestres
+        return 'N/A';
+    }
+    
+    /**
      * Generate PDF from HTML template
      */
     public function generatePDF($htmlContent, $filename)
@@ -444,7 +542,7 @@ class BulletinService
         $html = file_get_contents($templatePath);
         
         // Prepare the template data
-        $templateData = $this->prepareTemplateData($data);
+        $templateData = $this->prepareTemplateData($data, $templateType);
         
         // Replace simple placeholders
         foreach ($templateData as $key => $value) {
@@ -462,10 +560,23 @@ class BulletinService
     /**
      * Prepare template data for the CPBD bulletin
      */
-    protected function prepareTemplateData($data)
+    protected function prepareTemplateData($data, $templateType = 'sequence')
     {
         $student = $data['student'];
         $sequence = $data['sequence'] ?? null;
+        $trimester = $data['trimester'] ?? null;
+        
+        // Déterminer le type de bulletin et les labels appropriés
+        $bulletinTypeLabel = 'Évaluation';
+        $bulletinPeriod = 'N°1';
+        
+        if ($templateType === 'trimester' && $trimester) {
+            $bulletinTypeLabel = 'Trimestre';
+            $bulletinPeriod = 'N°' . $trimester->number;
+        } elseif ($templateType === 'sequence' && $sequence) {
+            $bulletinTypeLabel = 'Évaluation';
+            $bulletinPeriod = 'N°' . $sequence->number;
+        }
         
         // Get school settings and logo
         $schoolSettings = \App\Models\SchoolSetting::first();
@@ -485,7 +596,10 @@ class BulletinService
             'main_teacher' => 'TCHAMENI MATHIEU', // TODO: Get from database
             'class_size' => $this->getClassSize($student),
             'student_number' => $student->student_number ?? '24A856',
-            'evaluation_number' => $sequence ? $sequence->number : '1',
+            'bulletin_type_label' => $bulletinTypeLabel,
+            'bulletin_period' => $bulletinPeriod,
+            // Maintenir la compatibilité avec les anciens templates
+            'evaluation_number' => $sequence ? $sequence->number : ($trimester ? $trimester->number : '1'),
             'school_year' => date('Y') . '/' . (date('Y') + 1),
             'total_general' => number_format($data['total_points'] ?? 0, 2),
             'total_coef' => number_format($data['total_coefficient'] ?? 0, 2),

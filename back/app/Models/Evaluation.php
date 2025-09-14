@@ -93,11 +93,8 @@ class Evaluation extends Model
     public static function getTypes()
     {
         return [
-            self::TYPE_INTERROGATION => 'Interrogation écrite',
-            self::TYPE_DEVOIR => 'Devoir surveillé',
             self::TYPE_COMPOSITION => 'Composition',
-            self::TYPE_TP => 'Travaux pratiques',
-            self::TYPE_CONTROLE => 'Contrôle continu'
+            self::TYPE_TP => 'Travaux Pratiques'
         ];
     }
 
@@ -130,9 +127,11 @@ class Evaluation extends Model
      */
     public function getClassAverage()
     {
-        return $this->grades()
-                    ->whereNotNull('score')
-                    ->avg('score');
+        $average = $this->grades()
+                       ->whereNotNull('score')
+                       ->avg('score');
+        
+        return $average ? (float) $average : null;
     }
 
     /**

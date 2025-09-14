@@ -96,11 +96,16 @@ class BulletinController extends Controller
         $template = BulletinTemplate::where('type', $request->bulletin_type)->active()->first();
         if (!$template) {
             // Create a fallback template if none exists
-            $template = new BulletinTemplate([
-                'id' => 1,
-                'name' => 'CPBD Template',
-                'type' => $request->bulletin_type
-            ]);
+            $template = BulletinTemplate::firstOrCreate(
+                ['type' => $request->bulletin_type, 'name' => 'CPBD Template'],
+                [
+                    'name' => 'CPBD Template',
+                    'type' => $request->bulletin_type,
+                    'template_html' => 'Default CPBD Template',
+                    'is_active' => true,
+                    'description' => 'Template par défaut CPBD'
+                ]
+            );
         }
         
         // Check if bulletin already exists
@@ -346,8 +351,9 @@ class BulletinController extends Controller
 
     /**
      * Get students with bulletin completion status for a class series
+     * Avec support pour navigation temporelle (voir périodes passées/futures)
      */
-    public function getStudentsBulletinStatus($seriesId)
+    public function getStudentsBulletinStatus($seriesId, Request $request)
     {
         $series = \App\Models\ClassSeries::with('schoolClass')->find($seriesId);
         if (!$series) {
@@ -358,6 +364,9 @@ class BulletinController extends Controller
             ->with(['schoolClass'])
             ->get();
 
+        // Paramètre pour filtrer par période spécifique (optionnel)
+        $viewPeriod = $request->get('period'); // ex: 'seq1', 'trim1', 'current', 'all'
+        
         $studentsWithStatus = [];
         
         foreach ($students as $student) {
@@ -377,6 +386,9 @@ class BulletinController extends Controller
                     ->where('period_identifier', "seq{$seqNumber}")
                     ->first();
 
+                $sequence = \App\Models\Sequence::where('number', $seqNumber)->first();
+                $status = $this->getSequenceStatus($seqNumber);
+
                 $studentData['bulletins']["sequence_{$seqNumber}"] = [
                     'type' => 'sequence',
                     'identifier' => "seq{$seqNumber}",
@@ -384,7 +396,10 @@ class BulletinController extends Controller
                     'completion_percentage' => $completion,
                     'is_generated' => $bulletin ? true : false,
                     'bulletin_id' => $bulletin ? $bulletin->id : null,
-                    'generated_at' => $bulletin ? $bulletin->generated_at : null
+                    'generated_at' => $bulletin ? $bulletin->generated_at : null,
+                    'status' => $status, // 'past', 'current', 'future'
+                    'can_preview' => true, // Toujours permettre la prévisualisation
+                    'is_archived' => $status === 'past'
                 ];
             }
 
@@ -396,6 +411,8 @@ class BulletinController extends Controller
                     ->where('period_identifier', "trim{$trimNumber}")
                     ->first();
 
+                $status = $this->getTrimesterStatus($trimNumber);
+
                 $studentData['bulletins']["trimester_{$trimNumber}"] = [
                     'type' => 'trimester',
                     'identifier' => "trim{$trimNumber}",
@@ -403,22 +420,31 @@ class BulletinController extends Controller
                     'completion_percentage' => $completion,
                     'is_generated' => $bulletin ? true : false,
                     'bulletin_id' => $bulletin ? $bulletin->id : null,
-                    'generated_at' => $bulletin ? $bulletin->generated_at : null
+                    'generated_at' => $bulletin ? $bulletin->generated_at : null,
+                    'status' => $status, // 'past', 'current', 'future'
+                    'can_preview' => $completion > 0 || $status !== 'future', // Prévisualisation si données disponibles
+                    'is_archived' => $status === 'past'
                 ];
             }
 
             $studentsWithStatus[] = $studentData;
         }
 
+        // Informations pour le sélecteur de période
+        $availablePeriods = $this->getAvailablePeriods();
+
         return response()->json([
             'success' => true,
             'series' => $series,
-            'students' => $studentsWithStatus
+            'students' => $studentsWithStatus,
+            'available_periods' => $availablePeriods,
+            'current_view_period' => $viewPeriod ?: 'current'
         ]);
     }
 
     /**
      * Calculate sequence completion percentage for a student
+     * Logique académique: seules les séquences 1 et 3 génèrent des bulletins
      */
     private function calculateSequenceCompletion($studentId, $sequenceNumber)
     {
@@ -430,7 +456,37 @@ class BulletinController extends Controller
 
         $sequence = \App\Models\Sequence::where('number', $sequenceNumber)->first();
         if (!$sequence) return 0;
+        
+        // Logique de reset: si la séquence est terminée, garder 100%
+        // Si la séquence n'est pas encore active, 0%
+        // Si la séquence est active, calculer le pourcentage réel
+        
+        $currentActiveSequence = \App\Models\Sequence::where('is_active', true)->first();
+        
+        if ($sequence->is_completed) {
+            // Séquence terminée -> garder le statut à 100% si un bulletin existe
+            $existingBulletin = \App\Models\BulletinGeneration::where('student_id', $studentId)
+                ->where('period_type', 'sequence')
+                ->where('period_identifier', "seq{$sequenceNumber}")
+                ->first();
+            return $existingBulletin ? 100 : 0;
+        }
+        
+        if ($currentActiveSequence && $currentActiveSequence->number > $sequenceNumber) {
+            // Séquence passée -> garder le statut final
+            $existingBulletin = \App\Models\BulletinGeneration::where('student_id', $studentId)
+                ->where('period_type', 'sequence')
+                ->where('period_identifier', "seq{$sequenceNumber}")
+                ->first();
+            return $existingBulletin ? 100 : 0;
+        }
+        
+        if ($currentActiveSequence && $currentActiveSequence->number < $sequenceNumber) {
+            // Séquence future -> 0%
+            return 0;
+        }
 
+        // Séquence actuelle -> calculer le pourcentage réel
         $gradedSubjects = 0;
         foreach ($subjects as $subject) {
             $hasGrade = \App\Models\Grade::where('student_id', $studentId)
@@ -449,6 +505,7 @@ class BulletinController extends Controller
 
     /**
      * Calculate trimester completion percentage for a student
+     * Logique académique: DS1=(Seq1+Seq2)/2, DS2=(Seq3+Seq4)/2, Trimestre=(DS+Composition)/2
      */
     private function calculateTrimesterCompletion($studentId, $trimesterNumber)
     {
@@ -459,14 +516,35 @@ class BulletinController extends Controller
         if ($subjects->count() === 0) return 0;
 
         $totalCompletion = 0;
+        $currentActiveSequence = \App\Models\Sequence::where('is_active', true)->first();
         
         foreach ($subjects as $subject) {
-            $dsCompletion = $this->checkDSCompletion($studentId, $trimesterNumber, $subject->id);
-            $compositionCompletion = $this->checkCompositionCompletion($studentId, $trimesterNumber, $subject->id);
-            
             if ($trimesterNumber == 3) {
+                // Trimestre 3: Composition seule
+                $compositionCompletion = $this->checkCompositionCompletion($studentId, 3, $subject->id);
                 $subjectCompletion = $compositionCompletion;
             } else {
+                // Trimestre 1 ou 2: (DS + Composition) / 2
+                $dsCompletion = $this->checkDSCompletion($studentId, $trimesterNumber, $subject->id);
+                $compositionCompletion = $this->checkCompositionCompletion($studentId, $trimesterNumber, $subject->id);
+                
+                // Logique de mise à jour pendant les séquences:
+                // - Trimestre 1 se met à jour pendant séquences 1 et 2
+                // - Trimestre 2 se met à jour pendant séquences 3 et 4
+                
+                if ($trimesterNumber == 1) {
+                    // Pendant séquence 2, le trimestre 1 se calcule déjà avec séq1+séq2
+                    if ($currentActiveSequence && $currentActiveSequence->number == 2) {
+                        // On est en train de saisir la séquence 2 -> calculer DS1 avec séq1+séq2
+                        $dsCompletion = $this->checkDSCompletion($studentId, 1, $subject->id);
+                    }
+                } elseif ($trimesterNumber == 2) {
+                    // Pendant séquence 4, le trimestre 2 se calcule avec séq3+séq4
+                    if ($currentActiveSequence && $currentActiveSequence->number == 4) {
+                        $dsCompletion = $this->checkDSCompletion($studentId, 2, $subject->id);
+                    }
+                }
+                
                 $subjectCompletion = ($dsCompletion + $compositionCompletion) / 2;
             }
             
@@ -774,5 +852,109 @@ class BulletinController extends Controller
                 'error' => 'Erreur lors de la création du ZIP: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Détermine le statut d'une séquence (past, current, future)
+     */
+    private function getSequenceStatus($sequenceNumber)
+    {
+        $currentActiveSequence = \App\Models\Sequence::where('is_active', true)->first();
+        $sequence = \App\Models\Sequence::where('number', $sequenceNumber)->first();
+        
+        if (!$currentActiveSequence || !$sequence) return 'future';
+        
+        if ($sequence->is_completed) return 'past';
+        if ($sequence->is_active) return 'current';
+        if ($currentActiveSequence->number > $sequenceNumber) return 'past';
+        if ($currentActiveSequence->number < $sequenceNumber) return 'future';
+        
+        return 'future';
+    }
+
+    /**
+     * Détermine le statut d'un trimestre (past, current, future)
+     */
+    private function getTrimesterStatus($trimesterNumber)
+    {
+        $currentActiveSequence = \App\Models\Sequence::where('is_active', true)->first();
+        
+        if (!$currentActiveSequence) return 'future';
+        
+        // Logique académique: 
+        // Trimestre 1 = Séquences 1,2 + Composition 1
+        // Trimestre 2 = Séquences 3,4 + Composition 2  
+        // Trimestre 3 = Composition 3
+        
+        if ($trimesterNumber == 1) {
+            if ($currentActiveSequence->number >= 2) return 'current'; // Pendant ou après séq 2
+            if ($currentActiveSequence->number == 1) return 'current'; // Pendant séq 1
+            return 'future';
+        } elseif ($trimesterNumber == 2) {
+            if ($currentActiveSequence->number >= 4) return 'current'; // Pendant ou après séq 4
+            if ($currentActiveSequence->number == 3) return 'current'; // Pendant séq 3  
+            if ($currentActiveSequence->number <= 2) return 'future';
+        } elseif ($trimesterNumber == 3) {
+            // Trimestre 3 disponible après séquence 4
+            if ($currentActiveSequence->number > 4) return 'current';
+            return 'future';
+        }
+        
+        return 'future';
+    }
+
+    /**
+     * Retourne toutes les périodes disponibles pour navigation
+     */
+    private function getAvailablePeriods()
+    {
+        $periods = [];
+        
+        // Séquences 1 et 3 (seules avec bulletins)
+        foreach ([1, 3] as $seqNumber) {
+            $sequence = \App\Models\Sequence::where('number', $seqNumber)->first();
+            if ($sequence) {
+                $status = $this->getSequenceStatus($seqNumber);
+                $periods[] = [
+                    'type' => 'sequence',
+                    'identifier' => "seq{$seqNumber}",
+                    'name' => "Séquence {$seqNumber}",
+                    'status' => $status,
+                    'icon' => $status === 'past' ? 'archive' : ($status === 'current' ? 'play-circle' : 'clock')
+                ];
+            }
+        }
+        
+        // Trimestres 1, 2, 3
+        for ($trimNumber = 1; $trimNumber <= 3; $trimNumber++) {
+            $status = $this->getTrimesterStatus($trimNumber);
+            $periods[] = [
+                'type' => 'trimester', 
+                'identifier' => "trim{$trimNumber}",
+                'name' => "Trimestre {$trimNumber}",
+                'status' => $status,
+                'icon' => $status === 'past' ? 'archive' : ($status === 'current' ? 'play-circle' : 'clock')
+            ];
+        }
+        
+        // Option "Vue actuelle"
+        $periods[] = [
+            'type' => 'view',
+            'identifier' => 'current',
+            'name' => 'Vue Actuelle',
+            'status' => 'current',
+            'icon' => 'eye'
+        ];
+        
+        // Option "Toutes les périodes"
+        $periods[] = [
+            'type' => 'view',
+            'identifier' => 'all',
+            'name' => 'Toutes les Périodes',
+            'status' => 'all',
+            'icon' => 'grid'
+        ];
+        
+        return $periods;
     }
 }

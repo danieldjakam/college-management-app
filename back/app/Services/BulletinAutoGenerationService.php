@@ -34,13 +34,26 @@ class BulletinAutoGenerationService
         $student = $grade->student;
         $sequence = $grade->sequence;
         
-        // Vérifier si c'est une séquence avec bulletin (1 ou 3)
+        // Logique académique camerounaise :
+        // - Séquences 1,3 : Génèrent des bulletins individuels
+        // - Séquences 2,4 : Saisie notes seulement, mais calculent les trimestres
+        
         if (in_array($sequence->number, [1, 3])) {
+            // Générer bulletin individuel pour séquences 1 et 3
             $this->checkSequenceBulletinCompletion($student->id, $sequence->number);
         }
         
-        // Vérifier les bulletins de trimestre
-        $this->checkTrimesterBulletinCompletion($student->id, $sequence->trimester_id);
+        // Calculer trimestre selon la séquence actuelle
+        if ($sequence->number == 2) {
+            // Séquence 2 terminée → Calculer Trimestre 1 (DS1 + Composition1)
+            $this->checkTrimesterBulletinCompletion($student->id, 1);
+        } elseif ($sequence->number == 4) {
+            // Séquence 4 terminée → Calculer Trimestre 2 (DS2 + Composition2) 
+            $this->checkTrimesterBulletinCompletion($student->id, 2);
+        } else {
+            // Pour séquences 1,3 : vérifier aussi les trimestres associés
+            $this->checkTrimesterBulletinCompletion($student->id, $sequence->trimester_id);
+        }
         
         // Vérifier le bulletin annuel si on est en fin d'année
         $this->checkAnnualBulletinCompletion($student->id);
@@ -90,11 +103,8 @@ class BulletinAutoGenerationService
     /**
      * Vérifie si un bulletin de trimestre peut être généré/mis à jour
      */
-    protected function checkTrimesterBulletinCompletion($studentId, $trimesterId)
+    protected function checkTrimesterBulletinCompletion($studentId, $trimesterNumber)
     {
-        $trimester = Trimester::find($trimesterId);
-        if (!$trimester) return;
-        
         $student = Student::find($studentId);
         if (!$student) return;
         
@@ -104,19 +114,23 @@ class BulletinAutoGenerationService
         $overallCompletion = 0;
         
         foreach ($subjects as $subject) {
-            // Vérifier les DS (séquences du trimestre)
-            $dsCompletion = $this->checkDSCompletion($studentId, $trimester->number, $subject->id);
-            
-            // Vérifier la composition
-            $compositionCompletion = $this->checkCompositionCompletion($studentId, $trimester->number, $subject->id);
-            
-            // Calcul de completion pour cette matière
-            if ($trimester->number == 3) {
-                // Trimestre 3: composition seulement
+            // Logique académique camerounaise
+            if ($trimesterNumber == 3) {
+                // Trimestre 3: Composition 3 seulement
+                $compositionCompletion = $this->checkCompositionCompletion($studentId, 3, $subject->id);
                 $subjectCompletion = $compositionCompletion;
             } else {
-                // Trimestres 1 et 2: (DS + Composition) / 2
-                $subjectCompletion = ($dsCompletion + $compositionCompletion) / 2;
+                // Trimestre 1: DS1 (Séq1+Séq2) + Composition1
+                // Trimestre 2: DS2 (Séq3+Séq4) + Composition2
+                $dsCompletion = $this->checkDSCompletion($studentId, $trimesterNumber, $subject->id);
+                $compositionCompletion = $this->checkCompositionCompletion($studentId, $trimesterNumber, $subject->id);
+                
+                // Si les DS sont complètes ou si on a une composition, on peut calculer
+                if ($dsCompletion >= 100 || $compositionCompletion >= 100) {
+                    $subjectCompletion = ($dsCompletion + $compositionCompletion) / 2;
+                } else {
+                    $subjectCompletion = ($dsCompletion + $compositionCompletion) / 2;
+                }
             }
             
             $completionData[$subject->id] = $subjectCompletion;
@@ -125,16 +139,17 @@ class BulletinAutoGenerationService
         
         $overallCompletion = $subjects->count() > 0 ? $overallCompletion / $subjects->count() : 0;
         
-        Log::info("Trimestre {$trimester->number} - Étudiant {$studentId}: {$overallCompletion}% complet");
+        Log::info("Trimestre {$trimesterNumber} - Étudiant {$studentId}: {$overallCompletion}% complet");
         
-        // Générer/mettre à jour si au moins 60% complet
-        if ($overallCompletion >= 60) {
-            $this->generateOrUpdateTrimesterBulletin($studentId, $trimester->number, $overallCompletion);
+        // Générer/mettre à jour si au moins 50% complet (plus permissif pour avoir des bulletins pendant saisie)
+        if ($overallCompletion >= 50) {
+            $this->generateOrUpdateTrimesterBulletin($studentId, $trimesterNumber, $overallCompletion);
         }
     }
     
     /**
      * Vérifie la completion des DS pour un trimestre
+     * DS1 = Séquences 1 + 2, DS2 = Séquences 3 + 4
      */
     protected function checkDSCompletion($studentId, $trimesterNumber, $subjectId)
     {
@@ -142,10 +157,10 @@ class BulletinAutoGenerationService
         
         switch ($trimesterNumber) {
             case 1:
-                $sequenceNumbers = [1, 2];
+                $sequenceNumbers = [1, 2]; // DS1 = (Séq1 + Séq2) / 2
                 break;
             case 2:
-                $sequenceNumbers = [3, 4];
+                $sequenceNumbers = [3, 4]; // DS2 = (Séq3 + Séq4) / 2
                 break;
             default:
                 return 100; // Trimestre 3 n'a pas de DS
@@ -153,6 +168,7 @@ class BulletinAutoGenerationService
         
         $sequences = Sequence::whereIn('number', $sequenceNumbers)->get();
         $gradedSequences = 0;
+        $totalSequences = $sequences->count();
         
         foreach ($sequences as $sequence) {
             $hasGrade = Grade::where('student_id', $studentId)
@@ -166,7 +182,8 @@ class BulletinAutoGenerationService
             }
         }
         
-        return $sequences->count() > 0 ? ($gradedSequences / $sequences->count()) * 100 : 0;
+        // Retourner pourcentage de completion des DS
+        return $totalSequences > 0 ? ($gradedSequences / $totalSequences) * 100 : 0;
     }
     
     /**
@@ -207,11 +224,16 @@ class BulletinAutoGenerationService
             
             if (!$template) {
                 // Créer un template par défaut si aucun n'existe
-                $template = new BulletinTemplate([
-                    'id' => 1,
-                    'name' => 'CPBD Template',
-                    'type' => 'sequence'
-                ]);
+                $template = BulletinTemplate::firstOrCreate(
+                    ['type' => 'sequence', 'name' => 'CPBD Template'],
+                    [
+                        'name' => 'CPBD Template',
+                        'type' => 'sequence',
+                        'template_html' => 'Default CPBD Template',
+                        'is_active' => true,
+                        'description' => 'Template par défaut CPBD pour les séquences'
+                    ]
+                );
             }
             
             // Générer le HTML et le PDF avec le nouveau template CPBD
@@ -279,11 +301,16 @@ class BulletinAutoGenerationService
             
             if (!$template) {
                 // Créer un template par défaut si aucun n'existe
-                $template = new BulletinTemplate([
-                    'id' => 1,
-                    'name' => 'CPBD Template',
-                    'type' => 'trimester'
-                ]);
+                $template = BulletinTemplate::firstOrCreate(
+                    ['type' => 'trimester', 'name' => 'CPBD Template'],
+                    [
+                        'name' => 'CPBD Template',
+                        'type' => 'trimester',
+                        'template_html' => 'Default CPBD Template',
+                        'is_active' => true,
+                        'description' => 'Template par défaut CPBD pour les trimestres'
+                    ]
+                );
             }
             
             // Générer le HTML et le PDF avec le nouveau template CPBD

@@ -1099,6 +1099,7 @@ Route::middleware(['auth:api'])->group(function () {
         
         // Création et gestion (enseignants et admins)
         Route::post('/', [EvaluationController::class, 'store'])->middleware(['role:admin,teacher']);
+        Route::delete('/{evaluation}', [EvaluationController::class, 'destroy'])->middleware(['role:admin,teacher']);
     });
 
     // Routes pour les notes
