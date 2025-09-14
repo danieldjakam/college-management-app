@@ -237,6 +237,11 @@ const GradeEntry = () => {
                                     <p className="mb-0 opacity-75">
                                         {evaluation?.name} - {evaluation?.series_subject?.subject?.name}
                                     </p>
+                                    {evaluation?.sequence?.is_completed && (
+                                        <Badge bg="warning" className="mt-2">
+                                            🔒 Période terminée - Lecture seule
+                                        </Badge>
+                                    )}
                                 </div>
                                 <div className="text-end">
                                     <div className="d-flex gap-2">
@@ -366,7 +371,7 @@ const GradeEntry = () => {
                                         variant="success" 
                                         size="sm"
                                         onClick={saveBulkGrades}
-                                        disabled={saving || !unsavedChanges}
+                                        disabled={saving || !unsavedChanges || evaluation?.sequence?.is_completed}
                                     >
                                         {saving ? (
                                             <>
@@ -443,7 +448,7 @@ const GradeEntry = () => {
                                                                 min="0"
                                                                 max={evaluation?.max_score}
                                                                 value={grade.score || ''}
-                                                                disabled={grade.is_absent}
+                                                                disabled={grade.is_absent || evaluation?.sequence?.is_completed}
                                                                 onChange={(e) => handleGradeChange(
                                                                     student.id, 
                                                                     'score', 
@@ -476,6 +481,7 @@ const GradeEntry = () => {
                                                             <Form.Check
                                                                 type="checkbox"
                                                                 checked={grade.is_absent || false}
+                                                                disabled={evaluation?.sequence?.is_completed}
                                                                 onChange={(e) => handleGradeChange(
                                                                     student.id, 
                                                                     'is_absent', 
@@ -487,7 +493,7 @@ const GradeEntry = () => {
                                                             <Form.Check
                                                                 type="checkbox"
                                                                 checked={grade.is_excused || false}
-                                                                disabled={!grade.is_absent}
+                                                                disabled={!grade.is_absent || evaluation?.sequence?.is_completed}
                                                                 onChange={(e) => handleGradeChange(
                                                                     student.id, 
                                                                     'is_excused', 
@@ -501,6 +507,7 @@ const GradeEntry = () => {
                                                                 size="sm"
                                                                 placeholder="Commentaire..."
                                                                 value={grade.comment || ''}
+                                                                disabled={evaluation?.sequence?.is_completed}
                                                                 onChange={(e) => handleGradeChange(
                                                                     student.id, 
                                                                     'comment', 
