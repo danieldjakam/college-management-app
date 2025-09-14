@@ -952,7 +952,7 @@ const CardGenerator = () => {
     setLoading(false);
   };
 
-  // Générer un PDF A4 avec 8 cartes par page (grille 2x4)
+  // Générer un PDF A4 avec 10 cartes par page (grille 2x5)
   const generatePDFA4 = async (cardsToGenerate = null) => {
     // Utiliser les cartes passées en paramètre ou celles de l'état
     const cardsToUse = cardsToGenerate || previewCards;
@@ -997,16 +997,16 @@ const CardGenerator = () => {
       // Calculer les dimensions basées sur le ratio 1920x1080 (16:9)
       const cardRatio = 1920 / 1080; // Ratio largeur/hauteur = 1.778
 
-      // Calculer les dimensions pour 8 cartes par page (2x4 - 2 colonnes, 4 lignes)
+      // Calculer les dimensions pour 10 cartes par page (2x5 - 2 colonnes, 5 lignes)
       // AUGMENTER LA TAILLE DES CARTES en réduisant les marges
       const reducedMargin = 5; // Réduire les marges
       const reducedSpacing = 3; // Réduire l'espacement
 
       const availableHeight =
-        pageHeight - 2 * reducedMargin - 3 * reducedSpacing; // 3 espacements pour 4 lignes
+        pageHeight - 2 * reducedMargin - 4 * reducedSpacing; // 4 espacements pour 5 lignes
       const availableWidth = pageWidth - 2 * reducedMargin - reducedSpacing; // 1 espacement pour 2 colonnes
 
-      const cardHeight = availableHeight / 4; // 4 lignes par page
+      const cardHeight = availableHeight / 5; // 5 lignes par page
       const cardWidth = availableWidth / 2; // 2 colonnes par page
 
       // Vérifier si le ratio 1920x1080 peut être respecté
@@ -1034,11 +1034,11 @@ const CardGenerator = () => {
         )} (cible: 1.778)`
       );
 
-      // Positions pour 8 cartes par page (grille 2x4) - optimisé pour 1920x1080
+      // Positions pour 10 cartes par page (grille 2x5) - optimisé pour 1920x1080
       const centerOffsetX =
         (pageWidth - (2 * finalCardWidth + reducedSpacing)) / 2;
       const centerOffsetY =
-        (pageHeight - (4 * finalCardHeight + 3 * reducedSpacing)) / 2;
+        (pageHeight - (5 * finalCardHeight + 4 * reducedSpacing)) / 2;
 
       const positions = [
         // Ligne 1 (2 cartes)
@@ -1074,6 +1074,15 @@ const CardGenerator = () => {
           x: centerOffsetX + finalCardWidth + reducedSpacing,
           y: centerOffsetY + 3 * (finalCardHeight + reducedSpacing),
         }, // Carte 8
+        // Ligne 5 (2 cartes)
+        {
+          x: centerOffsetX,
+          y: centerOffsetY + 4 * (finalCardHeight + reducedSpacing),
+        }, // Carte 9
+        {
+          x: centerOffsetX + finalCardWidth + reducedSpacing,
+          y: centerOffsetY + 4 * (finalCardHeight + reducedSpacing),
+        }, // Carte 10
       ];
 
       // Les dimensions sont déjà dans finalCardWidth et finalCardHeight
@@ -1081,14 +1090,14 @@ const CardGenerator = () => {
       for (let i = 0; i < cardsToUse.length; i++) {
         const card = cardsToUse[i];
 
-        // Nouvelle page après chaque 8 cartes (sauf pour la première page)
-        if (i > 0 && i % 8 === 0) {
+        // Nouvelle page après chaque 10 cartes (sauf pour la première page)
+        if (i > 0 && i % 10 === 0) {
           pdf.addPage();
           console.log(`Nouvelle page créée pour la carte ${i + 1}`);
         }
 
-        // Position sur la page : 0,1,2,3,4,5,6,7 pour grille 2x4
-        const positionIndex = i % 8;
+        // Position sur la page : 0,1,2,3,4,5,6,7,8,9 pour grille 2x5
+        const positionIndex = i % 10;
         const position = positions[positionIndex];
 
         console.log(
@@ -1114,8 +1123,8 @@ const CardGenerator = () => {
         }
       }
 
-      // Ajouter des lignes de découpe pour 8 cartes (grille 2x4)
-      console.log("Ajout des lignes de découpe pour 8 cartes...");
+      // Ajouter des lignes de découpe pour 10 cartes (grille 2x5)
+      console.log("Ajout des lignes de découpe pour 10 cartes...");
 
       pdf.setDrawColor(200, 200, 200); // Gris clair
       pdf.setLineWidth(0.1);
@@ -1124,8 +1133,8 @@ const CardGenerator = () => {
       const centerX = centerOffsetX + finalCardWidth + reducedSpacing / 2;
       pdf.line(centerX, 0, centerX, pageHeight);
 
-      // Lignes horizontales (3 lignes pour séparer 4 lignes)
-      for (let i = 1; i < 4; i++) {
+      // Lignes horizontales (4 lignes pour séparer 5 lignes)
+      for (let i = 1; i < 5; i++) {
         const lineY =
           centerOffsetY +
           i * (finalCardHeight + reducedSpacing) -
@@ -1133,13 +1142,13 @@ const CardGenerator = () => {
         pdf.line(0, lineY, pageWidth, lineY);
       }
 
-      // Bordure délimitant toute la zone des 8 cartes
+      // Bordure délimitant toute la zone des 10 cartes
       pdf.setDrawColor(150, 150, 150); // Gris plus foncé
       pdf.rect(
         centerOffsetX,
         centerOffsetY,
         2 * finalCardWidth + reducedSpacing,
-        4 * finalCardHeight + 3 * reducedSpacing
+        5 * finalCardHeight + 4 * reducedSpacing
       );
 
       // Télécharger le PDF
@@ -1152,12 +1161,12 @@ const CardGenerator = () => {
         `PDF généré avec succès !\n${
           cardsToUse.length
         } carte(s) sur ${Math.ceil(
-          cardsToUse.length / 8
+          cardsToUse.length / 10
         )} page(s) A4\nDimensions: ${finalCardWidth.toFixed(
           1
         )}mm x ${finalCardHeight.toFixed(
           1
-        )}mm par carte\nFormat: 1920x1080px (ratio 16:9) optimisé\nDisposition: 8 cartes par page (2x4) centrées\nLignes de découpe incluses pour faciliter la coupe`
+        )}mm par carte\nFormat: 1920x1080px (ratio 16:9) optimisé\nDisposition: 10 cartes par page (2x5) centrées\nLignes de découpe incluses pour faciliter la coupe`
       );
     } catch (error) {
       console.error("Erreur génération PDF:", error);
@@ -1722,7 +1731,7 @@ const CardGenerator = () => {
                           onClick={() => generatePDFA4(window.tempCards)}
                         >
                           <Download className="me-2" />
-                          Générer PDF A4 (8 par page - 2x4)
+                          Générer PDF A4 (10 par page - 2x5)
                         </Button>
                       </>
                     )}

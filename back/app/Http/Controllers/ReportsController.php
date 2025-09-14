@@ -45,23 +45,24 @@ class ReportsController extends Controller
     }
 
     /**
-     * Calculer le montant total requis pour un élève
+     * Calculer le montant total requis pour un élève (ANCIENNE MÉTHODE - REMPLACÉE)
+     * UTILISEZ calculateStudentTotalRequired() À LA PLACE
      */
     private function getStudentTotalRequired($studentId, $schoolYearId)
     {
         try {
-            $student = Student::with('classSeries')->find($studentId);
+            $student = Student::with(['classSeries.schoolClass'])->find($studentId);
+            $workingYear = SchoolYear::find($schoolYearId);
 
-            if (!$student || !$student->classSeries) {
+            if (!$student || !$student->classSeries || !$workingYear) {
                 return 0;
             }
 
-            // Obtenir tous les montants de tranches pour cette série de classe
-            $classPaymentAmounts = DB::table('class_payment_amounts')
-                ->where('class_id', $student->classSeries->class_id)
-                ->sum('amount');
+            $tranches = PaymentTranche::where('is_active', true)->get();
 
-            return $classPaymentAmounts ?: 0;
+            // Utiliser la nouvelle méthode corrigée
+            $result = $this->calculateStudentTotalRequired($student, $workingYear, $tranches);
+            return $result['effective_required']; // Retourner le montant effectif après bourses/réductions
 
         } catch (\Exception $e) {
             Log::warning('Error calculating total required for student ' . $studentId . ': ' . $e->getMessage());
@@ -87,6 +88,49 @@ class ReportsController extends Controller
             $type = $request->get('type', 'by-class'); // by-class ou by-section
             $classId = $request->get('class_id');
             $sectionId = $request->get('section_id');
+            $seriesId = $request->get('series_id');
+
+            // Validation : filtrage hiérarchique obligatoire
+            if (!$sectionId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Le filtrage par section est obligatoire'
+                ], 400);
+            }
+
+            // Si classe fournie, vérifier qu'elle appartient à la section
+            if ($classId) {
+                $classExists = \App\Models\SchoolClass::whereHas('level.section', function($q) use ($sectionId) {
+                    $q->where('id', $sectionId);
+                })->where('id', $classId)->exists();
+
+                if (!$classExists) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'La classe sélectionnée n\'appartient pas à la section spécifiée'
+                    ], 400);
+                }
+            }
+
+            // Si série fournie, vérifier qu'elle appartient à la classe
+            if ($seriesId) {
+                if (!$classId) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Une classe doit être sélectionnée avant de choisir une série'
+                    ], 400);
+                }
+
+                $seriesExists = \App\Models\ClassSeries::where('class_id', $classId)
+                    ->where('id', $seriesId)->exists();
+
+                if (!$seriesExists) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'La série sélectionnée n\'appartient pas à la classe spécifiée'
+                    ], 400);
+                }
+            }
 
             $recoveryData = [];
             $summary = [
@@ -97,9 +141,18 @@ class ReportsController extends Controller
             ];
 
             if ($type === 'by-class') {
-                $recoveryData = $this->getRecoveryByClass($workingYear, $classId);
+                $recoveryData = $this->getRecoveryByClass($workingYear, $classId, $sectionId, $seriesId);
+            } elseif ($type === 'by-students') {
+                // Pour la liste des élèves, la classe est obligatoire
+                if (!$classId) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'La sélection d\'une classe est obligatoire pour afficher la liste des élèves'
+                    ], 400);
+                }
+                $recoveryData = $this->getRecoveryByStudents($workingYear, $classId, $sectionId, $seriesId);
             } else {
-                $recoveryData = $this->getRecoveryBySection($workingYear, $sectionId);
+                $recoveryData = $this->getRecoveryBySection($workingYear, $sectionId, $classId, $seriesId);
             }
 
             // Calculer le résumé
@@ -135,15 +188,28 @@ class ReportsController extends Controller
     /**
      * Calculer l'état de recouvrement par classe
      */
-    private function getRecoveryByClass($workingYear, $classId = null)
+    private function getRecoveryByClass($workingYear, $classId = null, $sectionId = null, $seriesId = null)
     {
-        $query = ClassSeries::with(['schoolClass', 'students' => function($q) use ($workingYear) {
+        $query = ClassSeries::with(['schoolClass.level.section', 'students' => function($q) use ($workingYear) {
             $q->where('school_year_id', $workingYear->id)
               ->where('is_active', true);
         }]);
 
-        if ($classId) {
-            $query->where('class_id', $classId);
+        // Filtrage hiérarchique obligatoire : Section → Classe → Série
+        if ($sectionId) {
+            $query->whereHas('schoolClass.level.section', function($q) use ($sectionId) {
+                $q->where('id', $sectionId);
+            });
+
+            // Si classe spécifiée, on affine par classe
+            if ($classId) {
+                $query->where('class_id', $classId);
+
+                // Si série spécifiée, on affine par série
+                if ($seriesId) {
+                    $query->where('id', $seriesId);
+                }
+            }
         }
 
         $classSeries = $query->get();
@@ -184,7 +250,7 @@ class ReportsController extends Controller
     /**
      * Calculer l'état de recouvrement par section
      */
-    private function getRecoveryBySection($workingYear, $sectionId = null)
+    private function getRecoveryBySection($workingYear, $sectionId = null, $classId = null, $seriesId = null)
     {
         $query = Section::with(['classes.series.students' => function($q) use ($workingYear) {
             $q->where('school_year_id', $workingYear->id)
@@ -206,7 +272,17 @@ class ReportsController extends Controller
 
             // Parcourir toutes les classes de cette section
             foreach ($section->classes as $schoolClass) {
+                // Filtrage par classe si spécifiée
+                if ($classId && $schoolClass->id != $classId) {
+                    continue;
+                }
+
                 foreach ($schoolClass->series as $series) {
+                    // Filtrage par série si spécifiée
+                    if ($seriesId && $series->id != $seriesId) {
+                        continue;
+                    }
+
                     $studentsCount = $series->students->count();
                     $totalStudents += $studentsCount;
 
@@ -240,18 +316,162 @@ class ReportsController extends Controller
     }
 
     /**
+     * Calculer l'état de recouvrement par liste d'élèves
+     */
+    private function getRecoveryByStudents($workingYear, $classId, $sectionId = null, $seriesId = null)
+    {
+        $query = Student::with(['classSeries.schoolClass.level.section'])
+            ->where('school_year_id', $workingYear->id)
+            ->where('is_active', true);
+
+        // Filtrage par classe (obligatoire pour cette vue)
+        if ($classId) {
+            $query->whereHas('classSeries.schoolClass', function($q) use ($classId) {
+                $q->where('id', $classId);
+            });
+        }
+
+        // Filtrage par série si spécifiée
+        if ($seriesId) {
+            $query->where('class_series_id', $seriesId);
+        }
+
+        // Filtrage par section si spécifiée
+        if ($sectionId) {
+            $query->whereHas('classSeries.schoolClass.level.section', function($q) use ($sectionId) {
+                $q->where('id', $sectionId);
+            });
+        }
+
+        $students = $query->orderBy('first_name')->orderBy('last_name')->get();
+        $recoveryData = [];
+
+        foreach ($students as $student) {
+            // Calculer le montant total requis pour cet élève (montant de base)
+            $totalRequired = $this->getStudentTotalRequired($student->id, $workingYear->id);
+
+            // Calculer le montant total payé EN ESPÈCES par cet élève
+            $totalPaidCash = PaymentDetail::join('payments', 'payment_details.payment_id', '=', 'payments.id')
+                ->where('payments.student_id', $student->id)
+                ->where('payments.school_year_id', $workingYear->id)
+                ->whereNotNull('payments.validation_date')
+                ->sum('payment_details.amount_allocated');
+
+            // Calculer les VRAIES bourses et réductions de la base de données
+            $totalScholarships = 0;
+            $totalReductions = 0;
+
+            // 1. Vérifier les bourses RÉELLES : seulement si has_scholarship_enabled=true
+            if ($student->has_scholarship_enabled) {
+                // Chercher les bourses de classe pour cette classe
+                $classScholarships = ClassScholarship::where('school_class_id', $student->classSeries->class_id)
+                    ->where('is_active', true)
+                    ->get();
+
+                foreach ($classScholarships as $scholarship) {
+                    $totalScholarships += $scholarship->amount;
+                }
+            }
+
+            // 2. Vérifier les réductions RÉELLES : seulement celles enregistrées en BD
+            $paymentsWithReductions = Payment::where('student_id', $student->id)
+                ->where('school_year_id', $workingYear->id)
+                ->whereNotNull('validation_date')
+                ->where('reduction_amount', '>', 0)
+                ->get();
+
+            foreach ($paymentsWithReductions as $payment) {
+                $totalReductions += $payment->reduction_amount ?? 0;
+            }
+
+            // Total des "paiements virtuels" (bourses + réductions RÉELLES)
+            $totalVirtualPayments = $totalScholarships + $totalReductions;
+
+            // Total payé = espèces + avantages RÉELS
+            $totalPaid = $totalPaidCash + $totalVirtualPayments;
+
+            $remainingAmount = max(0, $totalRequired - $totalPaid);
+
+            // Déterminer le statut de paiement
+            $paymentStatus = 'Non payé';
+            if ($totalPaid > 0) {
+                $paymentStatus = $remainingAmount == 0 ? 'Payé' : 'Partiellement payé';
+            }
+
+            $recoveryData[] = [
+                'student_id' => $student->id,
+                'full_name' => $student->first_name . ' ' . $student->last_name,
+                'first_name' => $student->first_name,
+                'last_name' => $student->last_name,
+                'student_identifier' => $student->student_identifier,
+                'class_name' => $student->classSeries?->schoolClass?->name ?? 'N/A',
+                'series_name' => $student->classSeries?->name ?? 'N/A',
+                'section_name' => $student->classSeries?->schoolClass?->level?->section?->name ?? 'N/A',
+                'payment_status' => $paymentStatus,
+                'total_amount' => $totalRequired, // Montant de base (103 000 F)
+                'paid_amount' => $totalPaidCash, // Seulement les espèces
+                'scholarship_amount' => $totalScholarships, // Bourses RÉELLES de la BD
+                'reduction_amount' => $totalReductions, // Réductions RÉELLES de la BD
+                'total_virtual_payments' => $totalVirtualPayments, // Total des avantages RÉELS
+                'total_effective_paid' => $totalPaid, // Espèces + avantages RÉELS
+                'remaining_amount' => $remainingAmount,
+                'collected_amount' => $totalPaid, // Pour la compatibilité avec le résumé
+            ];
+        }
+
+        return $recoveryData;
+    }
+
+    /**
      * Helper methods pour le calcul de recouvrement
      */
     private function getClassSeriesTotalAmount($classSeriesId, $schoolYearId)
     {
-        $classSeries = ClassSeries::find($classSeriesId);
+        $classSeries = ClassSeries::with('schoolClass')->find($classSeriesId);
         if (!$classSeries) {
             return 0;
         }
 
-        return DB::table('class_payment_amounts')
-            ->where('class_id', $classSeries->class_id)
-            ->sum('amount');
+        // Obtenir tous les étudiants actifs de cette série
+        $students = Student::where('class_series_id', $classSeriesId)
+            ->where('school_year_id', $schoolYearId)
+            ->where('is_active', true)
+            ->get();
+
+        if ($students->isEmpty()) {
+            return 0;
+        }
+
+        $totalAmountExpected = 0;
+
+        foreach ($students as $student) {
+            // Montant de base pour cet étudiant
+            $baseAmount = $this->getStudentTotalRequired($student->id, $schoolYearId);
+
+            // Soustraire les bourses réelles si l'élève en a
+            $scholarships = 0;
+            if ($student->has_scholarship_enabled) {
+                $classScholarships = ClassScholarship::where('school_class_id', $classSeries->class_id)
+                    ->where('is_active', true)
+                    ->get();
+
+                foreach ($classScholarships as $scholarship) {
+                    $scholarships += $scholarship->amount;
+                }
+            }
+
+            // Soustraire les réductions réelles de cet élève
+            $reductions = Payment::where('student_id', $student->id)
+                ->where('school_year_id', $schoolYearId)
+                ->whereNotNull('validation_date')
+                ->sum('reduction_amount') ?? 0;
+
+            // Montant attendu = base - bourses - réductions
+            $expectedAmount = $baseAmount - $scholarships - $reductions;
+            $totalAmountExpected += max(0, $expectedAmount);
+        }
+
+        return $totalAmountExpected;
     }
 
     private function getClassSeriesTotalPaid($classSeriesId, $schoolYearId)
@@ -346,16 +566,42 @@ class ReportsController extends Controller
                     $studentTotalRequired += $requiredAmount;
                 }
 
-                // Calculer les montants payés et les réductions appliquées
+                // Calculer les montants payés
                 foreach ($student->payments as $payment) {
                     if ($payment->validation_date) {
                         $studentTotalPaid += $payment->total_amount;
-                        $studentTotalReductions += $payment->reduction_amount ?? 0;
                     }
                 }
 
-                // Le montant requis effectif = montant normal - réductions accordées
-                $effectiveRequired = $studentTotalRequired - $studentTotalReductions;
+                // === LOGIQUE CORRIGÉE POUR BOURSES ET RÉDUCTIONS ===
+                $totalScholarships = 0;
+                $totalReductions = 0;
+
+                // 1. Vérifier les bourses RÉELLES : seulement si has_scholarship_enabled=true
+                if ($student->has_scholarship_enabled) {
+                    $classScholarships = DB::table('class_scholarships')
+                        ->where('school_class_id', $student->classSeries->class_id)
+                        ->where('is_active', true)
+                        ->get();
+
+                    foreach ($classScholarships as $scholarship) {
+                        $totalScholarships += $scholarship->amount;
+                    }
+                }
+
+                // 2. Vérifier les réductions RÉELLES : seulement celles enregistrées en BD
+                $paymentsWithReductions = DB::table('payments')
+                    ->where('student_id', $student->id)
+                    ->where('school_year_id', $workingYear->id)
+                    ->whereNotNull('validation_date')
+                    ->where('reduction_amount', '>', 0)
+                    ->sum('reduction_amount');
+
+                $totalReductions = $paymentsWithReductions;
+                $studentTotalReductions = $totalReductions; // Pour compatibilité avec le code existant
+
+                // Le montant requis effectif = montant normal - bourses - réductions
+                $effectiveRequired = $studentTotalRequired - $totalScholarships - $totalReductions;
                 
                 // Vérifier si l'étudiant est réellement insolvable
                 if ($studentTotalPaid < ($effectiveRequired - 1)) { // Tolérance de 1 FCFA
@@ -405,10 +651,12 @@ class ReportsController extends Controller
                                 ? $student->classSeries->schoolClass->name . ' - ' . $student->classSeries->name
                                 : 'Non défini'
                         ],
-                        'total_required' => $effectiveRequired, // CORRIGÉ: utiliser montant après réductions
+                        'total_required' => $studentTotalRequired, // Montant initial requis
+                        'total_scholarships' => $totalScholarships, // AJOUTÉ: bourses accordées
+                        'total_reductions' => $totalReductions, // CORRIGÉ: réductions réelles
+                        'effective_required' => $effectiveRequired, // AJOUTÉ: montant après bourses/réductions
                         'total_paid' => $studentTotalPaid,
-                        'total_remaining' => max(0, $effectiveRequired - $studentTotalPaid), // CORRIGÉ
-                        'total_reductions' => $studentTotalReductions, // AJOUTÉ: info sur réductions
+                        'total_remaining' => max(0, $effectiveRequired - $studentTotalPaid),
                         'incomplete_tranches' => $incompletesTranches
                     ];
                 }
@@ -501,9 +749,35 @@ class ReportsController extends Controller
                 $tranches = $student->classSeries->paymentTranches ?? collect();
                 $studentTotalRequired = 0;
                 $studentTotalPaid = 0;
-                $studentTotalReductions = 0; // AJOUTÉ: pour tenir compte des réductions
                 $completedTranches = [];
                 $solvableTypes = [];
+
+                // === LOGIQUE CORRIGÉE POUR BOURSES ET RÉDUCTIONS ===
+                $totalScholarships = 0;
+                $totalReductions = 0;
+
+                // 1. Vérifier les bourses RÉELLES : seulement si has_scholarship_enabled=true
+                if ($student->has_scholarship_enabled) {
+                    $classScholarships = DB::table('class_scholarships')
+                        ->where('school_class_id', $student->classSeries->class_id)
+                        ->where('is_active', true)
+                        ->get();
+
+                    foreach ($classScholarships as $scholarship) {
+                        $totalScholarships += $scholarship->amount;
+                    }
+                }
+
+                // 2. Vérifier les réductions RÉELLES : seulement celles enregistrées en BD
+                $paymentsWithReductions = DB::table('payments')
+                    ->where('student_id', $student->id)
+                    ->where('school_year_id', $workingYear->id)
+                    ->whereNotNull('validation_date');
+
+                if ($startDate) $paymentsWithReductions->where('payment_date', '>=', $startDate);
+                if ($endDate) $paymentsWithReductions->where('payment_date', '<=', $endDate);
+
+                $totalReductions = $paymentsWithReductions->where('reduction_amount', '>', 0)->sum('reduction_amount');
 
                 // Calculer pour chaque tranche
                 foreach ($tranches as $tranche) {
@@ -537,25 +811,12 @@ class ReportsController extends Controller
                     $studentTotalRequired += $requiredAmount;
                     $studentTotalPaid += $paidAmount;
 
-                    // Calculer la réduction appliquée pour cette tranche
-                    $reductionForTranche = 0;
-                    if (stripos($tranche->name, 'inscription') !== false) {
-                        // Pour l'inscription, inclure toute la réduction du paiement (logique haut→bas)
-                        foreach ($student->payments as $payment) {
-                            if ($payment->validation_date) {
-                                $reductionForTranche += $payment->reduction_amount ?? 0;
-                            }
-                        }
-                    }
-                    
-                    // Vérifier si la tranche est soldée (avec réductions pour inscription)
-                    $effectivePaidAmount = $paidAmount + $reductionForTranche;
-                    if ($effectivePaidAmount >= ($requiredAmount - 1) && $requiredAmount > 0) {
+                    // Vérifier si la tranche est soldée (sans réduction par tranche)
+                    if ($paidAmount >= ($requiredAmount - 1) && $requiredAmount > 0) {
                         $completedTranches[] = [
                             'tranche_name' => $tranche->name,
                             'required_amount' => $requiredAmount,
-                            'paid_amount' => $paidAmount,
-                            'reduction_amount' => $reductionForTranche
+                            'paid_amount' => $paidAmount
                         ];
 
                         // Identifier les types de soldes
@@ -571,15 +832,10 @@ class ReportsController extends Controller
                     }
                 }
 
-                // Calculer le total des réductions accordées à cet étudiant
-                foreach ($student->payments as $payment) {
-                    if ($startDate && $payment->payment_date < $startDate) continue;
-                    if ($endDate && $payment->payment_date > $endDate) continue;
-                    $studentTotalReductions += $payment->reduction_amount ?? 0;
-                }
+                // Calculer le montant effectif requis après bourses et réductions
+                $effectiveRequired = $studentTotalRequired - $totalScholarships - $totalReductions;
 
-                // Déterminer le type de solvabilité (CORRIGÉ: tenir compte des réductions)
-                $effectiveRequired = $studentTotalRequired - $studentTotalReductions;
+                // Déterminer le type de solvabilité (CORRIGÉ: tenir compte des bourses et réductions)
                 $isTotalSolvable = ($studentTotalPaid >= ($effectiveRequired - 1)) && $effectiveRequired > 0;
                 $isPensionSolvable = (in_array('tranche_1', $solvableTypes) && 
                                     in_array('tranche_2', $solvableTypes) && 
@@ -644,7 +900,10 @@ class ReportsController extends Controller
                                 ? $student->classSeries->schoolClass->name . ' - ' . $student->classSeries->name
                                 : 'Non défini'
                         ],
-                        'total_required' => $studentTotalRequired,
+                        'total_required' => $studentTotalRequired, // Montant initial requis
+                        'total_scholarships' => $totalScholarships, // AJOUTÉ: bourses accordées
+                        'total_reductions' => $totalReductions, // CORRIGÉ: réductions réelles
+                        'effective_required' => $effectiveRequired, // AJOUTÉ: montant après bourses/réductions
                         'total_paid' => $studentTotalPaid,
                         'completed_tranches' => $completedTranches,
                         'solvable_type' => $primarySolvableType,
@@ -777,44 +1036,29 @@ class ReportsController extends Controller
                 });
 
                 foreach ($studentTranches as $tranche) {
-                    try {
-                        // Montant de base sans avantages
-                        $baseAmount = $tranche->getAmountForStudent($student, true, false, false, false) ?? 0;
+                    // === LOGIQUE CORRIGÉE POUR BOURSES ET RÉDUCTIONS ===
+                    // Montant de base requis pour cette tranche
+                    $baseAmount = DB::table('class_payment_amounts')
+                        ->where('class_id', $student->classSeries->class_id)
+                        ->where('payment_tranche_id', $tranche->id)
+                        ->value('amount') ?? 0;
 
-                        // Montant avec avantages (bourses OU réductions, jamais les deux)
-                        $requiredAmount = $tranche->getAmountForStudent($student, true, false, true, true) ?? 0;
+                    // Calculer les bourses et réductions réelles pour cet étudiant
+                    $benefits = $this->calculateRealScholarshipsAndReductions($student, $workingYear);
 
-                        // Calculer les avantages appliqués
-                        $discountCalculator = new \App\Services\DiscountCalculatorService();
-                        $scholarship = $discountCalculator->getClassScholarship($student);
+                    // Répartir proportionnellement les bénéfices sur cette tranche
+                    $studentTotalBase = $this->calculateStudentTotalRequired($student, $workingYear, $studentTranches)['base_required'];
+                    $trancheProportion = $studentTotalBase > 0 ? ($baseAmount / $studentTotalBase) : 0;
 
-                        $scholarshipApplied = 0;
-                        $scholarshipReason = null;
-                        $reductionApplied = 0;
-                        $reductionReason = null;
+                    $scholarshipApplied = round($benefits['scholarships'] * $trancheProportion);
+                    $reductionApplied = round($benefits['reductions'] * $trancheProportion);
 
-                        // Vérifier si une bourse s'applique à cette tranche
-                        if ($scholarship && $scholarship->payment_tranche_id == $tranche->id && $discountCalculator->isEligibleForScholarship(now())) {
-                            $scholarshipApplied = min($scholarship->amount, $baseAmount);
-                            $scholarshipReason = $scholarship->reason ?? 'Bourse de classe';
-                        } else {
-                            // Si pas de bourse, vérifier les réductions globales
-                            $schoolSettings = SchoolSetting::getSettings();
-                            $discountPercentage = $schoolSettings->reduction_percentage ?? 0;
+                    // Montant requis après application des bénéfices
+                    $requiredAmount = max(0, $baseAmount - $scholarshipApplied - $reductionApplied);
 
-                            if ($discountPercentage > 0) {
-                                $reductionApplied = $baseAmount - $requiredAmount;
-                                $reductionReason = "Réduction globale ({$discountPercentage}%)";
-                            }
-                        }
-
-                    } catch (\Exception $e) {
-                        Log::warning("Erreur getAmountForStudent pour {$student->id}, tranche {$tranche->id}: " . $e->getMessage());
-                        $baseAmount = 0;
-                        $requiredAmount = 0;
-                        $scholarshipApplied = 0;
-                        $reductionApplied = 0;
-                    }
+                    // Raisons des bénéfices
+                    $scholarshipReason = $scholarshipApplied > 0 ? 'Bourse de classe (réelle)' : null;
+                    $reductionReason = $reductionApplied > 0 ? 'Réduction enregistrée (réelle)' : null;
 
                     // Montant payé pour cette tranche
                     $paidAmount = 0;
@@ -870,6 +1114,76 @@ class ReportsController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Calculer les bourses et réductions RÉELLES pour un étudiant
+     * LOGIQUE CORRIGÉE: Utilise les données réelles de la base de données
+     */
+    private function calculateRealScholarshipsAndReductions($student, $workingYear, $startDate = null, $endDate = null)
+    {
+        $totalScholarships = 0;
+        $totalReductions = 0;
+
+        // 1. Vérifier les bourses RÉELLES : seulement si has_scholarship_enabled=true
+        if ($student->has_scholarship_enabled) {
+            $classScholarships = DB::table('class_scholarships')
+                ->where('school_class_id', $student->classSeries->class_id)
+                ->where('is_active', true)
+                ->get();
+
+            foreach ($classScholarships as $scholarship) {
+                $totalScholarships += $scholarship->amount;
+            }
+        }
+
+        // 2. Vérifier les réductions RÉELLES : seulement celles enregistrées en BD
+        $paymentsQuery = DB::table('payments')
+            ->where('student_id', $student->id)
+            ->where('school_year_id', $workingYear->id)
+            ->whereNotNull('validation_date')
+            ->where('reduction_amount', '>', 0);
+
+        if ($startDate) $paymentsQuery->where('payment_date', '>=', $startDate);
+        if ($endDate) $paymentsQuery->where('payment_date', '<=', $endDate);
+
+        $totalReductions = $paymentsQuery->sum('reduction_amount') ?? 0;
+
+        return [
+            'scholarships' => $totalScholarships,
+            'reductions' => $totalReductions,
+            'total_benefits' => $totalScholarships + $totalReductions
+        ];
+    }
+
+    /**
+     * Calculer le montant total requis pour un étudiant sur toutes les tranches
+     * LOGIQUE CORRIGÉE: Montant base - bourses réelles - réductions réelles
+     */
+    private function calculateStudentTotalRequired($student, $workingYear, $paymentTranches, $startDate = null, $endDate = null)
+    {
+        $totalRequired = 0;
+
+        // Calculer le montant de base requis
+        foreach ($paymentTranches as $tranche) {
+            $requiredAmount = DB::table('class_payment_amounts')
+                ->where('class_id', $student->classSeries->class_id)
+                ->where('payment_tranche_id', $tranche->id)
+                ->value('amount') ?? 0;
+
+            $totalRequired += $requiredAmount;
+        }
+
+        // Appliquer les bourses et réductions réelles
+        $benefits = $this->calculateRealScholarshipsAndReductions($student, $workingYear, $startDate, $endDate);
+        $effectiveRequired = $totalRequired - $benefits['total_benefits'];
+
+        return [
+            'base_required' => $totalRequired,
+            'scholarships' => $benefits['scholarships'],
+            'reductions' => $benefits['reductions'],
+            'effective_required' => max(0, $effectiveRequired)
+        ];
     }
 
     /**
@@ -1049,31 +1363,13 @@ class ReportsController extends Controller
             $totalReductions = 0;
 
             foreach ($students as $student) {
-                foreach ($paymentTranches as $tranche) {
-                    try {
-                        // Montant attendu avec bourses OU réductions
-                        $expectedAmount = $tranche->getAmountForStudent($student, true, false, true, true) ?? 0;
-                    } catch (\Exception $e) {
-                        Log::warning("Erreur getAmountForStudent recovery pour {$student->id}, tranche {$tranche->id}: " . $e->getMessage());
-                        $expectedAmount = 0;
-                    }
-                    $totalExpected += $expectedAmount;
+                // === LOGIQUE CORRIGÉE POUR BOURSES ET RÉDUCTIONS ===
+                // Calculer le montant total requis pour cet étudiant
+                $studentRequiredData = $this->calculateStudentTotalRequired($student, $workingYear, $paymentTranches, $startDate, $endDate);
 
-                    // Calculer les bourses et réductions
-                    try {
-                        $baseAmount = $tranche->getAmountForStudent($student, true, false, false) ?? 0;
-                        $withScholarshipAmount = $tranche->getAmountForStudent($student, true, false, true) ?? 0;
-                        $scholarshipAmount = max(0, $baseAmount - $withScholarshipAmount);
-                        $reductionAmount = max(0, $withScholarshipAmount - $expectedAmount);
-                    } catch (\Exception $e) {
-                        Log::warning("Erreur calcul bourses/réductions pour {$student->id}, tranche {$tranche->id}: " . $e->getMessage());
-                        $scholarshipAmount = 0;
-                        $reductionAmount = 0;
-                    }
-
-                    $totalScholarships += $scholarshipAmount;
-                    $totalReductions += $reductionAmount;
-                }
+                $totalExpected += $studentRequiredData['effective_required'];
+                $totalScholarships += $studentRequiredData['scholarships'];
+                $totalReductions += $studentRequiredData['reductions'];
 
                 // Montant collecté
                 foreach ($student->payments as $payment) {
@@ -1205,21 +1501,14 @@ class ReportsController extends Controller
                 $classTotalPaid = 0;
 
                 foreach ($students as $student) {
-                    foreach ($paymentTranches as $tranche) {
-                        try {
-                            $requiredAmount = $tranche->getAmountForStudent($student, true, false, true, true) ?? 0;
-                        } catch (\Exception $e) {
-                            $requiredAmount = 0;
-                        }
-                        $classTotalDue += $requiredAmount;
+                    // === LOGIQUE CORRIGÉE POUR BOURSES ET RÉDUCTIONS ===
+                    $studentRequiredData = $this->calculateStudentTotalRequired($student, $workingYear, $paymentTranches);
+                    $classTotalDue += $studentRequiredData['effective_required'];
 
-                        // Calculer le montant payé
-                        foreach ($student->payments as $payment) {
-                            foreach ($payment->paymentDetails as $detail) {
-                                if ($detail->payment_tranche_id == $tranche->id) {
-                                    $classTotalPaid += $detail->amount_allocated;
-                                }
-                            }
+                    // Calculer le montant payé par cet étudiant
+                    foreach ($student->payments as $payment) {
+                        foreach ($payment->paymentDetails as $detail) {
+                            $classTotalPaid += $detail->amount_allocated;
                         }
                     }
                 }
@@ -1433,56 +1722,42 @@ class ReportsController extends Controller
                 $classSeries = $student->classSeries;
                 $classKey = $classSeries->schoolClass->name . ' - ' . $classSeries->name;
 
-                // Calculer le montant total de scolarité (sans réductions)
+                // === LOGIQUE CORRIGÉE POUR BOURSES ET RÉDUCTIONS ===
+                // Calculer le montant total de scolarité de base
                 $tuitionAmount = 0;
                 foreach ($paymentTranches as $tranche) {
-                    try {
-                        $baseAmount = $tranche->getAmountForStudent($student, true, false, false) ?? 0;
-                        $tuitionAmount += $baseAmount;
-                    } catch (\Exception $e) {
-                        // Ignorer les erreurs
-                    }
+                    $baseAmount = DB::table('class_payment_amounts')
+                        ->where('class_id', $classSeries->class_id)
+                        ->where('payment_tranche_id', $tranche->id)
+                        ->value('amount') ?? 0;
+                    $tuitionAmount += $baseAmount;
                 }
 
-                // Calculer les bourses basées sur la classe de l'étudiant
-                $scholarshipAmount = 0;
+                // Calculer les bourses et réductions réelles
+                $benefits = $this->calculateRealScholarshipsAndReductions($student, $workingYear);
+                $scholarshipAmount = $benefits['scholarships'];
+                $discountAmount = $benefits['reductions'];
+
+                // Raisons détaillées
                 $scholarshipReason = '';
-
-                // Récupérer les bourses de classe pour cette classe
-                $classScholarships = ClassScholarship::where('school_class_id', $classSeries->class_id)
-                    ->where('is_active', true)
-                    ->get();
-
-                if ($classScholarships->isNotEmpty()) {
-                    foreach ($classScholarships as $scholarship) {
-                        $scholarshipReason = $scholarship->name . ' - ' . $scholarship->description;
-                        foreach ($paymentTranches as $tranche) {
-                            // Vérifier si cette bourse s'applique à cette tranche
-                            if ($scholarship->payment_tranche_id == $tranche->id) {
-                                try {
-                                    $baseAmount = $tranche->getAmountForStudent($student, true, false, false) ?? 0;
-                                    $scholarshipAmount += min($scholarship->amount, $baseAmount);
-                                } catch (\Exception $e) {
-                                    // Ignorer les erreurs
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Calculer les rabais globaux - EXCLUSIFS avec les bourses
-                $discountAmount = 0;
                 $discountReason = '';
 
-                // Si l'étudiant a une bourse, il ne peut pas avoir de réduction
-                if ($scholarshipAmount == 0) {
-                    foreach ($student->payments as $payment) {
-                        if ($payment->has_reduction && $payment->reduction_amount > 0) {
-                            $discountAmount += $payment->reduction_amount;
-                            $discountReason = 'Paiement cash avant 15 août';
-                            break; // Une seule raison pour simplifier
-                        }
+                if ($scholarshipAmount > 0) {
+                    // Récupérer les détails des bourses
+                    $classScholarships = DB::table('class_scholarships')
+                        ->where('school_class_id', $classSeries->class_id)
+                        ->where('is_active', true)
+                        ->get();
+
+                    $scholarshipReasons = [];
+                    foreach ($classScholarships as $scholarship) {
+                        $scholarshipReasons[] = $scholarship->name . ' (' . number_format($scholarship->amount, 0, ',', ' ') . ' FCFA)';
                     }
+                    $scholarshipReason = implode(', ', $scholarshipReasons);
+                }
+
+                if ($discountAmount > 0) {
+                    $discountReason = 'Réductions enregistrées (réelles)';
                 }
 
                 // Les bourses et réductions sont mutuellement exclusives
@@ -3444,9 +3719,9 @@ class ReportsController extends Controller
                 return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
             }
 
-            // Obtenir toutes les classes avec leurs données
+            // Obtenir toutes les classes actives avec leurs données
             $classes = SchoolClass::with(['level.section'])
-                ->where('school_year_id', $workingYear->id)
+                ->where('is_active', true)
                 ->orderBy('name')
                 ->get();
 
@@ -3470,18 +3745,21 @@ class ReportsController extends Controller
             ];
 
             foreach ($classes as $index => $class) {
-                // Obtenir tous les étudiants de la classe
-                $students = Student::where('class_id', $class->id)
+                // Obtenir tous les étudiants de la classe via class_series
+                $students = Student::whereHas('classSeries', function ($query) use ($class) {
+                        $query->where('class_id', $class->id);
+                    })
                     ->where('school_year_id', $workingYear->id)
+                    ->where('is_active', true)
                     ->get();
 
                 // Séparer anciens et nouveaux élèves
-                $anciensEleves = $students->where('statut_etudiant', 'ancien')->count();
-                $nouveauxEleves = $students->where('statut_etudiant', 'nouveau')->count();
+                $anciensEleves = $students->where('student_status', 'old')->count();
+                $nouveauxEleves = $students->where('student_status', 'new')->count();
                 $totalEleves = $students->count();
 
-                // Élèves démissionnaires (status = 0)
-                $demissionnaires = $students->where('statut', '0')->count();
+                // Élèves démissionnaires (is_active = 0)
+                $demissionnaires = $students->where('is_active', false)->count();
                 $effReel = $totalEleves - $demissionnaires;
 
                 // Calculs financiers
@@ -3492,31 +3770,32 @@ class ReportsController extends Controller
                 $rabais = 0;
 
                 foreach ($students as $student) {
-                    // Inscription perçue
+                    // Inscription perçue - via payment_tranche_id = 2 (Inscription)
                     $inscriptionPayments = PaymentDetail::join('payments', 'payment_details.payment_id', '=', 'payments.id')
                         ->where('payments.student_id', $student->id)
-                        ->where('payment_details.type', 'inscription')
-                        ->sum('payment_details.amount');
+                        ->where('payment_details.payment_tranche_id', 2) // ID de la tranche Inscription
+                        ->sum('payment_details.amount_allocated');
                     $inscriptionPercu += $inscriptionPayments;
 
                     // Réalisation totale (tous les paiements)
                     $totalPayments = Payment::where('student_id', $student->id)
                         ->where('school_year_id', $workingYear->id)
-                        ->sum('amount');
+                        ->sum('total_amount');
                     $realisation += $totalPayments;
 
-                    // Bourses et rabais
-                    $studentBourse = ClassScholarship::where('student_id', $student->id)
+                    // Bourses - récupérées depuis les paiements qui ont une bourse
+                    $studentBourse = Payment::where('student_id', $student->id)
                         ->where('school_year_id', $workingYear->id)
-                        ->sum('amount');
+                        ->where('has_scholarship', true)
+                        ->sum('scholarship_amount');
                     $bourses += $studentBourse;
 
-                    // Rabais (10% pour paiement avant le 15 août)
-                    $earlyPayments = Payment::where('student_id', $student->id)
+                    // Rabais - récupérés depuis les paiements qui ont une réduction
+                    $studentRabais = Payment::where('student_id', $student->id)
                         ->where('school_year_id', $workingYear->id)
-                        ->whereDate('created_at', '<=', $workingYear->start_date->copy()->addDays(45)) // Approximation 15 août
-                        ->sum('amount');
-                    $rabais += ($earlyPayments * 0.10);
+                        ->where('has_reduction', true)
+                        ->sum('reduction_amount');
+                    $rabais += $studentRabais;
                 }
 
                 // Perte démission (estimation basée sur les frais attendus des démissionnaires)
@@ -3603,22 +3882,30 @@ class ReportsController extends Controller
                 return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
             }
 
-            // Obtenir les données du rapport
-            $reportResponse = $this->getRecoveryStatusReport();
+            // Obtenir les données du rapport via getRecoveryStatus qui contient les validations
+            $request = request(); // Récupérer la requête courante
+            $reportResponse = $this->getRecoveryStatus($request);
             $reportData = $reportResponse->getData(true);
 
             if (!$reportData['success']) {
                 return response()->json(['success' => false, 'message' => 'Erreur lors de la génération des données'], 500);
             }
 
-            $html = $this->generateRecoveryStatusPdfHtml($reportData['data']);
+            // Adapter la structure des données pour generateRecoveryStatusPdfHtml
+            $adaptedData = [
+                'classes' => $reportData['data']['recovery_data'],
+                'summary' => $reportData['data']['summary'],
+                'school_year' => $reportData['data']['school_year']
+            ];
+
+            $html = $this->generateRecoveryStatusPdfHtml($adaptedData);
             
-            // Générer le PDF avec DomPDF
+            // Générer le PDF avec DomPDF pour téléchargement direct
             $pdf = \PDF::loadHTML($html);
             $pdf->setPaper('A4', 'landscape');
-            
+
             $filename = "etat_des_recouvrements_" . date('Y-m-d') . ".pdf";
-            return $pdf->stream($filename);
+            return $pdf->download($filename);
 
         } catch (\Exception $e) {
             Log::error('Error in ReportsController@exportRecoveryStatusPdf: ' . $e->getMessage());

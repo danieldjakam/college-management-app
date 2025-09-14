@@ -629,6 +629,12 @@ const Reports = () => {
   }, []);
 
   const generateReport = async (reportType) => {
+    // Validation obligatoire : au moins une section doit être sélectionnée
+    if (!filters.sectionId) {
+      setError("Veuillez sélectionner au moins une section pour générer le rapport");
+      return;
+    }
+
     const cacheKey = generateCacheKey(reportType, filters);
 
     // Vérifier le cache d'abord
@@ -772,6 +778,12 @@ const Reports = () => {
   };
 
   const downloadPdf = async () => {
+    // Validation obligatoire : au moins une section doit être sélectionnée
+    if (!filters.sectionId) {
+      Swal.fire("Attention", "Veuillez sélectionner au moins une section pour télécharger le rapport", "warning");
+      return;
+    }
+
     if (!reportData) {
       Swal.fire("Attention", "Aucun rapport à télécharger", "warning");
       return;
@@ -844,6 +856,12 @@ const Reports = () => {
         <h5 className="mb-0">
           <Search className="me-2" />
           Filtres
+          <small className="ms-3 text-muted">
+            {filters.sectionId && <span className="badge bg-success me-1">Section ✓</span>}
+            {filters.classId && <span className="badge bg-success me-1">Classe ✓</span>}
+            {filters.seriesId && <span className="badge bg-success me-1">Série ✓</span>}
+            {!filters.sectionId && <span className="text-warning">Commencer par sélectionner une section</span>}
+          </small>
         </h5>
       </Card.Header>
       <Card.Body>
@@ -862,8 +880,9 @@ const Reports = () => {
                     seriesId: "",
                   });
                 }}
+                required
               >
-                <option value="">Toutes les sections</option>
+                <option value="">-- Sélectionner une section --</option>
                 {availableOptions.sections.map((section) => (
                   <option key={section.id} value={section.id}>
                     {section.name}
@@ -874,7 +893,7 @@ const Reports = () => {
           </Col>
           <Col md={3}>
             <Form.Group className="mb-3">
-              <Form.Label>Classe</Form.Label>
+              <Form.Label>Classe {!filters.sectionId && <small className="text-muted">(sélectionner d'abord une section)</small>}</Form.Label>
               <Form.Select
                 value={filters.classId}
                 onChange={(e) => {
@@ -885,12 +904,13 @@ const Reports = () => {
                     seriesId: "",
                   });
                 }}
+                disabled={!filters.sectionId}
               >
-                <option value="">Toutes les classes</option>
+                <option value="">{!filters.sectionId ? "-- Sélectionner d'abord une section --" : "-- Toutes les classes de la section --"}</option>
                 {availableOptions.classes
                   .filter(schoolClass => {
                     // Si une section est sélectionnée, filtrer les classes de cette section
-                    if (!filters.sectionId) return true;
+                    if (!filters.sectionId) return false;
                     return schoolClass.level?.section?.id == filters.sectionId;
                   })
                   .map((schoolClass) => (
@@ -903,7 +923,7 @@ const Reports = () => {
           </Col>
           <Col md={3}>
             <Form.Group className="mb-3">
-              <Form.Label>Série</Form.Label>
+              <Form.Label>Série {!filters.classId && <small className="text-muted">(sélectionner d'abord une classe)</small>}</Form.Label>
               <Form.Select
                 value={filters.seriesId}
                 onChange={(e) => {
@@ -912,15 +932,14 @@ const Reports = () => {
                     seriesId: e.target.value,
                   });
                 }}
+                disabled={!filters.classId}
               >
-                <option value="">Toutes les séries</option>
+                <option value="">{!filters.classId ? "-- Sélectionner d'abord une classe --" : "-- Toutes les séries de la classe --"}</option>
                 {availableOptions.series
                   .filter(series => {
-                    // Filtrer par section si sélectionnée
-                    if (filters.sectionId && series.section_id != filters.sectionId) return false;
-                    // Filtrer par classe si sélectionnée
-                    if (filters.classId && series.class_id != filters.classId) return false;
-                    return true;
+                    // Filtrer par classe si sélectionnée (obligatoire maintenant)
+                    if (!filters.classId) return false;
+                    return series.class_id == filters.classId;
                   })
                   .map((series) => (
                     <option key={series.id} value={series.id}>
