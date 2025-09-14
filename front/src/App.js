@@ -71,6 +71,7 @@ import TeacherDashboard from "./pages/Teacher/TeacherDashboard";
 import TeacherClassStudents from "./pages/Teacher/TeacherClassStudents";
 import Sequences from "./pages/Teacher/Sequences";
 import Trimesters from "./pages/Teacher/Trimesters";
+import DSDetails from "./pages/Teacher/DSDetails";
 import Evaluations from "./pages/Teacher/Evaluations";
 import EvaluationCreate from "./pages/Teacher/EvaluationCreate";
 import GradeEntry from "./pages/Teacher/GradeEntry";
@@ -818,6 +819,15 @@ const AppContent = () => {
                 element={
                   <TeacherRoute>
                     <Trimesters />
+                  </TeacherRoute>
+                }
+              />
+              
+              <Route
+                path="/trimesters/:trimesterId/ds-details"
+                element={
+                  <TeacherRoute>
+                    <DSDetails />
                   </TeacherRoute>
                 }
               />

@@ -422,7 +422,7 @@ class BulletinController extends Controller
                     'bulletin_id' => $bulletin ? $bulletin->id : null,
                     'generated_at' => $bulletin ? $bulletin->generated_at : null,
                     'status' => $status, // 'past', 'current', 'future'
-                    'can_preview' => $completion > 0 || $status !== 'future', // Prévisualisation si données disponibles
+                    'can_preview' => true, // Toujours permettre les téléchargements trimestre (affiche 0 pour données manquantes)
                     'is_archived' => $status === 'past'
                 ];
             }
@@ -526,7 +526,9 @@ class BulletinController extends Controller
             } else {
                 // Trimestre 1 ou 2: (DS + Composition) / 2
                 $dsCompletion = $this->checkDSCompletion($studentId, $trimesterNumber, $subject->id);
+                \Log::info("🔍 DS Completion for {$subject->subject->name}: {$dsCompletion}%");
                 $compositionCompletion = $this->checkCompositionCompletion($studentId, $trimesterNumber, $subject->id);
+                \Log::info("🔍 Composition Completion for {$subject->subject->name}: {$compositionCompletion}%");
                 
                 // Logique de mise à jour pendant les séquences:
                 // - Trimestre 1 se met à jour pendant séquences 1 et 2
@@ -546,12 +548,15 @@ class BulletinController extends Controller
                 }
                 
                 $subjectCompletion = ($dsCompletion + $compositionCompletion) / 2;
+                \Log::info("🔍 Subject {$subject->subject->name} completion: ({$dsCompletion} + {$compositionCompletion}) / 2 = {$subjectCompletion}%");
             }
             
             $totalCompletion += $subjectCompletion;
         }
 
-        return round($totalCompletion / $subjects->count(), 1);
+        $finalCompletion = round($totalCompletion / $subjects->count(), 1);
+        \Log::info("🔍 FINAL TRIMESTER COMPLETION: {$totalCompletion}/{$subjects->count()} = {$finalCompletion}%");
+        return $finalCompletion;
     }
 
     /**
@@ -559,6 +564,8 @@ class BulletinController extends Controller
      */
     private function checkDSCompletion($studentId, $trimesterNumber, $subjectId)
     {
+        \Log::info("🔍 checkDSCompletion: studentId={$studentId}, trimester={$trimesterNumber}, subjectId={$subjectId}");
+        
         $sequenceNumbers = [];
         
         switch ($trimesterNumber) {
@@ -572,22 +579,35 @@ class BulletinController extends Controller
                 return 100; // Trimestre 3 n'a pas de DS
         }
         
-        $sequences = \App\Models\Sequence::whereIn('number', $sequenceNumbers)->get();
+        // Prendre seulement une séquence par numéro pour éviter les doublons
+        $sequences = collect();
+        foreach ($sequenceNumbers as $number) {
+            $seq = \App\Models\Sequence::where('number', $number)->first();
+            if ($seq) {
+                $sequences->push($seq);
+            }
+        }
+        \Log::info("🔍 Found sequences: " . $sequences->pluck('number')->join(','));
         $gradedSequences = 0;
         
         foreach ($sequences as $sequence) {
             $hasGrade = \App\Models\Grade::where('student_id', $studentId)
                 ->where('sequence_id', $sequence->id)
                 ->where('series_subject_id', $subjectId)
+                ->where('trimester_id', $trimesterNumber)
                 ->whereNotNull('score')
                 ->exists();
+            
+            \Log::info("🔍 Sequence {$sequence->number} (id={$sequence->id}): hasGrade=" . ($hasGrade ? 'YES' : 'NO'));
             
             if ($hasGrade) {
                 $gradedSequences++;
             }
         }
         
-        return $sequences->count() > 0 ? ($gradedSequences / $sequences->count()) * 100 : 0;
+        $completion = $sequences->count() > 0 ? ($gradedSequences / $sequences->count()) * 100 : 0;
+        \Log::info("🔍 DS Completion: {$gradedSequences}/{$sequences->count()} = {$completion}%");
+        return $completion;
     }
 
     /**
@@ -595,10 +615,14 @@ class BulletinController extends Controller
      */
     private function checkCompositionCompletion($studentId, $trimesterNumber, $subjectId)
     {
+        \Log::info("🔍 checkCompositionCompletion: studentId={$studentId}, trimester={$trimesterNumber}, subjectId={$subjectId}");
+        
         $evaluation = \App\Models\Evaluation::where('evaluation_type', 'composition')
             ->where('trimester_id', $trimesterNumber)
             ->where('series_subject_id', $subjectId)
             ->first();
+        
+        \Log::info("🔍 Composition evaluation found: " . ($evaluation ? "YES (id={$evaluation->id})" : "NO"));
         
         if (!$evaluation) {
             return 0;
@@ -606,10 +630,13 @@ class BulletinController extends Controller
         
         $grade = \App\Models\Grade::where('student_id', $studentId)
             ->where('evaluation_id', $evaluation->id)
+            ->where('trimester_id', $trimesterNumber)
             ->whereNotNull('score')
             ->exists();
         
-        return $grade ? 100 : 0;
+        $completion = $grade ? 100 : 0;
+        \Log::info("🔍 Composition completion: " . ($grade ? 'YES' : 'NO') . " = {$completion}%");
+        return $completion;
     }
 
     /**
@@ -859,15 +886,23 @@ class BulletinController extends Controller
      */
     private function getSequenceStatus($sequenceNumber)
     {
-        $currentActiveSequence = \App\Models\Sequence::where('is_active', true)->first();
-        $sequence = \App\Models\Sequence::where('number', $sequenceNumber)->first();
+        $sequence = \App\Models\Sequence::where('number', $sequenceNumber)
+            ->where('is_composition', false) // Exclure les compositions
+            ->first();
         
-        if (!$currentActiveSequence || !$sequence) return 'future';
+        if (!$sequence) return 'future';
         
+        // Priorité à is_current
+        if ($sequence->is_current) return 'current';
         if ($sequence->is_completed) return 'past';
-        if ($sequence->is_active) return 'current';
-        if ($currentActiveSequence->number > $sequenceNumber) return 'past';
-        if ($currentActiveSequence->number < $sequenceNumber) return 'future';
+        if ($sequence->is_active && !$sequence->is_completed) return 'current';
+        
+        // Si pas trouvé de current, utiliser la logique globale
+        $currentSequence = \App\Models\Sequence::where('is_current', true)->first();
+        if ($currentSequence && !$currentSequence->is_composition) {
+            if ($currentSequence->number > $sequenceNumber) return 'past';
+            if ($currentSequence->number < $sequenceNumber) return 'future';
+        }
         
         return 'future';
     }

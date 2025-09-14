@@ -1081,6 +1081,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/current', [TrimesterController::class, 'getCurrentTrimester'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
         Route::get('/{trimester}', [TrimesterController::class, 'show'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
         Route::get('/{trimester}/stats', [TrimesterController::class, 'getStats'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/{trimester}/ds-details', [TrimesterController::class, 'getDSDetails'])->middleware(['role:teacher']);
         
         // Gestion (admin uniquement)
         Route::post('/', [TrimesterController::class, 'store'])->middleware(['role:admin']);

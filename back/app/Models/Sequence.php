@@ -18,7 +18,9 @@ class Sequence extends Model
         'end_date',
         'is_active',
         'is_current',
-        'is_completed'
+        'is_completed',
+        'is_composition',
+        'is_locked'
     ];
 
     protected $casts = [
@@ -26,7 +28,9 @@ class Sequence extends Model
         'end_date' => 'date',
         'is_active' => 'boolean',
         'is_current' => 'boolean',
-        'is_completed' => 'boolean'
+        'is_completed' => 'boolean',
+        'is_composition' => 'boolean',
+        'is_locked' => 'boolean'
     ];
 
     /**

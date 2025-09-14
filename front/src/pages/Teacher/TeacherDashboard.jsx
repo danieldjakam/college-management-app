@@ -220,13 +220,13 @@ const TeacherDashboard = () => {
                                     <Calendar className="me-2" />
                                     Créer Évaluation
                                 </Button>
-                                <Button 
+                                {/* <Button 
                                     variant="info"
                                     onClick={() => navigate('/sequences')}
                                 >
                                     <JournalBookmarkFill className="me-2" />
                                     Voir Séquences
-                                </Button>
+                                </Button> */}
                             </div>
                         </Card.Body>
                     </Card>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { Alert, Card, Row, Col, Button, Badge, ListGroup } from 'react-bootstrap';
@@ -15,11 +15,7 @@ const SequenceSubjects = () => {
     const [subjects, setSubjects] = useState([]);
     const [error, setError] = useState(null);
 
-    useEffect(() => {
-        loadSequenceSubjects();
-    }, [sequenceId]);
-
-    const loadSequenceSubjects = async () => {
+    const loadSequenceSubjects = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -28,12 +24,34 @@ const SequenceSubjects = () => {
             const sequenceResponse = await secureApiEndpoints.sequences.getById(sequenceId);
             setSequence(sequenceResponse.data);
             
-            // Charger les matières de l'enseignant pour cette séquence
-            const subjectsResponse = await secureApiEndpoints.seriesSubjects.getAll({
-                teacher_id: user.id,
-                sequence_id: sequenceId
-            });
-            setSubjects(subjectsResponse.data || []);
+            // Charger les assignations de l'enseignant (matières qu'il enseigne)
+            // Utiliser teacher_id comme dans le dashboard
+            const teacherId = user.teacher_id;
+            
+            if (!teacherId) {
+                console.error('Aucun teacher_id trouvé pour cet utilisateur');
+                setError('Profil enseignant non trouvé');
+                return;
+            }
+            
+            console.log('Chargement des assignations pour teacher_id:', teacherId);
+            const assignmentsResponse = await secureApiEndpoints.teacherAssignments.getByTeacher(teacherId);
+            console.log('Teacher assignments response:', assignmentsResponse);
+            
+            if (assignmentsResponse.success) {
+                const assignments = assignmentsResponse.data.assignments || [];
+                console.log('All assignments:', assignments);
+                
+                // Filtrer les assignations pour ne garder que celles qui sont actives
+                const activeAssignments = assignments.filter(assignment => 
+                    assignment && assignment.is_active !== false
+                );
+                
+                console.log('Active assignments:', activeAssignments);
+                setSubjects(activeAssignments);
+            } else {
+                setError('Impossible de charger les assignations');
+            }
             
         } catch (error) {
             console.error('Erreur lors du chargement:', error);
@@ -41,11 +59,16 @@ const SequenceSubjects = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [sequenceId, user.teacher_id]);
 
-    const handleSubjectClick = (subject) => {
+    useEffect(() => {
+        loadSequenceSubjects();
+    }, [loadSequenceSubjects]);
+
+    const handleSubjectClick = (assignment) => {
         // Navigation vers la liste des élèves de cette matière/classe
-        navigate(`/teacher/sequences/${sequenceId}/subjects/${subject.id}/students`);
+        // Utiliser l'ID de la series_subject depuis l'assignation
+        navigate(`/teacher/sequences/${sequenceId}/subjects/${assignment.series_subject_id}/students`);
     };
 
     if (loading) {
@@ -130,11 +153,11 @@ const SequenceSubjects = () => {
                             </Card.Header>
                             <Card.Body className="p-0">
                                 <ListGroup variant="flush">
-                                    {subjects.map((subject) => (
+                                    {subjects.map((assignment) => (
                                         <ListGroup.Item 
-                                            key={subject.id}
+                                            key={assignment.id}
                                             action
-                                            onClick={() => handleSubjectClick(subject)}
+                                            onClick={() => handleSubjectClick(assignment)}
                                             className="d-flex align-items-center justify-content-between p-3"
                                         >
                                             <div className="d-flex align-items-center">
@@ -145,20 +168,20 @@ const SequenceSubjects = () => {
                                                 </div>
                                                 <div>
                                                     <h6 className="mb-1 fw-bold">
-                                                        {subject.subject?.name}
+                                                        {assignment.series_subject?.subject?.name}
                                                     </h6>
                                                     <div className="text-muted small">
                                                         <People size={14} className="me-1" />
-                                                        Classe: {subject.school_class?.name}
-                                                        {subject.school_class?.students_count && (
+                                                        Classe: {assignment.series_subject?.school_class?.name}
+                                                        {assignment.series_subject?.school_class?.students_count && (
                                                             <span className="ms-2">
-                                                                ({subject.school_class.students_count} élèves)
+                                                                ({assignment.series_subject.school_class.students_count} élèves)
                                                             </span>
                                                         )}
                                                     </div>
-                                                    {subject.coefficient && (
+                                                    {assignment.series_subject?.coefficient && (
                                                         <Badge bg="secondary" className="mt-1">
-                                                            Coefficient: {subject.coefficient}
+                                                            Coefficient: {assignment.series_subject.coefficient}
                                                         </Badge>
                                                     )}
                                                 </div>

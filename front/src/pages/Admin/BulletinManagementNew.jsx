@@ -104,8 +104,22 @@ function BulletinManagementNew() {
       
       // secureApi returns parsed JSON directly
       if (response && response.success) {
-        setStudentsData(response.students || []);
+        const students = response.students || [];
+        setStudentsData(students);
         setAvailablePeriods(response.available_periods || []);
+        
+        // 🔍 DEBUG: Vérifier les bulletins de HASSIM ACHTA
+        const hassim = students.find(s => s.first_name === 'HASSIM' && s.last_name === 'ACHTA');
+        if (hassim) {
+          console.log('🔍 DEBUG HASSIM ACHTA bulletins received from API:');
+          console.log('  Full bulletins object:', hassim.bulletins);
+          console.log('  sequence_1:', hassim.bulletins.sequence_1);
+          console.log('  trimester_1:', hassim.bulletins.trimester_1);
+          if (hassim.bulletins.sequence_1) {
+            console.log('  sequence_1.bulletin_id:', hassim.bulletins.sequence_1.bulletin_id, '(type:', typeof hassim.bulletins.sequence_1.bulletin_id, ')');
+            console.log('  sequence_1.is_generated:', hassim.bulletins.sequence_1.is_generated);
+          }
+        }
       } else {
         setStudentsData([]);
         setAvailablePeriods([]);
@@ -143,9 +157,18 @@ function BulletinManagementNew() {
     setSelectedSeries(seriesId);
   };
 
-  const handleDownloadBulletin = async (bulletinId, studentName, periodType, periodId) => {
+  const handleDownloadBulletin = async (bulletinId, studentName, periodType, periodId, studentId = null) => {
     try {
       setLoading(true);
+      setError(''); // Clear previous errors
+      
+      // 🔍 DEBUG: Afficher les paramètres reçus avec plus de détails
+      console.log('🔍 DEBUG handleDownloadBulletin called with:');
+      console.log('  bulletinId:', bulletinId, '(type:', typeof bulletinId, ')');
+      console.log('  studentName:', studentName);
+      console.log('  periodType:', periodType);  
+      console.log('  periodId:', periodId);
+      console.log('  studentId:', studentId);
       
       // Utiliser fetch directement pour les téléchargements de fichiers
       const token = authService.getToken();
@@ -158,6 +181,31 @@ function BulletinManagementNew() {
       });
 
       if (!response.ok) {
+        if (response.status === 404) {
+          // LOGIQUE INTELLIGENTE: Auto-générer le bulletin manquant
+          console.warn(`Bulletin ${bulletinId} not found, auto-generating...`);
+          setError('Bulletin manquant. Génération automatique en cours...');
+          
+          try {
+            // Forcer la régénération automatiquement
+            await secureApi.post('/bulletins/force-regenerate', {
+              student_id: studentId || null, // Il faudra passer studentId en paramètre
+              period_type: periodType,
+              period_identifier: periodId
+            });
+            
+            // Actualiser les données
+            await fetchStudentsData();
+            
+            setSuccess('Bulletin généré automatiquement. Vous pouvez maintenant le télécharger.');
+            return;
+            
+          } catch (genError) {
+            console.error('Auto-generation failed:', genError);
+            setError('Impossible de générer automatiquement le bulletin. Veuillez utiliser le bouton "Régénérer".');
+            return;
+          }
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -210,15 +258,27 @@ function BulletinManagementNew() {
     if (window.confirm('Forcer la régénération de ce bulletin ?')) {
       try {
         setLoading(true);
+        setError(''); // Clear any previous errors
+        
         await secureApi.post('/bulletins/force-regenerate', {
           student_id: studentId,
           period_type: periodType,
           period_identifier: periodId
         });
+        
         setSuccess('Bulletin régénéré avec succès');
-        fetchStudentsData();
+        
+        // Force reload data to get new bulletin IDs
+        await fetchStudentsData();
+        
+        // Additional delay to ensure data is updated
+        setTimeout(() => {
+          fetchStudentsData();
+        }, 1000);
+        
       } catch (error) {
-        setError('Erreur lors de la régénération');
+        console.error('Error during regeneration:', error);
+        setError('Erreur lors de la régénération: ' + (error.message || 'Unknown error'));
       } finally {
         setLoading(false);
       }
@@ -644,11 +704,14 @@ function BulletinManagementNew() {
                 <Button 
                   variant="outline-primary" 
                   size="sm" 
-                  onClick={fetchStudentsData}
+                  onClick={() => {
+                    console.log('🔄 Force refresh des données...');
+                    fetchStudentsData();
+                  }}
                   disabled={loading}
                 >
                   <ArrowClockwise className="me-1" />
-                  Actualiser
+                  Actualiser & Debug
                 </Button>
               </Card.Header>
               <Card.Body>
@@ -764,8 +827,8 @@ function BulletinManagementNew() {
                                         </Button>
                                       )}
                                       
-                                      {/* Download - Seulement si généré */}
-                                      {bulletin.is_generated && (
+                                      {/* Download - Only if bulletin_id exists */}
+                                      {bulletin.bulletin_id && (
                                         <Button
                                           variant={bulletin.is_archived ? 'outline-dark' : 'outline-success'}
                                           size="sm"
@@ -773,7 +836,8 @@ function BulletinManagementNew() {
                                             bulletin.bulletin_id,
                                             `${student.first_name}_${student.last_name}`,
                                             bulletin.type,
-                                            bulletin.identifier
+                                            bulletin.identifier,
+                                            student.id
                                           )}
                                           title={`Télécharger ${bulletin.name}${bulletin.is_archived ? ' (Archive)' : ''}`}
                                         >

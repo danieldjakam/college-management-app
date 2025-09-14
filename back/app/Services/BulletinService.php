@@ -24,9 +24,13 @@ class BulletinService
      */
     public function calculateDSAverage($trimester, $studentId, $subjectId)
     {
+        \Log::info("🔍 DEBUG DS: trimester={$trimester}, student={$studentId}, subject={$subjectId}");
+        
         $sequences = $this->getSequencesForTrimester($trimester);
+        \Log::info("🔍 Sequences found: " . $sequences->pluck('number')->join(','));
         
         if ($sequences->count() != 2) {
+            \Log::info("🔍 PROBLÈME: Expected 2 sequences, found " . $sequences->count());
             return null;
         }
         
@@ -34,14 +38,18 @@ class BulletinService
         $foundSequenceNotes = 0;
         
         foreach ($sequences as $sequence) {
+            \Log::info("🔍 Checking sequence {$sequence->number} (id={$sequence->id})");
             $sequenceNote = null;
             
-            // D'abord essayer de trouver une note directe avec sequence_id
+            // 🔧 FIX: Ajouter trimester dans la requête comme TrimesterController
             $grade = Grade::where('student_id', $studentId)
                          ->where('sequence_id', $sequence->id)
                          ->where('series_subject_id', $subjectId)
+                         ->where('trimester_id', $trimester)
                          ->whereNotNull('score')
                          ->first();
+            
+            \Log::info("🔍 Direct grade found: " . ($grade ? "score={$grade->score}" : "none"));
             
             // Si pas de note directe, chercher via les évaluations de la séquence
             if (!$grade) {
@@ -49,13 +57,17 @@ class BulletinService
                                         ->where('series_subject_id', $subjectId)
                                         ->get();
                 
+                \Log::info("🔍 Evaluations for sequence: " . $evaluations->count());
+                
                 foreach ($evaluations as $evaluation) {
                     $grade = Grade::where('student_id', $studentId)
                                  ->where('evaluation_id', $evaluation->id)
+                                 ->where('trimester_id', $trimester)
                                  ->whereNotNull('score')
                                  ->first();
                     
                     if ($grade) {
+                        \Log::info("🔍 Grade found via evaluation {$evaluation->id}: score={$grade->score}");
                         break; // Prendre la première note trouvée pour cette séquence
                     }
                 }
@@ -65,16 +77,24 @@ class BulletinService
                 $sequenceNote = $grade->getScoreOn20();
                 $grades->push($sequenceNote);
                 $foundSequenceNotes++;
+                \Log::info("🔍 Sequence {$sequence->number} note: {$sequenceNote}");
+            } else {
+                \Log::info("🔍 No grade found for sequence {$sequence->number}");
             }
         }
+        
+        \Log::info("🔍 Found {$foundSequenceNotes} sequence notes out of 2 required");
         
         // RÈGLE ACADÉMIQUE: DS n'existe que si les DEUX séquences ont des notes
         // Si seulement une séquence a une note, pas de DS calculé
         if ($foundSequenceNotes < 2) {
+            \Log::info("🔍 DS NOT CALCULATED: Need 2 notes, found {$foundSequenceNotes}");
             return null;
         }
         
-        return $grades->average();
+        $dsAverage = $grades->average();
+        \Log::info("🔍 DS CALCULATED: {$dsAverage}");
+        return $dsAverage;
     }
     
     /**
@@ -95,38 +115,21 @@ class BulletinService
         $dsAverage = $this->calculateDSAverage($trimester, $studentId, $subjectId);
         $compositionGrade = $this->getCompositionGrade($trimester, $studentId, $subjectId);
         
-        // RÈGLE ACADÉMIQUE STRICTE:
-        // - Si on a DS ET Composition: moyenne des deux
-        // - Si on a seulement DS ou seulement Composition: pas de note de trimestre
-        // - Exception: si une des deux parties n'existe pas dans le système, utiliser l'autre
+        // NOUVELLE RÈGLE : Si composition pas saisie, compter 0 dans le calcul
+        // DS + Composition (ou 0 si pas saisie) / 2
         
-        if ($dsAverage !== null && $compositionGrade !== null) {
-            return ($dsAverage + $compositionGrade) / 2;
+        if ($dsAverage !== null) {
+            // Composition = note saisie ou 0 si pas saisie
+            $finalCompositionGrade = $compositionGrade !== null ? $compositionGrade : 0;
+            return ($dsAverage + $finalCompositionGrade) / 2;
         }
         
-        // Cas exceptionnels (pour la transition ou si système incomplet)
-        // Si seulement DS disponible ET composition pas encore créée
-        if ($dsAverage !== null && $compositionGrade === null) {
-            // Vérifier s'il existe une composition créée pour ce trimestre
-            $compositionExists = Evaluation::where('trimester_id', $trimester)
-                                          ->where('series_subject_id', $subjectId)
-                                          ->where(function($query) {
-                                              $query->where('type', 'composition')
-                                                    ->orWhere('evaluation_type', 'composition');
-                                          })
-                                          ->exists();
-            
-            if (!$compositionExists) {
-                return $dsAverage; // Utiliser DS seulement si pas de composition créée
-            }
-        }
-        
-        // Si seulement composition disponible
+        // Si seulement composition disponible (cas rare)
         if ($compositionGrade !== null && $dsAverage === null) {
             return $compositionGrade; // Utiliser composition seulement
         }
         
-        return null; // Pas assez de données
+        return null; // Pas de données du tout
     }
     
     /**
@@ -134,30 +137,29 @@ class BulletinService
      */
     public function getCompositionGrade($trimester, $studentId, $subjectId)
     {
-        // Chercher d'abord avec evaluation_type
-        $evaluation = Evaluation::where('evaluation_type', 'composition')
+        // RECHERCHE CORRECTE DES COMPOSITIONS
+        // Chercher les évaluations avec type = 'composition' (pas evaluation_type)
+        $evaluation = Evaluation::where('type', 'composition')
                                ->where('trimester_id', $trimester)
                                ->where('series_subject_id', $subjectId)
                                ->first();
         
-        // Si pas trouvé, chercher avec le champ type
+        // RETOUR NULL SI AUCUNE COMPOSITION TROUVÉE
         if (!$evaluation) {
-            $evaluation = Evaluation::where('type', 'composition')
-                                   ->where('trimester_id', $trimester)
-                                   ->where('series_subject_id', $subjectId)
-                                   ->first();
-        }
-        
-        if (!$evaluation) {
+            \Log::info("Aucune composition trouvée (type=composition) pour trimester:{$trimester}, student:{$studentId}, subject:{$subjectId}");
             return null;
         }
         
         $grade = Grade::where('student_id', $studentId)
                      ->where('evaluation_id', $evaluation->id)
+                     ->where('trimester_id', $trimester)
                      ->whereNotNull('score')
                      ->first();
         
-        return $grade ? $grade->getScoreOn20() : null;
+        $result = $grade ? $grade->getScoreOn20() : null;
+        \Log::info("Vraie composition trouvée: evaluation_id:{$evaluation->id}, grade:" . ($result ?? 'null'));
+        
+        return $result;
     }
     
     /**
@@ -178,7 +180,15 @@ class BulletinService
                 return collect();
         }
         
-        return Sequence::whereIn('number', $sequenceNumbers)->get();
+        // Prendre seulement une séquence par numéro pour éviter les doublons
+        $sequences = collect();
+        foreach ($sequenceNumbers as $number) {
+            $seq = Sequence::where('number', $number)->first();
+            if ($seq) {
+                $sequences->push($seq);
+            }
+        }
+        return $sequences;
     }
     
     /**
@@ -361,9 +371,13 @@ class BulletinService
         $totalCoefficient = 0;
         
         foreach ($subjects as $seriesSubject) {
+            \Log::info("🔍 Processing subject: {$seriesSubject->subject->name} (id={$seriesSubject->id}) for student {$studentId}, trimester={$trimesterNumber}");
             $dsAverage = $this->calculateDSAverage($trimesterNumber, $studentId, $seriesSubject->id);
+            \Log::info("🔍 DS Average for {$seriesSubject->subject->name}: " . ($dsAverage ?? 'null'));
             $compositionGrade = $this->getCompositionGrade($trimesterNumber, $studentId, $seriesSubject->id);
+            \Log::info("🔍 Composition Grade for {$seriesSubject->subject->name}: " . ($compositionGrade ?? 'null'));
             $trimesterGrade = $this->calculateTrimesterGrade($trimesterNumber, $studentId, $seriesSubject->id);
+            \Log::info("🔍 Final Trimester Grade for {$seriesSubject->subject->name}: " . ($trimesterGrade ?? 'null'));
             
             $weightedScore = $trimesterGrade ? $trimesterGrade * $seriesSubject->coefficient : 0;
             
@@ -531,7 +545,7 @@ class BulletinService
      */
     public function renderBulletinTemplate($templateType, $data, $forPdf = false)
     {
-        // Use PDF-optimized template for PDF generation, regular template for preview
+        // RETOUR AU SYSTÈME ORIGINAL avec templates
         $templateFile = $forPdf ? 'cpbd_bulletin_pdf.html' : 'cpbd_bulletin.html';
         $templatePath = resource_path('views/bulletins/' . $templateFile);
         
@@ -557,6 +571,7 @@ class BulletinService
         return $html;
     }
     
+    
     /**
      * Prepare template data for the CPBD bulletin
      */
@@ -570,12 +585,17 @@ class BulletinService
         $bulletinTypeLabel = 'Évaluation';
         $bulletinPeriod = 'N°1';
         
+        // DEBUG: Log pour tracer le problème
+        \Log::info("DEBUG prepareTemplateData: templateType=$templateType, trimester=" . ($trimester ? $trimester->number : 'null') . ", sequence=" . ($sequence ? $sequence->number : 'null'));
+        
         if ($templateType === 'trimester' && $trimester) {
             $bulletinTypeLabel = 'Trimestre';
             $bulletinPeriod = 'N°' . $trimester->number;
+            \Log::info("DEBUG: Set bulletinTypeLabel=Trimestre, bulletinPeriod=N°{$trimester->number}");
         } elseif ($templateType === 'sequence' && $sequence) {
             $bulletinTypeLabel = 'Évaluation';
             $bulletinPeriod = 'N°' . $sequence->number;
+            \Log::info("DEBUG: Set bulletinTypeLabel=Évaluation, bulletinPeriod=N°{$sequence->number}");
         }
         
         // Get school settings and logo
@@ -624,12 +644,15 @@ class BulletinService
             return str_replace('{{#each subject_groups}}{{/each}}', '', $html);
         }
         
+        // Determine bulletin type based on data structure
+        $bulletinType = isset($data['trimester']) ? 'trimester' : 'sequence';
+        
         // Group subjects by type (simulate the groups from the example)
         $subjectGroups = $this->groupSubjectsByType($data['subjects']);
         
         $groupsHtml = '';
         foreach ($subjectGroups as $groupName => $subjects) {
-            $groupsHtml .= $this->renderSubjectGroup($groupName, $subjects, $forPdf);
+            $groupsHtml .= $this->renderSubjectGroup($groupName, $subjects, $forPdf, $bulletinType);
         }
         
         // Replace the {{#each subject_groups}}...{{/each}} block
@@ -676,19 +699,37 @@ class BulletinService
     /**
      * Render a single subject group
      */
-    protected function renderSubjectGroup($groupName, $subjects, $forPdf = false)
+    protected function renderSubjectGroup($groupName, $subjects, $forPdf = false, $bulletinType = 'sequence')
     {
-        $html = '<div class="grades-section">';
-        $html .= '<div class="group-header">' . $groupName . '</div>';
-        $html .= '<table class="subjects-table">';
-        $html .= '<tr>';
-        $html .= '<th>DISCIPLINE</th>';
-        $html .= '<th>NOTES /20</th>';
-        $html .= '<th>COEF.</th>';
-        $html .= '<th>(NXC)</th>';
-        $html .= '<th>RANG</th>';
-        $html .= '<th>COMPÉTENCES</th>';
-        $html .= '<th>NOMS DES PROFESSEURS</th>';
+        $html = '<div class="grades-section" style="margin-bottom: 20px;">';
+        $html .= '<div class="group-header" style="background: #f0f0f0; padding: 8px; font-weight: bold; text-align: center; border: 1px solid #000;">' . $groupName . '</div>';
+        $html .= '<table class="subjects-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000;">';
+        
+        // Header row avec largeurs fixes pour alignement
+        $html .= '<tr style="background: #f8f8f8;">';
+        
+        if ($bulletinType === 'trimester') {
+            // Pour bulletin trimestre : colonnes alignées avec largeurs fixes
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 20%;">DISCIPLINE</th>';
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">DS1</th>';
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Compo1</th>';
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Moy</th>';
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">COEF.</th>';
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">RANG</th>';
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPÉTENCES</th>';
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 20%;">NOMS DES PROFESSEURS</th>';
+        } else {
+            // Pour bulletin séquence : structure originale avec largeurs fixes
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 25%;">DISCIPLINE</th>';
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">NOTES /20</th>';
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">COEF.</th>';
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">(NXC)</th>';
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">RANG</th>';
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 13%;">COMPÉTENCES</th>';
+            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 20%;">NOMS DES PROFESSEURS</th>';
+        }
+        
         $html .= '</tr>';
         
         $totalCoef = 0;
@@ -706,25 +747,58 @@ class BulletinService
             $totalPoints += $weightedGrade;
             
             $html .= '<tr>';
-            $html .= '<td class="subject-name">' . strtoupper($subject['name']) . '</td>';
-            $html .= '<td>' . number_format($grade, 2) . '</td>';
-            $html .= '<td>' . number_format($coef, 2) . '</td>';
-            $html .= '<td class="' . $gradeClass . '">' . number_format($weightedGrade, 2) . '</td>';
-            $html .= '<td>' . ($subject['rank'] ?? '1') . 'e</td>';
-            $html .= '<td>' . $competence . '</td>';
-            $html .= '<td>' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
+            
+            if ($bulletinType === 'trimester') {
+                // Pour bulletin trimestre avec alignement
+                $ds1 = $subject['ds'] ?? null;
+                $compo1 = $subject['composition'] ?? null;
+                $average = $subject['average'] ?? null;
+                
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($ds1 !== null && $ds1 > 0 ? number_format($ds1, 2) : '-') . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 !== null && $compo1 > 0 ? number_format($compo1, 2) : '-') . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($average !== null && $average > 0 ? number_format($average, 2) : '-') . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($coef, 2) . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . number_format($weightedGrade, 2) . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? '1') . 'e</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $competence . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
+            } else {
+                // Pour bulletin séquence avec alignement
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($grade, 2) . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($coef, 2) . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . number_format($weightedGrade, 2) . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? '1') . 'e</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $competence . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
+            }
+            
             $html .= '</tr>';
         }
         
         $groupAverage = $totalCoef > 0 ? $totalPoints / $totalCoef : 0;
         
-        // Total row
-        $html .= '<tr class="total-row">';
-        $html .= '<td class="subject-name">TOTAL</td>';
-        $html .= '<td>' . number_format($totalPoints, 2) . '</td>';
-        $html .= '<td>' . number_format($totalCoef, 2) . '</td>';
-        $html .= '<td colspan="2">Moy gpe: ' . number_format($groupAverage, 2) . '</td>';
-        $html .= '<td colspan="2">Rang: 1e Moy Gen Gpe ' . number_format($groupAverage + 2, 2) . '</td>';
+        // Total row avec alignement
+        $html .= '<tr class="total-row" style="background: #f0f0f0; font-weight: bold;">';
+        
+        if ($bulletinType === 'trimester') {
+            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>';
+            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // DS1
+            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Compo1
+            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($groupAverage, 2) . '</td>'; // Moy
+            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalCoef, 2) . '</td>'; // COEF
+            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalPoints, 2) . '</td>'; // (NXC)
+            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">1e</td>'; // RANG
+            $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy gpe: ' . number_format($groupAverage, 2) . ' ' . strtoupper(explode(' :', $groupName)[0]) . '</td>'; // COMPÉTENCES + NOMS DES PROFESSEURS
+        } else {
+            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>';
+            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalPoints, 2) . '</td>';
+            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalCoef, 2) . '</td>';
+            $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy gpe: ' . number_format($groupAverage, 2) . '</td>';
+            $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Rang: 1e Moy Gen Gpe ' . number_format($groupAverage + 2, 2) . '</td>';
+        }
+        
         $html .= '</tr>';
         
         $html .= '</table>';

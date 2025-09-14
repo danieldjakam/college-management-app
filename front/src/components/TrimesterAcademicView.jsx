@@ -21,16 +21,19 @@ const TrimesterAcademicView = ({
 }) => {
     const [activeTab, setActiveTab] = useState('overview');
 
-    // Grouper les séquences par trimestre
+    // Grouper les séquences NORMALES par trimestre (exclure les compositions)
     const getSequencesForTrimester = (trimesterId) => {
-        return sequences.filter(seq => seq.trimester_id === trimesterId);
+        return sequences.filter(seq => 
+            seq.trimester_id === trimesterId && 
+            !seq.is_composition // Exclure les compositions
+        );
     };
 
-    // Obtenir les compositions pour un trimestre
-    const getCompositionsForTrimester = (trimesterNumber) => {
-        return evaluations.filter(evaluation => 
-            evaluation.trimester_id === trimesterNumber && 
-            (evaluation.type === 'composition' || evaluation.evaluation_type === 'composition')
+    // Obtenir les compositions pour un trimestre (maintenant des séquences)
+    const getCompositionsForTrimester = (trimesterId) => {
+        return sequences.filter(seq => 
+            seq.trimester_id === trimesterId && 
+            seq.is_composition === true
         );
     };
 
@@ -65,7 +68,10 @@ const TrimesterAcademicView = ({
         }
         
         if (type === 'composition') {
-            if (item.is_active) return { status: 'active', label: 'Active', variant: 'warning', icon: FileText };
+            if (item.is_active) return { status: 'active', label: 'Active', variant: 'success', icon: FileText };
+            if (item.is_locked === true || (!item.is_active && item.is_locked !== false)) {
+                return { status: 'locked', label: 'Verrouillée', variant: 'danger', icon: XCircle };
+            }
             return { status: 'scheduled', label: 'Programmée', variant: 'secondary', icon: Clock };
         }
         
@@ -105,7 +111,7 @@ const TrimesterAcademicView = ({
                     <Row>
                         {trimesters.map((trimester) => {
                             const trimesterSequences = getSequencesForTrimester(trimester.id);
-                            const compositions = getCompositionsForTrimester(trimester.number);
+                            const compositions = getCompositionsForTrimester(trimester.id);
                             const dsInfo = getDSForTrimester(trimester.number);
                             const dsStatus = getDSStatus(dsInfo);
                             
@@ -189,15 +195,15 @@ const TrimesterAcademicView = ({
                                                     </h6>
                                                     {compositions.length > 0 ? (
                                                         compositions.map((composition) => {
-                                                            const compStatus = getItemStatus(composition, 'composition');
+                                                            const compStatus = getItemStatus(composition, 'sequence'); // Traiter comme une séquence maintenant
                                                             return (
                                                                 <div key={composition.id} className="d-flex justify-content-between align-items-center">
                                                                     <small className="text-truncate">
                                                                         <compStatus.icon className="me-1" size={12} />
                                                                         {composition.name}
                                                                     </small>
-                                                                    <Badge bg={compStatus.variant}>
-                                                                        {compStatus.label}
+                                                                    <Badge bg={composition.is_locked ? 'danger' : compStatus.variant}>
+                                                                        {composition.is_locked ? 'Verrouillée' : compStatus.label}
                                                                     </Badge>
                                                                 </div>
                                                             );
@@ -248,7 +254,7 @@ const TrimesterAcademicView = ({
                         <TrimesterDetailView 
                             trimester={trimester}
                             sequences={getSequencesForTrimester(trimester.id)}
-                            compositions={getCompositionsForTrimester(trimester.number)}
+                            compositions={getCompositionsForTrimester(trimester.id)}
                             dsInfo={getDSForTrimester(trimester.number)}
                             onActivateSequence={onActivateSequence}
                             onCompleteSequence={onCompleteSequence}
@@ -269,6 +275,25 @@ const TrimesterDetailView = ({
     onActivateSequence,
     onCompleteSequence 
 }) => {
+    // Obtenir le statut d'un élément académique (copié pour ce composant)
+    const getItemStatus = (item, type = 'sequence') => {
+        if (type === 'sequence') {
+            if (item.is_current) return { status: 'current', label: 'En cours', variant: 'success', icon: Play };
+            if (item.is_completed) return { status: 'completed', label: 'Terminée', variant: 'info', icon: CheckCircle };
+            return { status: 'scheduled', label: 'Programmée', variant: 'secondary', icon: Clock };
+        }
+        
+        if (type === 'composition') {
+            if (item.is_active) return { status: 'active', label: 'Active', variant: 'success', icon: FileText };
+            if (item.is_locked === true || (!item.is_active && item.is_locked !== false)) {
+                return { status: 'locked', label: 'Verrouillée', variant: 'danger', icon: XCircle };
+            }
+            return { status: 'scheduled', label: 'Programmée', variant: 'secondary', icon: Clock };
+        }
+        
+        return { status: 'unknown', label: 'Inconnu', variant: 'light', icon: XCircle };
+    };
+    
     return (
         <div className="trimester-detail">
             <Row className="mb-4">
@@ -411,26 +436,75 @@ const TrimesterDetailView = ({
                         </Card.Header>
                         <Card.Body>
                             {compositions.length > 0 ? (
-                                compositions.map((composition) => (
-                                    <div key={composition.id} className="composition-item p-2 bg-light rounded mb-2">
-                                        <div className="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <strong>{composition.name}</strong>
-                                                <br />
-                                                <small className="text-muted">
-                                                    Date: {composition.date ? new Date(composition.date).toLocaleDateString() : 'Non programmée'}
-                                                </small>
-                                            </div>
-                                            <Badge bg={composition.is_active ? 'success' : 'secondary'}>
-                                                {composition.is_active ? 'Active' : 'Programmée'}
-                                            </Badge>
-                                        </div>
-                                    </div>
-                                ))
+                                <Table hover size="sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Composition</th>
+                                            <th>Période</th>
+                                            <th>Statut</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {compositions.map((composition) => (
+                                            <tr key={composition.id}>
+                                                <td>
+                                                    <strong>{composition.name}</strong>
+                                                    <br />
+                                                    <small className="text-muted">#{composition.number}</small>
+                                                </td>
+                                                <td>
+                                                    <small>
+                                                        {new Date(composition.start_date).toLocaleDateString()} -
+                                                        <br />
+                                                        {new Date(composition.end_date).toLocaleDateString()}
+                                                    </small>
+                                                </td>
+                                                <td>
+                                                    {composition.is_locked ? (
+                                                        <Badge bg="danger">Verrouillée</Badge>
+                                                    ) : composition.is_current ? (
+                                                        <Badge bg="success">En cours</Badge>
+                                                    ) : composition.is_completed ? (
+                                                        <Badge bg="info">Terminée</Badge>
+                                                    ) : (
+                                                        <Badge bg="secondary">Programmée</Badge>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    {composition.is_locked ? (
+                                                        <small className="text-muted">🔒 Verrouillée</small>
+                                                    ) : composition.is_current ? (
+                                                        <Button 
+                                                            size="sm" 
+                                                            variant="outline-info"
+                                                            onClick={() => onCompleteSequence && onCompleteSequence(composition.id)}
+                                                        >
+                                                            <CheckCircle size={14} className="me-1" />
+                                                            Terminer
+                                                        </Button>
+                                                    ) : !composition.is_completed ? (
+                                                        <Button 
+                                                            size="sm" 
+                                                            variant="outline-success"
+                                                            onClick={() => onActivateSequence && onActivateSequence(composition.id)}
+                                                        >
+                                                            <Play size={14} className="me-1" />
+                                                            Activer
+                                                        </Button>
+                                                    ) : (
+                                                        <Badge bg="light" text="dark">Terminée</Badge>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </Table>
                             ) : (
                                 <div className="text-center py-3">
                                     <FileText size={24} className="text-muted mb-2" />
                                     <p className="text-muted mb-0">Composition non créée</p>
+                                    <small className="text-muted">Elle se créera automatiquement avec les séquences</small>
                                 </div>
                             )}
                         </Card.Body>

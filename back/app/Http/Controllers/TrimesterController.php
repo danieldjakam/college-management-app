@@ -111,14 +111,9 @@ class TrimesterController extends Controller
             $trimesters = Trimester::where('school_year_id', $currentYear->id)
                 ->with([
                     'sequences' => function($query) use ($maxSequencesPerTrimester) {
-                        $query->orderBy('number')
-                            ->where(function($q) use ($maxSequencesPerTrimester) {
-                                // Filtrer selon le nombre de séquences autorisées
-                                if ($maxSequencesPerTrimester === 1) {
-                                    $q->whereRaw('(number - 1) % 2 = 0'); // Séquences 1, 3, 5 (impaires)
-                                }
-                                // Si maxSequences = 2, on garde toutes les séquences
-                            });
+                        $query->orderBy('number');
+                        // TOUJOURS inclure les compositions + filtrer les séquences normales
+                        // Simplification : on charge toutes les séquences, le filtrage se fera côté PHP si nécessaire
                     },
                     'sequences.evaluations' => function($query) use ($teacher) {
                         $query->where('teacher_id', $teacher->id);
@@ -129,11 +124,28 @@ class TrimesterController extends Controller
                 ->get();
 
             // Enrichir les données avec les statistiques du professeur
-            $trimesters = $trimesters->map(function($trimester) use ($teacher, $teacherClassIds) {
+            $trimesters = $trimesters->map(function($trimester) use ($teacher, $teacherClassIds, $maxSequencesPerTrimester) {
                 $trimester->teacher_classes_count = $teacherClassIds->count();
                 $trimester->can_manage = true;
                 
-                $trimester->sequences = $trimester->sequences->map(function($sequence) use ($teacher) {
+                // Filtrer les séquences côté PHP pour éviter les erreurs SQL
+                $filteredSequences = $trimester->sequences->filter(function($sequence) use ($maxSequencesPerTrimester) {
+                    // TOUJOURS inclure les compositions
+                    if ($sequence->is_composition) {
+                        return true;
+                    }
+                    
+                    // Pour les séquences normales, appliquer le filtrage selon maxSequencesPerTrimester
+                    if ($maxSequencesPerTrimester === 1) {
+                        // Mode 1DS: Garder seulement séquences 1, 3, 5 (impaires)
+                        return ($sequence->number - 1) % 2 === 0;
+                    }
+                    
+                    // Mode 2DS: Garder toutes les séquences normales
+                    return true;
+                });
+                
+                $trimester->sequences = $filteredSequences->map(function($sequence) use ($teacher) {
                     $sequence->teacher_evaluations_count = $sequence->evaluations->count();
                     $sequence->can_add_evaluations = $sequence->canAcceptEvaluations();
                     return $sequence;
@@ -438,6 +450,271 @@ class TrimesterController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors du calcul des statistiques',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir les détails du calcul DS pour un trimestre et un teacher
+     */
+    public function getDSDetails(Request $request, Trimester $trimester)
+    {
+        try {
+            $user = $request->user();
+            $teacher = $user->teacher;
+
+            if (!$teacher) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Utilisateur non associé à un profil enseignant'
+                ], 403);
+            }
+
+            // Récupérer les séquences normales (non compositions) terminées du trimestre
+            $normalSequences = $trimester->sequences()
+                ->where('is_composition', false)
+                ->where('is_completed', true)
+                ->orderBy('number')
+                ->get();
+
+            if ($normalSequences->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune séquence terminée pour ce trimestre'
+                ], 404);
+            }
+
+            // DEBUG: Afficher les infos du teacher
+            \Log::info('DS Details Debug - Teacher info:', [
+                'teacher_id' => $teacher->id,
+                'teacher_name' => $teacher->user->name,
+                'trimester_id' => $trimester->id,
+                'school_year_id' => $trimester->school_year_id
+            ]);
+
+            // Récupérer les assignations du teacher pour cette année scolaire
+            $teacherAssignments = $teacher->assignments()
+                ->where('school_year_id', $trimester->school_year_id)
+                ->where('is_active', true)
+                ->with([
+                    'seriesSubject.subject',
+                    'seriesSubject.schoolClass'
+                ])
+                ->get();
+
+            \Log::info('DS Details Debug - Teacher assignments:', [
+                'assignments_count' => $teacherAssignments->count(),
+                'assignments' => $teacherAssignments->map(function($assignment) {
+                    return [
+                        'id' => $assignment->id,
+                        'subject' => $assignment->seriesSubject->subject->name,
+                        'class' => $assignment->seriesSubject->schoolClass->name,
+                        'class_id' => $assignment->seriesSubject->school_class_id
+                    ];
+                })
+            ]);
+
+            if ($teacherAssignments->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune assignation trouvée pour ce professeur'
+                ], 404);
+            }
+
+            // Récupérer tous les élèves des classes où enseigne le professeur
+            $allStudents = collect();
+            $subjectsByStudent = [];
+            $classSeriesIds = [];
+
+            foreach ($teacherAssignments as $assignment) {
+                $seriesSubject = $assignment->seriesSubject;
+                $subject = $seriesSubject->subject;
+                $schoolClass = $seriesSubject->schoolClass;
+                
+                // Récupérer les séries de classes pour cette school_class
+                $classSeries = \App\Models\ClassSeries::where('class_id', $schoolClass->id)
+                    ->where(function($query) use ($trimester) {
+                        $query->where('school_year_id', $trimester->school_year_id)
+                              ->orWhereNull('school_year_id');
+                    })
+                    ->get();
+
+                \Log::info('DS Details Debug - Class series for class:', [
+                    'school_class_id' => $schoolClass->id,
+                    'school_class_name' => $schoolClass->name,
+                    'class_series_count' => $classSeries->count(),
+                    'class_series' => $classSeries->map(function($cs) {
+                        return ['id' => $cs->id, 'name' => $cs->name];
+                    })
+                ]);
+
+                foreach ($classSeries as $cs) {
+                    $classSeriesIds[] = $cs->id;
+                    
+                    // Récupérer les élèves de cette série de classe
+                    $students = \App\Models\Student::where('class_series_id', $cs->id)->get();
+
+                    \Log::info('DS Details Debug - Students for class series:', [
+                        'class_series_id' => $cs->id,
+                        'class_series_name' => $cs->name,
+                        'students_count' => $students->count()
+                    ]);
+
+                    foreach ($students as $student) {
+                        $allStudents->push($student);
+                        
+                        if (!isset($subjectsByStudent[$student->id])) {
+                            $subjectsByStudent[$student->id] = [];
+                        }
+                        
+                        $subjectsByStudent[$student->id][] = [
+                            'subject' => $subject,
+                            'series_subject_id' => $seriesSubject->id,
+                            'coefficient' => $seriesSubject->coefficient,
+                            'class_name' => $schoolClass->name
+                        ];
+                    }
+                }
+            }
+
+            $allStudents = $allStudents->unique('id');
+
+            \Log::info('DS Details Debug - Final students:', [
+                'total_students' => $allStudents->count(),
+                'students_sample' => $allStudents->take(3)->map(function($student) {
+                    return ['id' => $student->id, 'name' => $student->first_name . ' ' . $student->last_name];
+                })
+            ]);
+
+            if ($allStudents->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun élève trouvé dans vos classes'
+                ], 404);
+            }
+
+            // Pour chaque élève, calculer son DS
+            $studentsDS = [];
+            $sequenceIds = $normalSequences->pluck('id')->toArray();
+
+            foreach ($allStudents as $student) {
+                $studentSubjects = $subjectsByStudent[$student->id] ?? [];
+                $subjectAverages = [];
+                $totalWeightedScore = 0;
+                $totalCoefficients = 0;
+
+                foreach ($studentSubjects as $subjectInfo) {
+                    $seriesSubjectId = $subjectInfo['series_subject_id'];
+                    $coefficient = $subjectInfo['coefficient'];
+                    $subject = $subjectInfo['subject'];
+
+                    // Récupérer les notes de cet élève pour cette matière dans les séquences terminées
+                    $grades = \App\Models\Grade::where('student_id', $student->id)
+                        ->where('series_subject_id', $seriesSubjectId)
+                        ->whereIn('sequence_id', $sequenceIds)
+                        ->where('trimester_id', $trimester->id)
+                        ->with('sequence')
+                        ->get();
+
+                    if ($grades->isNotEmpty()) {
+                        // Grouper les notes par séquence
+                        $gradesBySequence = [];
+                        foreach ($grades as $grade) {
+                            $seqId = $grade->sequence_id;
+                            if (!isset($gradesBySequence[$seqId])) {
+                                $gradesBySequence[$seqId] = [];
+                            }
+                            // Convertir la note sur 20
+                            $score20 = ($grade->score / $grade->max_score) * 20;
+                            $gradesBySequence[$seqId][] = $score20;
+                        }
+
+                        // Calculer la moyenne par séquence
+                        $sequenceAverages = [];
+                        foreach ($gradesBySequence as $seqId => $seqGrades) {
+                            $sequenceAverages[] = array_sum($seqGrades) / count($seqGrades);
+                        }
+
+                        // Calculer la moyenne DS pour cette matière : (Seq1 + Seq2) / 2
+                        if (count($sequenceAverages) >= 2) {
+                            $subjectDSAverage = array_sum($sequenceAverages) / count($sequenceAverages);
+                            $weightedScore = $subjectDSAverage * $coefficient;
+                            
+                            $subjectAverages[] = [
+                                'subject' => $subject->name,
+                                'sequence_averages' => $sequenceAverages,
+                                'ds_average' => round($subjectDSAverage, 2),
+                                'coefficient' => $coefficient,
+                                'weighted_score' => round($weightedScore, 2)
+                            ];
+
+                            $totalWeightedScore += $weightedScore;
+                            $totalCoefficients += $coefficient;
+                        }
+                    }
+                }
+
+                // Calculer la moyenne générale de l'élève
+                $studentDSAverage = $totalCoefficients > 0 ? $totalWeightedScore / $totalCoefficients : null;
+
+                if ($studentDSAverage !== null) {
+                    $studentsDS[] = [
+                        'student_id' => $student->id,
+                        'student_name' => $student->first_name . ' ' . $student->last_name,
+                        'student_number' => $student->student_number,
+                        'subjects' => $subjectAverages,
+                        'ds_average' => round($studentDSAverage, 2),
+                        'total_coefficients' => $totalCoefficients,
+                        'total_weighted_score' => round($totalWeightedScore, 2)
+                    ];
+                }
+            }
+
+            // Trier les élèves par moyenne DS décroissante
+            usort($studentsDS, function($a, $b) {
+                return $b['ds_average'] <=> $a['ds_average'];
+            });
+
+            // Calculer quelques statistiques
+            $dsAverages = array_column($studentsDS, 'ds_average');
+            $classDS = [
+                'count' => count($studentsDS),
+                'average' => count($dsAverages) > 0 ? round(array_sum($dsAverages) / count($dsAverages), 2) : 0,
+                'min' => count($dsAverages) > 0 ? min($dsAverages) : 0,
+                'max' => count($dsAverages) > 0 ? max($dsAverages) : 0
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'trimester' => [
+                        'name' => $trimester->name,
+                        'number' => $trimester->number
+                    ],
+                    'sequences' => $normalSequences->map(function($seq) {
+                        return [
+                            'name' => $seq->name,
+                            'number' => $seq->number,
+                            'is_completed' => $seq->is_completed
+                        ];
+                    }),
+                    'students_ds' => $studentsDS,
+                    'class_statistics' => $classDS,
+                    'calculation_details' => [
+                        'formula' => 'DS = (Séquence 1 + Séquence 2) ÷ 2 pour chaque matière, puis moyenne pondérée par les coefficients'
+                    ]
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur dans getDSDetails: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du calcul des détails DS',
                 'error' => $e->getMessage()
             ], 500);
         }
