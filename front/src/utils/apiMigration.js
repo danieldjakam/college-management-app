@@ -1631,6 +1631,15 @@ export const migrationUtils = {
         }
     },
 
+    // === ADMIN DASHBOARD ===
+    admin: {
+        dashboard: () => secureApi.get('/admin/dashboard'),
+        getStatsByPeriod: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/admin/dashboard/stats-by-period${queryString ? '?' + queryString : ''}`);
+        }
+    },
+
     // === CONVENIENCE METHODS ===
     getTeachers: (params = {}) => secureApiEndpoints.teachers.getAll(params),
     getSubjects: (params = {}) => secureApiEndpoints.subjects.getAll(params)

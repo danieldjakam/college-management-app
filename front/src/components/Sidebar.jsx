@@ -65,6 +65,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
     if (userRole === "admin") {
       return [
         {
+          title: "Tableau de Bord",
+          items: [
+            { name: "Dashboard Admin", href: "/admin/dashboard", icon: <BarChartFill /> },
+          ],
+        },
+        {
           title: "Gestion Académique",
           items: [
             { name: "Années Scolaires", href: "/school-years", icon: <Calendar /> },
@@ -403,6 +409,46 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           title: "Profil",
           items: [
             { name: "Mon Profil", href: "/profile", icon: <PersonCircle /> },
+          ],
+        },
+      ];
+    } else if (userRole === "principal") {
+      return [
+        {
+          title: "Gestion Administrative",
+          items: [
+            { name: "Gestion des Utilisateurs", href: "/user-management", icon: <PeopleFill /> },
+            { name: "Rapport Personnel", href: "/staff-reports", icon: <BarChartFill /> },
+            { name: "Paramètres École", href: "/settings", icon: <GearFill /> },
+          ],
+        },
+        {
+          title: "Enseignement",
+          items: [
+            { name: "Enseignants", href: "/teachers", icon: <PeopleFill /> },
+            { name: "Affectations", href: "/teacher-assignments", icon: <Award /> },
+            { name: "Classes", href: "/school-classes", icon: <HouseHeartFill /> },
+          ],
+        },
+        {
+          title: "Communication",
+          items: [
+            { name: "Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
+            { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> },
+          ],
+        },
+        {
+          title: "Documents & Rapports",
+          items: [
+            { name: "Documents", href: "/documents", icon: <FolderFill /> },
+            { name: "Rapports", href: "/reports", icon: <FileTextFill /> },
+          ],
+        },
+        {
+          title: "Profil",
+          items: [
+            { name: "Mon Profil", href: "/profile", icon: <PersonCircle /> },
+            { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
           ],
         },
       ];

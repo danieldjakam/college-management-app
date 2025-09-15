@@ -68,7 +68,7 @@ class UserManagementController extends Controller
                 'email' => 'required|email|unique:users,email',
                 'contact' => 'nullable|string|max:20',
                 'photo' => 'nullable|string|max:500',
-                'role' => 'required|in:principal,user,surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe',
+                'role' => 'required|in:principal,user,teacher,surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe',
                 'qualification' => 'nullable|string|max:100',
                 'generate_password' => 'boolean'
             ], [
@@ -168,7 +168,7 @@ class UserManagementController extends Controller
                 'email' => 'required|email|unique:users,email,' . $id,
                 'contact' => 'nullable|string|max:20',
                 'photo' => 'nullable|string|max:500', // Nullable en update
-                'role' => 'required|in:principal,user,surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe',
+                'role' => 'required|in:principal,user,teacher,surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe',
                 'qualification' => 'nullable|string|max:100',
                 'is_active' => 'boolean'
             ], [

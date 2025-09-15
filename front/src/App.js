@@ -26,6 +26,8 @@ import PaymentTranches from "./pages/PaymentTranches";
 import SchoolClasses from "./pages/SchoolClasses/SchoolClasses";
 import SchoolYears from "./pages/SchoolYears";
 import Sections from "./pages/Sections/Sections";
+import AdminDashboard from "./pages/Admin/AdminDashboard";
+import PrincipalDashboard from "./pages/Principal/PrincipalDashboard";
 import Settings from "./pages/Settings";
 import GeolocationZoneSettingsV2 from "./pages/Settings/GeolocationZoneSettingsV2";
 import UserProfile from "./pages/Profile/UserProfile";
@@ -398,6 +400,24 @@ const AppContent = () => {
               />
 
               {/* Routes pour administrateurs uniquement */}
+              <Route
+                path="/admin/dashboard"
+                element={
+                  <AdminRoute>
+                    <AdminDashboard />
+                  </AdminRoute>
+                }
+              />
+
+              {/* Routes pour le principal uniquement */}
+              <Route
+                path="/principal/dashboard"
+                element={
+                  <ProtectedRoute requiredRoles={["principal"]}>
+                    <PrincipalDashboard />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/sections"
                 element={

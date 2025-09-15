@@ -63,6 +63,29 @@ class SchoolClass extends Model
     }
 
     /**
+     * Relation avec les professeurs principaux
+     */
+    public function mainTeacher()
+    {
+        return $this->hasMany(MainTeacher::class, 'school_class_id');
+    }
+
+    /**
+     * Relation avec les matières configurées via SeriesSubject
+     */
+    public function seriesSubjects()
+    {
+        return $this->hasManyThrough(
+            SeriesSubject::class,
+            ClassSeries::class,
+            'class_id', // Foreign key on ClassSeries table
+            'school_class_id', // Foreign key on SeriesSubject table (should be class_series_id)
+            'id', // Local key on SchoolClass table
+            'id' // Local key on ClassSeries table
+        );
+    }
+
+    /**
      * Scope pour les classes actives
      */
     public function scopeActive($query)

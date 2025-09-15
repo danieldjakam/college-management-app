@@ -82,11 +82,11 @@ export const withAuth = (Component, options = {}) => {
 };
 
 /**
- * Composant pour les routes réservées aux administrateurs
+ * Composant pour les routes réservées aux administrateurs et principaux
  */
 export const AdminRoute = ({ children, fallbackPath = "/" }) => {
   return (
-    <ProtectedRoute requiredRoles={["admin"]} fallbackPath={fallbackPath}>
+    <ProtectedRoute requiredRoles={["admin", "principal"]} fallbackPath={fallbackPath}>
       {children}
     </ProtectedRoute>
   );
@@ -121,12 +121,12 @@ export const AccountantRoute = ({ children, fallbackPath = "/" }) => {
 };
 
 /**
- * Composant pour les routes réservées à la gestion des besoins (admin et comptable supérieur)
+ * Composant pour les routes réservées à la gestion des besoins (admin, principal et comptable supérieur)
  */
 export const NeedsManagementRoute = ({ children, fallbackPath = "/" }) => {
   return (
     <ProtectedRoute
-      requiredRoles={["admin", "comptable_superieur"]}
+      requiredRoles={["admin", "principal", "comptable_superieur"]}
       fallbackPath={fallbackPath}
     >
       {children}
@@ -209,7 +209,8 @@ export const RoleBasedRedirect = ({ children }) => {
   // Redirection basée sur le rôle si on est sur la racine
   if (location.pathname === "/" && user?.role) {
     const defaultPaths = {
-      admin: "/sections",
+      admin: "/admin/dashboard",
+      principal: "/principal/dashboard", // Dashboard dédié au principal
       teacher: "/teacher/dashboard",
       accountant: "/class-comp",
       comptable_superieur: "/class-comp",
