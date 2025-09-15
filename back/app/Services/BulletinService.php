@@ -99,39 +99,173 @@ class BulletinService
     
     /**
      * Calculate trimester grade for a student in a subject
-     * Trimestre 1/2: (DS + COMPOSITION) / 2
-     * Trimestre 3: COMPOSITION uniquement
-     * RÈGLE STRICTE: Pas de note de trimestre si données incomplètes
+     * PREMIER CYCLE: Trimestre 1/2: (DS + COMPOSITION) / 2, Trimestre 3: COMPOSITION uniquement
+     * DEUXIÈME CYCLE: (Sequence 1 + Sequence 2 + COMPOSITION) / 3
      */
-    public function calculateTrimesterGrade($trimester, $studentId, $subjectId)
+    public function calculateTrimesterGrade($trimester, $studentId, $subjectId, $cycleType = 'premier')
     {
+        if ($cycleType === 'deuxieme') {
+            return $this->calculateTrimesterGradeDeuxiemeCycle($trimester, $studentId, $subjectId);
+        }
+
+        // PREMIER CYCLE (logique existante)
         if ($trimester == 3) {
             // Trimestre 3: Composition 3 uniquement
             $compositionGrade = $this->getCompositionGrade(3, $studentId, $subjectId);
             return $compositionGrade; // Peut être null si pas de composition
         }
-        
+
         // Trimestres 1 et 2: (DS + COMPOSITION) / 2
         $dsAverage = $this->calculateDSAverage($trimester, $studentId, $subjectId);
         $compositionGrade = $this->getCompositionGrade($trimester, $studentId, $subjectId);
-        
+
         // NOUVELLE RÈGLE : Si composition pas saisie, compter 0 dans le calcul
         // DS + Composition (ou 0 si pas saisie) / 2
-        
+
         if ($dsAverage !== null) {
             // Composition = note saisie ou 0 si pas saisie
             $finalCompositionGrade = $compositionGrade !== null ? $compositionGrade : 0;
             return ($dsAverage + $finalCompositionGrade) / 2;
         }
-        
+
         // Si seulement composition disponible (cas rare)
         if ($compositionGrade !== null && $dsAverage === null) {
             return $compositionGrade; // Utiliser composition seulement
         }
-        
+
         return null; // Pas de données du tout
     }
-    
+
+    /**
+     * Calculate trimester grade for DEUXIÈME CYCLE
+     * Formule: (Sequence 1 + Sequence 2 + Composition) / 3
+     */
+    public function calculateTrimesterGradeDeuxiemeCycle($trimester, $studentId, $subjectId)
+    {
+        \Log::info("🎓 DEUXIÈME CYCLE: calculating trimester grade for trimester={$trimester}, student={$studentId}, subject={$subjectId}");
+
+        // Récupérer les 2 séquences du trimestre
+        $sequences = $this->getSequencesForTrimester($trimester);
+        \Log::info("🎓 Sequences found: " . $sequences->pluck('number')->join(','));
+
+        if ($sequences->count() != 2) {
+            \Log::info("🎓 PROBLÈME: Expected 2 sequences, found " . $sequences->count());
+            return null;
+        }
+
+        $sequenceGrades = [];
+        $foundSequenceNotes = 0;
+
+        // Récupérer les notes des 2 séquences
+        foreach ($sequences as $sequence) {
+            $grade = Grade::where('student_id', $studentId)
+                         ->where('sequence_id', $sequence->id)
+                         ->where('series_subject_id', $subjectId)
+                         ->where('trimester_id', $trimester)
+                         ->whereNotNull('score')
+                         ->first();
+
+            if (!$grade) {
+                // Chercher via les évaluations de la séquence
+                $evaluations = Evaluation::where('sequence_id', $sequence->id)
+                                        ->where('series_subject_id', $subjectId)
+                                        ->get();
+
+                foreach ($evaluations as $evaluation) {
+                    $grade = Grade::where('student_id', $studentId)
+                                 ->where('evaluation_id', $evaluation->id)
+                                 ->where('trimester_id', $trimester)
+                                 ->whereNotNull('score')
+                                 ->first();
+
+                    if ($grade) {
+                        break;
+                    }
+                }
+            }
+
+            if ($grade) {
+                $sequenceNote = $grade->getScoreOn20();
+                $sequenceGrades[] = $sequenceNote;
+                $foundSequenceNotes++;
+                \Log::info("🎓 Sequence {$sequence->number} note: {$sequenceNote}");
+            } else {
+                \Log::info("🎓 No grade found for sequence {$sequence->number}");
+            }
+        }
+
+        // Récupérer la composition
+        $compositionGrade = $this->getCompositionGrade($trimester, $studentId, $subjectId);
+        \Log::info("🎓 Composition grade: " . ($compositionGrade ?? 'null'));
+
+        // RÈGLE DEUXIÈME CYCLE: Il faut au moins 2 notes pour calculer la moyenne
+        $totalNotes = $foundSequenceNotes + ($compositionGrade !== null ? 1 : 0);
+
+        if ($totalNotes < 2) {
+            \Log::info("🎓 Insufficient data: only {$totalNotes} notes found, need at least 2");
+            return null;
+        }
+
+        // Calcul de la moyenne: (Seq1 + Seq2 + Compo) / 3
+        $allGrades = $sequenceGrades;
+        if ($compositionGrade !== null) {
+            $allGrades[] = $compositionGrade;
+        }
+
+        $average = array_sum($allGrades) / count($allGrades);
+        \Log::info("🎓 DEUXIÈME CYCLE average calculated: {$average} from " . count($allGrades) . " notes");
+
+        return $average;
+    }
+
+    /**
+     * Get individual sequence grades for DEUXIÈME CYCLE display
+     * Retourne [sequence1_grade, sequence2_grade] pour affichage
+     */
+    public function getIndividualSequenceGrades($trimester, $studentId, $subjectId)
+    {
+        \Log::info("🎓 Getting individual sequence grades for trimester={$trimester}, student={$studentId}, subject={$subjectId}");
+
+        $sequences = $this->getSequencesForTrimester($trimester);
+        $sequenceGrades = [null, null]; // [seq1, seq2]
+
+        foreach ($sequences as $index => $sequence) {
+            $grade = Grade::where('student_id', $studentId)
+                         ->where('sequence_id', $sequence->id)
+                         ->where('series_subject_id', $subjectId)
+                         ->where('trimester_id', $trimester)
+                         ->whereNotNull('score')
+                         ->first();
+
+            if (!$grade) {
+                // Chercher via les évaluations de la séquence
+                $evaluations = Evaluation::where('sequence_id', $sequence->id)
+                                        ->where('series_subject_id', $subjectId)
+                                        ->get();
+
+                foreach ($evaluations as $evaluation) {
+                    $grade = Grade::where('student_id', $studentId)
+                                 ->where('evaluation_id', $evaluation->id)
+                                 ->where('trimester_id', $trimester)
+                                 ->whereNotNull('score')
+                                 ->first();
+
+                    if ($grade) {
+                        break;
+                    }
+                }
+            }
+
+            if ($grade && $index < 2) {
+                $sequenceGrades[$index] = $grade->getScoreOn20();
+                \Log::info("🎓 Sequence {$sequence->number} grade: {$sequenceGrades[$index]}");
+            }
+        }
+
+        \Log::info("🎓 Individual sequence grades: [" . implode(', ', array_map(fn($g) => $g ?? 'null', $sequenceGrades)) . "]");
+        return $sequenceGrades;
+    }
+
     /**
      * Get composition grade for a student
      */
@@ -239,9 +373,12 @@ class BulletinService
     {
         $student = Student::with(['schoolClass', 'classSeries'])->find($studentId);
         if (!$student) return null;
-        
+
         $sequence = Sequence::where('number', $sequenceNumber)->first();
         if (!$sequence) return null;
+
+        // Detect section type for sequence bulletins
+        $sectionType = $this->determineSectionType($student);
         
         // Obtenir l'année scolaire courante
         $currentSchoolYear = \App\Models\SchoolYear::where('is_active', true)->first();
@@ -261,6 +398,7 @@ class BulletinService
             'student' => $student,
             'sequence' => $sequence,
             'subjects' => [],
+            'section_type' => $sectionType,
             // Données pour le template
             'student_first_name' => $student->first_name,
             'student_last_name' => $student->last_name,
@@ -299,9 +437,11 @@ class BulletinService
                 'coefficient' => $seriesSubject->coefficient,
                 'total' => $weightedScore,
                 'rank' => $grade ? $grade->getRank() : null,
-                'grade' => $grade ? $grade->getMention() : null,
+                'grade' => $this->getMentionBySection($scoreOn20, $sectionType),
+                'competence' => $this->getCompetence($scoreOn20, 'premier', $sectionType),
                 'min_max' => $this->getSubjectMinMax($sequence->id, $seriesSubject->id),
-                'appreciation' => $this->getAppreciation($scoreOn20)
+                'appreciation' => $this->getAppreciationBySection($scoreOn20, $sectionType),
+                'section_type' => $sectionType
             ];
             
             if ($scoreOn20) {
@@ -314,13 +454,13 @@ class BulletinService
         $bulletinData['total_points'] = $totalPoints;
         $bulletinData['total_coefficient'] = $totalCoefficient;
         $bulletinData['rank'] = $this->getStudentRank($sequence->id, $studentId);
-        $bulletinData['mention'] = $this->getMention($bulletinData['average']);
-        
+        $bulletinData['mention'] = $this->getMentionBySection($bulletinData['average'], $sectionType);
+
         // Construire les lignes HTML pour le template
         $bulletinData['subjects_rows'] = $this->buildSubjectRowsHTML($bulletinData['subjects'], 'sequence');
         $bulletinData['first_average'] = 20; // TODO: Calculer vraiment
         $bulletinData['last_average'] = 5;   // TODO: Calculer vraiment
-        $bulletinData['appreciation'] = $this->getAppreciation($bulletinData['average']);
+        $bulletinData['appreciation'] = $this->getAppreciationBySection($bulletinData['average'], $sectionType);
         
         return $bulletinData;
     }
@@ -328,13 +468,19 @@ class BulletinService
     /**
      * Generate trimester bulletin data for a student
      */
-    public function generateTrimesterBulletinData($trimesterNumber, $studentId)
+    public function generateTrimesterBulletinData($trimesterNumber, $studentId, $cycleType = 'premier')
     {
         $student = Student::with(['schoolClass', 'classSeries'])->find($studentId);
         if (!$student) return null;
-        
+
         $trimester = Trimester::where('number', $trimesterNumber)->first();
         if (!$trimester) return null;
+
+        // Detect section type (Anglophone and Technique use DEUXIÈME CYCLE logic)
+        $sectionType = $this->determineSectionType($student);
+        if ($sectionType === 'anglophone' || $sectionType === 'technique') {
+            $cycleType = 'deuxieme'; // Force Anglophone and Technique to use DEUXIÈME CYCLE logic
+        }
         
         // Obtenir l'année scolaire courante
         $currentSchoolYear = \App\Models\SchoolYear::where('is_active', true)->first();
@@ -371,37 +517,78 @@ class BulletinService
         $totalCoefficient = 0;
         
         foreach ($subjects as $seriesSubject) {
-            \Log::info("🔍 Processing subject: {$seriesSubject->subject->name} (id={$seriesSubject->id}) for student {$studentId}, trimester={$trimesterNumber}");
-            $dsAverage = $this->calculateDSAverage($trimesterNumber, $studentId, $seriesSubject->id);
-            \Log::info("🔍 DS Average for {$seriesSubject->subject->name}: " . ($dsAverage ?? 'null'));
-            $compositionGrade = $this->getCompositionGrade($trimesterNumber, $studentId, $seriesSubject->id);
-            \Log::info("🔍 Composition Grade for {$seriesSubject->subject->name}: " . ($compositionGrade ?? 'null'));
-            $trimesterGrade = $this->calculateTrimesterGrade($trimesterNumber, $studentId, $seriesSubject->id);
-            \Log::info("🔍 Final Trimester Grade for {$seriesSubject->subject->name}: " . ($trimesterGrade ?? 'null'));
-            
-            $weightedScore = $trimesterGrade ? $trimesterGrade * $seriesSubject->coefficient : 0;
-            
-            // Get the first teacher assigned to this subject
-            $teacherName = 'N/A';
-            if ($seriesSubject->teachers && $seriesSubject->teachers->isNotEmpty()) {
-                $teacherName = $seriesSubject->teachers->first()->full_name;
+            \Log::info("🔍 Processing subject: {$seriesSubject->subject->name} (id={$seriesSubject->id}) for student {$studentId}, trimester={$trimesterNumber}, cycle={$cycleType}");
+
+            if ($cycleType === 'deuxieme') {
+                // DEUXIÈME CYCLE: Récupérer les notes individuelles
+                $sequenceGrades = $this->getIndividualSequenceGrades($trimesterNumber, $studentId, $seriesSubject->id);
+                $compositionGrade = $this->getCompositionGrade($trimesterNumber, $studentId, $seriesSubject->id);
+                $trimesterGrade = $this->calculateTrimesterGrade($trimesterNumber, $studentId, $seriesSubject->id, 'deuxieme');
+
+                \Log::info("🎓 DEUXIÈME CYCLE - {$seriesSubject->subject->name}: Seq1={$sequenceGrades[0]}, Seq2={$sequenceGrades[1]}, Compo={$compositionGrade}, Avg={$trimesterGrade}");
+
+                $weightedScore = $trimesterGrade ? $trimesterGrade * $seriesSubject->coefficient : 0;
+
+                // Get the first teacher assigned to this subject
+                $teacherName = 'N/A';
+                if ($seriesSubject->teachers && $seriesSubject->teachers->isNotEmpty()) {
+                    $teacherName = $seriesSubject->teachers->first()->full_name;
+                }
+
+                $bulletinData['subjects'][] = [
+                    'name' => $seriesSubject->subject->name,
+                    'sequence1' => $sequenceGrades[0], // Nouvelle structure pour Deuxième Cycle
+                    'sequence2' => $sequenceGrades[1], // Nouvelle structure pour Deuxième Cycle
+                    'composition' => $compositionGrade,
+                    'score' => $trimesterGrade, // Pour compatibilité avec le template
+                    'average' => $trimesterGrade,
+                    'coefficient' => $seriesSubject->coefficient,
+                    'total' => $weightedScore,
+                    'nxc' => $weightedScore, // NXC = Moy × COEF
+                    'rank' => $this->getTrimesterSubjectRank($trimesterNumber, $studentId, $seriesSubject->id),
+                    'grade' => $this->getMentionBySection($trimesterGrade, $sectionType),
+                    'competence' => $this->getCompetence($trimesterGrade, 'deuxieme', $sectionType), // Compétences avec section
+                    'teacher' => $teacherName,
+                    'min_max' => $this->getTrimesterSubjectMinMax($trimesterNumber, $seriesSubject->id),
+                    'appreciation' => $this->getAppreciationBySection($trimesterGrade, $sectionType),
+                    'cycle_type' => 'deuxieme',
+                    'section_type' => $sectionType
+                ];
+
+            } else {
+                // PREMIER CYCLE: Logique existante
+                $dsAverage = $this->calculateDSAverage($trimesterNumber, $studentId, $seriesSubject->id);
+                \Log::info("🔍 DS Average for {$seriesSubject->subject->name}: " . ($dsAverage ?? 'null'));
+                $compositionGrade = $this->getCompositionGrade($trimesterNumber, $studentId, $seriesSubject->id);
+                \Log::info("🔍 Composition Grade for {$seriesSubject->subject->name}: " . ($compositionGrade ?? 'null'));
+                $trimesterGrade = $this->calculateTrimesterGrade($trimesterNumber, $studentId, $seriesSubject->id, 'premier');
+                \Log::info("🔍 Final Trimester Grade for {$seriesSubject->subject->name}: " . ($trimesterGrade ?? 'null'));
+
+                $weightedScore = $trimesterGrade ? $trimesterGrade * $seriesSubject->coefficient : 0;
+
+                // Get the first teacher assigned to this subject
+                $teacherName = 'N/A';
+                if ($seriesSubject->teachers && $seriesSubject->teachers->isNotEmpty()) {
+                    $teacherName = $seriesSubject->teachers->first()->full_name;
+                }
+
+                $bulletinData['subjects'][] = [
+                    'name' => $seriesSubject->subject->name,
+                    'ds' => $dsAverage,
+                    'composition' => $compositionGrade,
+                    'score' => $trimesterGrade, // Pour compatibilité avec le template
+                    'average' => $trimesterGrade,
+                    'coefficient' => $seriesSubject->coefficient,
+                    'total' => $weightedScore,
+                    'rank' => $this->getTrimesterSubjectRank($trimesterNumber, $studentId, $seriesSubject->id),
+                    'grade' => $this->getMention($trimesterGrade),
+                    'teacher' => $teacherName,
+                    'min_max' => $this->getTrimesterSubjectMinMax($trimesterNumber, $seriesSubject->id),
+                    'appreciation' => $this->getAppreciation($trimesterGrade),
+                    'cycle_type' => 'premier'
+                ];
             }
-            
-            $bulletinData['subjects'][] = [
-                'name' => $seriesSubject->subject->name,
-                'ds' => $dsAverage,
-                'composition' => $compositionGrade,
-                'score' => $trimesterGrade, // Pour compatibilité avec le template
-                'average' => $trimesterGrade,
-                'coefficient' => $seriesSubject->coefficient,
-                'total' => $weightedScore,
-                'rank' => $this->getTrimesterSubjectRank($trimesterNumber, $studentId, $seriesSubject->id),
-                'grade' => $this->getMention($trimesterGrade),
-                'teacher' => $teacherName,
-                'min_max' => $this->getTrimesterSubjectMinMax($trimesterNumber, $seriesSubject->id),
-                'appreciation' => $this->getAppreciation($trimesterGrade)
-            ];
-            
+
             if ($trimesterGrade) {
                 $totalPoints += $weightedScore;
                 $totalCoefficient += $seriesSubject->coefficient;
@@ -412,13 +599,14 @@ class BulletinService
         $bulletinData['total_points'] = $totalPoints;
         $bulletinData['total_coefficient'] = $totalCoefficient;
         $bulletinData['rank'] = $this->getTrimesterRank($trimesterNumber, $studentId);
-        $bulletinData['mention'] = $this->getMention($bulletinData['average']);
-        
+        $bulletinData['mention'] = $this->getMentionBySection($bulletinData['average'], $sectionType);
+        $bulletinData['section_type'] = $sectionType;
+
         // Construire les lignes HTML pour le template
         $bulletinData['subjects_rows'] = $this->buildSubjectRowsHTML($bulletinData['subjects'], 'trimester');
         $bulletinData['first_average'] = 20; // TODO: Calculer vraiment
         $bulletinData['last_average'] = 5;   // TODO: Calculer vraiment
-        $bulletinData['appreciation'] = $this->getAppreciation($bulletinData['average']);
+        $bulletinData['appreciation'] = $this->getAppreciationBySection($bulletinData['average'], $sectionType);
         
         return $bulletinData;
     }
@@ -541,6 +729,28 @@ class BulletinService
     }
     
     /**
+     * Detect section type (Francophone/Anglophone/Technique) from student
+     */
+    protected function determineSectionType($student)
+    {
+        $sectionName = $student->schoolClass->level->section->name ?? '';
+
+        if (stripos($sectionName, 'anglophone') !== false ||
+            stripos($sectionName, 'english') !== false ||
+            stripos($sectionName, 'anglo') !== false) {
+            return 'anglophone';
+        }
+
+        if (stripos($sectionName, 'technique') !== false ||
+            stripos($sectionName, 'technical') !== false ||
+            stripos($sectionName, 'enseignement technique') !== false) {
+            return 'technique';
+        }
+
+        return 'francophone';
+    }
+
+    /**
      * Render bulletin template with data
      */
     public function renderBulletinTemplate($templateType, $data, $forPdf = false)
@@ -548,26 +758,30 @@ class BulletinService
         // RETOUR AU SYSTÈME ORIGINAL avec templates
         $templateFile = $forPdf ? 'cpbd_bulletin_pdf.html' : 'cpbd_bulletin.html';
         $templatePath = resource_path('views/bulletins/' . $templateFile);
-        
+
         if (!file_exists($templatePath)) {
             throw new \Exception("Template file not found: {$templatePath}");
         }
-        
+
         $html = file_get_contents($templatePath);
-        
+
+        // Detect section type for language adaptation
+        $sectionType = $this->determineSectionType($data['student']);
+        $data['section_type'] = $sectionType;
+
         // Prepare the template data
         $templateData = $this->prepareTemplateData($data, $templateType);
-        
+
         // Replace simple placeholders
         foreach ($templateData as $key => $value) {
             if (is_string($value) || is_numeric($value)) {
                 $html = str_replace("{{" . $key . "}}", $value, $html);
             }
         }
-        
+
         // Handle subject groups (more complex replacement)
         $html = $this->replaceBulletinSubjectGroups($html, $data, $forPdf);
-        
+
         return $html;
     }
     
@@ -580,23 +794,33 @@ class BulletinService
         $student = $data['student'];
         $sequence = $data['sequence'] ?? null;
         $trimester = $data['trimester'] ?? null;
-        
-        // Déterminer le type de bulletin et les labels appropriés
+        $sectionType = $data['section_type'] ?? 'francophone';
+
+        // Déterminer le type de bulletin et les labels appropriés selon la section
         $bulletinTypeLabel = 'Évaluation';
         $bulletinPeriod = 'N°1';
-        
-        // DEBUG: Log pour tracer le problème
-        \Log::info("DEBUG prepareTemplateData: templateType=$templateType, trimester=" . ($trimester ? $trimester->number : 'null') . ", sequence=" . ($sequence ? $sequence->number : 'null'));
-        
-        if ($templateType === 'trimester' && $trimester) {
-            $bulletinTypeLabel = 'Trimestre';
-            $bulletinPeriod = 'N°' . $trimester->number;
-            \Log::info("DEBUG: Set bulletinTypeLabel=Trimestre, bulletinPeriod=N°{$trimester->number}");
-        } elseif ($templateType === 'sequence' && $sequence) {
-            $bulletinTypeLabel = 'Évaluation';
-            $bulletinPeriod = 'N°' . $sequence->number;
-            \Log::info("DEBUG: Set bulletinTypeLabel=Évaluation, bulletinPeriod=N°{$sequence->number}");
+
+        if ($sectionType === 'anglophone') {
+            // Anglophone translations
+            $bulletinTypeLabel = $templateType === 'trimester' ? 'Semester' : 'Assessment';
+            if ($templateType === 'trimester' && $trimester) {
+                $bulletinPeriod = 'N°' . $trimester->number;
+            } elseif ($templateType === 'sequence' && $sequence) {
+                $bulletinPeriod = 'N°' . $sequence->number;
+            }
+        } else {
+            // Francophone (original)
+            if ($templateType === 'trimester' && $trimester) {
+                $bulletinTypeLabel = 'Trimestre';
+                $bulletinPeriod = 'N°' . $trimester->number;
+            } elseif ($templateType === 'sequence' && $sequence) {
+                $bulletinTypeLabel = 'Évaluation';
+                $bulletinPeriod = 'N°' . $sequence->number;
+            }
         }
+
+        // DEBUG: Log pour tracer le problème
+        \Log::info("DEBUG prepareTemplateData: templateType=$templateType, sectionType=$sectionType, trimester=" . ($trimester ? $trimester->number : 'null') . ", sequence=" . ($sequence ? $sequence->number : 'null'));
         
         // Get school settings and logo
         $schoolSettings = \App\Models\SchoolSetting::first();
@@ -608,12 +832,15 @@ class BulletinService
             $logoBase64 = "data:image/{$logoMime};base64,{$logoData}";
         }
         
+        // Language-specific labels
+        $labels = $this->getLanguageLabels($sectionType);
+
         return [
             'student_name' => strtoupper($student->last_name . ' ' . $student->first_name),
             'birth_date' => $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : '',
             'birth_place' => $student->place_of_birth ?? 'EMANA',
-            'class_name' => $student->schoolClass->name ?? 'SIXIÈME A',
-            'main_teacher' => 'TCHAMENI MATHIEU', // TODO: Get from database
+            'class_name' => $student->schoolClass->name ?? ($sectionType === 'anglophone' ? 'FORM 2A' : 'SIXIÈME A'),
+            'main_teacher' => $sectionType === 'anglophone' ? 'MR. TCHAMENI MATHIEU' : 'TCHAMENI MATHIEU', // TODO: Get from database
             'class_size' => $this->getClassSize($student),
             'student_number' => $student->student_number ?? '24A856',
             'bulletin_type_label' => $bulletinTypeLabel,
@@ -625,16 +852,154 @@ class BulletinService
             'total_coef' => number_format($data['total_coefficient'] ?? 0, 2),
             'evaluation_average' => number_format($data['average'] ?? 0, 2),
             'average_class' => $this->getAverageClass($data['average'] ?? 0),
-            'student_rank' => ($data['rank'] ?? 1) . 'e',
+            'student_rank' => ($data['rank'] ?? 1) . ($sectionType === 'anglophone' ? '' : 'e'),
             'class_average' => '11,77', // TODO: Calculate real class average
             'first_average' => '15,36', // TODO: Calculate real first average
             'last_average' => '0,57', // TODO: Calculate real last average
-            'general_appreciation' => $this->getGeneralAppreciation($data['average'] ?? 0),
+            'general_appreciation' => $this->getGeneralAppreciationBySection($data['average'] ?? 0, $sectionType),
             'logo_base64' => $logoBase64,
-            'current_date' => now()->format('d/m/Y')
+            'current_date' => now()->format('d/m/Y'),
+            'section_type' => $sectionType,
+            // Dynamic labels based on section
+            'bulletin_title' => $labels['bulletin_title'],
+            'name_label' => $labels['name_label'],
+            'birth_date_label' => $labels['birth_date_label'],
+            'birth_place_label' => $labels['birth_place_label'],
+            'class_label' => $labels['class_label'],
+            'class_size_label' => $labels['class_size_label'],
+            'main_teacher_label' => $labels['main_teacher_label'],
+            'student_number_label' => $labels['student_number_label'],
+            'evaluation_label' => $labels['evaluation_label'],
+            'school_year_label' => $labels['school_year_label'],
+            'discipline_header' => $labels['discipline_header'],
+            'general_results_header' => $labels['general_results_header'],
+            'total_general_label' => $labels['total_general_label'],
+            'total_coef_label' => $labels['total_coef_label'],
+            'evaluation_average_label' => $labels['evaluation_average_label'],
+            'rank_label' => $labels['rank_label'],
+            'class_average_label' => $labels['class_average_label'],
+            'first_average_label' => $labels['first_average_label'],
+            'last_average_label' => $labels['last_average_label'],
+            'appreciation_header' => $labels['appreciation_header'],
+            'visa_parent_label' => $labels['visa_parent_label'],
+            'made_in_douala' => $labels['made_in_douala'],
+            'principal_title' => $labels['principal_title'],
+            'legend_title' => $labels['legend_title'],
+            'legend_items' => $labels['legend_items']
         ];
     }
     
+    /**
+     * Get language-specific labels based on section type
+     */
+    protected function getLanguageLabels($sectionType = 'francophone')
+    {
+        if ($sectionType === 'technique') {
+            // ENSEIGNEMENT TECHNIQUE: French labels with technical terminology
+            return [
+                'bulletin_title' => 'BULLETIN DE NOTES - ENSEIGNEMENT TECHNIQUE',
+                'name_label' => 'Nom et Prénoms:',
+                'birth_date_label' => 'Date de naissance:',
+                'birth_place_label' => 'Lieu de naissance:',
+                'class_label' => 'Classe:',
+                'class_size_label' => 'Effectif:',
+                'main_teacher_label' => 'Enseignant titulaire:',
+                'student_number_label' => 'Matricule:',
+                'evaluation_label' => 'Évaluation:',
+                'school_year_label' => 'ANNÉE SCOLAIRE:',
+                'discipline_header' => 'DISCIPLINE TECHNIQUE',
+                'general_results_header' => 'RÉSULTATS TECHNIQUES',
+                'total_general_label' => 'TOTAL GÉNÉRAL:',
+                'total_coef_label' => 'TOTAL COEF:',
+                'evaluation_average_label' => 'MOY. TECHNIQUE:',
+                'rank_label' => 'RANG:',
+                'class_average_label' => 'MOY. GEN. CLASSE:',
+                'first_average_label' => 'MOY. PREMIER:',
+                'last_average_label' => 'MOY. DERNIER:',
+                'appreciation_header' => 'APPRÉCIATIONS TECHNIQUES ET OBSERVATIONS',
+                'visa_parent_label' => 'VISA & NOMS DU PARENT',
+                'made_in_douala' => 'Fait à Douala, le',
+                'principal_title' => 'Le Principal',
+                'legend_title' => 'Légende:',
+                'legend_items' => [
+                    'Maîtrisé (Excellent)' => 'Expert Technique',
+                    'Maîtrisé (Très Bien)' => 'Compétent',
+                    'En cours de maîtrise' => 'En Apprentissage',
+                    'Non maîtrisé' => 'À Renforcer'
+                ]
+            ];
+        }
+
+        if ($sectionType === 'anglophone') {
+            return [
+                'bulletin_title' => 'STUDENT REPORT CARD',
+                'name_label' => 'Name and Surname:',
+                'birth_date_label' => 'Date of birth:',
+                'birth_place_label' => 'Place of birth:',
+                'class_label' => 'Class:',
+                'class_size_label' => 'Class size:',
+                'main_teacher_label' => 'Main teacher:',
+                'student_number_label' => 'Student number:',
+                'evaluation_label' => 'Assessment:',
+                'school_year_label' => 'SCHOOL YEAR:',
+                'discipline_header' => 'DISCIPLINE',
+                'general_results_header' => 'GENERAL RESULTS',
+                'total_general_label' => 'GENERAL TOTAL:',
+                'total_coef_label' => 'TOTAL COEF:',
+                'evaluation_average_label' => 'ASSESSMENT AVG:',
+                'rank_label' => 'RANK:',
+                'class_average_label' => 'CLASS AVERAGE:',
+                'first_average_label' => 'FIRST AVERAGE:',
+                'last_average_label' => 'LAST AVERAGE:',
+                'appreciation_header' => 'WORK ASSESSMENT AND OBSERVATIONS',
+                'visa_parent_label' => 'PARENT VISA & NAME',
+                'made_in_douala' => 'Done in Douala, on',
+                'principal_title' => 'The Principal',
+                'legend_title' => 'Legend:',
+                'legend_items' => [
+                    'Mastered (Excellent)' => 'Expert',
+                    'Mastered (Very Good)' => 'Mastered',
+                    'Developing' => 'Developing',
+                    'Beginning' => 'Beginning'
+                ]
+            ];
+        }
+
+        // Francophone (French) labels
+        return [
+            'bulletin_title' => 'BULLETIN DE NOTES',
+            'name_label' => 'Nom et Prénoms:',
+            'birth_date_label' => 'Date de naissance:',
+            'birth_place_label' => 'Lieu de naissance:',
+            'class_label' => 'Classe:',
+            'class_size_label' => 'Effectif:',
+            'main_teacher_label' => 'Enseignant titulaire:',
+            'student_number_label' => 'Matricule:',
+            'evaluation_label' => 'Évaluation:',
+            'school_year_label' => 'ANNÉE SCOLAIRE:',
+            'discipline_header' => 'DISCIPLINE',
+            'general_results_header' => 'RÉSULTATS GÉNÉRAUX',
+            'total_general_label' => 'TOTAL GÉNÉRAL:',
+            'total_coef_label' => 'TOTAL COEF:',
+            'evaluation_average_label' => 'MOY. ÉVALUATION:',
+            'rank_label' => 'RANG:',
+            'class_average_label' => 'MOY. GEN. CLASSE:',
+            'first_average_label' => 'MOY. PREMIER:',
+            'last_average_label' => 'MOY. DERNIER:',
+            'appreciation_header' => 'APPRÉCIATIONS DU TRAVAIL ET OBSERVATIONS',
+            'visa_parent_label' => 'VISA & NOMS DU PARENT',
+            'made_in_douala' => 'Fait à Douala, le',
+            'principal_title' => 'Le Principal',
+            'legend_title' => 'Légende:',
+            'legend_items' => [
+                'A+' => 'Expert',
+                'A' => 'Acquise',
+                'ECA' => 'En Cours d\'Acquisition',
+                'NA' => 'Non Acquise'
+            ]
+        ];
+    }
+
     /**
      * Replace subject groups in the bulletin template
      */
@@ -701,24 +1066,75 @@ class BulletinService
      */
     protected function renderSubjectGroup($groupName, $subjects, $forPdf = false, $bulletinType = 'sequence')
     {
+        // Déterminer le type de cycle et de section à partir des matières
+        $cycleType = 'premier'; // Par défaut
+        $sectionType = 'francophone'; // Par défaut
+        if (!empty($subjects)) {
+            $cycleType = $subjects[0]['cycle_type'] ?? 'premier';
+            $sectionType = $subjects[0]['section_type'] ?? 'francophone';
+        }
+
+        // Traduire le nom du groupe si Anglophone
+        $translatedGroupName = $groupName;
+        if ($sectionType === 'anglophone') {
+            $translations = [
+                'GROUPE A : MATIÈRES LITTÉRAIRES' => 'GROUP A: LITERARY SUBJECTS',
+                'GROUPE B : MATIÈRES SCIENTIFIQUES' => 'GROUP B: SCIENTIFIC SUBJECTS',
+                'GROUPE C : MATIÈRES PRATIQUES' => 'GROUP C: PRACTICAL SUBJECTS',
+                'GROUPE D : AUTRES MATIÈRES' => 'GROUP D: OTHER SUBJECTS'
+            ];
+            $translatedGroupName = $translations[$groupName] ?? $groupName;
+        }
+
         $html = '<div class="grades-section" style="margin-bottom: 20px;">';
-        $html .= '<div class="group-header" style="background: #f0f0f0; padding: 8px; font-weight: bold; text-align: center; border: 1px solid #000;">' . $groupName . '</div>';
+        $html .= '<div class="group-header" style="background: #f0f0f0; padding: 8px; font-weight: bold; text-align: center; border: 1px solid #000;">' . $translatedGroupName . '</div>';
         $html .= '<table class="subjects-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000;">';
-        
+
         // Header row avec largeurs fixes pour alignement
         $html .= '<tr style="background: #f8f8f8;">';
-        
+
         if ($bulletinType === 'trimester') {
-            // Pour bulletin trimestre : colonnes alignées avec largeurs fixes
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 20%;">DISCIPLINE</th>';
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">DS1</th>';
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Compo1</th>';
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Moy</th>';
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">COEF.</th>';
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">RANG</th>';
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPÉTENCES</th>';
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 20%;">NOMS DES PROFESSEURS</th>';
+            if ($cycleType === 'deuxieme') {
+                // 🎓 DEUXIÈME CYCLE: 11 colonnes avec Sequence 1 et Sequence 2 séparées
+                if ($sectionType === 'anglophone') {
+                    // English headers for Anglophone section
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 15%;">SUBJECT</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Term 1</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Term 2</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Final Exam</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Avg./20</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">COEF.</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">TOTAL</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">RANK</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPETENCY</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 13%;">TEACHER NAMES</th>';
+                } else {
+                    // French headers for Francophone section
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 15%;">DISCIPLINE</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Sequence 1</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Sequence 2</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Compo1</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Moy./20</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">COEF.</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">TOTAL</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">RANG</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPÉTENCES</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 13%;">NOMS DES PROFESSEURS</th>';
+                }
+            } else {
+                // 📚 PREMIER CYCLE: 9 colonnes avec DS1 (moyenne cachée)
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 20%;">DISCIPLINE</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">DS1</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Compo1</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Moy</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">COEF.</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">RANG</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPÉTENCES</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 20%;">NOMS DES PROFESSEURS</th>';
+            }
         } else {
             // Pour bulletin séquence : structure originale avec largeurs fixes
             $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 25%;">DISCIPLINE</th>';
@@ -737,32 +1153,54 @@ class BulletinService
         $groupAverage = 0;
         
         foreach ($subjects as $subject) {
-            $grade = $subject['score'] ?? 0;
+            // Pour DEUXIÈME CYCLE, utiliser 'average', sinon 'score'
+            $grade = ($cycleType === 'deuxieme') ? ($subject['average'] ?? 0) : ($subject['score'] ?? 0);
             $coef = $subject['coefficient'] ?? 1;
             $weightedGrade = $grade * $coef;
             $gradeClass = $this->getGradeClass($grade);
-            $competence = $this->getCompetence($grade);
-            
+            $competence = $subject['competence'] ?? $this->getCompetence($grade, $cycleType);
+
             $totalCoef += $coef;
             $totalPoints += $weightedGrade;
-            
+
             $html .= '<tr>';
-            
+
             if ($bulletinType === 'trimester') {
-                // Pour bulletin trimestre avec alignement
-                $ds1 = $subject['ds'] ?? null;
-                $compo1 = $subject['composition'] ?? null;
-                $average = $subject['average'] ?? null;
-                
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($ds1 !== null && $ds1 > 0 ? number_format($ds1, 2) : '-') . '</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 !== null && $compo1 > 0 ? number_format($compo1, 2) : '-') . '</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($average !== null && $average > 0 ? number_format($average, 2) : '-') . '</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($coef, 2) . '</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . number_format($weightedGrade, 2) . '</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? '1') . 'e</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $competence . '</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
+                if ($cycleType === 'deuxieme') {
+                    // 🎓 DEUXIÈME CYCLE: 11 colonnes avec séquences individuelles
+                    $seq1 = $subject['sequence1'] ?? null;
+                    $seq2 = $subject['sequence2'] ?? null;
+                    $compo1 = $subject['composition'] ?? null;
+                    $average = $subject['average'] ?? null;
+                    $nxc = $subject['nxc'] ?? $weightedGrade;
+
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq1 !== null && $seq1 > 0 ? number_format($seq1, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq2 !== null && $seq2 > 0 ? number_format($seq2, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 !== null && $compo1 > 0 ? number_format($compo1, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($average !== null && $average > 0 ? number_format($average, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($coef, 2) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . number_format($nxc, 2) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . number_format($nxc, 2) . '</td>'; // TOTAL = NXC
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? '1') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">' . $competence . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
+                } else {
+                    // 📚 PREMIER CYCLE: 9 colonnes avec DS1 (moyenne cachée)
+                    $ds1 = $subject['ds'] ?? null;
+                    $compo1 = $subject['composition'] ?? null;
+                    $average = $subject['average'] ?? null;
+
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($ds1 !== null && $ds1 > 0 ? number_format($ds1, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 !== null && $compo1 > 0 ? number_format($compo1, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($average !== null && $average > 0 ? number_format($average, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($coef, 2) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . number_format($weightedGrade, 2) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? '1') . 'e</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $competence . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
+                }
             } else {
                 // Pour bulletin séquence avec alignement
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
@@ -773,7 +1211,7 @@ class BulletinService
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $competence . '</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
             }
-            
+
             $html .= '</tr>';
         }
         
@@ -781,22 +1219,38 @@ class BulletinService
         
         // Total row avec alignement
         $html .= '<tr class="total-row" style="background: #f0f0f0; font-weight: bold;">';
-        
+
         if ($bulletinType === 'trimester') {
-            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>';
-            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // DS1
-            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Compo1
-            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($groupAverage, 2) . '</td>'; // Moy
-            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalCoef, 2) . '</td>'; // COEF
-            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalPoints, 2) . '</td>'; // (NXC)
-            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">1e</td>'; // RANG
-            $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy gpe: ' . number_format($groupAverage, 2) . ' ' . strtoupper(explode(' :', $groupName)[0]) . '</td>'; // COMPÉTENCES + NOMS DES PROFESSEURS
+            if ($cycleType === 'deuxieme') {
+                // 🎓 DEUXIÈME CYCLE: 11 colonnes - ligne de total
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Sequence 1
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Sequence 2
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Compo1
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($groupAverage, 2) . '</td>'; // Moy./20
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalCoef, 2) . '</td>'; // COEF
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalPoints, 2) . '</td>'; // (NXC)
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalPoints, 2) . '</td>'; // TOTAL
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // RANG
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10px;">' . strtoupper(explode(' :', $groupName)[0]) . '</td>'; // COMPÉTENCES
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10px;">Moy Gpe: ' . number_format($groupAverage, 2) . '</td>'; // PROFESSEURS
+            } else {
+                // 📚 PREMIER CYCLE: 9 colonnes - ligne de total
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // DS1
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Compo1
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($groupAverage, 2) . '</td>'; // Moy
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalCoef, 2) . '</td>'; // COEF
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalPoints, 2) . '</td>'; // (NXC)
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // RANG
+                $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy gpe: ' . number_format($groupAverage, 2) . ' ' . strtoupper(explode(' :', $groupName)[0]) . '</td>'; // COMPÉTENCES + PROFESSEURS
+            }
         } else {
             $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>';
             $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalPoints, 2) . '</td>';
             $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalCoef, 2) . '</td>';
             $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy gpe: ' . number_format($groupAverage, 2) . '</td>';
-            $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Rang: 1e Moy Gen Gpe ' . number_format($groupAverage + 2, 2) . '</td>';
+            $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy Gen Gpe: ' . number_format($groupAverage, 2) . '</td>';
         }
         
         $html .= '</tr>';
@@ -821,12 +1275,110 @@ class BulletinService
     /**
      * Get competence level based on grade
      */
-    protected function getCompetence($grade)
+    protected function getCompetence($grade, $cycleType = 'premier', $sectionType = 'francophone')
     {
+        if ($sectionType === 'technique') {
+            // ENSEIGNEMENT TECHNIQUE: Compétences techniques spécialisées
+            if ($grade === null) return 'Non évaluée';
+            if ($grade >= 16) return 'Maîtrisé (Excellent)';
+            if ($grade >= 14) return 'Maîtrisé (Très Bien)';
+            if ($grade >= 12) return 'Maîtrisé (Bien)';
+            if ($grade >= 10) return 'En cours de maîtrise';
+            return 'Non maîtrisé';
+        }
+
+        if ($sectionType === 'anglophone') {
+            // ANGLOPHONE: Use DEUXIÈME CYCLE logic with English translations
+            if ($grade === null) return 'Not Assessed';
+            if ($grade >= 16) return 'Mastered (Excellent)';
+            if ($grade >= 14) return 'Mastered (Very Good)';
+            if ($grade >= 12) return 'Mastered (Good)';
+            if ($grade >= 10) return 'Developing';
+            return 'Beginning';
+        }
+
+        if ($cycleType === 'deuxieme') {
+            // DEUXIÈME CYCLE FRANCOPHONE: Compétences détaillées
+            if ($grade === null) return 'Non évaluée';
+            if ($grade >= 16) return 'Acquise (Excellent)';
+            if ($grade >= 14) return 'Acquise (Très Bien)';
+            if ($grade >= 12) return 'Acquise (Bien)';
+            if ($grade >= 10) return 'En cours d\'acquisition';
+            return 'Non acquise';
+        }
+
+        // PREMIER CYCLE FRANCOPHONE: Compétences simples
         if ($grade >= 16) return 'A+';
         if ($grade >= 14) return 'A';
         if ($grade >= 10) return 'ECA';
         return 'NA';
+    }
+
+    /**
+     * Get appreciation based on score
+     */
+    protected function getAppreciationBySection($score, $sectionType = 'francophone')
+    {
+        if ($sectionType === 'anglophone') {
+            if ($score === null) return 'Absent';
+            if ($score >= 16) return 'Excellent';
+            if ($score >= 14) return 'Very Good';
+            if ($score >= 12) return 'Good';
+            if ($score >= 10) return 'Average';
+            return 'Below Average';
+        }
+
+        // Francophone (original)
+        if ($score === null) return 'Absent';
+        if ($score >= 16) return 'Excellent';
+        if ($score >= 14) return 'Très Bien';
+        if ($score >= 12) return 'Bien';
+        if ($score >= 10) return 'Assez Bien';
+        return 'Insuffisant';
+    }
+
+    /**
+     * Get mention based on average with section support
+     */
+    protected function getMentionBySection($average, $sectionType = 'francophone')
+    {
+        if ($sectionType === 'anglophone') {
+            if ($average === null) return 'N/A';
+            if ($average >= 16) return 'Very Good';
+            if ($average >= 14) return 'Good';
+            if ($average >= 12) return 'Average';
+            if ($average >= 10) return 'Pass';
+            return 'Fail';
+        }
+
+        // Francophone (original)
+        if ($average === null) return 'N/A';
+        if ($average >= 16) return 'Très Bien';
+        if ($average >= 14) return 'Bien';
+        if ($average >= 12) return 'Assez Bien';
+        if ($average >= 10) return 'Passable';
+        return 'Insuffisant';
+    }
+
+    /**
+     * Get general appreciation with section support
+     */
+    protected function getGeneralAppreciationBySection($average, $sectionType = 'francophone')
+    {
+        if ($sectionType === 'anglophone') {
+            if ($average >= 16) return 'Excellent (Very Good)';
+            if ($average >= 14) return 'Very Good';
+            if ($average >= 12) return 'Good';
+            if ($average >= 10) return 'Average (Pass)';
+            return 'Beginning (Fail)';
+        }
+
+        // Francophone (original)
+        if ($average >= 16) return 'Excellent (Très Bien)';
+        if ($average >= 14) return 'Très Bien';
+        if ($average >= 12) return 'Bien';
+        if ($average >= 10) return 'Assez Bien (Passable)';
+        return 'Non Acquise (NA)';
     }
     
     /**

@@ -66,16 +66,30 @@ class BulletinAutoGenerationService
     {
         $sequence = Sequence::where('number', $sequenceNumber)->first();
         if (!$sequence) return;
-        
+
         $student = Student::find($studentId);
         if (!$student) return;
-        
+
+        // 🎓 VÉRIFIER LE CYCLE DE L'ÉTUDIANT
+        $cycleType = $this->determineCycleType($student);
+
+        // 📚 PREMIER CYCLE: Seulement séquences 1 et 3 ont des bulletins
+        if ($cycleType === 'premier') {
+            if (!in_array($sequenceNumber, [1, 3])) {
+                Log::info("Premier Cycle - Séquence {$sequenceNumber} : Pas de bulletin (saisie uniquement)");
+                return; // Pas de bulletin pour séquences 2 et 4
+            }
+        }
+
+        // 🎓 DEUXIÈME CYCLE: Toutes les séquences ont des bulletins
+        // (Pas de restriction, continuer le traitement)
+
         // Récupérer toutes les matières de l'étudiant
         $subjects = SeriesSubject::where('school_class_id', $student->schoolClass->id)->get();
-        
+
         $totalSubjects = $subjects->count();
         $gradedSubjects = 0;
-        
+
         // Compter les matières avec notes
         foreach ($subjects as $subject) {
             $hasGrade = Grade::where('student_id', $studentId)
@@ -83,23 +97,53 @@ class BulletinAutoGenerationService
                            ->where('series_subject_id', $subject->id)
                            ->whereNotNull('score')
                            ->exists();
-            
+
             if ($hasGrade) {
                 $gradedSubjects++;
             }
         }
-        
+
         // Calculer le pourcentage de completion
         $completionPercentage = $totalSubjects > 0 ? ($gradedSubjects / $totalSubjects) * 100 : 0;
-        
-        Log::info("Séquence {$sequenceNumber} - Étudiant {$studentId}: {$gradedSubjects}/{$totalSubjects} matières ({$completionPercentage}%)");
-        
+
+        Log::info("Séquence {$sequenceNumber} ({$cycleType} cycle) - Étudiant {$studentId}: {$gradedSubjects}/{$totalSubjects} matières ({$completionPercentage}%)");
+
         // Générer/mettre à jour si au moins 50% des notes sont saisies
         if ($completionPercentage >= 50) {
             $this->generateOrUpdateSequenceBulletin($studentId, $sequenceNumber, $completionPercentage);
         }
     }
     
+    /**
+     * Détermine le type de cycle (premier/deuxieme) selon la classe de l'étudiant
+     */
+    protected function determineCycleType($student)
+    {
+        if (!$student || !$student->schoolClass) {
+            return 'premier'; // Par défaut
+        }
+
+        $className = strtolower($student->schoolClass->name);
+
+        // 🎓 DEUXIÈME CYCLE: Classes du lycée
+        $deuxiemeCycleClasses = [
+            'seconde', '2nde', 'première', '1ère', '1ere', 'terminale', 'tle',
+            'seconde a', 'seconde c', 'seconde d',
+            'première a', 'première c', 'première d', 'première a4',
+            '1ère a', '1ère c', '1ère d', '1ere a', '1ere c', '1ere d',
+            'terminale a', 'terminale c', 'terminale d'
+        ];
+
+        foreach ($deuxiemeCycleClasses as $cycleClass) {
+            if (strpos($className, $cycleClass) !== false) {
+                return 'deuxieme';
+            }
+        }
+
+        // 📚 PREMIER CYCLE: Classes du collège (par défaut)
+        return 'premier';
+    }
+
     /**
      * Vérifie si un bulletin de trimestre peut être généré/mis à jour
      */

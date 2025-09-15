@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Report Card - CPBD</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.4; color: #000; background: white; padding: 10px; }
+        .bulletin-container { width: 100%; background: white; border: 1px solid #EFE9F3; }
+        .header { background: #EFE9F3; color: black; padding: 5px; text-align: center; }
+        .school-info { display: table; width: 100%; margin-bottom: 3px; }
+        .school-left, .school-right { display: table-cell; width: 32%; vertical-align: middle; font-size: 7px; padding: 2px; }
+        .school-left { text-align: center; padding-left: 3px; }
+        .school-right { text-align: center; padding-right: 3px; }
+        .school-left div, .school-right div { margin: 1.5px 0; line-height: 1.3; }
+        .school-center { display: table-cell; width: 36%; text-align: center; vertical-align: middle; padding: 4px; }
+        .logo { width: 70px; height: 70px; margin: 0 auto; display: block; }
+        .bulletin-title { font-size: 14px; font-weight: bold; margin: 4px 0 2px 0; text-align: center; }
+        .student-info { background: #EFE9F3; color: black; padding: 6px 8px; margin-bottom: 12px; padding-left: 10%; }
+        .student-info table { width: 100%; border-collapse: collapse; }
+        .student-info td { padding: 2px 4px; font-size: 9px; vertical-align: middle; line-height: 1.3; }
+        .info-label { font-weight: bold; width: 110px; min-width: 110px; }
+        .grades-section { margin-bottom: 20px; }
+        .group-header { background: #EFE9F3; color: black; padding: 5px; font-weight: bold; font-size: 14px; text-transform: uppercase; text-align: center; }
+        .subjects-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+        .subjects-table th, .subjects-table td { border: 1px solid #000; padding: 6px 4px; text-align: center; vertical-align: middle; }
+        .subjects-table th { background: #EFE9F3; color: black; font-weight: bold; font-size: 9px; }
+        .subject-name { text-align: left !important; font-weight: 600; padding-left: 8px !important; }
+        .total-row { background: #f3e8ff; font-weight: bold; }
+        .summary-section { display: table; width: 100%; margin-top: 20px; }
+        .discipline-table, .summary-stats { display: table-cell; width: 48%; vertical-align: top; padding: 10px; }
+        .discipline-table { border: 2px solid #EFE9F3; margin-right: 4%; }
+        .summary-stats { border: 1px solid #ddd; }
+        .stat-item { display: table; width: 100%; padding: 6px 0; border-bottom: 1px solid #e0e0e0; }
+        .stat-label { display: table-cell; width: 70%; }
+        .stat-value { display: table-cell; width: 30%; font-weight: bold; color: #333; text-align: right; }
+        .observations { background: #f3e8ff; padding: 15px; margin-top: 15px; text-align: center; border: 2px solid #EFE9F3; }
+        .footer-notes { margin-top: 20px; padding: 12px; border: 1px solid #000; font-size: 10px; display: table; width: 100%; }
+        .notes-left { display: table-cell; width: 65%; vertical-align: top; }
+        .footer-signature { display: table-cell; width: 35%; text-align: right; font-size: 11px; font-weight: bold; vertical-align: top; }
+        .legend { margin-top: 15px; border-top: 1px solid #e0e0e0; padding-top: 10px; }
+        .legend h4 { margin-bottom: 5px; font-size: 11px; }
+        .legend-items { display: flex; flex-wrap: wrap; gap: 8px; font-size: 9px; }
+    </style>
+</head>
+<body>
+    <div class="bulletin-container">
+        <div class="header">
+            <div class="school-info">
+                <div class="school-left">
+                    <div><strong>REPUBLIQUE DU CAMEROUN</strong></div>
+                    <div><strong>Paix - Travail - Patrie</strong></div>
+                    <div><strong>MINISTÈRE DES ENSEIGNEMENTS SECONDAIRES</strong></div>
+                    <div><strong>COLLÈGE POLYVALENT BILINGUE DE DOUALA</strong></div>
+                    <div>B.P.: 4100 Douala Tél.: 233 43 25 47</div>
+                    <div>E-mail: info@cpbdyassa.com</div>
+                    <div>YASSA</div>
+                </div>
+                <div class="school-center">
+                    <div style="width: 70px; height: 70px; background: #ddd; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 8px;">LOGO</div>
+                </div>
+                <div class="school-right">
+                    <div><strong>REPUBLIC OF CAMEROON</strong></div>
+                    <div><strong>Peace - Work - Fatherland</strong></div>
+                    <div><strong>MINISTRY OF SECONDARY EDUCATION</strong></div>
+                    <div><strong>BILINGUAL COMPREHENSIVE COLLEGE DLA</strong></div>
+                    <div>P.O. Box: 4100 Douala Phone: 233 43 25 47</div>
+                    <div>E-mail: info@cpbdyassa.com</div>
+                    <div>YASSA</div>
+                </div>
+            </div>
+            <div class="bulletin-title">STUDENT REPORT CARD</div>
+        </div>
+
+        <div class="student-info">
+            <table>
+                <tr>
+                    <td class="info-label">Name and Surname:</td>
+                    <td>AKAH JOHN DOE</td>
+                    <td class="info-label">Date of birth:</td>
+                    <td>15/03/2008</td>
+                    <td class="info-label">Place of birth:</td>
+                    <td>DOUALA</td>
+                </tr>
+                <tr>
+                    <td class="info-label">Class:</td>
+                    <td>FORM 2A</td>
+                    <td class="info-label">Class size:</td>
+                    <td>35</td>
+                    <td class="info-label">Main teacher:</td>
+                    <td>MR. TCHAMENI MATHIEU</td>
+                </tr>
+                <tr>
+                    <td class="info-label">Student number:</td>
+                    <td>24A856</td>
+                    <td class="info-label">Assessment:</td>
+                    <td>N°1</td>
+                    <td class="info-label">SCHOOL YEAR:</td>
+                    <td>2024/2025</td>
+                </tr>
+            </table>
+        </div>
+
+        
+    <div class="grades-section" style="margin-bottom: 20px;">
+        <div class="group-header" style="background: #f0f0f0; padding: 8px; font-weight: bold; text-align: center; border: 1px solid #000;">GROUP A: LITERARY SUBJECTS</div>
+        <table class="subjects-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000;">
+            <tr style="background: #f8f8f8;">
+                <th style="border: 1px solid #000; padding: 5px; text-align: left; width: 15%;">SUBJECT</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Term 1</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Term 2</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Final Exam</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Avg./20</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">COEF.</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">TOTAL</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">RANK</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPETENCY</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 13%;">TEACHER NAMES</th>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: left;">MATHEMATICS</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">85.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">88.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">92.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">88.33</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">4.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">353.32</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">353.32</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">3</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">Mastered (Excellent)</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">MR. TALLA</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: left;">ENGLISH LANGUAGE</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">78.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">82.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">85.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">81.67</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">4.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">326.68</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">326.68</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">5</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">Mastered (Very Good)</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">MRS. JOHNSON</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: left;">CHEMISTRY</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">90.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">93.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">95.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">92.67</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">3.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">278.01</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">278.01</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">1</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">Mastered (Excellent)</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">DR. KAMGA</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: left;">PHYSICS</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">75.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">78.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">80.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">77.67</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">3.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">233.01</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">233.01</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">8</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">Mastered (Good)</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">MR. NOAH</td>
+            </tr>
+            <tr class="total-row" style="background: #f0f0f0; font-weight: bold;">
+                <td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">85.07</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">14.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">1,191.02</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">1,191.02</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">1</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10px;">GROUP AVG</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10px;">Avg: 85.07</td>
+            </tr>
+        </table>
+    </div>
+    <div class="grades-section" style="margin-bottom: 20px;">
+        <div class="group-header" style="background: #f0f0f0; padding: 8px; font-weight: bold; text-align: center; border: 1px solid #000;">GROUP B: SCIENTIFIC SUBJECTS</div>
+        <table class="subjects-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000;">
+            <tr style="background: #f8f8f8;">
+                <th style="border: 1px solid #000; padding: 5px; text-align: left; width: 15%;">SUBJECT</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Term 1</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Term 2</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Final Exam</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Avg./20</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">COEF.</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">TOTAL</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">RANK</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPETENCY</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 13%;">TEACHER NAMES</th>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: left;">BIOLOGY</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">82.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">85.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">87.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">84.67</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">3.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">254.01</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">254.01</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">4</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">Mastered (Very Good)</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">MS. GRACE</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: left;">HISTORY</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">70.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">73.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">76.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">73.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">2.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">146.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">146.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">12</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">Mastered (Good)</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">MR. MBAH</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: left;">GEOGRAPHY</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">68.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">71.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">74.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">71.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">2.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">142.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">142.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">15</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">Mastered (Good)</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">MRS. FATIMA</td>
+            </tr>
+            <tr class="total-row" style="background: #f0f0f0; font-weight: bold;">
+                <td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">77.43</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">7.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">542.01</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">542.01</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">1</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10px;">GROUP AVG</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10px;">Avg: 77.43</td>
+            </tr>
+        </table>
+    </div>
+    <div class="grades-section" style="margin-bottom: 20px;">
+        <div class="group-header" style="background: #f0f0f0; padding: 8px; font-weight: bold; text-align: center; border: 1px solid #000;">GROUP C: PRACTICAL SUBJECTS</div>
+        <table class="subjects-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000;">
+            <tr style="background: #f8f8f8;">
+                <th style="border: 1px solid #000; padding: 5px; text-align: left; width: 15%;">SUBJECT</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Term 1</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Term 2</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Final Exam</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Avg./20</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">COEF.</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">TOTAL</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">RANK</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPETENCY</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: center; width: 13%;">TEACHER NAMES</th>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: left;">COMPUTER SCIENCE</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">88.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">90.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">93.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">90.33</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">2.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">180.66</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">180.66</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">2</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">Mastered (Excellent)</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">MR. DAVID</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: left;">PHYSICAL EDUCATION</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">15.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">16.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">20.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">17.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">1.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">17.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">17.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">6</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">Mastered (Excellent)</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">COACH BROWN</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 5px; text-align: left;">FRENCH LANGUAGE</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">65.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">68.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">70.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">67.67</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">3.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">203.01</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">203.01</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">18</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">Developing</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">PROF. CLAIRE</td>
+            </tr>
+            <tr class="total-row" style="background: #f0f0f0; font-weight: bold;">
+                <td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">66.78</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">6.00</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">400.67</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">400.67</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center;">1</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10px;">GROUP AVG</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10px;">Avg: 66.78</td>
+            </tr>
+        </table>
+    </div>
+
+        <div class="summary-section">
+            <div class="discipline-table">
+                <div class="group-header" style="background: #EFE9F3; color: black; padding: 8px; font-weight: bold; text-align: center;">DISCIPLINE</div>
+                <div style="padding: 20px; text-align: center; color: #666;">
+                    [Discipline tracking data would be displayed here]
+                </div>
+                <div style="background: #f8f9fa; padding: 10px; text-align: center; font-weight: bold; color: #333; border-top: 1px solid #e0e0e0;">
+                    PARENT VISA & NAME
+                </div>
+            </div>
+
+            <div class="summary-stats">
+                <h3>GENERAL RESULTS</h3>
+                <div class="stat-item">
+                    <div class="stat-label">GENERAL TOTAL:</div>
+                    <div class="stat-value">2333.69</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">TOTAL COEF:</div>
+                    <div class="stat-value">27.00</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">ASSESSMENT AVG:</div>
+                    <div class="stat-value">86.43 / 20</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">RANK:</div>
+                    <div class="stat-value">3 / 35</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">CLASS AVERAGE:</div>
+                    <div class="stat-value">11.77 / 20</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">FIRST AVERAGE:</div>
+                    <div class="stat-value">15.36 / 20</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">LAST AVERAGE:</div>
+                    <div class="stat-value">0.57 / 20</div>
+                </div>
+
+                <div class="legend">
+                    <h4>Legend:</h4>
+                    <div class="legend-items">
+                        <span><strong>Mastered:</strong> Competency achieved</span>
+                        <span><strong>Developing:</strong> In progress</span>
+                        <span><strong>Beginning:</strong> Needs improvement</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="observations">
+            <h3>WORK ASSESSMENT AND OBSERVATIONS</h3>
+            <p><strong>Excellent (Very Good)</strong></p>
+        </div>
+
+        <div class="footer-notes">
+            <div class="notes-left">
+                <div style="margin-bottom: 8px; padding: 3px 0;">
+                    <strong>NB:</strong> Only one copy of this report card is issued. The student may request a certified copy.
+                </div>
+                <div style="margin-bottom: 8px; padding: 3px 0;">
+                    <strong>NB:</strong> Il n'est délivré qu'un seul exemplaire de ce bulletin. L'élève pourra se faire établir une copie certifiée.
+                </div>
+            </div>
+            <div class="footer-signature">
+                <div style="margin-bottom: 30px;">Done in Douala, on 15/09/2025</div>
+                <div style="margin-top: 10px;">The Principal</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

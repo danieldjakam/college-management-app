@@ -28,12 +28,18 @@ class BulletinController extends Controller
     public function availableBulletins($studentId)
     {
         $student = Student::findOrFail($studentId);
-        
+
         $availableBulletins = [];
-        
-        // Check sequence bulletins (1 and 3 only)
-        $sequences = Sequence::where('number', 1)
-                            ->orWhere('number', 3)
+
+        // 🎓 Déterminer le type de cycle
+        $cycleType = $this->determineCycleType($student);
+
+        // 📚 PREMIER CYCLE: Seulement séquences 1 et 3
+        // 🎓 DEUXIÈME CYCLE: Toutes les séquences (1, 2, 3, 4)
+        $allowedSequences = ($cycleType === 'deuxieme') ? [1, 2, 3, 4] : [1, 3];
+
+        // Check sequence bulletins selon le cycle
+        $sequences = Sequence::whereIn('number', $allowedSequences)
                             ->where('is_completed', true)
                             ->get();
                             
@@ -991,5 +997,35 @@ class BulletinController extends Controller
         ];
         
         return $periods;
+    }
+
+    /**
+     * Détermine le type de cycle (premier/deuxieme) selon la classe de l'étudiant
+     */
+    protected function determineCycleType($student)
+    {
+        if (!$student || !$student->schoolClass) {
+            return 'premier'; // Par défaut
+        }
+
+        $className = strtolower($student->schoolClass->name);
+
+        // 🎓 DEUXIÈME CYCLE: Classes du lycée
+        $deuxiemeCycleClasses = [
+            'seconde', '2nde', 'première', '1ère', '1ere', 'terminale', 'tle',
+            'seconde a', 'seconde c', 'seconde d',
+            'première a', 'première c', 'première d', 'première a4',
+            '1ère a', '1ère c', '1ère d', '1ere a', '1ere c', '1ere d',
+            'terminale a', 'terminale c', 'terminale d'
+        ];
+
+        foreach ($deuxiemeCycleClasses as $cycleClass) {
+            if (strpos($className, $cycleClass) !== false) {
+                return 'deuxieme';
+            }
+        }
+
+        // 📚 PREMIER CYCLE: Classes du collège (par défaut)
+        return 'premier';
     }
 }
