@@ -1031,7 +1031,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour la gestion des périodes académiques (semestres/trimestres)
-    Route::prefix('academic-periods')->middleware(['role:admin'])->group(function () {
+    Route::prefix('academic-periods')->middleware(['role:admin,secretaire'])->group(function () {
         // Configuration du système
         Route::get('/config', [AcademicPeriodController::class, 'getConfig']);
         Route::post('/config', [AcademicPeriodController::class, 'updateConfig']);
@@ -1059,7 +1059,7 @@ Route::middleware(['auth:api', 'role:admin'])->prefix('evaluation-configs')->gro
 });
 
 // Grading Scales (Admin only)
-Route::middleware(['auth:api', 'role:admin'])->prefix('grading-scales')->group(function () {
+Route::middleware(['auth:api', 'role:admin,secretaire'])->prefix('grading-scales')->group(function () {
     Route::get('/', [GradingScaleController::class, 'index']);
     Route::post('/', [GradingScaleController::class, 'store']);
     Route::get('/{gradingScale}', [GradingScaleController::class, 'show']);
@@ -1080,11 +1080,11 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{sequence}', [SequenceController::class, 'show'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
         Route::get('/{sequence}/stats', [SequenceController::class, 'getStats'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
         
-        // Gestion (admin uniquement)
-        Route::post('/', [SequenceController::class, 'store'])->middleware(['role:admin']);
-        Route::post('/{sequence}/activate', [SequenceController::class, 'activate'])->middleware(['role:admin']);
-        Route::post('/{sequence}/mark-completed', [SequenceController::class, 'markCompleted'])->middleware(['role:admin']);
-        Route::post('/{sequence}/mark-incomplete', [SequenceController::class, 'markIncomplete'])->middleware(['role:admin']);
+        // Gestion (admin et secrétaire)
+        Route::post('/', [SequenceController::class, 'store'])->middleware(['role:admin,secretaire']);
+        Route::post('/{sequence}/activate', [SequenceController::class, 'activate'])->middleware(['role:admin,secretaire']);
+        Route::post('/{sequence}/mark-completed', [SequenceController::class, 'markCompleted'])->middleware(['role:admin,secretaire']);
+        Route::post('/{sequence}/mark-incomplete', [SequenceController::class, 'markIncomplete'])->middleware(['role:admin,secretaire']);
     });
 
     // Routes pour les trimestres
