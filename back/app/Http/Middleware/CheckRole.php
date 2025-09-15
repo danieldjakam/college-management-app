@@ -15,15 +15,25 @@ class CheckRole
      */
     public function handle(Request $request, Closure $next, ...$roles): Response
     {
+        // Si les rôles sont passés comme une chaîne séparée par des virgules, les diviser
+        $allowedRoles = [];
+        foreach ($roles as $role) {
+            if (strpos($role, ',') !== false) {
+                $allowedRoles = array_merge($allowedRoles, explode(',', $role));
+            } else {
+                $allowedRoles[] = $role;
+            }
+        }
+
         // Log pour déboguer l'authentification
         \Log::info('CheckRole middleware', [
             'authenticated' => auth()->check(),
             'user' => auth()->user() ? auth()->user()->toArray() : null,
-            'required_roles' => $roles,
+            'required_roles' => $allowedRoles,
             'authorization_header' => $request->header('Authorization'),
             'path' => $request->path()
         ]);
-        
+
         if (!auth()->check()) {
             return response()->json([
                 'success' => false,
@@ -32,8 +42,8 @@ class CheckRole
         }
 
         $userRole = auth()->user()->role;
-        
-        if (!in_array($userRole, $roles)) {
+
+        if (!in_array($userRole, $allowedRoles)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Accès non autorisé pour ce rôle'
