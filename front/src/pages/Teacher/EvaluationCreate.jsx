@@ -105,6 +105,7 @@ const EvaluationCreate = () => {
                             subject: assignment.series_subject?.subject,
                             school_class: assignment.series_subject?.school_class,
                             series: assignment.series_subject?.series,
+                            coefficient: assignment.series_subject?.coefficient, // Récupérer le coefficient de SeriesSubject
                             teacher_id: assignment.teacher_id
                         };
                     });
@@ -174,19 +175,18 @@ const EvaluationCreate = () => {
             
             console.log('Matière sélectionnée:', selected);
             console.log('Coefficient trouvé:', selected?.coefficient);
-            
-            // Préremplir le coefficient depuis la configuration
-            let coefficientValue = '1'; // valeur par défaut
-            if (selected) {
-                // Essayer différentes propriétés pour trouver le coefficient
-                coefficientValue = selected.coefficient || 
-                                 selected.series_subject_coefficient || 
-                                 selected.subject_coefficient || 
-                                 '1';
-                
+
+            // Préremplir le coefficient depuis la configuration SeriesSubject
+            if (selected && selected.coefficient) {
                 setFormData(prev => ({
                     ...prev,
-                    coefficient: coefficientValue.toString()
+                    coefficient: selected.coefficient.toString()
+                }));
+            } else {
+                // Valeur par défaut si pas de coefficient configuré
+                setFormData(prev => ({
+                    ...prev,
+                    coefficient: '1'
                 }));
             }
             
@@ -465,7 +465,7 @@ const EvaluationCreate = () => {
                                             </Col>
 
                                             <Col md={6} className="mb-3">
-                                                <FloatingLabel label="Coefficient">
+                                                <FloatingLabel label="Coefficient (auto-récupéré)">
                                                     <Form.Control
                                                         type="number"
                                                         name="coefficient"
@@ -475,13 +475,21 @@ const EvaluationCreate = () => {
                                                         min="0.1"
                                                         max="10"
                                                         isInvalid={!!validationErrors.coefficient}
+                                                        readOnly={selectedSeriesSubject && selectedSeriesSubject.coefficient}
                                                     />
                                                     <Form.Control.Feedback type="invalid">
                                                         {validationErrors.coefficient}
                                                     </Form.Control.Feedback>
-                                                    {selectedSeriesSubject && (
-                                                        <Form.Text className="text-muted">
-                                                            Coefficient configuré: {selectedSeriesSubject.coefficient || 'Non défini'}
+                                                    {selectedSeriesSubject && selectedSeriesSubject.coefficient && (
+                                                        <Form.Text className="text-success">
+                                                            <i className="bi bi-check-circle me-1"></i>
+                                                            Coefficient récupéré automatiquement de la configuration
+                                                        </Form.Text>
+                                                    )}
+                                                    {selectedSeriesSubject && !selectedSeriesSubject.coefficient && (
+                                                        <Form.Text className="text-warning">
+                                                            <i className="bi bi-exclamation-triangle me-1"></i>
+                                                            Coefficient non configuré - valeur par défaut utilisée
                                                         </Form.Text>
                                                     )}
                                                 </FloatingLabel>
@@ -588,11 +596,11 @@ const EvaluationCreate = () => {
                         </Card.Header>
                         <Card.Body>
                             <ul className="small mb-0">
-                                <li>Compositions : 2-4h, coefficient selon configuration</li>
-                                <li>Travaux Pratiques : Évaluation pratique, coefficient selon configuration</li>
+                                <li>Compositions : 2-4h, coefficient auto-récupéré</li>
+                                <li>Travaux Pratiques : Évaluation pratique, coefficient auto-récupéré</li>
                                 <li>Notes sur 20</li>
                                 <li>Le nom est généré automatiquement</li>
-                                <li>Le coefficient est récupéré de la configuration des matières</li>
+                                <li><strong>Le coefficient est récupéré automatiquement de la configuration des matières</strong></li>
                             </ul>
                         </Card.Body>
                     </Card>

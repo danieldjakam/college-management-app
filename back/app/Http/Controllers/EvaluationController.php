@@ -80,7 +80,7 @@ class EvaluationController extends Controller
                 'sequence_id' => 'required|exists:sequences,id',
                 'series_subject_id' => 'required|exists:series_subjects,id',
                 'max_score' => 'required|numeric|min:0|max:100',
-                'coefficient' => 'required|numeric|min:0.1|max:10',
+                'coefficient' => 'nullable|numeric|min:0.1|max:10', // Optionnel car récupéré de SeriesSubject
                 'description' => 'nullable|string'
             ]);
 
@@ -95,6 +95,17 @@ class EvaluationController extends Controller
             // Récupérer les infos de la séquence pour compléter
             $sequence = Sequence::with('trimester')->find($request->sequence_id);
 
+            // Récupérer le coefficient de la SeriesSubject au lieu d'utiliser celui fourni
+            $seriesSubject = SeriesSubject::find($request->series_subject_id);
+
+            // Priorité : coefficient SeriesSubject > coefficient fourni > 1.0 par défaut
+            $finalCoefficient = 1.0; // Valeur par défaut
+            if ($seriesSubject && $seriesSubject->coefficient) {
+                $finalCoefficient = $seriesSubject->coefficient;
+            } elseif ($request->coefficient) {
+                $finalCoefficient = $request->coefficient;
+            }
+
             $evaluation = Evaluation::create([
                 'name' => $request->name,
                 'type' => $request->type,
@@ -105,7 +116,7 @@ class EvaluationController extends Controller
                 'teacher_id' => $request->teacher_id,
                 'date' => now()->toDateString(), // Utiliser la date actuelle
                 'max_score' => $request->max_score,
-                'coefficient' => $request->coefficient,
+                'coefficient' => $finalCoefficient, // Utiliser le coefficient de SeriesSubject
                 'description' => $request->description,
                 'is_active' => true
             ]);
