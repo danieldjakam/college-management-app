@@ -135,7 +135,20 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           items: [
             { name: "Étudiants", href: "/students", icon: <PeopleFill /> },
             { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
+            { name: "Matières", href: "/subjects", icon: <JournalBookmarkFill /> },
+            { name: "Configuration Série-Matières", href: "/series-subject-configuration", icon: <JournalBookmarkFill /> },
+            { name: "Enseignants", href: "/teachers", icon: <PeopleFill /> },
+            { name: "Affectations & Prof. Principaux", href: "/teacher-assignments", icon: <PeopleFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
+          ],
+        },
+        {
+          title: "Configuration Notes & Évaluations",
+          items: [
+            { name: "Périodes Académiques", href: "/academic-periods", icon: <Calendar /> },
+            { name: "Barèmes de Notation", href: "/grading-scales", icon: <Award /> },
+            { name: "Trimestres & Séquences", href: "/admin/trimesters-sequences", icon: <Calendar /> },
+            { name: "Bulletins Scolaires", href: "/admin/bulletins", icon: <CardText /> },
           ],
         },
         {

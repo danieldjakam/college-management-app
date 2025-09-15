@@ -47,6 +47,49 @@ const TrimesterSequenceManagement = () => {
         loadData();
     }, []);
 
+    const checkAndCreateMissingCompositions = async () => {
+        try {
+            console.log('=== Vérification des compositions manquantes ===');
+            let compositionsCreated = 0;
+
+            for (const trimester of trimesters) {
+                // Vérifier si ce trimestre a des séquences normales terminées
+                const trimesterSequences = sequences.filter(seq => 
+                    seq.trimester_id === trimester.id && 
+                    !seq.is_composition
+                );
+
+                // Vérifier si une composition existe déjà pour ce trimestre
+                const existingComposition = sequences.find(seq => 
+                    seq.trimester_id === trimester.id && 
+                    seq.is_composition === true
+                );
+
+                // Si des séquences existent mais pas de composition, et que toutes les séquences sont terminées
+                const allSequencesCompleted = trimesterSequences.length > 0 && 
+                    trimesterSequences.every(seq => seq.is_completed);
+
+                if (trimesterSequences.length > 0 && !existingComposition && allSequencesCompleted) {
+                    console.log(`Création de composition manquante pour trimestre ${trimester.number}`);
+                    try {
+                        await createMissingComposition(trimester);
+                        compositionsCreated++;
+                    } catch (error) {
+                        console.error(`Erreur création composition pour trimestre ${trimester.number}:`, error);
+                    }
+                }
+            }
+
+            if (compositionsCreated > 0) {
+                setSuccess(`✨ ${compositionsCreated} composition(s) manquante(s) créée(s) automatiquement !`);
+                await loadData(); // Recharger les données
+                setTimeout(() => setSuccess(null), 5000);
+            }
+        } catch (error) {
+            console.error('Erreur vérification compositions manquantes:', error);
+        }
+    };
+
     const loadData = async () => {
         try {
             setLoading(true);
@@ -103,6 +146,13 @@ const TrimesterSequenceManagement = () => {
             }
 
             console.log('=== FIN DEBUG loadData ===');
+
+            // Vérifier et créer les compositions manquantes après chargement
+            if (trimesters.length > 0 && allSequences.length > 0) {
+                setTimeout(() => {
+                    checkAndCreateMissingCompositions();
+                }, 1000); // Délai pour s'assurer que les états sont bien mis à jour
+            }
 
         } catch (error) {
             console.error('ERREUR chargement:', error);
@@ -198,6 +248,37 @@ const TrimesterSequenceManagement = () => {
         }
     };
 
+    const createMissingComposition = async (trimester) => {
+        try {
+            console.log(`=== Création de Composition ${trimester.number} manquante ===`);
+            
+            // Créer la composition manquante
+            const compositionName = `Composition ${trimester.number}`;
+            const compositionSequenceData = {
+                name: compositionName,
+                number: trimester.number === 1 ? 3 : trimester.number === 2 ? 5 : 6, // Numéros : 3, 5, 6 pour les compositions
+                trimester_id: trimester.id,
+                school_year_id: trimester.school_year_id,
+                start_date: new Date(new Date(trimester.end_date).getTime() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 14 jours avant la fin
+                end_date: new Date(new Date(trimester.end_date).getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 3 jours avant la fin
+                is_active: false, // VERROUILLÉE par défaut
+                is_current: false,
+                is_completed: false,
+                is_composition: true, // Marquer comme composition
+                is_locked: true // Verrouillée par défaut
+            };
+            
+            console.log('Données composition à créer:', compositionSequenceData);
+            const createdComposition = await secureApiEndpoints.sequences.create(compositionSequenceData);
+            console.log('Composition créée:', createdComposition);
+            
+            return createdComposition.data || createdComposition;
+        } catch (error) {
+            console.error('Erreur création composition manquante:', error);
+            throw error;
+        }
+    };
+
     const checkAndActivateComposition = async (completedSequenceId) => {
         try {
             // Récupérer la séquence terminée pour connaître son trimestre
@@ -218,27 +299,60 @@ const TrimesterSequenceManagement = () => {
             );
 
             if (allSequencesCompleted && trimesterSequences.length > 0) {
-                // Trouver et activer les SÉQUENCES de composition de ce trimestre
-                const compositionSequences = sequences.filter(seq => 
+                console.log(`=== Toutes les séquences du trimestre ${trimester.number} sont terminées ===`);
+                
+                // Vérifier si la composition existe déjà
+                let compositionSequences = sequences.filter(seq => 
                     seq.trimester_id === trimester.id && 
-                    seq.is_composition === true &&
-                    !seq.is_active
+                    seq.is_composition === true
                 );
 
-                for (const compositionSeq of compositionSequences) {
+                // Si aucune composition n'existe, la créer
+                if (compositionSequences.length === 0) {
+                    console.log(`Aucune composition trouvée pour le trimestre ${trimester.number}, création...`);
+                    try {
+                        const newComposition = await createMissingComposition(trimester);
+                        console.log('Nouvelle composition créée:', newComposition);
+                        
+                        // Recharger les données pour avoir la nouvelle composition
+                        await loadData();
+                        
+                        // Récupérer la nouvelle composition dans les données mises à jour
+                        compositionSequences = sequences.filter(seq => 
+                            seq.trimester_id === trimester.id && 
+                            seq.is_composition === true
+                        );
+                        
+                        setSuccess(`✨ Composition ${trimester.number} créée automatiquement et prête à être activée !`);
+                    } catch (createError) {
+                        console.error('Erreur lors de la création de composition:', createError);
+                        setError(`Erreur lors de la création de Composition ${trimester.number}`);
+                        return;
+                    }
+                }
+
+                // Maintenant activer les compositions non actives
+                const inactiveCompositions = compositionSequences.filter(comp => !comp.is_active);
+                
+                for (const compositionSeq of inactiveCompositions) {
                     try {
                         // Utiliser la méthode activate au lieu de update
                         await secureApiEndpoints.sequences.activate(compositionSeq.id);
                         
-                        console.log(`Composition ${trimester.number} activée automatiquement comme séquence`);
+                        console.log(`Composition ${trimester.number} activée automatiquement`);
                         setSuccess(`🎉 Toutes les séquences terminées ! Composition ${trimester.number} maintenant disponible pour la saisie des notes.`);
                     } catch (compositionError) {
-                        console.error('Erreur activation composition séquence:', compositionError);
+                        console.error('Erreur activation composition:', compositionError);
+                        setError(`Erreur lors de l'activation de Composition ${trimester.number}`);
                     }
                 }
+                
+                // Recharger les données après activation
+                await loadData();
             }
         } catch (error) {
             console.error('Erreur vérification composition:', error);
+            setError('Erreur lors de la vérification des compositions');
         }
     };
 
@@ -615,13 +729,23 @@ const TrimesterSequenceManagement = () => {
                                             Générer Trimestres
                                         </Button>
                                     ) : (
-                                        <Button 
-                                            variant="outline-light" 
-                                            onClick={() => setShowCreateTrimester(true)}
-                                        >
-                                            <Plus className="me-1" />
-                                            Nouveau Trimestre
-                                        </Button>
+                                        <>
+                                            <Button 
+                                                variant="outline-light" 
+                                                onClick={checkAndCreateMissingCompositions}
+                                                title="Vérifier et créer les compositions manquantes"
+                                            >
+                                                <CheckSquare className="me-1" />
+                                                Vérifier Compositions
+                                            </Button>
+                                            <Button 
+                                                variant="outline-light" 
+                                                onClick={() => setShowCreateTrimester(true)}
+                                            >
+                                                <Plus className="me-1" />
+                                                Nouveau Trimestre
+                                            </Button>
+                                        </>
                                     )}
                                 </div>
                             </div>
@@ -844,60 +968,120 @@ const TrimesterSequenceManagement = () => {
                                                     </td>
                                                     <td>
                                                         <div className="d-flex gap-1">
-                                                            {sequence.is_locked ? (
-                                                                /* Composition verrouillée : peut être activée manuellement */
-                                                                <>
+                                                            {sequence.is_composition ? (
+                                                                /* Logique spéciale pour les COMPOSITIONS */
+                                                                sequence.is_locked ? (
+                                                                    /* Composition verrouillée : peut être activée manuellement */
+                                                                    <>
+                                                                        <Button 
+                                                                            size="sm" 
+                                                                            variant="success"
+                                                                            onClick={() => handleActivateComposition(sequence.id)}
+                                                                            title="Activer cette composition pour les enseignants"
+                                                                        >
+                                                                            <Play size={14} className="me-1" />
+                                                                            Activer
+                                                                        </Button>
+                                                                        <small className="text-danger align-self-center ms-1">🔒</small>
+                                                                    </>
+                                                                ) : sequence.is_active ? (
+                                                                    /* Composition active : afficher les options de gestion */
+                                                                    <>
+                                                                        <Button 
+                                                                            size="sm" 
+                                                                            variant="info"
+                                                                            onClick={() => handleMarkSequenceCompleted(sequence.id)}
+                                                                            title="Clôturer cette composition"
+                                                                        >
+                                                                            <CheckSquare size={14} className="me-1" />
+                                                                            Clôturer
+                                                                        </Button>
+                                                                        <Button 
+                                                                            size="sm" 
+                                                                            variant="outline-warning"
+                                                                            onClick={() => handleActivateComposition(sequence.id)}
+                                                                            title="Réactiver/Relancer cette composition"
+                                                                        >
+                                                                            <Play size={14} />
+                                                                        </Button>
+                                                                        <small className="text-success align-self-center ms-1">✅</small>
+                                                                    </>
+                                                                ) : sequence.is_completed ? (
+                                                                    /* Composition terminée : peut être réouverte */
+                                                                    <>
+                                                                        <Button 
+                                                                            size="sm" 
+                                                                            variant="outline-success"
+                                                                            onClick={() => handleActivateComposition(sequence.id)}
+                                                                            title="Réactiver cette composition"
+                                                                        >
+                                                                            <Play size={14} className="me-1" />
+                                                                            Réactiver
+                                                                        </Button>
+                                                                        <Button 
+                                                                            size="sm" 
+                                                                            variant="outline-warning"
+                                                                            onClick={() => handleMarkSequenceIncomplete(sequence.id)}
+                                                                            title="Réouvrir (marquer comme programmé)"
+                                                                        >
+                                                                            <XCircle size={14} />
+                                                                        </Button>
+                                                                    </>
+                                                                ) : (
+                                                                    /* Composition programmée : peut être activée */
                                                                     <Button 
                                                                         size="sm" 
-                                                                        variant="success"
+                                                                        variant="outline-success"
                                                                         onClick={() => handleActivateComposition(sequence.id)}
-                                                                        title="Activer cette composition pour les enseignants"
+                                                                        title="Activer cette composition"
                                                                     >
                                                                         <Play size={14} className="me-1" />
                                                                         Activer
                                                                     </Button>
-                                                                    <small className="text-danger align-self-center ms-1">🔒</small>
-                                                                </>
-                                                            ) : sequence.is_current ? (
-                                                                /* Séquence en cours : peut être marquée comme terminée */
-                                                                <Button 
-                                                                    size="sm" 
-                                                                    variant="outline-info"
-                                                                    onClick={() => handleMarkSequenceCompleted(sequence.id)}
-                                                                    title="Marquer comme terminé"
-                                                                >
-                                                                    <CheckSquare size={14} />
-                                                                </Button>
-                                                            ) : sequence.is_completed ? (
-                                                                /* Séquence terminée : peut être réouverte */
-                                                                <Button 
-                                                                    size="sm" 
-                                                                    variant="outline-warning"
-                                                                    onClick={() => handleMarkSequenceIncomplete(sequence.id)}
-                                                                    title="Réouvrir (marquer comme programmé)"
-                                                                >
-                                                                    <XCircle size={14} />
-                                                                </Button>
+                                                                )
                                                             ) : (
-                                                                /* Séquence programmée : peut être activée ou marquée terminée directement */
-                                                                <>
-                                                                    <Button 
-                                                                        size="sm" 
-                                                                        variant="outline-success"
-                                                                        onClick={() => handleActivateSequence(sequence.id)}
-                                                                        title={sequence.is_composition ? "Activer cette composition" : "Activer cette séquence"}
-                                                                    >
-                                                                        <Play size={14} />
-                                                                    </Button>
+                                                                /* Logique pour les SÉQUENCES normales */
+                                                                sequence.is_current ? (
+                                                                    /* Séquence en cours : peut être marquée comme terminée */
                                                                     <Button 
                                                                         size="sm" 
                                                                         variant="outline-info"
                                                                         onClick={() => handleMarkSequenceCompleted(sequence.id)}
-                                                                        title="Marquer directement comme terminé"
+                                                                        title="Marquer comme terminé"
                                                                     >
                                                                         <CheckSquare size={14} />
                                                                     </Button>
-                                                                </>
+                                                                ) : sequence.is_completed ? (
+                                                                    /* Séquence terminée : peut être réouverte */
+                                                                    <Button 
+                                                                        size="sm" 
+                                                                        variant="outline-warning"
+                                                                        onClick={() => handleMarkSequenceIncomplete(sequence.id)}
+                                                                        title="Réouvrir (marquer comme programmé)"
+                                                                    >
+                                                                        <XCircle size={14} />
+                                                                    </Button>
+                                                                ) : (
+                                                                    /* Séquence programmée : peut être activée ou marquée terminée directement */
+                                                                    <>
+                                                                        <Button 
+                                                                            size="sm" 
+                                                                            variant="outline-success"
+                                                                            onClick={() => handleActivateSequence(sequence.id)}
+                                                                            title="Activer cette séquence"
+                                                                        >
+                                                                            <Play size={14} />
+                                                                        </Button>
+                                                                        <Button 
+                                                                            size="sm" 
+                                                                            variant="outline-info"
+                                                                            onClick={() => handleMarkSequenceCompleted(sequence.id)}
+                                                                            title="Marquer directement comme terminé"
+                                                                        >
+                                                                            <CheckSquare size={14} />
+                                                                        </Button>
+                                                                    </>
+                                                                )
                                                             )}
                                                         </div>
                                                     </td>

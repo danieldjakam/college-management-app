@@ -227,19 +227,25 @@ class SequenceController extends Controller
                 'start_date' => 'required|date',
                 'end_date' => 'required|date|after:start_date',
                 'is_active' => 'boolean',
-                'is_current' => 'boolean'
+                'is_current' => 'boolean',
+                'is_completed' => 'boolean',
+                'is_composition' => 'boolean',
+                'is_locked' => 'boolean'
             ]);
 
-            // Vérifier qu'il n'y a pas déjà une séquence avec ce numéro
-            $existingSequence = Sequence::where('school_year_id', $validated['school_year_id'])
-                ->where('number', $validated['number'])
-                ->first();
+            // Vérifier qu'il n'y a pas déjà une séquence avec ce numéro (sauf pour les compositions)
+            if (!isset($validated['is_composition']) || !$validated['is_composition']) {
+                $existingSequence = Sequence::where('school_year_id', $validated['school_year_id'])
+                    ->where('number', $validated['number'])
+                    ->where('is_composition', false) // Exclure les compositions de la vérification
+                    ->first();
 
-            if ($existingSequence) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Une séquence #{$validated['number']} existe déjà pour cette année scolaire"
-                ], 422);
+                if ($existingSequence) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Une séquence #{$validated['number']} existe déjà pour cette année scolaire"
+                    ], 422);
+                }
             }
 
             $sequence = Sequence::create($validated);

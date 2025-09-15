@@ -419,34 +419,34 @@ const AppContent = () => {
               <Route
                 path="/academic-periods"
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
                     <AcademicPeriodsManagement />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
 
               <Route
                 path="/grading-scales"
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
                     <GradingScales />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
               <Route
                 path="/admin/trimesters-sequences"
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
                     <TrimesterSequenceManagement />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
               <Route
                 path="/admin/bulletins"
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
                     <BulletinManagement />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
 
@@ -552,36 +552,36 @@ const AppContent = () => {
               <Route
                 path="/subjects"
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
                     <Subjects />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
 
               <Route
                 path="/series-subject-configuration"
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
                     <SeriesSubjectConfiguration />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
 
               <Route
                 path="/teachers"
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
                     <Teachers />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
 
               <Route
                 path="/teacher-assignments"
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
                     <TeacherAssignmentManagement />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
 
