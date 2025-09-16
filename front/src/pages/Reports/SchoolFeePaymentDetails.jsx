@@ -435,7 +435,10 @@ const SchoolFeePaymentDetails = () => {
                                             <th>Classe</th>
                                             <th>Type Paiement</th>
                                             <th>Date Validation</th>
-                                            <th className="text-end">Montant</th>
+                                            <th className="text-end">Espèces</th>
+                                            <th className="text-end">Bourses</th>
+                                            <th className="text-end">Réductions</th>
+                                            <th className="text-end">Total Payé</th>
                                             <th className="text-end">Reste à payer</th>
                                         </tr>
                                     </thead>
@@ -464,8 +467,23 @@ const SchoolFeePaymentDetails = () => {
                                                 </td>
                                                 <td>{detail.date_validation}</td>
                                                 <td className="text-end">
+                                                    <strong className="text-primary">
+                                                        {formatAmount(detail.montant_especes || detail.montant || 0)}
+                                                    </strong>
+                                                </td>
+                                                <td className="text-end">
+                                                    <strong className="text-info">
+                                                        {formatAmount(detail.bourses || 0)}
+                                                    </strong>
+                                                </td>
+                                                <td className="text-end">
+                                                    <strong className="text-secondary">
+                                                        {formatAmount(detail.reductions || 0)}
+                                                    </strong>
+                                                </td>
+                                                <td className="text-end">
                                                     <strong className="text-success">
-                                                        {formatAmount(detail.montant)}
+                                                        {formatAmount(detail.total_paye || (detail.montant_especes || detail.montant || 0))}
                                                     </strong>
                                                 </td>
                                                 <td className="text-end">

@@ -897,6 +897,17 @@ export const secureApiEndpoints = {
 
             return { success: true, filename };
         },
+
+        // Méthodes de gestion des paiements pour comptable_superieur
+        getPending: () => secureApi.get('/payments/pending'),
+        getForManagement: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/payments/management${queryString ? '?' + queryString : ''}`);
+        },
+        update: (paymentId, data) => secureApi.put(`/payments/${paymentId}`, data),
+        validate: (paymentId) => secureApi.post(`/payments/${paymentId}/validate`),
+        cancel: (paymentId, data) => secureApi.post(`/payments/${paymentId}/cancel`, data),
+        deleteHistory: (studentId) => secureApi.delete(`/payments/student/${studentId}/history`),
     },
 
 

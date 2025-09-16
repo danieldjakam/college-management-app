@@ -237,6 +237,61 @@ const PrincipalDashboard = () => {
                 </Col>
             </Row>
 
+            {/* Nouvelles statistiques : Taux de réussite et répartition par genre */}
+            <Row className="mb-4">
+                <Col md={4}>
+                    <Card className="text-center border-success">
+                        <Card.Body>
+                            <Award size={40} className="text-success mb-2" />
+                            <h3 className="mb-1">
+                                {academic_stats?.success_rate !== undefined
+                                    ? `${academic_stats.success_rate}%`
+                                    : 'N/A'
+                                }
+                            </h3>
+                            <p className="text-muted mb-0">Taux de Réussite</p>
+                            {academic_stats?.success_rate && (
+                                <small className="text-success">
+                                    Dernier trimestre
+                                </small>
+                            )}
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col md={4}>
+                    <Card className="text-center border-primary">
+                        <Card.Body>
+                            <PeopleFill size={40} className="text-primary mb-2" />
+                            <h3 className="mb-1">
+                                {student_stats?.by_gender?.male || 0}
+                            </h3>
+                            <p className="text-muted mb-0">Garçons</p>
+                            {student_stats?.by_gender && (
+                                <small className="text-muted">
+                                    {((student_stats.by_gender.male / (student_stats.by_gender.male + student_stats.by_gender.female)) * 100).toFixed(1)}%
+                                </small>
+                            )}
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col md={4}>
+                    <Card className="text-center" style={{ borderColor: '#e83e8c' }}>
+                        <Card.Body>
+                            <PeopleFill size={40} style={{ color: '#e83e8c' }} className="mb-2" />
+                            <h3 className="mb-1">
+                                {student_stats?.by_gender?.female || 0}
+                            </h3>
+                            <p className="text-muted mb-0">Filles</p>
+                            {student_stats?.by_gender && (
+                                <small className="text-muted">
+                                    {((student_stats.by_gender.female / (student_stats.by_gender.male + student_stats.by_gender.female)) * 100).toFixed(1)}%
+                                </small>
+                            )}
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
             <Row>
                 {/* Colonne gauche */}
                 <Col lg={8}>

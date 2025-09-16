@@ -26,7 +26,11 @@ class Payment extends Model
         'scholarship_amount',
         'has_reduction',
         'reduction_amount',
-        'discount_reason'
+        'discount_reason',
+        'status',
+        'cancellation_reason',
+        'status_updated_at',
+        'status_updated_by'
     ];
 
     protected $casts = [
@@ -40,7 +44,8 @@ class Payment extends Model
         'has_scholarship' => 'boolean',
         'scholarship_amount' => 'decimal:2',
         'has_reduction' => 'boolean',
-        'reduction_amount' => 'decimal:2'
+        'reduction_amount' => 'decimal:2',
+        'status_updated_at' => 'datetime'
     ];
 
     /**
@@ -65,6 +70,14 @@ class Payment extends Model
     public function createdByUser()
     {
         return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    /**
+     * Relation avec l'utilisateur qui a mis à jour le statut
+     */
+    public function statusUpdatedBy()
+    {
+        return $this->belongsTo(User::class, 'status_updated_by');
     }
 
     /**
@@ -115,5 +128,60 @@ class Payment extends Model
     public function scopeForStudent($query, $studentId)
     {
         return $query->where('student_id', $studentId);
+    }
+
+    /**
+     * Scope pour filtrer par statut
+     */
+    public function scopeByStatus($query, $status)
+    {
+        return $query->where('status', $status);
+    }
+
+    /**
+     * Vérifier si le paiement peut être modifié
+     */
+    public function canBeModified()
+    {
+        return $this->status === 'pending';
+    }
+
+    /**
+     * Vérifier si le paiement peut être annulé
+     */
+    public function canBeCancelled($user = null)
+    {
+        // Si c'est une comptable supérieur, elle peut supprimer même les paiements annulés
+        if ($user && $user->role === 'comptable_superieur') {
+            return true;
+        }
+
+        // Pour les autres utilisateurs, seulement les paiements pending et validated
+        return in_array($this->status, ['pending', 'validated']);
+    }
+
+    /**
+     * Valider le paiement
+     */
+    public function validate($userId)
+    {
+        $this->update([
+            'status' => 'validated',
+            'status_updated_at' => now(),
+            'status_updated_by' => $userId
+        ]);
+    }
+
+    /**
+     * Annuler le paiement
+     */
+    public function cancel($userId, $reason = null)
+    {
+        $this->update([
+            'status' => 'cancelled',
+            'cancellation_reason' => $reason,
+            'status_updated_at' => now(),
+            'status_updated_by' => $userId
+        ]);
     }
 }

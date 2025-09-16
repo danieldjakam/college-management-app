@@ -18,19 +18,23 @@ import {
   CashCoin,
   Check,
   CreditCard,
+  Pencil,
   Printer,
   Receipt,
+  Trash,
 } from "react-bootstrap-icons";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import RameStatusToggle from "../../components/RameStatusToggle";
 import { useSchool } from "../../contexts/SchoolContext";
+import { useAuth } from "../../hooks/useAuth";
 import { secureApiEndpoints } from "../../utils/apiMigration";
 
 const StudentPayment = () => {
   const { studentId } = useParams();
   const navigate = useNavigate();
   const { schoolSettings, formatCurrency, getLogoUrl } = useSchool();
+  const { user } = useAuth();
 
   const [student, setStudent] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState([]);
@@ -67,6 +71,18 @@ const StudentPayment = () => {
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
   const [printWindow, setPrintWindow] = useState(null);
   const [currentPaymentId, setCurrentPaymentId] = useState(null);
+
+  // États pour modifier/supprimer paiements (comptable_superieur)
+  const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null);
+  const [editForm, setEditForm] = useState({
+    total_amount: '',
+    payment_date: '',
+    payment_method: '',
+    reference_number: '',
+    notes: '',
+    payment_details: []
+  });
 
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
@@ -975,6 +991,197 @@ const StudentPayment = () => {
     return methods[method] || method;
   };
 
+  // Fonctions pour modifier/supprimer paiements (comptable_superieur uniquement)
+  const handleEditPayment = (payment) => {
+    setEditingPayment(payment);
+
+    // Utiliser les payment_details existants ou créer un détail par défaut
+    let paymentDetails = [];
+
+    if (payment.payment_details && payment.payment_details.length > 0) {
+      // Transformer les payment_details existants au format attendu par le backend
+      paymentDetails = payment.payment_details.map(detail => ({
+        payment_tranche_id: detail.payment_tranche_id || detail.payment_tranche?.id,
+        amount: detail.amount_allocated || detail.amount || detail.new_total_amount
+      }));
+    } else {
+      // Utiliser la première tranche disponible dans paymentStatus
+      const availableTranches = paymentStatus.filter(status => status.tranche);
+
+      if (availableTranches.length > 0) {
+        const firstTranche = availableTranches[0];
+        paymentDetails = [
+          {
+            payment_tranche_id: firstTranche.tranche.id,
+            amount: payment.total_amount
+          }
+        ];
+      } else {
+        // Fallback: utiliser l'ID 1 par défaut
+        paymentDetails = [
+          {
+            payment_tranche_id: 1,
+            amount: payment.total_amount
+          }
+        ];
+      }
+    }
+
+    setEditForm({
+      total_amount: payment.total_amount,
+      payment_date: payment.payment_date ? payment.payment_date.split('T')[0] : '',
+      payment_method: payment.payment_method,
+      reference_number: payment.reference_number || '',
+      notes: payment.notes || '',
+      payment_details: paymentDetails
+    });
+    setShowEditPaymentModal(true);
+  };
+
+  const handleSaveEditPayment = async () => {
+    try {
+      // Le backend gère maintenant automatiquement la répartition des paiements
+      // Plus besoin d'envoyer payment_details
+      const dataToSend = {
+        total_amount: editForm.total_amount,
+        payment_date: editForm.payment_date,
+        payment_method: editForm.payment_method,
+        reference_number: editForm.reference_number,
+        notes: editForm.notes
+      };
+
+
+      const response = await secureApiEndpoints.payments.update(editingPayment.id, dataToSend);
+      if (response.success) {
+        setShowEditPaymentModal(false);
+        setSuccess('Paiement modifié avec succès - Actualisation en cours...');
+
+        // Recharger complètement les données pour s'assurer que tous les calculs sont à jour
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        setError(response.message || 'Erreur lors de la modification');
+        setTimeout(() => setError(''), 3000);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la modification:', error);
+      console.error('Réponse de l\'erreur:', error.response?.data);
+      const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de la modification du paiement';
+      const validationErrors = error.response?.data?.errors;
+      if (validationErrors) {
+        console.error('Erreurs de validation:', validationErrors);
+      }
+      setError(errorMessage);
+      setTimeout(() => setError(''), 5000);
+    }
+  };
+
+  const handleDeletePayment = async (payment) => {
+    const result = await Swal.fire({
+      title: 'Supprimer le paiement',
+      html: `
+        <p>Êtes-vous sûr de vouloir supprimer ce paiement ?</p>
+        <div class="mt-3">
+          <strong>Montant :</strong> ${formatAmount(payment.total_amount)}<br>
+          <strong>Date :</strong> ${formatDate(payment.payment_date)}<br>
+          <strong>Reçu N° :</strong> ${payment.receipt_number}
+        </div>
+        <div class="mt-3">
+          <label for="deletion-reason" class="form-label">Raison de la suppression :</label>
+          <textarea id="deletion-reason" class="form-control" placeholder="Expliquez pourquoi vous supprimez ce paiement..." rows="3"></textarea>
+        </div>
+      `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc3545',
+      cancelButtonColor: '#6c757d',
+      confirmButtonText: 'Supprimer',
+      cancelButtonText: 'Annuler',
+      preConfirm: () => {
+        const reason = document.getElementById('deletion-reason').value;
+        if (!reason.trim()) {
+          Swal.showValidationMessage('Veuillez indiquer une raison pour la suppression');
+          return false;
+        }
+        return reason;
+      }
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const response = await secureApiEndpoints.payments.cancel(payment.id, {
+          cancellation_reason: result.value
+        });
+        if (response.success) {
+          await loadPaymentHistory();
+          await loadStudentPaymentInfo();
+          setSuccess('Paiement supprimé avec succès');
+          setTimeout(() => setSuccess(''), 3000);
+        } else {
+          setError(response.message || 'Erreur lors de la suppression');
+          setTimeout(() => setError(''), 3000);
+        }
+      } catch (error) {
+        console.error('Erreur lors de la suppression:', error);
+        setError('Erreur lors de la suppression du paiement');
+        setTimeout(() => setError(''), 3000);
+      }
+    }
+  };
+
+  // Fonction pour supprimer tout l'historique des paiements (comptable supérieur uniquement)
+  const handleDeleteHistory = async () => {
+    const result = await Swal.fire({
+      title: 'Supprimer tout l\'historique',
+      html: `
+        <p><strong>⚠️ Attention : Cette action est irréversible !</strong></p>
+        <p>Êtes-vous sûr de vouloir supprimer <strong>TOUT</strong> l'historique des paiements de cet étudiant ?</p>
+        <div class="mt-3">
+          <strong>Étudiant :</strong> ${student?.first_name} ${student?.last_name}<br>
+          <strong>Nombre de paiements :</strong> ${paymentHistory.length}
+        </div>
+        <div class="mt-3">
+          <label for="deletion-reason" class="form-label">Raison de la suppression de l'historique :</label>
+          <textarea id="deletion-reason" class="form-control" placeholder="Expliquez pourquoi vous supprimez tout l'historique..." rows="3"></textarea>
+        </div>
+      `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc3545',
+      cancelButtonColor: '#6c757d',
+      confirmButtonText: 'Supprimer tout',
+      cancelButtonText: 'Annuler',
+      preConfirm: () => {
+        const reason = document.getElementById('deletion-reason').value;
+        if (!reason.trim()) {
+          Swal.showValidationMessage('Veuillez indiquer une raison pour la suppression');
+          return false;
+        }
+        return reason;
+      }
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const response = await secureApiEndpoints.payments.deleteHistory(student.id);
+        if (response.success) {
+          setPaymentHistory([]);
+          await loadStudentPaymentInfo();
+          setSuccess('Historique des paiements supprimé avec succès');
+          setTimeout(() => setSuccess(''), 3000);
+        } else {
+          setError(response.message || 'Erreur lors de la suppression de l\'historique');
+          setTimeout(() => setError(''), 3000);
+        }
+      } catch (error) {
+        console.error('Erreur lors de la suppression de l\'historique:', error);
+        setError('Erreur lors de la suppression de l\'historique des paiements');
+        setTimeout(() => setError(''), 3000);
+      }
+    }
+  };
+
   if (loading) {
     return (
       <Container fluid className="py-4">
@@ -1394,8 +1601,19 @@ const StudentPayment = () => {
           </div>
 
           <Card>
-            <Card.Header>
+            <Card.Header className="d-flex justify-content-between align-items-center">
               <h5 className="mb-0">Historique des Paiements</h5>
+              {user?.role === 'comptable_superieur' && paymentHistory.length > 0 && (
+                <Button
+                  variant="outline-danger"
+                  size="sm"
+                  onClick={handleDeleteHistory}
+                  title="Supprimer tout l'historique"
+                >
+                  <Trash size={16} className="me-1" />
+                  Supprimer l'historique
+                </Button>
+              )}
             </Card.Header>
             <Card.Body>
               {paymentHistory.length === 0 ? (
@@ -1472,10 +1690,15 @@ const StudentPayment = () => {
                             </small>
                           </div>
 
-                          {/* Affichage des réductions appliquées */}
-                          {(payment.has_scholarship ||
+                          {/* Affichage du statut et des réductions appliquées */}
+                          {(payment.status === 'cancelled' || payment.has_scholarship ||
                             payment.has_reduction) && (
                             <div className="mt-2">
+                              {payment.status === 'cancelled' && (
+                                <div className="badge bg-danger me-1 mb-1">
+                                  ANNULÉ
+                                </div>
+                              )}
                               {payment.has_scholarship && (
                                 <div className="badge bg-success me-1 mb-1">
                                   Bourse:{" "}
@@ -1528,6 +1751,30 @@ const StudentPayment = () => {
                               <Receipt size={14} />
                             )}
                           </Button>
+
+                          {/* Boutons Modifier/Supprimer pour comptable_superieur et admin */}
+                          {((user?.role === 'comptable_superieur') ||
+                            (user?.role === 'admin' && payment.status !== 'cancelled')) && (
+                            <>
+                              <Button
+                                variant="outline-warning"
+                                size="sm"
+                                onClick={() => handleEditPayment(payment)}
+                                title="Modifier le paiement"
+                              >
+                                <Pencil size={14} />
+                              </Button>
+                              <Button
+                                variant="outline-danger"
+                                size="sm"
+                                onClick={() => handleDeletePayment(payment)}
+                                title="Supprimer le paiement"
+                                disabled={payment.status === 'cancelled' && user?.role !== 'comptable_superieur'}
+                              >
+                                <Trash size={14} />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
                       {payment.notes && (
@@ -1870,6 +2117,99 @@ const StudentPayment = () => {
               </>
             )}
           </Button> */}
+        </Modal.Footer>
+      </Modal>
+
+      {/* Modal pour modifier un paiement (comptable_superieur uniquement) */}
+      <Modal show={showEditPaymentModal} onHide={() => setShowEditPaymentModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Modifier le Paiement</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {editingPayment && (
+            <>
+              <Alert variant="info">
+                <strong>Paiement Original :</strong><br />
+                Reçu N° : {editingPayment.receipt_number}<br />
+                Étudiant : {student?.full_name}<br />
+                Date création : {formatDate(editingPayment.created_at)}
+              </Alert>
+
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Montant Total (FCFA) *</Form.Label>
+                    <Form.Control
+                      type="number"
+                      step="0.01"
+                      value={editForm.total_amount}
+                      onChange={(e) => setEditForm({...editForm, total_amount: e.target.value})}
+                      required
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Date de Paiement *</Form.Label>
+                    <Form.Control
+                      type="date"
+                      value={editForm.payment_date}
+                      onChange={(e) => setEditForm({...editForm, payment_date: e.target.value})}
+                      required
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Méthode de Paiement *</Form.Label>
+                    <Form.Select
+                      value={editForm.payment_method}
+                      onChange={(e) => setEditForm({...editForm, payment_method: e.target.value})}
+                      required
+                    >
+                      <option value="cash">Banque</option>
+                      <option value="card">Carte</option>
+                      <option value="transfer">Virement</option>
+                      <option value="check">Chèque</option>
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Référence</Form.Label>
+                    <Form.Control
+                      type="text"
+                      value={editForm.reference_number}
+                      onChange={(e) => setEditForm({...editForm, reference_number: e.target.value})}
+                      placeholder="N° chèque, virement, etc."
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+
+              <Form.Group className="mb-3">
+                <Form.Label>Notes</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm({...editForm, notes: e.target.value})}
+                  placeholder="Notes sur la modification..."
+                />
+              </Form.Group>
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowEditPaymentModal(false)}>
+            Annuler
+          </Button>
+          <Button variant="primary" onClick={handleSaveEditPayment}>
+            Sauvegarder les modifications
+          </Button>
         </Modal.Footer>
       </Modal>
     </Container>

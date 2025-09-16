@@ -32,6 +32,8 @@ import Settings from "./pages/Settings";
 import GeolocationZoneSettingsV2 from "./pages/Settings/GeolocationZoneSettingsV2";
 import UserProfile from "./pages/Profile/UserProfile";
 import SeriesStudents from "./pages/Students/SeriesStudents";
+import StudentTransfers from "./pages/Students/StudentTransfers";
+import StudentsOverview from "./pages/Students/StudentsOverview";
 
 // Comptable Pages
 import ClassCompt from "./pages/comptables/Class";
@@ -47,6 +49,7 @@ import PaymentReports from "./pages/Payments/PaymentReports";
 import DocumentaryFees from "./pages/Payments/DocumentaryFees";
 import CreateDocumentaryFee from "./pages/Payments/CreateDocumentaryFee";
 import DocumentaryFeeDetails from "./pages/Payments/DocumentaryFeeDetails";
+import PaymentManagement from "./pages/Payments/PaymentManagement";
 
 // Reports
 import Reports from "./pages/Reports";
@@ -245,9 +248,29 @@ const AppContent = () => {
               <Route
                 path="/students/series/:seriesId"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire', 'accountant', 'comptable_superieur']}>
                     <SeriesStudents />
                   </ProtectedRoute>
+                }
+              />
+
+              {/* Route générale pour la gestion des élèves par le principal */}
+              <Route
+                path="/students"
+                element={
+                  <AdminRoute>
+                    <StudentsOverview />
+                  </AdminRoute>
+                }
+              />
+
+              {/* Route pour les transferts d'élèves */}
+              <Route
+                path="/student-transfers"
+                element={
+                  <AdminRoute>
+                    <StudentTransfers />
+                  </AdminRoute>
                 }
               />
 
@@ -439,7 +462,7 @@ const AppContent = () => {
               <Route
                 path="/academic-periods"
                 element={
-                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
+                  <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire', 'comptable_superieur']}>
                     <AcademicPeriodsManagement />
                   </ProtectedRoute>
                 }
@@ -448,7 +471,7 @@ const AppContent = () => {
               <Route
                 path="/grading-scales"
                 element={
-                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
+                  <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire', 'comptable_superieur']}>
                     <GradingScales />
                   </ProtectedRoute>
                 }
@@ -456,7 +479,7 @@ const AppContent = () => {
               <Route
                 path="/admin/trimesters-sequences"
                 element={
-                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
+                  <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire', 'comptable_superieur']}>
                     <TrimesterSequenceManagement />
                   </ProtectedRoute>
                 }
@@ -464,7 +487,7 @@ const AppContent = () => {
               <Route
                 path="/admin/bulletins"
                 element={
-                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
+                  <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire', 'comptable_superieur']}>
                     <BulletinManagement />
                   </ProtectedRoute>
                 }
@@ -590,7 +613,7 @@ const AppContent = () => {
               <Route
                 path="/teachers"
                 element={
-                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
+                  <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire', 'comptable_superieur']}>
                     <Teachers />
                   </ProtectedRoute>
                 }
@@ -599,7 +622,7 @@ const AppContent = () => {
               <Route
                 path="/teacher-assignments"
                 element={
-                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
+                  <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire', 'comptable_superieur']}>
                     <TeacherAssignmentManagement />
                   </ProtectedRoute>
                 }
@@ -729,9 +752,9 @@ const AppContent = () => {
               <Route
                 path="/reports/staff-attendance-report"
                 element={
-                  <AccountantRoute>
+                  <AdminRoute>
                     <StaffAttendanceReport />
-                  </AccountantRoute>
+                  </AdminRoute>
                 }
               />
 
@@ -803,6 +826,14 @@ const AppContent = () => {
                   <AccountantRoute>
                     <CreateDocumentaryFee />
                   </AccountantRoute>
+                }
+              />
+              <Route
+                path="/payment-management"
+                element={
+                  <ProtectedRoute requiredRoles={['comptable_superieur']}>
+                    <PaymentManagement />
+                  </ProtectedRoute>
                 }
               />
 

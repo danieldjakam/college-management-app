@@ -456,7 +456,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{student}/update-with-photo', [StudentController::class, 'updateWithPhoto']);
         Route::post('/{student}/transfer-series', [StudentController::class, 'transferToSeries']);
         Route::post('/{student}/transfer-within-class', [StudentController::class, 'transferWithinClass']);
-        Route::delete('/{student}', [StudentController::class, 'destroy']);
+        Route::delete('/{student}', [StudentController::class, 'destroy'])->middleware(['role:admin,principal,accountant,comptable_superieur']);
         Route::post('/import/csv', [StudentController::class, 'importCsv']);
         Route::post('/import/excel', [StudentController::class, 'importExcel']);
         Route::post('/series/{seriesId}/import', [StudentController::class, 'importForSeries']);
@@ -513,6 +513,16 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/listing-report', [PaymentController::class, 'generatePaymentListingReport']);
         Route::post('/tranche-lists-report', [PaymentController::class, 'generateTrancheListsReport']);
         Route::get('/tranches', [PaymentController::class, 'getPaymentTranches']);
+
+        // Routes de gestion des paiements pour comptable_superieur uniquement
+        Route::middleware(['role:comptable_superieur'])->group(function () {
+            Route::get('/pending', [PaymentController::class, 'getPendingPayments']);
+            Route::get('/management', [PaymentController::class, 'getAllPaymentsForManagement']);
+            Route::put('/{paymentId}', [PaymentController::class, 'update']);
+            Route::post('/{paymentId}/validate', [PaymentController::class, 'validatePayment']);
+            Route::post('/{paymentId}/cancel', [PaymentController::class, 'cancelPayment']);
+            Route::delete('/student/{studentId}/history', [PaymentController::class, 'deleteStudentPaymentHistory']);
+        });
     });
 
     // Routes pour les frais de dossiers et pénalités (comptables et admins)
@@ -659,20 +669,20 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les enseignants
     Route::prefix('teachers')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)
-        Route::get('/dashboard', [TeacherController::class, 'dashboard'])->middleware(['role:admin,principal,secretaire,accountant']);
-        Route::get('/', [TeacherController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant']);
-        Route::get('/{teacher}', [TeacherController::class, 'show'])->middleware(['role:admin,principal,secretaire,accountant']);
-        Route::get('/{teacher}/stats', [TeacherController::class, 'getStats'])->middleware(['role:admin,principal,secretaire,accountant']);
+        Route::get('/dashboard', [TeacherController::class, 'dashboard'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
+        Route::get('/', [TeacherController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
+        Route::get('/{teacher}', [TeacherController::class, 'show'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
+        Route::get('/{teacher}/stats', [TeacherController::class, 'getStats'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
 
         // Routes pour les badges d'enseignants
         Route::get('/{teacher}/generate-badge', [TeacherController::class, 'generateBadge'])->middleware(['role:admin']);
         Route::post('/generate-multiple-badges', [TeacherController::class, 'generateMultipleBadges'])->middleware(['role:admin']);
 
         // Export routes
-        Route::get('/export/excel', [TeacherController::class, 'exportExcel'])->middleware(['role:admin,secretaire,accountant']);
-        Route::get('/export/csv', [TeacherController::class, 'exportCsv'])->middleware(['role:admin,secretaire,accountant']);
-        Route::get('/export/pdf', [TeacherController::class, 'exportPdf'])->middleware(['role:admin,secretaire,accountant']);
-        Route::get('/export/importable', [TeacherController::class, 'exportImportable'])->middleware(['role:admin,secretaire,accountant']);
+        Route::get('/export/excel', [TeacherController::class, 'exportExcel'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
+        Route::get('/export/csv', [TeacherController::class, 'exportCsv'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
+        Route::get('/export/pdf', [TeacherController::class, 'exportPdf'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
+        Route::get('/export/importable', [TeacherController::class, 'exportImportable'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
         Route::get('/template/download', [TeacherController::class, 'downloadTemplate'])->middleware(['role:admin']);
 
         // Routes pour administrateurs uniquement (gestion)
@@ -699,40 +709,40 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{seriesSubject}', [SeriesSubjectController::class, 'show'])->middleware(['role:admin,principal,secretaire,accountant,teacher']);
         Route::get('/class/{schoolClass}', [SeriesSubjectController::class, 'getByClass'])->middleware(['role:admin,principal,secretaire,accountant,teacher']);
 
-        // Routes pour administrateurs et secrétaires (gestion)
-        Route::post('/', [SeriesSubjectController::class, 'store'])->middleware(['role:admin,secretaire']);
-        Route::put('/{seriesSubject}', [SeriesSubjectController::class, 'update'])->middleware(['role:admin,secretaire']);
-        Route::delete('/{seriesSubject}', [SeriesSubjectController::class, 'destroy'])->middleware(['role:admin,secretaire']);
-        Route::post('/{seriesSubject}/toggle-status', [SeriesSubjectController::class, 'toggleStatus'])->middleware(['role:admin,secretaire']);
-        Route::post('/class/{schoolClass}/bulk-configure', [SeriesSubjectController::class, 'bulkConfigure'])->middleware(['role:admin,secretaire']);
+        // Routes pour administrateurs, principal et secrétaires (gestion)
+        Route::post('/', [SeriesSubjectController::class, 'store'])->middleware(['role:admin,principal,secretaire']);
+        Route::put('/{seriesSubject}', [SeriesSubjectController::class, 'update'])->middleware(['role:admin,principal,secretaire']);
+        Route::delete('/{seriesSubject}', [SeriesSubjectController::class, 'destroy'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/{seriesSubject}/toggle-status', [SeriesSubjectController::class, 'toggleStatus'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/class/{schoolClass}/bulk-configure', [SeriesSubjectController::class, 'bulkConfigure'])->middleware(['role:admin,principal,secretaire']);
     });
 
     // Routes pour les affectations d'enseignants
     Route::prefix('teacher-assignments')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)
-        Route::get('/', [TeacherAssignmentController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant,teacher']);
-        Route::get('/teacher/{teacher}', [TeacherAssignmentController::class, 'getByTeacher'])->middleware(['role:admin,principal,secretaire,accountant,teacher']);
-        Route::get('/teacher/{teacher}/available-subjects', [TeacherAssignmentController::class, 'getAvailableSubjects'])->middleware(['role:admin,principal,secretaire,accountant']);
+        Route::get('/', [TeacherAssignmentController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur,teacher']);
+        Route::get('/teacher/{teacher}', [TeacherAssignmentController::class, 'getByTeacher'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur,teacher']);
+        Route::get('/teacher/{teacher}/available-subjects', [TeacherAssignmentController::class, 'getAvailableSubjects'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
 
-        // Routes pour administrateurs et secrétaires (gestion)
-        Route::post('/', [TeacherAssignmentController::class, 'store'])->middleware(['role:admin,secretaire']);
-        Route::delete('/{assignment}', [TeacherAssignmentController::class, 'destroy'])->middleware(['role:admin,secretaire']);
-        Route::post('/{assignment}/toggle-status', [TeacherAssignmentController::class, 'toggleStatus'])->middleware(['role:admin,secretaire']);
-        Route::post('/teacher/{teacher}/bulk-assign', [TeacherAssignmentController::class, 'bulkAssign'])->middleware(['role:admin,secretaire']);
+        // Routes pour administrateurs, principal et secrétaires (gestion)
+        Route::post('/', [TeacherAssignmentController::class, 'store'])->middleware(['role:admin,principal,secretaire']);
+        Route::delete('/{assignment}', [TeacherAssignmentController::class, 'destroy'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/{assignment}/toggle-status', [TeacherAssignmentController::class, 'toggleStatus'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/teacher/{teacher}/bulk-assign', [TeacherAssignmentController::class, 'bulkAssign'])->middleware(['role:admin,principal,secretaire']);
     });
 
     // Routes pour les professeurs principaux
     Route::prefix('main-teachers')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)
-        Route::get('/', [MainTeacherController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant,teacher']);
-        Route::get('/classes-without-main-teacher', [MainTeacherController::class, 'getClassesWithoutMainTeacher'])->middleware(['role:admin,principal,secretaire,accountant']);
-        Route::get('/available-teachers', [MainTeacherController::class, 'getAvailableTeachers'])->middleware(['role:admin,principal,secretaire,accountant']);
+        Route::get('/', [MainTeacherController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur,teacher']);
+        Route::get('/classes-without-main-teacher', [MainTeacherController::class, 'getClassesWithoutMainTeacher'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
+        Route::get('/available-teachers', [MainTeacherController::class, 'getAvailableTeachers'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
 
-        // Routes pour administrateurs uniquement (gestion)
-        Route::post('/', [MainTeacherController::class, 'store'])->middleware(['role:admin']);
-        Route::put('/{mainTeacher}', [MainTeacherController::class, 'update'])->middleware(['role:admin']);
-        Route::delete('/{mainTeacher}', [MainTeacherController::class, 'destroy'])->middleware(['role:admin']);
-        Route::post('/{mainTeacher}/toggle-status', [MainTeacherController::class, 'toggleStatus'])->middleware(['role:admin']);
+        // Routes pour administrateurs et principal (gestion)
+        Route::post('/', [MainTeacherController::class, 'store'])->middleware(['role:admin,principal']);
+        Route::put('/{mainTeacher}', [MainTeacherController::class, 'update'])->middleware(['role:admin,principal']);
+        Route::delete('/{mainTeacher}', [MainTeacherController::class, 'destroy'])->middleware(['role:admin,principal']);
+        Route::post('/{mainTeacher}/toggle-status', [MainTeacherController::class, 'toggleStatus'])->middleware(['role:admin,principal']);
     });
 
     // Routes pour les besoins
@@ -781,7 +791,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour la gestion RAME (pour RameStatusToggle)
-    Route::prefix('student-rame')->middleware(['role:admin,secretaire,accountant'])->group(function () {
+    Route::prefix('student-rame')->middleware(['role:admin,secretaire,accountant,comptable_superieur'])->group(function () {
         Route::get('/student/{studentId}/status', [StudentRameController::class, 'getRameStatus']);
         Route::post('/student/{studentId}/update', [StudentRameController::class, 'updateRameStatus']);
         Route::get('/class-series/{classSeriesId}', [StudentRameController::class, 'getClassRameStatus']);
@@ -1031,7 +1041,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour la gestion des périodes académiques (semestres/trimestres)
-    Route::prefix('academic-periods')->middleware(['role:admin,secretaire'])->group(function () {
+    Route::prefix('academic-periods')->middleware(['role:admin,principal,secretaire'])->group(function () {
         // Configuration du système
         Route::get('/config', [AcademicPeriodController::class, 'getConfig']);
         Route::post('/config', [AcademicPeriodController::class, 'updateConfig']);
@@ -1059,7 +1069,7 @@ Route::middleware(['auth:api', 'role:admin'])->prefix('evaluation-configs')->gro
 });
 
 // Grading Scales (Admin only)
-Route::middleware(['auth:api', 'role:admin,secretaire'])->prefix('grading-scales')->group(function () {
+Route::middleware(['auth:api', 'role:admin,principal,secretaire'])->prefix('grading-scales')->group(function () {
     Route::get('/', [GradingScaleController::class, 'index']);
     Route::post('/', [GradingScaleController::class, 'store']);
     Route::get('/{gradingScale}', [GradingScaleController::class, 'show']);
@@ -1074,34 +1084,34 @@ Route::middleware(['auth:api'])->group(function () {
     
     // Routes pour les séquences
     Route::prefix('sequences')->group(function () {
-        // Consultation (enseignants, admins, comptables)
-        Route::get('/', [SequenceController::class, 'index'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
-        Route::get('/current', [SequenceController::class, 'getCurrentSequence'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
-        Route::get('/{sequence}', [SequenceController::class, 'show'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
-        Route::get('/{sequence}/stats', [SequenceController::class, 'getStats'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        // Consultation (enseignants, admins, comptables, principal)
+        Route::get('/', [SequenceController::class, 'index'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/current', [SequenceController::class, 'getCurrentSequence'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/{sequence}', [SequenceController::class, 'show'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/{sequence}/stats', [SequenceController::class, 'getStats'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
         
-        // Gestion (admin et secrétaire)
-        Route::post('/', [SequenceController::class, 'store'])->middleware(['role:admin,secretaire']);
-        Route::post('/{sequence}/activate', [SequenceController::class, 'activate'])->middleware(['role:admin,secretaire']);
-        Route::post('/{sequence}/mark-completed', [SequenceController::class, 'markCompleted'])->middleware(['role:admin,secretaire']);
-        Route::post('/{sequence}/mark-incomplete', [SequenceController::class, 'markIncomplete'])->middleware(['role:admin,secretaire']);
+        // Gestion (admin, principal et secrétaire)
+        Route::post('/', [SequenceController::class, 'store'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/{sequence}/activate', [SequenceController::class, 'activate'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/{sequence}/mark-completed', [SequenceController::class, 'markCompleted'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/{sequence}/mark-incomplete', [SequenceController::class, 'markIncomplete'])->middleware(['role:admin,principal,secretaire']);
     });
 
     // Routes pour les trimestres
     Route::prefix('trimesters')->group(function () {
-        // Consultation (enseignants, admins, comptables)
-        Route::get('/', [TrimesterController::class, 'index'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        // Consultation (enseignants, admins, comptables, principal)
+        Route::get('/', [TrimesterController::class, 'index'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
         Route::get('/teacher', [TrimesterController::class, 'getTeacherTrimesters'])->middleware(['role:teacher']);
-        Route::get('/current', [TrimesterController::class, 'getCurrentTrimester'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
-        Route::get('/{trimester}', [TrimesterController::class, 'show'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
-        Route::get('/{trimester}/stats', [TrimesterController::class, 'getStats'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/current', [TrimesterController::class, 'getCurrentTrimester'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/{trimester}', [TrimesterController::class, 'show'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/{trimester}/stats', [TrimesterController::class, 'getStats'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
         Route::get('/{trimester}/ds-details', [TrimesterController::class, 'getDSDetails'])->middleware(['role:teacher']);
         
-        // Gestion (admin uniquement)
-        Route::post('/', [TrimesterController::class, 'store'])->middleware(['role:admin']);
-        Route::put('/{trimester}', [TrimesterController::class, 'update'])->middleware(['role:admin']);
-        Route::delete('/{trimester}', [TrimesterController::class, 'destroy'])->middleware(['role:admin']);
-        Route::post('/{trimester}/activate', [TrimesterController::class, 'activate'])->middleware(['role:admin']);
+        // Gestion (admin et principal)
+        Route::post('/', [TrimesterController::class, 'store'])->middleware(['role:admin,principal']);
+        Route::put('/{trimester}', [TrimesterController::class, 'update'])->middleware(['role:admin,principal']);
+        Route::delete('/{trimester}', [TrimesterController::class, 'destroy'])->middleware(['role:admin,principal']);
+        Route::post('/{trimester}/activate', [TrimesterController::class, 'activate'])->middleware(['role:admin,principal']);
     });
 
     // Routes pour les évaluations
@@ -1188,7 +1198,7 @@ Route::middleware('auth:sanctum')->prefix('parent')->group(function () {
 Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
     // Consultation des bulletins disponibles
     Route::get('/available/{studentId}', [BulletinController::class, 'availableBulletins'])
-        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
     
     // Génération de bulletins (Admin et Teachers)
     Route::post('/generate', [BulletinController::class, 'generate'])
@@ -1199,27 +1209,27 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
     
     // Téléchargement de bulletins
     Route::get('/download/{bulletinId}', [BulletinController::class, 'download'])
-        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
     
     // Visualisation des bulletins générés automatiquement (Admin)
     Route::get('/generated-bulletins', [BulletinController::class, 'getGeneratedBulletins'])
-        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
     
     // Structure hiérarchique pour l'interface organisée
     Route::get('/hierarchical-structure', [BulletinController::class, 'getHierarchicalStructure'])
-        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
     
     // Statut des bulletins par série/classe
     Route::get('/students-status/{seriesId}', [BulletinController::class, 'getStudentsBulletinStatus'])
-        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
     
     // Timeline académique actuelle
     Route::get('/academic-timeline', [BulletinController::class, 'getAcademicTimeline'])
-        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
     
     // Prévisualisation des bulletins
     Route::post('/preview', [BulletinController::class, 'previewBulletin'])
-        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
     
     // Forcer la régénération (Admin uniquement)
     Route::post('/force-regenerate', [BulletinController::class, 'forceRegenerate'])
@@ -1227,7 +1237,7 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
     
     // Téléchargement groupé de tous les bulletins
     Route::post('/download-all', [BulletinController::class, 'downloadAllBulletins'])
-        ->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
+        ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
     
     // Gestion des templates (Admin uniquement)
     Route::prefix('templates')->middleware(['role:admin'])->group(function () {

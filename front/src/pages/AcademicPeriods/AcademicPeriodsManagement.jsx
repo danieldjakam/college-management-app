@@ -313,9 +313,9 @@ function AcademicPeriodsManagement() {
                 <table className="table table-striped">
                   <thead>
                     <tr>
-                      <th>Ordre</th>
+                      {/* <th>Ordre</th> */}
                       <th>Nom</th>
-                      <th>Pourcentage</th>
+                      {/* <th>Pourcentage</th> */}
                       <th>Statut</th>
                       <th>Description</th>
                       <th>Actions</th>
@@ -324,11 +324,11 @@ function AcademicPeriodsManagement() {
                   <tbody>
                     {periods.map(period => (
                       <tr key={period.id}>
-                        <td>{period.order}</td>
+                        {/* <td>{period.order}</td> */}
                         <td>{period.name}</td>
-                        <td>
+                        {/* <td>
                           <span className="badge bg-info">{period.percentage}%</span>
-                        </td>
+                        </td> */}
                         <td>
                           <span className={`badge ${period.is_active ? 'bg-success' : 'bg-secondary'}`}>
                             {period.is_active ? 'Actif' : 'Inactif'}
@@ -437,7 +437,8 @@ function AcademicPeriodsManagement() {
               />
             </Form.Group>
 
-            <Row>
+            {/* Champs Pourcentage et Ordre masqués comme demandé */}
+            {/* <Row>
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Pourcentage</Form.Label>
@@ -466,7 +467,7 @@ function AcademicPeriodsManagement() {
                   />
                 </Form.Group>
               </Col>
-            </Row>
+            </Row> */}
 
             <Form.Group className="mb-3">
               <Form.Label>Description (optionnel)</Form.Label>

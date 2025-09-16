@@ -24,21 +24,34 @@ class SchoolClassController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = SchoolClass::with(['level.section', 'series', 'paymentAmounts.paymentTranche']);
-            
+            $query = SchoolClass::with([
+                'level.section',
+                'series' => function($q) {
+                    $q->withCount('students');
+                },
+                'paymentAmounts.paymentTranche'
+            ]);
+
             // Filtrer par niveau si spécifié
             if ($request->has('level_id')) {
                 $query->where('level_id', $request->level_id);
             }
-            
+
             // Filtrer par section si spécifié
             if ($request->has('section_id')) {
                 $query->whereHas('level', function($q) use ($request) {
                     $q->where('section_id', $request->section_id);
                 });
             }
-            
+
             $classes = $query->get();
+
+            // Ajouter le comptage des élèves pour chaque série
+            $classes->each(function($class) {
+                $class->series->each(function($series) {
+                    $series->students_count = $series->students_count ?? 0;
+                });
+            });
             
             return response()->json([
                 'success' => true,

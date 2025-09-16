@@ -48,7 +48,7 @@ const StudentActionsDropdown = ({
                     Voir l'élève
                 </Dropdown.Item>
                 {/* Paiements (pour les comptables/admins) */}
-                {(userRole === 'secretaire') && (
+                {(userRole === 'secretaire' || userRole === 'comptable_superieur' || userRole === 'accountant' || userRole === 'admin') && (
                     <Dropdown.Item 
                         onClick={() => onViewPayments?.(student)}
                         className="d-flex align-items-center"
@@ -71,7 +71,7 @@ const StudentActionsDropdown = ({
 
                 {/* Transférer */}
 
-                {(userRole === 'admin' || userRole === 'secretaire' || userRole === 'accountant' || userRole === 'comptable_superieur' || userRole === 'comptable') && (
+                {(userRole === 'admin' || userRole === 'principal' || userRole === 'secretaire' || userRole === 'accountant' || userRole === 'comptable_superieur' || userRole === 'comptable') && (
                     <>
                         <Dropdown.Divider />
                         <Dropdown.Item 
@@ -101,8 +101,8 @@ const StudentActionsDropdown = ({
                     </>
                 )}
                 
-                {/* Supprimer - Seulement pour admin et secretaire */}
-                {(userRole === 'admin' || userRole === 'secretaire') && (
+                {/* Supprimer - Seulement pour admin, principal, accountant et comptable_superieur */}
+                {(userRole === 'admin' || userRole === 'principal' || userRole === 'accountant' || userRole === 'comptable_superieur') && (
                     <>
                         <Dropdown.Divider />
                         <Dropdown.Item 

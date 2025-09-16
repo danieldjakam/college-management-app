@@ -163,6 +163,42 @@ class PaymentController extends Controller
         }
     }
 
+    /**
+     * Supprimer l'historique des paiements d'un étudiant (comptable supérieur uniquement)
+     */
+    public function deleteStudentPaymentHistory($studentId)
+    {
+        try {
+            // Vérifier que l'étudiant existe
+            $student = Student::findOrFail($studentId);
+
+            // Récupérer tous les paiements de l'étudiant avec leurs détails
+            $payments = Payment::with('paymentDetails')->where('student_id', $studentId)->get();
+            $deletedCount = $payments->count();
+
+            // Supprimer tous les paiements (les détails seront supprimés automatiquement grâce à la contrainte CASCADE)
+            Payment::where('student_id', $studentId)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Historique des paiements supprimé avec succès. {$deletedCount} paiement(s) supprimé(s).",
+                'data' => [
+                    'student_id' => $studentId,
+                    'student_name' => $student->first_name . ' ' . $student->last_name,
+                    'deleted_payments_count' => $deletedCount
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in PaymentController@deleteStudentPaymentHistory: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la suppression de l\'historique des paiements',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -3513,5 +3549,282 @@ HTML;
 HTML;
 
         return $html;
+    }
+
+    /**
+     * Lister les paiements en attente de validation pour comptable_superieur
+     */
+    public function getPendingPayments()
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+            if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            $payments = Payment::with(['student', 'createdByUser', 'statusUpdatedBy'])
+                ->forYear($workingYear->id)
+                ->byStatus('pending')
+                ->orderBy('created_at', 'desc')
+                ->paginate(20);
+
+            return response()->json([
+                'success' => true,
+                'data' => $payments
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des paiements en attente: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des paiements'
+            ], 500);
+        }
+    }
+
+    /**
+     * Modifier un paiement (comptable_superieur uniquement)
+     */
+    public function update(Request $request, $paymentId)
+    {
+        try {
+            $payment = Payment::with(['student', 'paymentDetails'])->findOrFail($paymentId);
+
+            // Vérifier si le paiement peut être modifié
+            if (!$payment->canBeModified()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce paiement ne peut plus être modifié (statut: ' . $payment->status . ')'
+                ], 403);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'total_amount' => 'required|numeric|min:0',
+                'payment_date' => 'required|date',
+                'payment_method' => 'required|string|in:cash,card,transfer,cheque',
+                'reference_number' => 'nullable|string|max:255',
+                'notes' => 'nullable|string',
+                'apply_global_discount' => 'nullable|boolean'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Données invalides',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $workingYear = $this->getUserWorkingYear();
+            if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            $student = Student::with('classSeries.schoolClass')->find($payment->student_id);
+            if (!$student) {
+                return response()->json(['success' => false, 'message' => 'Étudiant non trouvé'], 404);
+            }
+
+            // Obtenir le statut de paiement pour vérifier les limites
+            $paymentStatus = $this->paymentStatusService->getStatusForStudent($student, $workingYear);
+
+            // Calculer le total payé excluant ce paiement
+            $totalPaidExcludingThis = $paymentStatus->total_paid - $payment->total_amount;
+            $totalRemainingWithoutThis = $paymentStatus->total_required - $totalPaidExcludingThis;
+
+            if ($request->total_amount > $totalRemainingWithoutThis) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Le montant saisi (" . number_format($request->total_amount, 0, ',', ' ') . " FCFA) est supérieur au montant restant (" . number_format($totalRemainingWithoutThis, 0, ',', ' ') . " FCFA)."
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            // Mettre à jour le paiement principal
+            $payment->update([
+                'total_amount' => $request->total_amount,
+                'payment_date' => $request->payment_date,
+                'payment_method' => $request->payment_method,
+                'reference_number' => $request->reference_number,
+                'notes' => $request->notes,
+                'status_updated_at' => now(),
+                'status_updated_by' => Auth::id()
+            ]);
+
+            // Supprimer les anciens détails de paiement
+            $payment->paymentDetails()->delete();
+
+            // Déterminer le type de paiement et utiliser la logique d'allocation automatique
+            $paymentType = 'normal';
+            if ($request->apply_global_discount && $paymentStatus->is_eligible_for_discount) {
+                $paymentType = 'global_discount';
+            }
+
+            // Utiliser la même logique d'allocation que dans le store
+            if ($paymentType === 'global_discount') {
+                \Log::info('Using global discount allocation for payment update');
+                $this->allocatePaymentToTranchesWithLastTrancheDiscount($payment, $student, $workingYear, $paymentStatus->payment_tranches);
+            } else {
+                \Log::info('Using normal allocation for payment update');
+                $this->allocatePaymentToTranches($payment, $student, $workingYear, $paymentStatus->payment_tranches);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Paiement modifié avec succès',
+                'data' => $payment->load(['student', 'paymentDetails.paymentTranche'])
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Erreur lors de la modification du paiement: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la modification du paiement'
+            ], 500);
+        }
+    }
+
+    /**
+     * Valider un paiement (comptable_superieur uniquement)
+     */
+    public function validatePayment($paymentId)
+    {
+        try {
+            $payment = Payment::with(['student'])->findOrFail($paymentId);
+
+            if ($payment->status !== 'pending') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce paiement ne peut pas être validé (statut actuel: ' . $payment->status . ')'
+                ], 403);
+            }
+
+            $payment->validate(Auth::id());
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Paiement validé avec succès',
+                'data' => $payment->load(['student', 'statusUpdatedBy'])
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la validation du paiement: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la validation du paiement'
+            ], 500);
+        }
+    }
+
+    /**
+     * Annuler un paiement (comptable_superieur uniquement)
+     */
+    public function cancelPayment(Request $request, $paymentId)
+    {
+        try {
+            $payment = Payment::with(['student', 'paymentDetails'])->findOrFail($paymentId);
+
+            // Vérifier si le paiement peut être annulé
+            if (!$payment->canBeCancelled(Auth::user())) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce paiement ne peut pas être annulé (statut: ' . $payment->status . ')'
+                ], 403);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'cancellation_reason' => 'required|string|max:500'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Raison d\'annulation requise',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            // Si c'est une comptable supérieur, supprimer réellement le paiement
+            if (Auth::user()->role === 'comptable_superieur') {
+                $payment->delete();
+
+                DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Paiement supprimé avec succès'
+                ]);
+            } else {
+                // Pour les autres, juste annuler
+                $payment->cancel(Auth::id(), $request->cancellation_reason);
+
+                DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Paiement annulé avec succès',
+                    'data' => $payment->load(['student', 'statusUpdatedBy'])
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Erreur lors de l\'annulation du paiement: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'annulation du paiement'
+            ], 500);
+        }
+    }
+
+    /**
+     * Lister tous les paiements avec filtres pour comptable_superieur
+     */
+    public function getAllPaymentsForManagement(Request $request)
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+            if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            $query = Payment::with(['student', 'createdByUser', 'statusUpdatedBy'])
+                ->forYear($workingYear->id);
+
+            // Filtrer par statut si spécifié
+            if ($request->has('status') && $request->status !== 'all') {
+                $query->byStatus($request->status);
+            }
+
+            // Filtrer par période si spécifiée
+            if ($request->has('start_date') && $request->has('end_date')) {
+                $query->betweenDates($request->start_date, $request->end_date);
+            }
+
+            // Filtrer par étudiant si spécifié
+            if ($request->has('student_id')) {
+                $query->forStudent($request->student_id);
+            }
+
+            $payments = $query->orderBy('created_at', 'desc')->paginate(20);
+
+            return response()->json([
+                'success' => true,
+                'data' => $payments
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des paiements: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des paiements'
+            ], 500);
+        }
     }
 }

@@ -3104,12 +3104,40 @@ class ReportsController extends Controller
                     $typeDisplay = implode(' + ', $paymentTypes) ?: 'Autre';
                 }
 
-                // Calculer le reste à payer (nécessite d'obtenir le total requis)
+                // Calculer le reste à payer en incluant bourses et réductions
                 $resteAPayer = 0;
                 if ($studentData['class_series_id']) {
                     // Obtenir le montant total requis pour cet élève
                     $totalRequired = $this->getStudentTotalRequired($studentData['student_id'], $workingYear->id);
-                    $resteAPayer = max(0, $totalRequired - $studentData['montant_total']);
+
+                    // Calculer les bourses et réductions RÉELLES
+                    $totalScholarships = 0;
+                    $totalReductions = 0;
+
+                    // Récupérer l'étudiant pour vérifier les bourses
+                    $student = Student::find($studentData['student_id']);
+                    if ($student && $student->has_scholarship_enabled) {
+                        $classScholarships = ClassScholarship::where('school_class_id', $student->classSeries->class_id)
+                            ->where('is_active', true)
+                            ->get();
+                        foreach ($classScholarships as $scholarship) {
+                            $totalScholarships += $scholarship->amount;
+                        }
+                    }
+
+                    // Vérifier les réductions dans les paiements
+                    $paymentsWithReductions = Payment::where('student_id', $studentData['student_id'])
+                        ->where('school_year_id', $workingYear->id)
+                        ->whereNotNull('validation_date')
+                        ->where('reduction_amount', '>', 0)
+                        ->get();
+                    foreach ($paymentsWithReductions as $payment) {
+                        $totalReductions += $payment->reduction_amount ?? 0;
+                    }
+
+                    // Total payé = espèces + bourses + réductions
+                    $totalPaid = $studentData['montant_total'] + $totalScholarships + $totalReductions;
+                    $resteAPayer = max(0, $totalRequired - $totalPaid);
                 }
 
                 $paymentDetails[] = [
@@ -3120,7 +3148,10 @@ class ReportsController extends Controller
                     'type_paiement' => $typeDisplay,
                     'date_validation' => $studentData['latest_date'] ?
                         $studentData['latest_date']->format('d/m/Y') : 'N/A',
-                    'montant' => $studentData['montant_total'],
+                    'montant_especes' => $studentData['montant_total'],
+                    'bourses' => $totalScholarships ?? 0,
+                    'reductions' => $totalReductions ?? 0,
+                    'total_paye' => ($studentData['montant_total'] + ($totalScholarships ?? 0) + ($totalReductions ?? 0)),
                     'reste_a_payer' => $resteAPayer
                 ];
             }

@@ -1,6 +1,6 @@
-import { 
-    HospitalFill, HouseHeartFill, 
-    PeopleFill, GearFill, Search, 
+import {
+    HospitalFill, HouseHeartFill,
+    PeopleFill, GearFill, Search,
     BookFill, FileTextFill,
     BarChartFill, List, CreditCard,
     PersonCircle, BoxArrowRight, CashCoin,
@@ -13,6 +13,7 @@ import {
     Archive,
     FolderFill,
     Award,
+    ArrowRightCircle,
     ExclamationTriangle,
     Bell,
     ListCheck,
@@ -264,6 +265,13 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               href: "/payments/documentary-fees",
               icon: <FileTextFill />,
             },
+            ...(userRole === "comptable_superieur" ? [
+              {
+                name: "Gestion des Paiements",
+                href: "/payment-management",
+                icon: <CashCoin />,
+              }
+            ] : []),
           ],
         },
         {
@@ -428,10 +436,16 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
     } else if (userRole === "principal") {
       return [
         {
+          title: "Tableau de Bord",
+          items: [
+            { name: "Tableau de Bord", href: "/principal/dashboard", icon: <HouseHeartFill /> },
+          ],
+        },
+        {
           title: "Gestion Administrative",
           items: [
             { name: "Gestion des Utilisateurs", href: "/user-management", icon: <PeopleFill /> },
-            { name: "Rapport Personnel", href: "/staff-reports", icon: <BarChartFill /> },
+            { name: "Rapport Personnel", href: "/reports/staff-attendance-report", icon: <BarChartFill /> },
             { name: "Paramètres École", href: "/settings", icon: <GearFill /> },
           ],
         },
@@ -441,6 +455,15 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Enseignants", href: "/teachers", icon: <PeopleFill /> },
             { name: "Affectations", href: "/teacher-assignments", icon: <Award /> },
             { name: "Classes", href: "/school-classes", icon: <HouseHeartFill /> },
+          ],
+        },
+        {
+          title: "Configuration Notes & Évaluations",
+          items: [
+            { name: "Périodes Académiques", href: "/academic-periods", icon: <Calendar /> },
+            { name: "Barèmes de Notation", href: "/grading-scales", icon: <Award /> },
+            { name: "Trimestres & Séquences", href: "/admin/trimesters-sequences", icon: <Calendar /> },
+            { name: "Bulletins Scolaires", href: "/admin/bulletins", icon: <CardText /> },
           ],
         },
         {

@@ -132,7 +132,10 @@ class PrincipalDashboardController extends Controller
                 ->select('type', DB::raw('count(*) as count'))
                 ->groupBy('type')
                 ->pluck('count', 'type')
-                ->toArray()
+                ->toArray(),
+
+                // Calcul du taux de réussite global
+                'success_rate' => $this->calculateGlobalSuccessRate($currentSchoolYear->id)
             ];
 
             // Besoins et demandes (spécifique au rôle de principal)
@@ -256,5 +259,33 @@ class PrincipalDashboardController extends Controller
         $elapsed = $now->diffInDays($start);
 
         return $total > 0 ? round(($elapsed / $total) * 100, 1) : 0;
+    }
+
+    /**
+     * Calculer le taux de réussite global
+     */
+    private function calculateGlobalSuccessRate($schoolYearId)
+    {
+        try {
+            // Récupérer toutes les notes de l'année scolaire
+            $totalGrades = Grade::whereHas('evaluation', function($q) use ($schoolYearId) {
+                $q->where('school_year_id', $schoolYearId);
+            })->count();
+
+            if ($totalGrades === 0) {
+                return 0;
+            }
+
+            // Compter les notes >= 10 (réussite)
+            $successfulGrades = Grade::whereHas('evaluation', function($q) use ($schoolYearId) {
+                $q->where('school_year_id', $schoolYearId);
+            })->where('grade', '>=', 10)->count();
+
+            return round(($successfulGrades / $totalGrades) * 100, 1);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur calcul taux de réussite: ' . $e->getMessage());
+            return 0;
+        }
     }
 }
