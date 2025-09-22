@@ -225,7 +225,9 @@ class TeacherController extends Controller
                 'qualification' => 'nullable|string|max:255',
                 'hire_date' => 'nullable|date',
                 'type_personnel' => 'nullable|in:V,SP,P',
-                'is_active' => 'boolean'
+                'is_active' => 'boolean',
+                'staff_identifier' => 'nullable|string|max:50',
+                'qr_code' => 'nullable|string|max:50'
             ]);
 
             if ($validator->fails()) {

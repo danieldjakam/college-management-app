@@ -27,7 +27,8 @@ class Teacher extends Model
         'qr_code',
         'expected_arrival_time',
         'expected_departure_time',
-        'daily_work_hours'
+        'daily_work_hours',
+        'staff_identifier'
     ];
 
     protected $casts = [

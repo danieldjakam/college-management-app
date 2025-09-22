@@ -480,6 +480,23 @@ const Teachers = () => {
                         onImportSuccess={loadTeachers}
                         templateFileName="template_enseignants.csv"
                     />
+                    <Button
+                        variant="warning"
+                        onClick={() => {
+                            console.clear();
+                            console.log('=== LISTE ID PERSONNEL - TOUS ENSEIGNANTS ===');
+                            filteredTeachers.forEach(teacher => {
+                                const id = teacher.staff_identifier || 'PAS D\'ID';
+                                const type = teacher.type || 'N/A';
+                                console.log(`${teacher.first_name} ${teacher.last_name} (${type}) → ID: ${id}`);
+                            });
+                            console.log('=============================================');
+                            alert(`Liste des ${filteredTeachers.length} enseignants affichée dans la console (F12)`);
+                        }}
+                        className="me-2"
+                    >
+                        📋 Voir tous les ID
+                    </Button>
                     <Button variant="primary" onClick={() => handleShowModal()}>
                         <PlusCircle className="me-2" />
                         Nouvel Enseignant
@@ -566,7 +583,39 @@ const Teachers = () => {
                                                         {teacher.staff_identifier}
                                                     </Badge>
                                                 ) : (
-                                                    <span className="text-muted small">N/A</span>
+                                                    <div className="d-flex align-items-center gap-2">
+                                                        <Badge bg="warning" className="font-monospace">
+                                                            PAS D'ID
+                                                        </Badge>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline-primary"
+                                                            onClick={() => {
+                                                                const id = prompt(`Saisir ID Personnel pour ${teacher.first_name} ${teacher.last_name}:`);
+                                                                if (id) {
+                                                                    // Mettre à jour à la fois staff_identifier ET qr_code pour la reconnaissance
+                                                                    const updateData = {
+                                                                        staff_identifier: id,
+                                                                        qr_code: id // Synchroniser le QR code avec l'ID Personnel
+                                                                    };
+
+                                                                    // Appeler l'API pour sauvegarder
+                                                                    secureApiEndpoints.teachers.update(teacher.id, updateData)
+                                                                        .then(() => {
+                                                                            alert(`ID "${id}" assigné à ${teacher.first_name} ${teacher.last_name} (QR code mis à jour)`);
+                                                                            loadTeachers(); // Recharger les données
+                                                                        })
+                                                                        .catch(err => {
+                                                                            alert('Erreur lors de la sauvegarde');
+                                                                            console.error(err);
+                                                                        });
+                                                                }
+                                                            }}
+                                                            title="Assigner un ID Personnel"
+                                                        >
+                                                            ➕ ID
+                                                        </Button>
+                                                    </div>
                                                 )}
                                             </div>
                                         </td>

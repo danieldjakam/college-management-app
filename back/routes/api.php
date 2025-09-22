@@ -620,6 +620,9 @@ Route::middleware('auth:api')->group(function () {
     Route::prefix('user-management')->middleware(['auth:api', 'role:admin,principal,secretaire'])->group(function () {
         Route::get('/', [UserManagementController::class, 'index']);
         Route::get('/stats', [UserManagementController::class, 'getStats']);
+
+        // DEBUG: Route temporaire pour chercher Mr Boum
+        Route::get('/find-mr-boum', [UserManagementController::class, 'findMrBoum']);
         
         // Routes d'export (AVANT les routes avec ID)
         Route::get('/export/administrative-staff/pdf', [UserManagementController::class, 'exportAdministrativeStaffPdf']);

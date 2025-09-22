@@ -19,7 +19,7 @@ class UserManagementController extends Controller
     {
         try {
             $query = User::select('id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'qualification', 'is_active', 'created_at', 'staff_identifier')
-                ->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'accountant', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe']); // Tous les rôles gérables
+                ->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'enseignant', 'vacataire', 'SP', 'P', 'accountant', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe']); // Tous les rôles gérables incluant tous les enseignants
 
             // Système de recherche
             if ($request->has('search') && !empty($request->search)) {
@@ -52,6 +52,30 @@ class UserManagementController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération des utilisateurs',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * DEBUG: Chercher Mr Boum directement en base
+     */
+    public function findMrBoum()
+    {
+        try {
+            $mrBoum = User::where('name', 'like', '%Boum%')
+                ->orWhere('name', 'like', '%boum%')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $mrBoum,
+                'message' => 'Mr Boum trouvé: ' . $mrBoum->count() . ' résultat(s)'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la recherche de Mr Boum',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -206,6 +230,16 @@ class UserManagementController extends Controller
                 'is_active' => $request->is_active ?? $user->is_active
             ];
 
+            // Ajouter staff_identifier s'il est fourni
+            if ($request->has('staff_identifier')) {
+                $updateData['staff_identifier'] = $request->staff_identifier;
+            }
+
+            // Ajouter qr_code s'il est fourni
+            if ($request->has('qr_code')) {
+                $updateData['qr_code'] = $request->qr_code;
+            }
+
             // N'update la photo que si elle est fournie
             if ($request->has('photo') && $request->photo !== null) {
                 $updateData['photo'] = $request->photo;
@@ -215,7 +249,7 @@ class UserManagementController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $user->only(['id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'qualification', 'is_active', 'created_at']),
+                'data' => $user->only(['id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'qualification', 'is_active', 'staff_identifier', 'qr_code', 'created_at']),
                 'message' => 'Utilisateur mis à jour avec succès'
             ]);
 

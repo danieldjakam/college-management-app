@@ -262,20 +262,21 @@ function AcademicPeriodsManagement() {
               </Form.Group>
             </Col>
             <Col md={6}>
-              {validation && (
+              {/* Section de validation des pourcentages masquée */}
+              {/* {validation && (
                 <div>
                   <Form.Label>Validation de l'année</Form.Label>
                   <Alert variant={getValidationVariant()} className="mb-0">
                     {getValidationMessage()}
                   </Alert>
-                  <ProgressBar 
+                  <ProgressBar
                     variant={getValidationVariant()}
                     now={validation.total_percentage}
                     label={`${validation.total_percentage}%`}
                     className="mt-2"
                   />
                 </div>
-              )}
+              )} */}
             </Col>
           </Row>
         </Card.Body>

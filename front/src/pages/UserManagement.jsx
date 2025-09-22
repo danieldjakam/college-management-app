@@ -76,6 +76,9 @@ const UserManagement = () => {
         secretaire: 'Secrétaire',
         enseignant: 'Enseignant',
         teacher: 'Enseignant',
+        vacataire: 'Vacataire',
+        SP: 'Surveillant Principal',
+        P: 'Professeur',
         accountant: 'Comptable',
         principal: 'Principal',
         user: 'Utilisateur',
@@ -146,6 +149,37 @@ const UserManagement = () => {
             ]);
 
             if (usersRes.success) {
+                console.log('API Users Response:', usersRes.data);
+
+                // Debug: chercher Mr Boum
+                const mrBoum = usersRes.data.filter(user =>
+                    user.name?.toLowerCase().includes('boum')
+                );
+                console.log('Found Mr Boum:', mrBoum);
+
+                // Debug détaillé pour Mr Boum
+                if (mrBoum.length > 0) {
+                    mrBoum.forEach(user => {
+                        console.log('=== MR BOUM DETAILS ===');
+                        console.log('ID:', user.id);
+                        console.log('Name:', user.name);
+                        console.log('Email:', user.email);
+                        console.log('Staff Identifier:', user.staff_identifier);
+                        console.log('Role:', user.role);
+                        console.log('Contact:', user.contact);
+                        console.log('Is Active:', user.is_active);
+                        console.log('Full Object:', user);
+                        console.log('========================');
+                    });
+                }
+
+                // Debug: chercher les enseignants dans la réponse
+                const teachers = usersRes.data.filter(user =>
+                    user.role === 'teacher' || user.role === 'enseignant' ||
+                    user.name?.toLowerCase().includes('enseignant') ||
+                    user.email?.toLowerCase().includes('teacher')
+                );
+                console.log('Found teachers:', teachers);
                 setUsers(usersRes.data);
                 setFilteredUsers(usersRes.data);
             }
@@ -283,15 +317,23 @@ const UserManagement = () => {
                 generate_password: true
             });
         } else if (mode === 'edit' && user) {
+            console.log('Editing user:', user);
+            console.log('User role:', user.role);
+
+            // Force la valeur du rôle, même si elle n'est pas dans la liste
+            const userRole = user.role || 'user'; // fallback vers 'user' si pas de rôle
+
             setFormData({
                 name: user.name,
                 email: user.email,
                 contact: user.contact || '',
                 photo: user.photo || '',
-                role: user.role,
+                role: userRole,
                 is_active: user.is_active,
                 generate_password: false
             });
+
+            console.log('FormData set with role:', userRole);
         }
         
         setShowModal(true);
@@ -937,34 +979,59 @@ const UserManagement = () => {
                         <Col md={6}>
                             <Form.Group className="mb-3">
                                 <Form.Label>Rôle *</Form.Label>
+                                {modalMode === 'edit' && (
+                                    <div className="mb-2">
+                                        <small className="text-info">
+                                            DEBUG - Rôle original: <strong>{selectedUser?.role}</strong> |
+                                            Rôle formData: <strong>{formData.role}</strong>
+                                        </small>
+                                        <br />
+                                        <Button
+                                            size="sm"
+                                            variant="outline-warning"
+                                            onClick={() => setFormData({...formData, role: 'teacher'})}
+                                            className="me-2"
+                                        >
+                                            Forcer → Enseignant (teacher)
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline-info"
+                                            onClick={() => setFormData({...formData, role: 'enseignant'})}
+                                        >
+                                            Forcer → Enseignant (enseignant)
+                                        </Button>
+                                    </div>
+                                )}
                                 <Form.Select
                                     value={formData.role}
                                     onChange={(e) => setFormData({...formData, role: e.target.value})}
                                     required
                                     disabled={modalMode === 'view'}
+                                    onFocus={() => console.log('Form role value:', formData.role)}
                                 >
-                                    <optgroup label="Rôles administratifs principaux">
-                                        <option value="principal">Principal</option>
-                                        <option value="surveillant_general">Surveillant Général</option>
-                                        <option value="general_accountant">Comptable Général</option>
-                                        <option value="comptable_superieur">Comptable Supérieur</option>
-                                        <option value="accountant">Comptable</option>
-                                        <option value="secretaire">Secrétaire</option>
-                                        <option value="user">Utilisateur</option>
-                                        <option value="bibliothecaire">Bibliothécaire</option>
-                                    </optgroup>
-                                    <optgroup label="Nouveaux rôles">
-                                        <option value="responsable_pedagogique">Responsable Pédagogique</option>
-                                        <option value="dean_of_studies">Dean of Studies</option>
-                                        <option value="censeur_esg">Censeur ESG</option>
-                                        <option value="censeur">Censeur</option>
-                                        <option value="surveillant_secteur">Surveillant de Secteur</option>
-                                        <option value="caissiere">Caissière</option>
-                                        <option value="bibliothecaire">Bibliothécaire</option>
-                                        <option value="chef_travaux">Chef des Travaux</option>
-                                        <option value="chef_securite">Chef de Sécurité</option>
-                                        <option value="reprographe">Reprographe</option>
-                                    </optgroup>
+                                    <option value="teacher">👨‍🏫 Enseignant</option>
+                                    <option value="enseignant">👨‍🏫 Enseignant (Legacy)</option>
+                                    <option value="vacataire">👨‍💼 Vacataire</option>
+                                    <option value="SP">👮 Surveillant Principal</option>
+                                    <option value="P">🎓 Professeur</option>
+                                    <option value="principal">🏛️ Principal</option>
+                                    <option value="surveillant_general">👮 Surveillant Général</option>
+                                    <option value="general_accountant">💰 Comptable Général</option>
+                                    <option value="comptable_superieur">💼 Comptable Supérieur</option>
+                                    <option value="accountant">📊 Comptable</option>
+                                    <option value="secretaire">📝 Secrétaire</option>
+                                    <option value="user">👤 Utilisateur</option>
+                                    <option value="bibliothecaire">📚 Bibliothécaire</option>
+                                    <option value="responsable_pedagogique">🎓 Responsable Pédagogique</option>
+                                    <option value="dean_of_studies">🏫 Dean of Studies</option>
+                                    <option value="censeur_esg">📋 Censeur ESG</option>
+                                    <option value="censeur">📋 Censeur</option>
+                                    <option value="surveillant_secteur">👁️ Surveillant de Secteur</option>
+                                    <option value="caissiere">💳 Caissière</option>
+                                    <option value="chef_travaux">🔧 Chef des Travaux</option>
+                                    <option value="chef_securite">🛡️ Chef de Sécurité</option>
+                                    <option value="reprographe">🖨️ Reprographe</option>
                                 </Form.Select>
                             </Form.Group>
                         </Col>
@@ -1052,6 +1119,23 @@ const UserManagement = () => {
                             >
                                 <Upload className="me-2" />
                                 Import Personnel Admin
+                            </Button>
+                            <Button
+                                variant="warning"
+                                onClick={() => {
+                                    console.clear();
+                                    console.log('=== LISTE COMPLÈTE DES ID PERSONNEL ===');
+                                    users.forEach(user => {
+                                        const id = user.staff_identifier || 'PAS D\'ID';
+                                        console.log(`${user.name} → ID: ${id}`);
+                                    });
+                                    console.log('=====================================');
+                                    alert('Liste des ID affichée dans la console (F12)');
+                                }}
+                                className="d-flex align-items-center me-2"
+                                title="Afficher tous les ID Personnel dans la console"
+                            >
+                                📋 Voir tous les ID
                             </Button>
                             <Button
                                 variant="primary"
@@ -1283,15 +1367,53 @@ const UserManagement = () => {
                                         <td>{user.name}</td>
                                         <td>{user.email}</td>
                                         <td>
-                                            <Badge bg="secondary" className="font-monospace">
-                                                {user.staff_identifier || '-'}
-                                            </Badge>
+                                            <div className="d-flex align-items-center gap-2">
+                                                <Badge
+                                                    bg={user.staff_identifier ? "success" : "secondary"}
+                                                    className="font-monospace"
+                                                    style={{fontSize: user.staff_identifier ? '14px' : '12px'}}
+                                                >
+                                                    {user.staff_identifier || 'PAS D\'ID'}
+                                                </Badge>
+                                                {!user.staff_identifier && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline-primary"
+                                                        onClick={() => {
+                                                            const id = prompt(`Saisir ID Personnel pour ${user.name}:`);
+                                                            if (id) {
+                                                                // Mettre à jour immédiatement l'interface
+                                                                user.staff_identifier = id;
+                                                                user.qr_code = id;
+                                                                // Appeler l'API pour sauvegarder avec synchronisation QR code
+                                                                secureApiEndpoints.userManagement.update(user.id, {
+                                                                    staff_identifier: id,
+                                                                    qr_code: id  // Synchroniser le QR code avec l'ID Personnel
+                                                                })
+                                                                    .then(() => {
+                                                                        alert(`ID "${id}" assigné à ${user.name} (QR code mis à jour)`);
+                                                                        loadData(); // Recharger les données
+                                                                    })
+                                                                    .catch(err => {
+                                                                        alert('Erreur lors de la sauvegarde');
+                                                                        console.error(err);
+                                                                    });
+                                                            }
+                                                        }}
+                                                        title="Assigner un ID Personnel"
+                                                    >
+                                                        ➕ ID
+                                                    </Button>
+                                                )}
+                                            </div>
                                         </td>
                                         <td>{user.contact || '-'}</td>
                                         <td>
                                             <Badge bg={roleColors[user.role]}>
                                                 {roleLabels[user.role]}
                                             </Badge>
+                                            <br />
+                                            <small className="text-muted">DEBUG: {user.role}</small>
                                         </td>
                                         <td>
                                             <Badge bg={user.is_active ? 'success' : 'secondary'}>
