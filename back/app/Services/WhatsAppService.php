@@ -237,7 +237,7 @@ class WhatsAppService
         // Informations sur le paiement
         $paymentAmount = number_format($payment->total_amount, 0, ',', ' ') . ' FCFA';
         $paymentDate = $payment->payment_date->format('d/m/Y');
-        $paymentTime = $payment->created_at->format('H:i');
+        $paymentTime = $payment->created_at->setTimezone('Africa/Douala')->format('H:i');
         
         // Informations sur les réductions si applicable
         $reductionText = '';
@@ -301,9 +301,9 @@ class WhatsAppService
         $title = $this->getPersonTitle($user);
         $eventType = $staffAttendance->event_type === 'entry' ? 'ENTRÉE' : 'SORTIE';
         
-        // Format de la date et heure
-        $date = $staffAttendance->scanned_at->format('Y-m-d');
-        $time = $staffAttendance->scanned_at->format('H:i:s');
+        // Format de la date et heure - Utiliser le fuseau horaire Africa/Douala
+        $date = $staffAttendance->scanned_at->setTimezone('Africa/Douala')->format('Y-m-d');
+        $time = $staffAttendance->scanned_at->setTimezone('Africa/Douala')->format('H:i:s');
         
         // Préparer le message de base
         $message = "*ATTENDANCE / QRCODE {$eventType}*\n\n" .
@@ -346,7 +346,7 @@ class WhatsAppService
                    "👤 *Élève:* {$student->full_name}\n" .
                    "📚 *Classe:* " . ($student->classSeries->name ?? 'N/A') . "\n" .
                    "📅 *Date:* " . $attendance->attendance_date->format('d/m/Y') . "\n" .
-                   "🕐 *Heure de contrôle:* " . $attendance->scanned_at->format('H:i') . "\n\n" .
+                   "🕐 *Heure de contrôle:* " . $attendance->scanned_at->setTimezone('Africa/Douala')->format('H:i') . "\n\n" .
                    "❌ Votre enfant n'était pas présent lors du contrôle de présence.\n\n" .
                    "📞 Veuillez contacter l'école si votre enfant devait être présent.\n\n" .
                    "📱 Notification automatique du système de gestion scolaire.";
@@ -362,9 +362,9 @@ class WhatsAppService
         return "{$eventIcon} *{$eventText} DÉTECTÉE - {$schoolName}*\n\n" .
                "👤 *Élève:* {$student->full_name}\n" .
                "📚 *Classe:* " . ($student->classSeries->name ?? 'N/A') . "\n" .
-               "🕐 *Heure:* " . $attendance->scanned_at->format('H:i') . "\n" .
+               "🕐 *Heure:* " . $attendance->scanned_at->setTimezone('Africa/Douala')->format('H:i') . "\n" .
                "📅 *Date:* " . $attendance->attendance_date->format('d/m/Y') . "\n\n" .
-               "ℹ️ Votre enfant {$eventMessage} à {$attendance->scanned_at->format('H:i')}.\n\n" .
+               "ℹ️ Votre enfant {$eventMessage} à {$attendance->scanned_at->setTimezone('Africa/Douala')->format('H:i')}.\n\n" .
                "📱 Notification automatique du système de gestion scolaire.";
     }
 
@@ -406,7 +406,7 @@ class WhatsAppService
                    "• Vérifiez les stocks physiques\n" .
                    "• Planifiez les achats nécessaires\n" .
                    "• Contactez les responsables concernés\n\n" .
-                   "📅 Alerte générée le " . now()->format('d/m/Y à H:i') . "\n\n" .
+                   "📅 Alerte générée le " . now()->setTimezone('Africa/Douala')->format('d/m/Y à H:i') . "\n\n" .
                    "📱 Notification automatique du système de gestion d'inventaire.";
         
         return $message;
@@ -424,7 +424,7 @@ class WhatsAppService
                "📝 *Besoin:* {$need->name}\n" .
                "💰 *Montant:* {$need->formatted_amount}\n" .
                "📄 *Description:* {$need->description}\n\n" .
-               "📅 *Soumis le:* " . $need->created_at->format('d/m/Y à H:i') . "\n\n" .
+               "📅 *Soumis le:* " . $need->created_at->setTimezone('Africa/Douala')->format('d/m/Y à H:i') . "\n\n" .
                "⚠️ Ce besoin nécessite votre attention pour approbation/rejet.";
     }
 
@@ -939,7 +939,7 @@ class WhatsAppService
         $testMessage = "🧪 *TEST DE CONFIGURATION ULTRAMSG*\n\n" .
                       "Ce message confirme que les notifications WhatsApp sont correctement configurées pour " .
                       ($settings->school_name ?? 'votre école') . ".\n\n" .
-                      "📅 " . now()->format('d/m/Y à H:i') . "\n\n" .
+                      "📅 " . now()->setTimezone('Africa/Douala')->format('d/m/Y à H:i') . "\n\n" .
                       "✅ Configuration UltraMsg opérationnelle";
 
         $result = $this->sendMessage($settings->whatsapp_notification_number, $testMessage);
@@ -1148,7 +1148,7 @@ class WhatsAppService
                "👤 *Élève:* {$student->name}\n" .
                "📚 *Classe:* {$className}\n" .
                "📅 *Date:* " . $studentAttendance->attendance_date->format('d/m/Y') . "\n" .
-               "🕐 *Heure de l'appel:* " . $studentAttendance->created_at->format('H:i') . "\n\n" .
+               "🕐 *Heure de l'appel:* " . $studentAttendance->created_at->setTimezone('Africa/Douala')->format('H:i') . "\n\n" .
                "📋 Votre enfant {$statusMessage}.\n\n" .
                ($studentAttendance->is_present 
                    ? "🎓 Bonne journée scolaire !" 
@@ -1250,7 +1250,7 @@ class WhatsAppService
         $message .= $parentNotification->message . "\n\n";
         
         // Pied de page
-        $message .= "📅 *Date:* " . $parentNotification->created_at->format('d/m/Y à H:i') . "\n";
+        $message .= "📅 *Date:* " . $parentNotification->created_at->setTimezone('Africa/Douala')->format('d/m/Y à H:i') . "\n";
         
         if ($parentNotification->admin) {
             $message .= "👨‍💼 *Envoyé par:* {$parentNotification->admin->name}\n";
