@@ -580,13 +580,24 @@ class PaymentController extends Controller
         $scholarship = $this->discountCalculatorService->getClassScholarship($student);
 
         if ($scholarship && $this->discountCalculatorService->isEligibleForScholarship(now())) {
-            // Le montant de la bourse est directement le montant configuré
-            // Il s'applique à la tranche spécifiée
-            foreach ($paymentTranches as $tranche) {
-                if ($tranche->id == $scholarship->payment_tranche_id) {
-                    $totalScholarshipAmount = $scholarship->amount;
-                    $hasScholarship = true;
-                    break; // Une seule tranche peut être affectée
+            // Vérifier si la bourse a déjà été appliquée sur des paiements précédents
+            $workingYear = $this->getUserWorkingYear();
+            $existingPayments = Payment::forStudent($student->id)
+                ->forYear($workingYear->id)
+                ->where('has_scholarship', true)
+                ->where('scholarship_amount', '>', 0)
+                ->exists();
+
+            // Si la bourse n'a jamais été appliquée, l'appliquer maintenant
+            if (!$existingPayments) {
+                // Le montant de la bourse est directement le montant configuré
+                // Il s'applique à la tranche spécifiée
+                foreach ($paymentTranches as $tranche) {
+                    if ($tranche->id == $scholarship->payment_tranche_id) {
+                        $totalScholarshipAmount = $scholarship->amount;
+                        $hasScholarship = true;
+                        break; // Une seule tranche peut être affectée
+                    }
                 }
             }
         }
