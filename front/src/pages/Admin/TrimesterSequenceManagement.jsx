@@ -202,7 +202,10 @@ const TrimesterSequenceManagement = () => {
             console.error('ERREUR création trimestre manuelle:', error);
             console.error('Error message:', error.message);
             console.error('Stack trace:', error.stack);
-            setError('Erreur lors de la création du trimestre');
+
+            // Afficher le message d'erreur spécifique du serveur
+            const errorMessage = error.message || 'Erreur lors de la création du trimestre';
+            setError(errorMessage);
         }
     };
 
@@ -584,16 +587,22 @@ const TrimesterSequenceManagement = () => {
     const generateSequencesForTrimester = async (trimester) => {
         try {
             setError(null);
-            
+
+            // Récupérer les séquences existantes pour ce trimestre
+            const existingSequences = sequences.filter(s => s.trimester_id === trimester.id);
+            const existingNumbers = existingSequences.map(s => s.number);
+
+            console.log('Séquences existantes:', existingNumbers);
+
             // Logique académique camerounaise
-            let sequences = [];
-            
+            let sequencesToCreate = [];
+
             if (trimester.number === 1) {
                 // Trimestre 1: Séquence 1, Séquence 2 + Composition 1
                 const duration = (new Date(trimester.end_date) - new Date(trimester.start_date)) / 3; // 3 périodes
                 
                 // Séquence 1
-                sequences.push({
+                sequencesToCreate.push({
                     name: 'Séquence 1',
                     number: 1,
                     trimester_id: trimester.id,
@@ -605,7 +614,7 @@ const TrimesterSequenceManagement = () => {
                 });
                 
                 // Séquence 2
-                sequences.push({
+                sequencesToCreate.push({
                     name: 'Séquence 2',
                     number: 2,
                     trimester_id: trimester.id,
@@ -621,7 +630,7 @@ const TrimesterSequenceManagement = () => {
                 const duration = (new Date(trimester.end_date) - new Date(trimester.start_date)) / 3;
                 
                 // Séquence 3
-                sequences.push({
+                sequencesToCreate.push({
                     name: 'Séquence 3',
                     number: 3,
                     trimester_id: trimester.id,
@@ -633,7 +642,7 @@ const TrimesterSequenceManagement = () => {
                 });
                 
                 // Séquence 4
-                sequences.push({
+                sequencesToCreate.push({
                     name: 'Séquence 4',
                     number: 4,
                     trimester_id: trimester.id,
@@ -646,16 +655,24 @@ const TrimesterSequenceManagement = () => {
             }
             // Trimestre 3: Pas de séquences, seulement la composition 3
 
-            // Créer les séquences
-            for (const sequenceData of sequences) {
-                await secureApiEndpoints.sequences.create(sequenceData);
+            // Créer uniquement les séquences qui n'existent pas encore
+            let createdCount = 0;
+            for (const sequenceData of sequencesToCreate) {
+                if (!existingNumbers.includes(sequenceData.number)) {
+                    await secureApiEndpoints.sequences.create(sequenceData);
+                    createdCount++;
+                    console.log(`Séquence ${sequenceData.number} créée`);
+                } else {
+                    console.log(`Séquence ${sequenceData.number} existe déjà, ignorée`);
+                }
             }
 
             // Créer la COMPOSITION comme une SÉQUENCE spéciale (verrouillée par défaut)
             const compositionName = `Composition ${trimester.number}`;
+            const compositionNumber = trimester.number === 1 ? 3 : trimester.number === 2 ? 5 : 6;
             const compositionSequenceData = {
                 name: compositionName,
-                number: trimester.number === 1 ? 3 : trimester.number === 2 ? 5 : 6, // Numéros : 3, 5, 6 pour les compositions
+                number: compositionNumber, // Numéros : 3, 5, 6 pour les compositions
                 trimester_id: trimester.id,
                 school_year_id: trimester.school_year_id,
                 start_date: new Date(new Date(trimester.end_date).getTime() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 14 jours avant la fin
@@ -666,23 +683,36 @@ const TrimesterSequenceManagement = () => {
                 is_composition: true, // Marquer comme composition pour la différencier
                 is_locked: true // Propriété pour indiquer qu'elle est verrouillée
             };
-            
-            // Créer la composition comme SÉQUENCE
-            try {
-                await secureApiEndpoints.sequences.create(compositionSequenceData);
-                console.log(`Composition ${trimester.number} créée comme séquence`);
-            } catch (compositionError) {
-                console.error('Erreur création composition:', compositionError);
-                // Ne pas faire échouer tout le processus si la composition échoue
+
+            // Créer la composition comme SÉQUENCE (uniquement si elle n'existe pas)
+            let compositionCreated = false;
+            if (!existingNumbers.includes(compositionNumber)) {
+                try {
+                    await secureApiEndpoints.sequences.create(compositionSequenceData);
+                    console.log(`Composition ${trimester.number} créée comme séquence`);
+                    compositionCreated = true;
+                } catch (compositionError) {
+                    console.error('Erreur création composition:', compositionError);
+                    // Ne pas faire échouer tout le processus si la composition échoue
+                }
+            } else {
+                console.log(`Composition ${trimester.number} existe déjà, ignorée`);
             }
 
-            setSuccess(`${sequences.length} séquence(s) et 1 composition générées pour ${trimester.name}`);
+            const totalCreated = createdCount + (compositionCreated ? 1 : 0);
+            if (totalCreated > 0) {
+                setSuccess(`${totalCreated} séquence(s)/composition(s) créée(s) pour ${trimester.name}`);
+            } else {
+                setSuccess(`Toutes les séquences existent déjà pour ${trimester.name}`);
+            }
             await loadData();
             setTimeout(() => setSuccess(null), 4000);
 
         } catch (error) {
             console.error('Erreur génération séquences:', error);
-            setError('Erreur lors de la génération des séquences et compositions');
+            // Afficher le message d'erreur spécifique du serveur
+            const errorMessage = error.message || 'Erreur lors de la génération des séquences et compositions';
+            setError(errorMessage);
         }
     };
 
@@ -738,9 +768,29 @@ const TrimesterSequenceManagement = () => {
                                                 <CheckSquare className="me-1" />
                                                 Vérifier Compositions
                                             </Button>
-                                            <Button 
-                                                variant="outline-light" 
-                                                onClick={() => setShowCreateTrimester(true)}
+                                            <Button
+                                                variant="outline-light"
+                                                onClick={() => {
+                                                    if (trimesters.length >= 3) {
+                                                        setError('Tous les trimestres (1, 2, 3) existent déjà pour cette année scolaire.');
+                                                        setTimeout(() => setError(null), 4000);
+                                                        return;
+                                                    }
+                                                    // Trouver le premier numéro disponible
+                                                    let availableNumber = 1;
+                                                    for (let i = 1; i <= 3; i++) {
+                                                        if (!trimesters.some(t => t.number === i)) {
+                                                            availableNumber = i;
+                                                            break;
+                                                        }
+                                                    }
+                                                    setTrimesterForm({
+                                                        ...trimesterForm,
+                                                        number: availableNumber
+                                                    });
+                                                    setShowCreateTrimester(true);
+                                                }}
+                                                disabled={trimesters.length >= 3}
                                             >
                                                 <Plus className="me-1" />
                                                 Nouveau Trimestre
@@ -1128,10 +1178,21 @@ const TrimesterSequenceManagement = () => {
                                             number: parseInt(e.target.value)
                                         })}
                                     >
-                                        <option value={1}>1er Trimestre</option>
-                                        <option value={2}>2e Trimestre</option>
-                                        <option value={3}>3e Trimestre</option>
+                                        <option value={1} disabled={trimesters.some(t => t.number === 1)}>
+                                            1er Trimestre {trimesters.some(t => t.number === 1) && '(existe déjà)'}
+                                        </option>
+                                        <option value={2} disabled={trimesters.some(t => t.number === 2)}>
+                                            2e Trimestre {trimesters.some(t => t.number === 2) && '(existe déjà)'}
+                                        </option>
+                                        <option value={3} disabled={trimesters.some(t => t.number === 3)}>
+                                            3e Trimestre {trimesters.some(t => t.number === 3) && '(existe déjà)'}
+                                        </option>
                                     </Form.Select>
+                                    {trimesters.length >= 3 && (
+                                        <Form.Text className="text-warning">
+                                            ⚠️ Tous les trimestres existent déjà pour cette année scolaire.
+                                        </Form.Text>
+                                    )}
                                 </Form.Group>
                             </Col>
                         </Row>
@@ -1178,7 +1239,11 @@ const TrimesterSequenceManagement = () => {
                     <Button variant="secondary" onClick={() => setShowCreateTrimester(false)}>
                         Annuler
                     </Button>
-                    <Button variant="primary" onClick={handleCreateTrimester}>
+                    <Button
+                        variant="primary"
+                        onClick={handleCreateTrimester}
+                        disabled={trimesters.length >= 3}
+                    >
                         Créer Trimestre
                     </Button>
                 </Modal.Footer>

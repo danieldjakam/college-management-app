@@ -426,7 +426,7 @@ class TeacherAttendanceController extends Controller
                 if (str_starts_with($teacher->photo, 'http')) {
                     $correctedUrl = str_replace(['127.0.0.1:8000', 'localhost:8000', '192.168.1.229:8000'], $_ENV['APP_URL'], $teacher->photo);
 
-                    $relativePath = str_replace(['http://127.0.0.1:8000/', 'http://localhost:8000/', 'http://192.168.1.229:8000/', $_ENV['APP_URL']], '', $teacher->photo);
+                    $relativePath = str_replace(['http://127.0.0.1:8000/', 'http:///', 'http://192.168.1.229:8000/', $_ENV['APP_URL']], '', $teacher->photo);
                     $relativePath = ltrim($relativePath, '/');
                     if (str_starts_with($relativePath, 'storage/')) {
                         $relativePath = substr($relativePath, 8);
@@ -527,7 +527,7 @@ class TeacherAttendanceController extends Controller
                 min-height: 100vh;
                 background: #f5f5f5;
             }
-            
+
             .badge-container {
                 width: 95.6mm;
                 height: 54mm;
@@ -540,7 +540,7 @@ class TeacherAttendanceController extends Controller
                 overflow: hidden;
                 box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             }
-            
+
             /* Nom de l'enseignant - à côté de l'icône personne */
             .teacher-name {
                 position: absolute;
@@ -554,7 +554,7 @@ class TeacherAttendanceController extends Controller
                 line-height: 1.1;
                 text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             }
-            
+
             /* Type - juste en dessous du nom */
             .teacher-type {
                 position: absolute;
@@ -567,7 +567,7 @@ class TeacherAttendanceController extends Controller
                 line-height: 1.1;
                 text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             }
-            
+
             /* Téléphone personnel - au-dessus du téléphone école */
             .teacher-phone {
                 position: absolute;
@@ -579,7 +579,7 @@ class TeacherAttendanceController extends Controller
                 font-family: 'Open Sans', 'Arial', sans-serif;
                 text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             }
-            
+
             /* Photo dans la zone circulaire */
             .teacher-photo {
                 position: absolute;
@@ -593,7 +593,7 @@ class TeacherAttendanceController extends Controller
                 background: white;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             }
-            
+
             /* QR Code dans la zone en pointillés */
             .qr-code {
                 position: absolute;
@@ -607,7 +607,7 @@ class TeacherAttendanceController extends Controller
                 padding: 2px;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             }
-            
+
             @page {
                 size: A4;
                 margin: 10mm;
@@ -618,16 +618,16 @@ class TeacherAttendanceController extends Controller
         <div class='badge-container'>
             <!-- Nom de l'enseignant -->
             <div class='teacher-name'>{$truncatedName}</div>
-            
+
             <!-- Type d'enseignant -->
             <div class='teacher-type'>{$teacherLabel}</div>
-            
+
             <!-- Téléphone personnel -->
             <div class='teacher-phone'>{$formattedPhone}</div>
-            
+
             <!-- Photo -->
             <img src='{$photoBase64}' alt='Photo' class='teacher-photo'>
-            
+
             <!-- QR Code -->
             <img src='https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" . urlencode($qrCode) . "&margin=1' alt='QR Code' class='qr-code'>
         </div>
@@ -709,7 +709,7 @@ class TeacherAttendanceController extends Controller
                 overflow: hidden;
                 box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             }
-            
+
             .teacher-name {
                 position: absolute;
                 left: 58px;
@@ -722,7 +722,7 @@ class TeacherAttendanceController extends Controller
                 line-height: 1.1;
                 text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             }
-            
+
             .teacher-type {
                 position: absolute;
                 left: 58px;
@@ -734,7 +734,7 @@ class TeacherAttendanceController extends Controller
                 line-height: 1.1;
                 text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             }
-            
+
             .teacher-phone {
                 position: absolute;
                 left: 58px;
@@ -745,7 +745,7 @@ class TeacherAttendanceController extends Controller
                 font-family: 'Open Sans', 'Arial', sans-serif;
                 text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             }
-            
+
             .teacher-photo {
                 position: absolute;
                 right: 47px;
@@ -758,7 +758,7 @@ class TeacherAttendanceController extends Controller
                 background: white;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             }
-            
+
             .qr-code {
                 position: absolute;
                 right: 135px;

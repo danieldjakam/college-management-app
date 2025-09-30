@@ -3,6 +3,7 @@ import { Card, Button, Table, Badge, Modal, Row, Col, Alert, Spinner, ProgressBa
 import { CardText, Download, Eye, Printer, ArrowClockwise, Clock, CheckCircle, ExclamationCircle, Calendar, Book } from 'react-bootstrap-icons';
 import { secureApi } from '../../utils/apiMigration';
 import { authService } from '../../services/authService';
+import { host } from '../../utils/fetch';
 
 function BulletinManagementNew() {
   const [loading, setLoading] = useState(false);
@@ -172,7 +173,7 @@ function BulletinManagementNew() {
       
       // Utiliser fetch directement pour les téléchargements de fichiers
       const token = authService.getToken();
-      const response = await fetch(`http://localhost:8000/api/bulletins/download/${bulletinId}`, {
+      const response = await fetch(`${host}/api/bulletins/download/${bulletinId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -285,6 +286,67 @@ function BulletinManagementNew() {
     }
   };
 
+  const handleDownloadStudentBulletins = async (student) => {
+    try {
+      setLoading(true);
+      setError('');
+
+      // Collecter tous les bulletins disponibles (sequences + trimesters)
+      const availableBulletins = [];
+
+      // Vérifier toutes les propriétés de bulletins
+      if (student.bulletins) {
+        Object.entries(student.bulletins).forEach(([key, bulletin]) => {
+          if (bulletin && (bulletin.is_generated || bulletin.bulletin_id)) {
+            availableBulletins.push({
+              ...bulletin,
+              key: key
+            });
+          }
+        });
+      }
+
+      if (availableBulletins.length === 0) {
+        setError('Aucun bulletin disponible pour cet élève');
+        setTimeout(() => setError(''), 3000);
+        return;
+      }
+
+      if (!window.confirm(`Télécharger les ${availableBulletins.length} bulletin(s) de ${student.first_name} ${student.last_name} ?`)) {
+        return;
+      }
+
+      // Télécharger chaque bulletin séquentiellement
+      let downloadedCount = 0;
+      for (const bulletin of availableBulletins) {
+        try {
+          await handleDownloadBulletin(
+            bulletin.bulletin_id,
+            `${student.first_name}_${student.last_name}`,
+            bulletin.type || bulletin.period_type,
+            bulletin.identifier || bulletin.period_identifier,
+            student.id
+          );
+          downloadedCount++;
+          // Petite pause entre les téléchargements
+          await new Promise(resolve => setTimeout(resolve, 800));
+        } catch (err) {
+          console.error(`Erreur téléchargement bulletin ${bulletin.key}:`, err);
+        }
+      }
+
+      setSuccess(`${downloadedCount}/${availableBulletins.length} bulletin(s) téléchargé(s) avec succès`);
+      setTimeout(() => setSuccess(''), 3000);
+
+    } catch (error) {
+      console.error('Erreur téléchargement bulletins élève:', error);
+      setError('Erreur lors du téléchargement des bulletins');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDownloadAllBulletins = async () => {
     if (!selectedSeries) {
       setError('Veuillez sélectionner une série');
@@ -299,7 +361,7 @@ function BulletinManagementNew() {
       setLoading(true);
       
       const token = authService.getToken();
-      const response = await fetch('http://localhost:8000/api/bulletins/download-all', {
+      const response = await fetch(`${host}/api/bulletins/download-all`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -740,7 +802,20 @@ function BulletinManagementNew() {
                         {filterStudentsByPeriod(studentsData).map((student) => (
                           <tr key={student.id}>
                             <td>
-                              <strong>{student.first_name} {student.last_name}</strong>
+                              <div className="d-flex justify-content-between align-items-center">
+                                <strong>{student.first_name} {student.last_name}</strong>
+                                {student.bulletins && Object.values(student.bulletins).some(b => b && (b.is_generated || b.bulletin_id)) && (
+                                  <Button
+                                    variant="outline-primary"
+                                    size="sm"
+                                    onClick={() => handleDownloadStudentBulletins(student)}
+                                    title={`Télécharger tous les bulletins de ${student.first_name}`}
+                                    className="ms-2"
+                                  >
+                                    <Download size={12} /> Tous
+                                  </Button>
+                                )}
+                              </div>
                             </td>
                             <td>{student.matricule}</td>
                             
@@ -827,10 +902,10 @@ function BulletinManagementNew() {
                                         </Button>
                                       )}
                                       
-                                      {/* Download - Only if bulletin_id exists */}
-                                      {bulletin.bulletin_id && (
+                                      {/* Download - Only if is_generated or bulletin_id exists */}
+                                      {(bulletin.is_generated || bulletin.bulletin_id) ? (
                                         <Button
-                                          variant={bulletin.is_archived ? 'outline-dark' : 'outline-success'}
+                                          variant={bulletin.is_archived ? 'dark' : 'success'}
                                           size="sm"
                                           onClick={() => handleDownloadBulletin(
                                             bulletin.bulletin_id,
@@ -840,11 +915,13 @@ function BulletinManagementNew() {
                                             student.id
                                           )}
                                           title={`Télécharger ${bulletin.name}${bulletin.is_archived ? ' (Archive)' : ''}`}
+                                          className="d-flex align-items-center gap-1"
                                         >
-                                          <Download size={12} />
-                                          {bulletin.is_archived && <span className="ms-1">📁</span>}
+                                          <Download size={14} />
+                                          <span style={{ fontSize: '11px' }}>PDF</span>
+                                          {bulletin.is_archived && <span>📁</span>}
                                         </Button>
-                                      )}
+                                      ) : null}
                                       
                                       {/* Force Regenerate - Seulement pour les périodes actuelles */}
                                       {bulletin.status === 'current' && (
