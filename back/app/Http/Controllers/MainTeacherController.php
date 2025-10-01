@@ -21,7 +21,7 @@ class MainTeacherController extends Controller
         try {
             $query = MainTeacher::with([
                 'teacher',
-                'schoolClass.level',
+                'classSeries.schoolClass.level',
                 'schoolYear'
             ]);
 
@@ -36,9 +36,9 @@ class MainTeacherController extends Controller
                 }
             }
 
-            // Filtrer par classe
-            if ($request->has('school_class_id')) {
-                $query->where('school_class_id', $request->school_class_id);
+            // Filtrer par série de classe
+            if ($request->has('class_series_id')) {
+                $query->where('class_series_id', $request->class_series_id);
             }
 
             // Filtrer par enseignant
@@ -52,7 +52,7 @@ class MainTeacherController extends Controller
                 $query->where('is_active', $isActive);
             }
 
-            $mainTeachers = $query->orderBy('school_class_id')
+            $mainTeachers = $query->orderBy('class_series_id')
                                  ->get();
 
             return response()->json([
@@ -76,7 +76,7 @@ class MainTeacherController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'teacher_id' => 'required|exists:teachers,id',
-                'school_class_id' => 'required|exists:school_classes,id',
+                'class_series_id' => 'required|exists:class_series,id',
                 'school_year_id' => 'nullable|exists:school_years,id'
             ]);
 
@@ -100,8 +100,8 @@ class MainTeacherController extends Controller
 
             DB::beginTransaction();
 
-            // Vérifier s'il y a déjà un professeur principal pour cette classe cette année
-            $existingMainTeacher = MainTeacher::where('school_class_id', $request->school_class_id)
+            // Vérifier s'il y a déjà un professeur principal pour cette série cette année
+            $existingMainTeacher = MainTeacher::where('class_series_id', $request->class_series_id)
                 ->where('school_year_id', $schoolYearId)
                 ->where('is_active', true)
                 ->first();
@@ -109,7 +109,7 @@ class MainTeacherController extends Controller
             if ($existingMainTeacher) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cette classe a déjà un professeur principal pour cette année scolaire'
+                    'message' => 'Cette série a déjà un professeur principal pour cette année scolaire'
                 ], 422);
             }
 
@@ -122,13 +122,13 @@ class MainTeacherController extends Controller
             if ($teacherHasClass) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cet enseignant est déjà professeur principal d\'une autre classe'
+                    'message' => 'Cet enseignant est déjà professeur principal d\'une autre série'
                 ], 422);
             }
 
             $mainTeacher = MainTeacher::create([
                 'teacher_id' => $request->teacher_id,
-                'school_class_id' => $request->school_class_id,
+                'class_series_id' => $request->class_series_id,
                 'school_year_id' => $schoolYearId,
                 'is_active' => true
             ]);
@@ -137,7 +137,7 @@ class MainTeacherController extends Controller
 
             $mainTeacher->load([
                 'teacher',
-                'schoolClass.level',
+                'classSeries.schoolClass.level',
                 'schoolYear'
             ]);
 
@@ -201,7 +201,7 @@ class MainTeacherController extends Controller
                 if ($teacherHasClass) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Cet enseignant est déjà professeur principal d\'une autre classe'
+                        'message' => 'Cet enseignant est déjà professeur principal d\'une autre série'
                     ], 422);
                 }
             }
@@ -215,7 +215,7 @@ class MainTeacherController extends Controller
 
             $mainTeacher->load([
                 'teacher',
-                'schoolClass.level',
+                'classSeries.schoolClass.level',
                 'schoolYear'
             ]);
 
@@ -295,32 +295,32 @@ class MainTeacherController extends Controller
     }
 
     /**
-     * Obtenir les classes sans professeur principal
+     * Obtenir les séries de classes sans professeur principal
      */
     public function getClassesWithoutMainTeacher(Request $request)
     {
         try {
             $schoolYearId = $request->school_year_id ?? SchoolYear::where('is_current', true)->first()?->id;
 
-            // Obtenir les IDs des classes qui ont déjà un professeur principal
-            $classesWithMainTeacher = MainTeacher::where('school_year_id', $schoolYearId)
+            // Obtenir les IDs des séries qui ont déjà un professeur principal
+            $seriesWithMainTeacher = MainTeacher::where('school_year_id', $schoolYearId)
                 ->where('is_active', true)
-                ->pluck('school_class_id');
+                ->pluck('class_series_id');
 
-            // Obtenir les classes sans professeur principal
-            $classesWithoutMainTeacher = SchoolClass::whereNotIn('id', $classesWithMainTeacher)
+            // Obtenir les séries sans professeur principal
+            $seriesWithoutMainTeacher = \App\Models\ClassSeries::whereNotIn('id', $seriesWithMainTeacher)
                 ->where('is_active', true)
-                ->with(['level'])
+                ->with(['schoolClass.level'])
                 ->get();
 
             return response()->json([
                 'success' => true,
-                'data' => $classesWithoutMainTeacher
+                'data' => $seriesWithoutMainTeacher
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des classes sans professeur principal',
+                'message' => 'Erreur lors de la récupération des séries sans professeur principal',
                 'error' => $e->getMessage()
             ], 500);
         }

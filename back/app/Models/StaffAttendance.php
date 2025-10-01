@@ -78,11 +78,11 @@ class StaffAttendance extends Model
     }
 
     /**
-     * Relation avec les enregistrements de classes multiples
+     * Relation avec les enregistrements de classes multiples (pour rapports)
      */
     public function attendanceClasses()
     {
-        return $this->hasMany(StaffAttendanceClass::class);
+        return $this->hasMany(StaffAttendanceClass::class, 'staff_attendance_id');
     }
 
     /**

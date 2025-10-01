@@ -44,23 +44,37 @@ class UserController extends Controller
     }
 
     /**
-     * Get all users (admin only)
+     * Get all users (authorized roles)
      */
-    public function all()
+    public function all(Request $request)
     {
         try {
             $user = Auth::user();
-            
-            if (!$user || $user->role !== 'admin') {
+
+            // Autoriser les rôles qui ont besoin d'accéder aux utilisateurs
+            $allowedRoles = ['admin', 'principal', 'comptable_superieur', 'accountant', 'secretaire'];
+
+            if (!$user || !in_array($user->role, $allowedRoles)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Accès non autorisé'
                 ], 403);
             }
 
-            $users = User::all();
-            
-            return response()->json($users);
+            $query = User::query();
+
+            // Filtre par rôle(s)
+            if ($request->has('role')) {
+                $roles = explode(',', $request->role);
+                $query->whereIn('role', $roles);
+            }
+
+            $users = $query->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $users
+            ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

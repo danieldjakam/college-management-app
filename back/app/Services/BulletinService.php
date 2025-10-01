@@ -198,8 +198,9 @@ class BulletinService
         $compositionGrade = $this->getCompositionGrade($trimester, $studentId, $subjectId);
         \Log::info("🎓 Composition grade: " . ($compositionGrade ?? 'null'));
 
-        // RÈGLE DEUXIÈME CYCLE: Il faut au moins 2 notes pour calculer la moyenne
-        $totalNotes = $foundSequenceNotes + ($compositionGrade !== null ? 1 : 0);
+        // CORRECTION: Ne compter que les vraies notes (exclure 'ABS' et null)
+        $hasCompositionNote = ($compositionGrade !== null && $compositionGrade !== 'ABS');
+        $totalNotes = $foundSequenceNotes + ($hasCompositionNote ? 1 : 0);
 
         if ($totalNotes < 2) {
             \Log::info("🎓 Insufficient data: only {$totalNotes} notes found, need at least 2");
@@ -207,8 +208,9 @@ class BulletinService
         }
 
         // Calcul de la moyenne: (Seq1 + Seq2 + Compo) / 3
+        // CORRECTION: Exclure 'ABS' du calcul
         $allGrades = $sequenceGrades;
-        if ($compositionGrade !== null) {
+        if ($hasCompositionNote) {
             $allGrades[] = $compositionGrade;
         }
 
@@ -256,9 +258,25 @@ class BulletinService
                 }
             }
 
+            // Vérifier aussi si marqué absent (même sans note)
+            if (!$grade) {
+                $grade = Grade::where('student_id', $studentId)
+                             ->where('sequence_id', $sequence->id)
+                             ->where('series_subject_id', $subjectId)
+                             ->where('trimester_id', $trimester)
+                             ->where('is_absent', true)
+                             ->first();
+            }
+
             if ($grade && $index < 2) {
-                $sequenceGrades[$index] = $grade->getScoreOn20();
-                \Log::info("🎓 Sequence {$sequence->number} grade: {$sequenceGrades[$index]}");
+                if ($grade->is_absent) {
+                    // Marqué absent: on met 'ABS' comme marqueur
+                    $sequenceGrades[$index] = 'ABS';
+                    \Log::info("🎓 Sequence {$sequence->number}: ABSENT");
+                } else {
+                    $sequenceGrades[$index] = $grade->getScoreOn20();
+                    \Log::info("🎓 Sequence {$sequence->number} grade: {$sequenceGrades[$index]}");
+                }
             }
         }
 
@@ -289,11 +307,28 @@ class BulletinService
                      ->where('trimester_id', $trimester)
                      ->whereNotNull('score')
                      ->first();
-        
-        $result = $grade ? $grade->getScoreOn20() : null;
-        \Log::info("Vraie composition trouvée: evaluation_id:{$evaluation->id}, grade:" . ($result ?? 'null'));
-        
-        return $result;
+
+        // Vérifier aussi si marqué absent (même sans note)
+        if (!$grade) {
+            $grade = Grade::where('student_id', $studentId)
+                         ->where('evaluation_id', $evaluation->id)
+                         ->where('trimester_id', $trimester)
+                         ->where('is_absent', true)
+                         ->first();
+        }
+
+        if ($grade) {
+            if ($grade->is_absent) {
+                \Log::info("Composition: ABSENT (evaluation_id:{$evaluation->id})");
+                return 'ABS';
+            }
+            $result = $grade->getScoreOn20();
+            \Log::info("Vraie composition trouvée: evaluation_id:{$evaluation->id}, grade:{$result}");
+            return $result;
+        }
+
+        \Log::info("Aucune note de composition (evaluation_id:{$evaluation->id})");
+        return null;
     }
     
     /**
@@ -420,16 +455,26 @@ class BulletinService
                          ->where('sequence_id', $sequence->id)
                          ->where('series_subject_id', $seriesSubject->id)
                          ->first();
-            
-            $scoreOn20 = $grade ? $grade->getScoreOn20() : null;
-            $weightedScore = $scoreOn20 ? $scoreOn20 * $seriesSubject->coefficient : 0;
-            
+
+            // Vérifier si absent
+            $scoreOn20 = null;
+            if ($grade) {
+                if ($grade->is_absent) {
+                    $scoreOn20 = 'ABS'; // Marqueur pour absent
+                } else {
+                    $scoreOn20 = $grade->getScoreOn20();
+                }
+            }
+
+            // CORRECTION: Si pas de note ou absent, weightedScore doit être null (pas 0)
+            $weightedScore = ($scoreOn20 !== null && $scoreOn20 !== 'ABS') ? $scoreOn20 * $seriesSubject->coefficient : null;
+
             // Get the first teacher assigned to this subject
             $teacherName = 'N/A';
             if ($seriesSubject->teachers && $seriesSubject->teachers->isNotEmpty()) {
                 $teacherName = $seriesSubject->teachers->first()->full_name;
             }
-            
+
             $bulletinData['subjects'][] = [
                 'name' => $seriesSubject->subject->name,
                 'teacher' => $teacherName,
@@ -443,8 +488,9 @@ class BulletinService
                 'appreciation' => $this->getAppreciationBySection($scoreOn20, $sectionType),
                 'section_type' => $sectionType
             ];
-            
-            if ($scoreOn20) {
+
+            // CORRECTION: Inclure uniquement les matières avec notes dans le calcul (exclure absents et nulls)
+            if ($scoreOn20 !== null && $scoreOn20 !== 'ABS' && $weightedScore !== null) {
                 $totalPoints += $weightedScore;
                 $totalCoefficient += $seriesSubject->coefficient;
             }
@@ -527,7 +573,8 @@ class BulletinService
 
                 \Log::info("🎓 DEUXIÈME CYCLE - {$seriesSubject->subject->name}: Seq1={$sequenceGrades[0]}, Seq2={$sequenceGrades[1]}, Compo={$compositionGrade}, Avg={$trimesterGrade}");
 
-                $weightedScore = $trimesterGrade ? $trimesterGrade * $seriesSubject->coefficient : 0;
+                // CORRECTION: Si pas de note, weightedScore doit être null (pas 0) pour ne pas compter dans le total
+                $weightedScore = $trimesterGrade !== null ? $trimesterGrade * $seriesSubject->coefficient : null;
 
                 // Get the first teacher assigned to this subject
                 $teacherName = 'N/A';
@@ -544,7 +591,7 @@ class BulletinService
                     'average' => $trimesterGrade,
                     'coefficient' => $seriesSubject->coefficient,
                     'total' => $weightedScore,
-                    'nxc' => $weightedScore, // NXC = Moy × COEF
+                    'nxc' => $weightedScore, // NXC = Moy × COEF (ou null si absent)
                     'rank' => $this->getTrimesterSubjectRank($trimesterNumber, $studentId, $seriesSubject->id),
                     'grade' => $this->getMentionBySection($trimesterGrade, $sectionType),
                     'competence' => $this->getCompetence($trimesterGrade, 'deuxieme', $sectionType), // Compétences avec section
@@ -564,7 +611,8 @@ class BulletinService
                 $trimesterGrade = $this->calculateTrimesterGrade($trimesterNumber, $studentId, $seriesSubject->id, 'premier');
                 \Log::info("🔍 Final Trimester Grade for {$seriesSubject->subject->name}: " . ($trimesterGrade ?? 'null'));
 
-                $weightedScore = $trimesterGrade ? $trimesterGrade * $seriesSubject->coefficient : 0;
+                // CORRECTION: Si pas de note, weightedScore doit être null (pas 0) pour ne pas compter dans le total
+                $weightedScore = $trimesterGrade !== null ? $trimesterGrade * $seriesSubject->coefficient : null;
 
                 // Get the first teacher assigned to this subject
                 $teacherName = 'N/A';
@@ -589,7 +637,8 @@ class BulletinService
                 ];
             }
 
-            if ($trimesterGrade) {
+            // CORRECTION: Inclure uniquement les matières avec des notes dans le calcul du total
+            if ($trimesterGrade !== null && $weightedScore !== null) {
                 $totalPoints += $weightedScore;
                 $totalCoefficient += $seriesSubject->coefficient;
             }
@@ -1154,14 +1203,19 @@ class BulletinService
         
         foreach ($subjects as $subject) {
             // Pour DEUXIÈME CYCLE, utiliser 'average', sinon 'score'
-            $grade = ($cycleType === 'deuxieme') ? ($subject['average'] ?? 0) : ($subject['score'] ?? 0);
+            $grade = ($cycleType === 'deuxieme') ? ($subject['average'] ?? null) : ($subject['score'] ?? null);
             $coef = $subject['coefficient'] ?? 1;
-            $weightedGrade = $grade * $coef;
+
+            // CORRECTION: Si pas de note, ne pas compter dans le total
+            $weightedGrade = ($grade !== null) ? $grade * $coef : null;
             $gradeClass = $this->getGradeClass($grade);
             $competence = $subject['competence'] ?? $this->getCompetence($grade, $cycleType);
 
-            $totalCoef += $coef;
-            $totalPoints += $weightedGrade;
+            // CORRECTION: Ne compter que les matières avec notes
+            if ($grade !== null && $weightedGrade !== null) {
+                $totalCoef += $coef;
+                $totalPoints += $weightedGrade;
+            }
 
             $html .= '<tr>';
 
@@ -1175,13 +1229,15 @@ class BulletinService
                     $nxc = $subject['nxc'] ?? $weightedGrade;
 
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq1 !== null && $seq1 > 0 ? number_format($seq1, 2) : '-') . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq2 !== null && $seq2 > 0 ? number_format($seq2, 2) : '-') . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 !== null && $compo1 > 0 ? number_format($compo1, 2) : '-') . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($average !== null && $average > 0 ? number_format($average, 2) : '-') . '</td>';
+                    // CORRECTION: Afficher "/" pour les absents (ABS) au lieu de "-"
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq1 === 'ABS' ? '/' : (is_numeric($seq1) && $seq1 > 0 ? number_format($seq1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq2 === 'ABS' ? '/' : (is_numeric($seq2) && $seq2 > 0 ? number_format($seq2, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) && $compo1 > 0 ? number_format($compo1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . (is_numeric($average) && $average > 0 ? number_format($average, 2) : '-') . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($coef, 2) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . number_format($nxc, 2) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . number_format($nxc, 2) . '</td>'; // TOTAL = NXC
+                    // CORRECTION: Afficher "-" si NXC est null (élève absent)
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($nxc !== null ? number_format($nxc, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($nxc !== null ? number_format($nxc, 2) : '-') . '</td>'; // TOTAL = NXC
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? '1') . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">' . $competence . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
@@ -1192,11 +1248,13 @@ class BulletinService
                     $average = $subject['average'] ?? null;
 
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($ds1 !== null && $ds1 > 0 ? number_format($ds1, 2) : '-') . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 !== null && $compo1 > 0 ? number_format($compo1, 2) : '-') . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($average !== null && $average > 0 ? number_format($average, 2) : '-') . '</td>';
+                    // CORRECTION: Afficher "/" pour les absents (ABS) au lieu de "-"
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($ds1 === 'ABS' ? '/' : (is_numeric($ds1) && $ds1 > 0 ? number_format($ds1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) && $compo1 > 0 ? number_format($compo1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . (is_numeric($average) && $average > 0 ? number_format($average, 2) : '-') . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($coef, 2) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . number_format($weightedGrade, 2) . '</td>';
+                    // CORRECTION: Afficher "-" si weightedGrade est null (élève absent)
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($weightedGrade !== null ? number_format($weightedGrade, 2) : '-') . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? '1') . 'e</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $competence . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
@@ -1204,9 +1262,11 @@ class BulletinService
             } else {
                 // Pour bulletin séquence avec alignement
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($grade, 2) . '</td>';
+                // CORRECTION: Afficher "/" pour absent (ABS), "-" si null, ou la note
+                $displayGrade = ($grade === 'ABS') ? '/' : ((is_numeric($grade) && $grade > 0) ? number_format($grade, 2) : '-');
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $displayGrade . '</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($coef, 2) . '</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . number_format($weightedGrade, 2) . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($weightedGrade !== null ? number_format($weightedGrade, 2) : '-') . '</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? '1') . 'e</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $competence . '</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';

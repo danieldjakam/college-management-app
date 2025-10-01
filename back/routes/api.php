@@ -768,6 +768,13 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/export/pdf', [NeedController::class, 'exportPdf'])->middleware(['role:admin,principal,comptable_superieur,surveillant_general,surveillant_secteur']); // Export PDF
         Route::get('/export/excel', [NeedController::class, 'exportExcel'])->middleware(['role:admin,principal,comptable_superieur,surveillant_general,surveillant_secteur']); // Export Excel
         Route::get('/export/word', [NeedController::class, 'exportWord'])->middleware(['role:admin,principal,comptable_superieur,surveillant_general,surveillant_secteur']); // Export Word
+
+        // Routes pour validation/rejet en masse
+        Route::post('/bulk/approve', [NeedController::class, 'bulkApprove'])->middleware(['role:admin,comptable_superieur']); // Approuver en masse
+        Route::post('/bulk/reject', [NeedController::class, 'bulkReject'])->middleware(['role:admin,comptable_superieur']); // Rejeter en masse
+
+        // Route pour rapport des besoins approuvés
+        Route::get('/report/approved', [NeedController::class, 'approvedReport'])->middleware(['role:admin,comptable_superieur']); // Rapport PDF des approuvés
     });
 
     // Routes pour les surveillants généraux
@@ -981,6 +988,16 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/staff-attendance-monthly', [StaffAttendanceReportController::class, 'getStaffAttendanceMonthlyReport']);
         Route::get('/staff-attendance-monthly/export-pdf', [StaffAttendanceReportController::class, 'exportStaffAttendanceMonthlyPdf']);
         Route::get('/staff-attendance-monthly/export-excel', [StaffAttendanceReportController::class, 'exportStaffAttendanceMonthlyExcel']);
+
+        // Rapport spécifique vacataires avec détail classes
+        Route::get('/vacataire-attendance', [StaffAttendanceReportController::class, 'getVacataireAttendanceReport'])
+            ->middleware(['role:admin,principal,comptable_superieur,accountant']);
+        Route::get('/vacataire-attendance/export-pdf', [StaffAttendanceReportController::class, 'exportVacataireAttendancePdf'])
+            ->middleware(['role:admin,principal,comptable_superieur,accountant']);
+        Route::get('/vacataire-attendance/export-excel', [StaffAttendanceReportController::class, 'exportVacataireAttendanceExcel'])
+            ->middleware(['role:admin,principal,comptable_superieur,accountant']);
+        Route::get('/vacataires-list', [StaffAttendanceReportController::class, 'getVacatairesList'])
+            ->middleware(['role:admin,principal,comptable_superieur,accountant']);
 
         // Rapports PDF supplémentaires
         Route::get('/detailed-collection/export-pdf', [ReportsController::class, 'exportDetailedCollectionPdf']);
@@ -1250,4 +1267,23 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
         Route::delete('/{templateId}', [BulletinController::class, 'deleteTemplate']);
         Route::post('/{templateId}/toggle-status', [BulletinController::class, 'toggleTemplateStatus']);
     });
+});
+
+// Routes pour les PV (Procès-Verbaux)
+Route::middleware(['auth:api'])->prefix('pv')->group(function () {
+    // Liste des séries de classes
+    Route::get('/class-series', [App\Http\Controllers\PVController::class, 'getClassSeries'])
+        ->middleware(['role:admin,principal,secretaire,comptable_superieur']);
+
+    // Évaluations disponibles pour une série
+    Route::get('/evaluations/{classSeriesId}', [App\Http\Controllers\PVController::class, 'getAvailableEvaluations'])
+        ->middleware(['role:admin,principal,secretaire,comptable_superieur']);
+
+    // Générer le PV en PDF
+    Route::get('/generate/{classSeriesId}/{evaluationId}', [App\Http\Controllers\PVController::class, 'generate'])
+        ->middleware(['role:admin,principal,secretaire,comptable_superieur']);
+
+    // Prévisualiser le PV (HTML)
+    Route::get('/preview/{classSeriesId}/{evaluationId}', [App\Http\Controllers\PVController::class, 'preview'])
+        ->middleware(['role:admin,principal,secretaire,comptable_superieur']);
 });

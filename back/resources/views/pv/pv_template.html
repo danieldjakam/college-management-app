@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procès-Verbal - {{class_series_name}}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            font-size: 11px;
+            line-height: 1.3;
+            color: #000;
+            background: white;
+            padding: 15px;
+        }
+
+        .pv-container {
+            width: 100%;
+            background: white;
+            border: 2px solid #EFE9F3;
+        }
+
+        .header {
+            background: #EFE9F3;
+            color: black;
+            padding: 8px;
+            text-align: center;
+            border-bottom: 2px solid #000;
+        }
+
+        .school-info {
+            display: table;
+            width: 100%;
+            margin-bottom: 5px;
+        }
+
+        .school-left, .school-right {
+            display: table-cell;
+            width: 32%;
+            vertical-align: middle;
+            font-size: 7px;
+            padding: 3px;
+        }
+
+        .school-left {
+            text-align: center;
+            padding-left: 5px;
+        }
+
+        .school-right {
+            text-align: center;
+            padding-right: 5px;
+        }
+
+        .school-left div, .school-right div {
+            margin: 2px 0;
+            line-height: 1.3;
+        }
+
+        .school-center {
+            display: table-cell;
+            width: 36%;
+            text-align: center;
+            vertical-align: middle;
+            padding: 5px;
+        }
+
+        .logo {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto;
+            display: block;
+        }
+
+        .pv-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 5px 0;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .eval-info {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+        }
+
+        .eval-info table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .eval-info td {
+            padding: 4px 8px;
+            font-size: 10px;
+        }
+
+        .info-label {
+            font-weight: bold;
+            width: 150px;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 8px;
+        }
+
+        .results-table th,
+        .results-table td {
+            border: 1px solid #000;
+            padding: 4px 2px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .results-table th {
+            background: #EFE9F3;
+            color: black;
+            font-weight: bold;
+            font-size: 7px;
+            padding: 5px 2px;
+        }
+
+        .student-name {
+            text-align: left !important;
+            padding-left: 5px !important;
+            font-weight: 500;
+        }
+
+        .rank-1 { background: #ffd700; font-weight: bold; }
+        .rank-2 { background: #c0c0c0; font-weight: bold; }
+        .rank-3 { background: #cd7f32; font-weight: bold; }
+
+        .passed { background: #d4edda; }
+        .failed { background: #f8d7da; }
+
+        .statistics {
+            margin: 20px 0;
+            display: table;
+            width: 100%;
+        }
+
+        .stats-left, .stats-right {
+            display: table-cell;
+            width: 48%;
+            vertical-align: top;
+        }
+
+        .stats-left {
+            padding-right: 2%;
+        }
+
+        .stats-box {
+            border: 2px solid #EFE9F3;
+            padding: 12px;
+            background: #f8f9fa;
+        }
+
+        .stats-box h3 {
+            background: #EFE9F3;
+            padding: 8px;
+            margin: -12px -12px 10px -12px;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .stat-row {
+            display: table;
+            width: 100%;
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .stat-label {
+            display: table-cell;
+            width: 70%;
+            font-size: 10px;
+        }
+
+        .stat-value {
+            display: table-cell;
+            width: 30%;
+            font-weight: bold;
+            text-align: right;
+            font-size: 11px;
+        }
+
+        .signatures {
+            margin-top: 30px;
+            display: table;
+            width: 100%;
+        }
+
+        .signature-box {
+            display: table-cell;
+            width: 33.33%;
+            text-align: center;
+            padding: 10px;
+        }
+
+        .signature-title {
+            font-weight: bold;
+            margin-bottom: 50px;
+            font-size: 10px;
+        }
+
+        .signature-line {
+            margin-top: 60px;
+            border-top: 1px solid #000;
+            padding-top: 5px;
+            font-size: 9px;
+        }
+
+        .footer {
+            margin-top: 20px;
+            padding: 10px;
+            border-top: 2px solid #EFE9F3;
+            text-align: center;
+            font-size: 9px;
+            color: #666;
+        }
+
+        .mention-excellent { color: #27ae60; font-weight: bold; }
+        .mention-bien { color: #2980b9; font-weight: bold; }
+        .mention-assez-bien { color: #f39c12; font-weight: bold; }
+        .mention-passable { color: #95a5a6; }
+        .mention-echec { color: #e74c3c; font-weight: bold; }
+
+        .observation-box {
+            margin-top: 15px;
+            padding: 10px;
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="pv-container">
+        <!-- EN-TÊTE -->
+        <div class="header">
+            <div class="school-info">
+                <div class="school-left">
+                    <div><strong>REPUBLIQUE DU CAMEROUN</strong></div>
+                    <div><strong>Paix - Travail - Patrie</strong></div>
+                    <div><strong>MINISTÈRE DES ENSEIGNEMENTS SECONDAIRES</strong></div>
+                    <div><strong>COLLÈGE POLYVALENT BILINGUE DE DOUALA</strong></div>
+                    <div>B.P.: 4100 Douala Tél.: 233 43 25 47</div>
+                    <div>E-mail: info@cpbdyassa.com</div>
+                    <div>YASSA</div>
+                </div>
+                <div class="school-center">
+                    <img src="{{logo_base64}}" alt="Logo" class="logo">
+                </div>
+                <div class="school-right">
+                    <div><strong>REPUBLIC OF CAMEROON</strong></div>
+                    <div><strong>Peace - Work - Fatherland</strong></div>
+                    <div><strong>MINISTRY OF SECONDARY EDUCATION</strong></div>
+                    <div><strong>BILINGUAL COMPREHENSIVE COLLEGE DLA</strong></div>
+                    <div>P.O. Box: 4100 Douala Phone: 233 43 25 47</div>
+                    <div>E-mail: info@cpbdyassa.com</div>
+                    <div>YASSA</div>
+                </div>
+            </div>
+            <div class="pv-title">Procès-Verbal de Délibération</div>
+        </div>
+
+        <!-- INFORMATIONS -->
+        <div class="eval-info">
+            <table>
+                <tr>
+                    <td class="info-label">Classe / Série:</td>
+                    <td><strong>{{class_series_name}} ({{level_name}})</strong></td>
+                    <td class="info-label">Année Scolaire:</td>
+                    <td><strong>{{school_year}}</strong></td>
+                </tr>
+                <tr>
+                    <td class="info-label">Type d'Évaluation:</td>
+                    <td><strong>{{evaluation_type}}</strong></td>
+                    <td class="info-label">Effectif:</td>
+                    <td><strong>{{total_students}} élèves</strong></td>
+                </tr>
+                <tr>
+                    <td class="info-label">Professeur Principal:</td>
+                    <td><strong>{{main_teacher}}</strong></td>
+                    <td class="info-label">Date:</td>
+                    <td><strong>{{current_date}}</strong></td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- TABLEAU DES RÉSULTATS -->
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th rowspan="2" style="width: 25px;">N°</th>
+                    <th rowspan="2" style="width: 120px;">Nom et Prénoms</th>
+                    <th rowspan="2" style="width: 25px;">Sexe</th>
+                    {{subjects_headers}}
+                    <th rowspan="2" style="width: 45px;">Total</th>
+                    <th rowspan="2" style="width: 45px;">Moy.</th>
+                    <th rowspan="2" style="width: 35px;">Rang</th>
+                    <th rowspan="2" style="width: 70px;">Mention</th>
+                </tr>
+                <tr>
+                    {{subjects_coef_headers}}
+                </tr>
+            </thead>
+            <tbody>
+                {{students_rows}}
+            </tbody>
+        </table>
+
+        <!-- STATISTIQUES -->
+        <div class="statistics">
+            <div class="stats-left">
+                <div class="stats-box">
+                    <h3>📊 Statistiques Générales</h3>
+                    <div class="stat-row">
+                        <div class="stat-label">Effectif total:</div>
+                        <div class="stat-value">{{total_students}}</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Nombre d'admis (≥ 10/20):</div>
+                        <div class="stat-value" style="color: #27ae60;">{{passed_count}}</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Nombre d'échecs (< 10/20):</div>
+                        <div class="stat-value" style="color: #e74c3c;">{{failed_count}}</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Taux de réussite:</div>
+                        <div class="stat-value" style="color: #27ae60;">{{success_rate}}%</div>
+                    </div>
+                    <div class="stat-row" style="border-top: 2px solid #EFE9F3; margin-top: 10px; padding-top: 10px;">
+                        <div class="stat-label">Moyenne générale de la classe:</div>
+                        <div class="stat-value" style="color: #2980b9; font-size: 13px;">{{class_average}} / 20</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Meilleure moyenne:</div>
+                        <div class="stat-value" style="color: #27ae60;">{{highest_average}} / 20</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Moyenne la plus faible:</div>
+                        <div class="stat-value" style="color: #e74c3c;">{{lowest_average}} / 20</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-right">
+                <div class="stats-box">
+                    <h3>🏆 Répartition par Mention</h3>
+                    <div class="stat-row">
+                        <div class="stat-label">Excellent (≥ 16/20):</div>
+                        <div class="stat-value" style="color: #27ae60;">{{mention_excellent}}</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Bien (14-15.99/20):</div>
+                        <div class="stat-value" style="color: #2980b9;">{{mention_bien}}</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Assez Bien (12-13.99/20):</div>
+                        <div class="stat-value" style="color: #f39c12;">{{mention_assez_bien}}</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Passable (10-11.99/20):</div>
+                        <div class="stat-value" style="color: #95a5a6;">{{mention_passable}}</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Échec (< 10/20):</div>
+                        <div class="stat-value" style="color: #e74c3c;">{{mention_echec}}</div>
+                    </div>
+                    <div class="observation-box">
+                        <strong style="font-size: 10px;">📌 Observation:</strong>
+                        <div style="font-size: 9px; margin-top: 5px;">
+                            {{observation}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SIGNATURES -->
+        <div class="signatures">
+            <div class="signature-box">
+                <div class="signature-title">Le Professeur Principal</div>
+                <div class="signature-line">{{main_teacher}}</div>
+            </div>
+            <div class="signature-box">
+                <div class="signature-title">Le Censeur</div>
+                <div class="signature-line">Signature et Cachet</div>
+            </div>
+            <div class="signature-box">
+                <div class="signature-title">Le Proviseur</div>
+                <div class="signature-line">Signature et Cachet</div>
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <div class="footer">
+            <strong>Fait à Douala, le {{current_date}}</strong><br/>
+            Document officiel - Collège Polyvalent Bilingue de Douala (CPBD)<br/>
+            🤖 Généré automatiquement par le système de gestion CPBD
+        </div>
+    </div>
+</body>
+</html>

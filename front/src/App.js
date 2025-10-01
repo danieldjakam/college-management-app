@@ -128,6 +128,7 @@ import DocumentsManager from "./pages/Documents/DocumentsManager";
 // Staff Attendance
 import StaffAttendanceManagement from "./pages/Staff/StaffAttendanceManagement";
 import StaffDailyAttendance from "./pages/Staff/StaffDailyAttendance";
+import VacataireAttendanceReport from "./pages/Staff/VacataireAttendanceReport";
 
 // Demandes d'Explication
 import DemandesExplication from "./pages/comptables/DemandesExplication";
@@ -142,6 +143,7 @@ import GradingScales from "./pages/GradingScales/GradingScales";
 // Admin Trimester & Sequence Management
 import TrimesterSequenceManagement from "./pages/Admin/TrimesterSequenceManagement";
 import BulletinManagement from "./pages/Admin/BulletinManagementNew";
+import PVGeneration from "./pages/PV/PVGeneration";
 
 // Parent Pages
 import ParentLogin from "./pages/Parent/ParentLogin";
@@ -492,6 +494,14 @@ const AppContent = () => {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/admin/pv"
+                element={
+                  <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire', 'comptable_superieur']}>
+                    <PVGeneration />
+                  </ProtectedRoute>
+                }
+              />
 
               <Route
                 path="/admin/parent-notifications"
@@ -755,6 +765,14 @@ const AppContent = () => {
                   <AdminRoute>
                     <StaffAttendanceReport />
                   </AdminRoute>
+                }
+              />
+              <Route
+                path="/reports/vacataire-attendance"
+                element={
+                  <ProtectedRoute requiredRoles={['admin', 'principal', 'comptable_superieur', 'accountant']}>
+                    <VacataireAttendanceReport />
+                  </ProtectedRoute>
                 }
               />
 

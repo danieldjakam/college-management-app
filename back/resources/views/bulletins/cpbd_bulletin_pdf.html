@@ -369,33 +369,33 @@
                     <div>YASSA</div>
                 </div>
             </div>
-            <div class="bulletin-title">BULLETIN DE NOTES</div>
+            <div class="bulletin-title">{{bulletin_title}}</div>
         </div>
 
         <div class="student-info">
             <table>
                 <tr>
-                    <td class="info-label">Nom et Prénoms:</td>
+                    <td class="info-label">{{name_label}}</td>
                     <td>{{student_name}}</td>
-                    <td class="info-label">Date de naissance:</td>
+                    <td class="info-label">{{birth_date_label}}</td>
                     <td>{{birth_date}}</td>
-                    <td class="info-label">Lieu de naissance:</td>
+                    <td class="info-label">{{birth_place_label}}</td>
                     <td>{{birth_place}}</td>
                 </tr>
                 <tr>
-                    <td class="info-label">Classe:</td>
+                    <td class="info-label">{{class_label}}</td>
                     <td>{{class_name}}</td>
-                    <td class="info-label">Effectif:</td>
+                    <td class="info-label">{{class_size_label}}</td>
                     <td>{{class_size}}</td>
-                    <td class="info-label">Enseignant titulaire:</td>
+                    <td class="info-label">{{main_teacher_label}}</td>
                     <td>{{main_teacher}}</td>
                 </tr>
                 <tr>
-                    <td class="info-label">Matricule:</td>
+                    <td class="info-label">{{student_number_label}}</td>
                     <td>{{student_number}}</td>
-                    <td class="info-label">Évaluation :</td>
+                    <td class="info-label">{{evaluation_label}}</td>
                     <td>N°{{evaluation_number}}</td>
-                    <td class="info-label">ANNÉE SCOLAIRE: </td>
+                    <td class="info-label">{{school_year_label}}</td>
                     <td>{{school_year}}</td>
                 </tr>
             </table>
@@ -406,7 +406,7 @@
         <div class="summary-section">
             <div class="discipline-table">
                 <!-- <h3>DISCIPLINE</h3> -->
-                <div class="discipline-header">DISCIPLINE</div>
+                <div class="discipline-header">{{discipline_header}}</div>
                 
                 <div class="discipline-subheader">
                     <div style="width: 16.66%; border-right: 1px solid #ccc;">Retard (h)</div>
@@ -444,43 +444,43 @@
                 </div>
                 
                 <div class="visa-row">
-                    VISA & NOMS DU PARENT
+                    {{visa_parent_label}}
                 </div>
             </div>
 
             <div class="summary-stats">
-                <h3>RÉSULTATS GÉNÉRAUX</h3>
+                <h3>{{general_results_header}}</h3>
                 <div class="stat-item">
-                    <div class="stat-label">TOTAL GÉNÉRAL:</div>
+                    <div class="stat-label">{{total_general_label}}</div>
                     <div class="stat-value">{{total_general}}</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">TOTAL COEF:</div>
+                    <div class="stat-label">{{total_coef_label}}</div>
                     <div class="stat-value">{{total_coef}}</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">MOY. ÉVALUATION:</div>
+                    <div class="stat-label">{{evaluation_average_label}}</div>
                     <div class="stat-value {{average_class}}">{{evaluation_average}} / 20</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">RANG:</div>
+                    <div class="stat-label">{{rank_label}}</div>
                     <div class="stat-value">{{student_rank}} / {{class_size}}</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">MOY. GEN. CLASSE:</div>
+                    <div class="stat-label">{{class_average_label}}</div>
                     <div class="stat-value">{{class_average}} / 20</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">MOY. PREMIER:</div>
+                    <div class="stat-label">{{first_average_label}}</div>
                     <div class="stat-value">{{first_average}} / 20</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">MOY. DERNIER:</div>
+                    <div class="stat-label">{{last_average_label}}</div>
                     <div class="stat-value">{{last_average}} / 20</div>
                 </div>
                 
                 <div class="legend">
-                    <h4>Légende:</h4>
+                    <h4>{{legend_title}}</h4>
                     <div class="legend-items">
                         <span class="legend-item"><strong>A+ :</strong> Expert</span>
                         <span class="legend-item"><strong>A :</strong> Acquise</span>
@@ -492,7 +492,7 @@
         </div>
 
         <div class="observations">
-            <h3>APPRÉCIATIONS DU TRAVAIL ET OBSERVATIONS</h3>
+            <h3>{{appreciation_header}}</h3>
             <p><strong>{{general_appreciation}}</strong></p>
         </div>
 
@@ -506,8 +506,8 @@
                 </div>
             </div>
             <div class="footer-signature">
-                <div class="signature-date">Fait à Douala, le {{current_date}}</div>
-                <div class="signature-title">Le Principal</div>
+                <div class="signature-date">{{made_in_douala}} {{current_date}}</div>
+                <div class="signature-title">{{principal_title}}</div>
             </div>
         </div>
     </div>

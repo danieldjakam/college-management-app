@@ -56,6 +56,9 @@ const NeedsManagement = () => {
     });
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [selectedNeedIds, setSelectedNeedIds] = useState([]);
+    const [showBulkRejectModal, setShowBulkRejectModal] = useState(false);
+    const [bulkRejectionReason, setBulkRejectionReason] = useState('');
 
     useEffect(() => {
         loadNeeds();
@@ -255,10 +258,10 @@ const NeedsManagement = () => {
     const exportNeeds = async (format) => {
         try {
             setProcessing(true);
-            
+
             // Préparer les paramètres d'export avec les filtres actuels
             const exportParams = { ...filters };
-            
+
             // Nettoyer les paramètres vides
             Object.keys(exportParams).forEach(key => {
                 if (exportParams[key] === '') {
@@ -304,6 +307,126 @@ const NeedsManagement = () => {
         }
     };
 
+    const toggleSelectNeed = (needId) => {
+        setSelectedNeedIds(prev =>
+            prev.includes(needId)
+                ? prev.filter(id => id !== needId)
+                : [...prev, needId]
+        );
+    };
+
+    const toggleSelectAll = () => {
+        const pendingNeeds = needs.filter(need => need.status === 'pending');
+        if (selectedNeedIds.length === pendingNeeds.length && pendingNeeds.length > 0) {
+            setSelectedNeedIds([]);
+        } else {
+            setSelectedNeedIds(pendingNeeds.map(need => need.id));
+        }
+    };
+
+    const bulkApprove = async () => {
+        if (selectedNeedIds.length === 0) {
+            setError('Veuillez sélectionner au moins un besoin');
+            return;
+        }
+
+        const result = await Swal.fire({
+            title: `Approuver ${selectedNeedIds.length} besoin(s) ?`,
+            text: 'Des notifications seront envoyées aux demandeurs.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Oui, approuver',
+            cancelButtonText: 'Annuler',
+            confirmButtonColor: '#28a745'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                setProcessing(true);
+                const response = await secureApiEndpoints.needs.bulkApprove({ need_ids: selectedNeedIds });
+
+                if (response.success) {
+                    setSuccess(response.message);
+                    setSelectedNeedIds([]);
+                    loadNeeds();
+                    loadStatistics();
+                } else {
+                    setError(response.message);
+                }
+            } catch (error) {
+                setError(extractErrorMessage(error));
+            } finally {
+                setProcessing(false);
+            }
+        }
+    };
+
+    const handleBulkReject = () => {
+        if (selectedNeedIds.length === 0) {
+            setError('Veuillez sélectionner au moins un besoin');
+            return;
+        }
+        setBulkRejectionReason('');
+        setShowBulkRejectModal(true);
+    };
+
+    const bulkReject = async () => {
+        if (!bulkRejectionReason.trim()) {
+            setError('Le motif du rejet est obligatoire');
+            return;
+        }
+
+        try {
+            setProcessing(true);
+            const response = await secureApiEndpoints.needs.bulkReject({
+                need_ids: selectedNeedIds,
+                rejection_reason: bulkRejectionReason
+            });
+
+            if (response.success) {
+                setSuccess(response.message);
+                setSelectedNeedIds([]);
+                setShowBulkRejectModal(false);
+                loadNeeds();
+                loadStatistics();
+            } else {
+                setError(response.message);
+            }
+        } catch (error) {
+            setError(extractErrorMessage(error));
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const exportApprovedReport = async () => {
+        try {
+            setProcessing(true);
+
+            const params = {};
+            if (filters.from_date) params.from_date = filters.from_date;
+            if (filters.to_date) params.to_date = filters.to_date;
+
+            const queryString = new URLSearchParams(params).toString();
+            const url = secureApiEndpoints.needs.approvedReport(queryString ? `?${queryString}` : '');
+
+            const filename = `rapport_besoins_approuves_${new Date().toISOString().split('T')[0]}.pdf`;
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            setSuccess('Rapport PDF généré avec succès');
+        } catch (error) {
+            setError(extractErrorMessage(error));
+        } finally {
+            setProcessing(false);
+        }
+    };
+
     return (
         <Container fluid className="py-4">
             {/* Header */}
@@ -314,14 +437,24 @@ const NeedsManagement = () => {
                             <h2>Gestion des Besoins</h2>
                             <p className="text-muted">Gérez les demandes de besoins des utilisateurs</p>
                         </div>
-                        <Button
-                            variant="outline-success"
-                            onClick={testWhatsApp}
-                            disabled={processing}
-                        >
-                            <Whatsapp className="me-2" />
-                            Tester WhatsApp
-                        </Button>
+                        <ButtonGroup>
+                            <Button
+                                variant="info"
+                                onClick={exportApprovedReport}
+                                disabled={processing}
+                            >
+                                <FiletypePdf className="me-2" />
+                                Rapport Besoins Approuvés
+                            </Button>
+                            <Button
+                                variant="outline-success"
+                                onClick={testWhatsApp}
+                                disabled={processing}
+                            >
+                                <Whatsapp className="me-2" />
+                                Tester WhatsApp
+                            </Button>
+                        </ButtonGroup>
                     </div>
                 </Col>
             </Row>
@@ -516,6 +649,43 @@ const NeedsManagement = () => {
                 </Card.Body>
             </Card>
 
+            {/* Bulk Actions */}
+            {selectedNeedIds.length > 0 && (
+                <Card className="mb-3 border-primary">
+                    <Card.Body>
+                        <div className="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{selectedNeedIds.length} besoin(s) sélectionné(s)</strong>
+                            </div>
+                            <ButtonGroup>
+                                <Button
+                                    variant="success"
+                                    onClick={bulkApprove}
+                                    disabled={processing}
+                                >
+                                    <Check2Circle className="me-2" />
+                                    Approuver la sélection
+                                </Button>
+                                <Button
+                                    variant="danger"
+                                    onClick={handleBulkReject}
+                                    disabled={processing}
+                                >
+                                    <XCircle className="me-2" />
+                                    Rejeter la sélection
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => setSelectedNeedIds([])}
+                                >
+                                    Annuler la sélection
+                                </Button>
+                            </ButtonGroup>
+                        </div>
+                    </Card.Body>
+                </Card>
+            )}
+
             {/* Table */}
             <Card>
                 <Card.Header>
@@ -538,6 +708,14 @@ const NeedsManagement = () => {
                             <Table responsive hover>
                                 <thead>
                                     <tr>
+                                        <th style={{ width: '40px' }}>
+                                            <Form.Check
+                                                type="checkbox"
+                                                checked={selectedNeedIds.length > 0 && selectedNeedIds.length === needs.filter(n => n.status === 'pending').length}
+                                                onChange={toggleSelectAll}
+                                                disabled={needs.filter(n => n.status === 'pending').length === 0}
+                                            />
+                                        </th>
                                         <th>Demandeur</th>
                                         <th>Besoin</th>
                                         <th>Montant</th>
@@ -549,6 +727,14 @@ const NeedsManagement = () => {
                                 <tbody>
                                     {needs.map((need) => (
                                         <tr key={need.id}>
+                                            <td>
+                                                <Form.Check
+                                                    type="checkbox"
+                                                    checked={selectedNeedIds.includes(need.id)}
+                                                    onChange={() => toggleSelectNeed(need.id)}
+                                                    disabled={need.status !== 'pending'}
+                                                />
+                                            </td>
                                             <td>
                                                 <div>
                                                     <Person className="me-1" />
@@ -592,7 +778,7 @@ const NeedsManagement = () => {
                                                             <Eye size={14} />
                                                         </Button>
                                                     </OverlayTrigger>
-                                                    
+
                                                     {need.status === 'pending' && (
                                                         <>
                                                             <OverlayTrigger
@@ -606,7 +792,7 @@ const NeedsManagement = () => {
                                                                     <Check2Circle size={14} />
                                                                 </Button>
                                                             </OverlayTrigger>
-                                                            
+
                                                             <OverlayTrigger
                                                                 overlay={<Tooltip>Rejeter</Tooltip>}
                                                             >
@@ -788,6 +974,56 @@ const NeedsManagement = () => {
                         variant="danger"
                         onClick={rejectNeed}
                         disabled={processing || !rejectionReason.trim()}
+                    >
+                        {processing ? (
+                            <>
+                                <Spinner animation="border" size="sm" className="me-2" />
+                                Rejet...
+                            </>
+                        ) : (
+                            <>
+                                <XCircle className="me-2" />
+                                Confirmer le Rejet
+                            </>
+                        )}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal pour rejet en masse */}
+            <Modal
+                show={showBulkRejectModal}
+                onHide={() => setShowBulkRejectModal(false)}
+            >
+                <Modal.Header closeButton>
+                    <Modal.Title>Rejeter {selectedNeedIds.length} besoin(s)</Modal.Title>
+                </Modal.Header>
+
+                <Modal.Body>
+                    <Form.Group>
+                        <Form.Label>Motif du rejet *</Form.Label>
+                        <Form.Control
+                            as="textarea"
+                            rows={4}
+                            placeholder="Expliquez pourquoi ces besoins ne peuvent pas être approuvés..."
+                            value={bulkRejectionReason}
+                            onChange={(e) => setBulkRejectionReason(e.target.value)}
+                            required
+                        />
+                        <Form.Text className="text-muted">
+                            Ce motif sera communiqué à tous les demandeurs via WhatsApp.
+                        </Form.Text>
+                    </Form.Group>
+                </Modal.Body>
+
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowBulkRejectModal(false)}>
+                        Annuler
+                    </Button>
+                    <Button
+                        variant="danger"
+                        onClick={bulkReject}
+                        disabled={processing || !bulkRejectionReason.trim()}
                     >
                         {processing ? (
                             <>

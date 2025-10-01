@@ -21,7 +21,7 @@ const TeacherAssignmentManagement = () => {
         series_subject_id: ''
     });
     const [mainTeacherData, setMainTeacherData] = useState({
-        school_class_id: ''
+        class_series_id: ''
     });
     const [activeTab, setActiveTab] = useState('assignments');
 
@@ -125,7 +125,7 @@ const TeacherAssignmentManagement = () => {
             console.error('Erreur lors du chargement des données:', error);
         }
 
-        setMainTeacherData({ school_class_id: '' });
+        setMainTeacherData({ class_series_id: '' });
         setShowMainTeacherModal(true);
     };
 
@@ -171,9 +171,9 @@ const TeacherAssignmentManagement = () => {
 
     const handleAssignMainTeacher = async (e) => {
         e.preventDefault();
-        
-        if (!selectedTeacher || !mainTeacherData.school_class_id) {
-            Swal.fire('Erreur', 'Veuillez sélectionner un enseignant et une classe', 'error');
+
+        if (!selectedTeacher || !mainTeacherData.class_series_id) {
+            Swal.fire('Erreur', 'Veuillez sélectionner un enseignant et une série de classe', 'error');
             return;
         }
 
@@ -181,7 +181,7 @@ const TeacherAssignmentManagement = () => {
             const yearId = selectedSchoolYear === 'current' ? null : selectedSchoolYear;
             const data = {
                 teacher_id: selectedTeacher.id,
-                school_class_id: mainTeacherData.school_class_id
+                class_series_id: mainTeacherData.class_series_id
             };
             if (yearId !== null) {
                 data.school_year_id = yearId;
@@ -451,11 +451,11 @@ const TeacherAssignmentManagement = () => {
                                                                     <div className="d-flex justify-content-between align-items-center">
                                                                         <div>
                                                                             <strong className="text-success">
-                                                                                {mainClass.school_class?.name}
+                                                                                {mainClass.class_series?.name || mainClass.school_class?.name}
                                                                             </strong>
-                                                                            {mainClass.school_class?.level && (
+                                                                            {(mainClass.class_series?.school_class?.level || mainClass.school_class?.level) && (
                                                                                 <span className="text-muted ms-1">
-                                                                                    ({mainClass.school_class.level.name})
+                                                                                    ({mainClass.class_series?.school_class?.level?.name || mainClass.school_class?.level?.name})
                                                                                 </span>
                                                                             )}
                                                                         </div>
@@ -597,36 +597,39 @@ const TeacherAssignmentManagement = () => {
                             </Col>
                             <Col md={6}>
                                 <Form.Group className="mb-3">
-                                    <Form.Label>Classe <span className="text-danger">*</span></Form.Label>
+                                    <Form.Label>Série de classe <span className="text-danger">*</span></Form.Label>
                                     <Form.Select
-                                        value={mainTeacherData.school_class_id}
-                                        onChange={(e) => setMainTeacherData(prev => ({ ...prev, school_class_id: e.target.value }))}
+                                        value={mainTeacherData.class_series_id}
+                                        onChange={(e) => setMainTeacherData(prev => ({ ...prev, class_series_id: e.target.value }))}
                                         required
                                     >
-                                        <option value="">Sélectionner une classe...</option>
-                                        {availableClasses.map((schoolClass) => (
-                                            <option key={schoolClass.id} value={schoolClass.id}>
-                                                {schoolClass.name} {schoolClass.level && `(${schoolClass.level.name})`}
+                                        <option value="">Sélectionner une série...</option>
+                                        {availableClasses.map((classSeries) => (
+                                            <option key={classSeries.id} value={classSeries.id}>
+                                                {classSeries.name} {classSeries.school_class?.level && `(${classSeries.school_class.level.name})`}
                                             </option>
                                         ))}
                                     </Form.Select>
+                                    <Form.Text className="text-muted">
+                                        Ex: 6ème A, 6ème B, 5ème ESP, etc.
+                                    </Form.Text>
                                 </Form.Group>
                             </Col>
                         </Row>
                         
                         <Alert variant="warning">
-                            <strong>Important:</strong> Un enseignant ne peut être professeur principal que d'une seule classe par année scolaire.
-                            Une classe ne peut avoir qu'un seul professeur principal.
+                            <strong>Important:</strong> Un enseignant ne peut être professeur principal que d'une seule série par année scolaire.
+                            Une série ne peut avoir qu'un seul professeur principal.
                         </Alert>
                     </Modal.Body>
                     <Modal.Footer>
                         <Button variant="secondary" onClick={() => setShowMainTeacherModal(false)}>
                             Annuler
                         </Button>
-                        <Button 
-                            variant="success" 
+                        <Button
+                            variant="success"
                             type="submit"
-                            disabled={!selectedTeacher || !mainTeacherData.school_class_id}
+                            disabled={!selectedTeacher || !mainTeacherData.class_series_id}
                         >
                             <PersonFill className="me-2" />
                             Désigner

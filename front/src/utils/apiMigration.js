@@ -1040,6 +1040,15 @@ export const secureApiEndpoints = {
         exportWord: (params = {}) => {
             const queryString = new URLSearchParams(params).toString();
             return `${secureApi.baseURL}/needs/export/word${queryString ? '?' + queryString : ''}?token=${authService.getToken()}`;
+        },
+
+        // Bulk actions
+        bulkApprove: (data) => secureApi.post('/needs/bulk/approve', data),
+        bulkReject: (data) => secureApi.post('/needs/bulk/reject', data),
+
+        // Approved report
+        approvedReport: (queryString = '') => {
+            return `${secureApi.baseURL}/needs/report/approved${queryString}${queryString.includes('?') ? '&' : '?'}token=${authService.getToken()}`;
         }
     },
 

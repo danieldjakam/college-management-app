@@ -11,7 +11,7 @@ class MainTeacher extends Model
 
     protected $fillable = [
         'teacher_id',
-        'school_class_id',
+        'class_series_id',
         'school_year_id',
         'is_active'
     ];
@@ -29,11 +29,19 @@ class MainTeacher extends Model
     }
 
     /**
-     * Relation avec la classe
+     * Relation avec la série (classe spécifique: 6ème A, 6ème B, etc.)
+     */
+    public function classSeries()
+    {
+        return $this->belongsTo(ClassSeries::class, 'class_series_id');
+    }
+
+    /**
+     * Alias pour compatibilité - retourne la série
      */
     public function schoolClass()
     {
-        return $this->belongsTo(SchoolClass::class);
+        return $this->classSeries();
     }
 
     /**

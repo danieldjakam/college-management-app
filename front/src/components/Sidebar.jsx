@@ -18,6 +18,7 @@ import {
     Bell,
     ListCheck,
     CardText,
+    FileEarmarkText,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -109,6 +110,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Barèmes de Notation", href: "/grading-scales", icon: <Award /> },
             { name: "Trimestres & Séquences", href: "/admin/trimesters-sequences", icon: <Calendar /> },
             { name: "Bulletins Scolaires", href: "/admin/bulletins", icon: <CardText /> },
+            { name: "Procès-Verbaux (PV)", href: "/admin/pv", icon: <FileEarmarkText /> },
           ],
         },
         {
@@ -156,6 +158,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Barèmes de Notation", href: "/grading-scales", icon: <Award /> },
             { name: "Trimestres & Séquences", href: "/admin/trimesters-sequences", icon: <Calendar /> },
             { name: "Bulletins Scolaires", href: "/admin/bulletins", icon: <CardText /> },
+            { name: "Procès-Verbaux (PV)", href: "/admin/pv", icon: <FileEarmarkText /> },
           ],
         },
         {
@@ -227,6 +230,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Rechercher", href: "/search", icon: <Search /> },
           ],
         },
+        ...(userRole === "comptable_superieur" ? [{
+          title: "Pédagogie",
+          items: [
+            { name: "Procès-Verbaux (PV)", href: "/admin/pv", icon: <FileEarmarkText /> },
+          ],
+        }] : []),
         {
           title: "Présences",
           items: [
@@ -236,6 +245,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Rapports Présence Étudiants", href: "/attendance-reports", icon: <FileTextFill /> },
             { name: "Suivi Présences Personnel", href: "/staff-daily-attendance", icon: <PeopleFill /> },
             { name: "Rapport Présence Personnel", href: "/staff-attendance-report", icon: <BarChartFill /> },
+            { name: "Rapport Vacataires", href: "/reports/vacataire-attendance", icon: <FileEarmarkText /> },
             ] : []),
           ],
         },
@@ -342,6 +352,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           title: "Présence",
           items: [
             { name: "Rapport Présence Personnel", href: "/reports/staff-attendance-report", icon: <BarChartFill /> },
+            { name: "Rapport Vacataires", href: "/reports/vacataire-attendance", icon: <FileEarmarkText /> },
             { name: "Suivi Présence Quotidien", href: "/staff-daily-attendance", icon: <Calendar /> },
           ],
         },
@@ -464,6 +475,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Barèmes de Notation", href: "/grading-scales", icon: <Award /> },
             { name: "Trimestres & Séquences", href: "/admin/trimesters-sequences", icon: <Calendar /> },
             { name: "Bulletins Scolaires", href: "/admin/bulletins", icon: <CardText /> },
+            { name: "Procès-Verbaux (PV)", href: "/admin/pv", icon: <FileEarmarkText /> },
           ],
         },
         {

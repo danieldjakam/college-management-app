@@ -738,4 +738,237 @@ class NeedController extends Controller
 
         return $query->get();
     }
+
+    /**
+     * Approuver plusieurs besoins en masse (admin/comptable_superieur uniquement)
+     */
+    public function bulkApprove(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'need_ids' => 'required|array|min:1',
+                'need_ids.*' => 'required|exists:needs,id'
+            ], [
+                'need_ids.required' => 'Veuillez sélectionner au moins un besoin',
+                'need_ids.array' => 'Format de données invalide',
+                'need_ids.min' => 'Veuillez sélectionner au moins un besoin',
+                'need_ids.*.exists' => 'Un ou plusieurs besoins n\'existent pas'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Données invalides',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            $approvedCount = 0;
+            $alreadyProcessed = 0;
+            $errors = [];
+
+            foreach ($request->need_ids as $needId) {
+                $need = Need::find($needId);
+
+                if (!$need) {
+                    $errors[] = "Besoin #$needId introuvable";
+                    continue;
+                }
+
+                if ($need->status !== Need::STATUS_PENDING) {
+                    $alreadyProcessed++;
+                    continue;
+                }
+
+                $previousStatus = $need->status_label;
+
+                $need->update([
+                    'status' => Need::STATUS_APPROVED,
+                    'approved_by' => auth()->id(),
+                    'approved_at' => now(),
+                    'rejection_reason' => null
+                ]);
+
+                // Envoyer notifications WhatsApp
+                try {
+                    $this->whatsappService->sendStatusUpdateNotification($need, $previousStatus);
+                    $this->whatsappService->sendStatusUpdateNotificationToRequester($need, $previousStatus);
+                } catch (\Exception $e) {
+                    \Log::error('Erreur envoi WhatsApp pour approbation besoin #' . $need->id . ': ' . $e->getMessage());
+                }
+
+                $approvedCount++;
+            }
+
+            DB::commit();
+
+            $message = "$approvedCount besoin(s) approuvé(s) avec succès";
+            if ($alreadyProcessed > 0) {
+                $message .= " ($alreadyProcessed déjà traité(s))";
+            }
+            if (!empty($errors)) {
+                $message .= ". Erreurs: " . implode(', ', $errors);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => [
+                    'approved_count' => $approvedCount,
+                    'already_processed' => $alreadyProcessed,
+                    'errors' => $errors
+                ]
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'approbation en masse',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Rejeter plusieurs besoins en masse (admin/comptable_superieur uniquement)
+     */
+    public function bulkReject(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'need_ids' => 'required|array|min:1',
+                'need_ids.*' => 'required|exists:needs,id',
+                'rejection_reason' => 'required|string|max:1000'
+            ], [
+                'need_ids.required' => 'Veuillez sélectionner au moins un besoin',
+                'need_ids.array' => 'Format de données invalide',
+                'need_ids.min' => 'Veuillez sélectionner au moins un besoin',
+                'need_ids.*.exists' => 'Un ou plusieurs besoins n\'existent pas',
+                'rejection_reason.required' => 'Le motif du rejet est obligatoire',
+                'rejection_reason.max' => 'Le motif ne peut pas dépasser 1000 caractères'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Données invalides',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            $rejectedCount = 0;
+            $alreadyProcessed = 0;
+            $errors = [];
+
+            foreach ($request->need_ids as $needId) {
+                $need = Need::find($needId);
+
+                if (!$need) {
+                    $errors[] = "Besoin #$needId introuvable";
+                    continue;
+                }
+
+                if ($need->status !== Need::STATUS_PENDING) {
+                    $alreadyProcessed++;
+                    continue;
+                }
+
+                $previousStatus = $need->status_label;
+
+                $need->update([
+                    'status' => Need::STATUS_REJECTED,
+                    'approved_by' => auth()->id(),
+                    'approved_at' => now(),
+                    'rejection_reason' => $request->rejection_reason
+                ]);
+
+                // Envoyer notifications WhatsApp
+                try {
+                    $this->whatsappService->sendStatusUpdateNotification($need, $previousStatus);
+                    $this->whatsappService->sendStatusUpdateNotificationToRequester($need, $previousStatus);
+                } catch (\Exception $e) {
+                    \Log::error('Erreur envoi WhatsApp pour rejet besoin #' . $need->id . ': ' . $e->getMessage());
+                }
+
+                $rejectedCount++;
+            }
+
+            DB::commit();
+
+            $message = "$rejectedCount besoin(s) rejeté(s) avec succès";
+            if ($alreadyProcessed > 0) {
+                $message .= " ($alreadyProcessed déjà traité(s))";
+            }
+            if (!empty($errors)) {
+                $message .= ". Erreurs: " . implode(', ', $errors);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => [
+                    'rejected_count' => $rejectedCount,
+                    'already_processed' => $alreadyProcessed,
+                    'errors' => $errors
+                ]
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du rejet en masse',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Générer un rapport PDF des besoins approuvés
+     */
+    public function approvedReport(Request $request)
+    {
+        try {
+            $query = Need::with(['user', 'approvedBy'])
+                         ->where('status', Need::STATUS_APPROVED)
+                         ->orderBy('approved_at', 'desc');
+
+            // Filtrer par période si spécifié
+            if ($request->has('from_date') && $request->from_date !== '') {
+                $query->whereDate('approved_at', '>=', $request->from_date);
+            }
+
+            if ($request->has('to_date') && $request->to_date !== '') {
+                $query->whereDate('approved_at', '<=', $request->to_date);
+            }
+
+            $needs = $query->get();
+
+            // Calculer les totaux
+            $totalAmount = $needs->sum('amount');
+            $totalCount = $needs->count();
+
+            $pdf = Pdf::loadView('exports.needs.approved-report', [
+                'needs' => $needs,
+                'total_amount' => $totalAmount,
+                'total_count' => $totalCount,
+                'from_date' => $request->from_date ?? null,
+                'to_date' => $request->to_date ?? null,
+                'generated_at' => now()->format('d/m/Y H:i')
+            ]);
+
+            $filename = 'besoins_approuves_' . now()->format('Y_m_d_H_i_s') . '.pdf';
+
+            return $pdf->download($filename);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du rapport',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
