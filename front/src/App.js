@@ -144,6 +144,7 @@ import GradingScales from "./pages/GradingScales/GradingScales";
 import TrimesterSequenceManagement from "./pages/Admin/TrimesterSequenceManagement";
 import BulletinManagement from "./pages/Admin/BulletinManagementNew";
 import PVGeneration from "./pages/PV/PVGeneration";
+import MarkSheetGeneration from "./pages/MarkSheets/MarkSheetGeneration";
 
 // Parent Pages
 import ParentLogin from "./pages/Parent/ParentLogin";
@@ -499,6 +500,14 @@ const AppContent = () => {
                 element={
                   <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire', 'comptable_superieur']}>
                     <PVGeneration />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/mark-sheets"
+                element={
+                  <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire', 'accountant', 'comptable_superieur']}>
+                    <MarkSheetGeneration />
                   </ProtectedRoute>
                 }
               />

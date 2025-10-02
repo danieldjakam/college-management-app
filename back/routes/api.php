@@ -55,6 +55,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\MobileAttendanceController;
 use App\Http\Controllers\BulletinController;
+use App\Http\Controllers\MarkSheetController;
 
 
 // Routes d'authentification
@@ -1286,4 +1287,15 @@ Route::middleware(['auth:api'])->prefix('pv')->group(function () {
     // Prévisualiser le PV (HTML)
     Route::get('/preview/{classSeriesId}/{evaluationId}', [App\Http\Controllers\PVController::class, 'preview'])
         ->middleware(['role:admin,principal,secretaire,comptable_superieur']);
+});
+
+// Routes pour les Fiches de Report de Notes (Mark Sheets)
+Route::middleware(['auth:api'])->prefix('mark-sheets')->group(function () {
+    // Générer une fiche vierge pour une matière spécifique
+    Route::post('/generate-blank', [MarkSheetController::class, 'generateBlankMarkSheet'])
+        ->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
+
+    // Lister toutes les matières d'une classe pour génération
+    Route::post('/generate-all', [MarkSheetController::class, 'generateAllBlankMarkSheetsForClass'])
+        ->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
 });
