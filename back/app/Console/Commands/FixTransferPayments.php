@@ -43,26 +43,56 @@ class FixTransferPayments extends Command
             $this->newLine();
         }
 
-        // Récupérer les paiements pending (avec ou sans détails)
-        // On va vérifier les détails après pour voir s'ils sont corrects
+        // Récupérer UNIQUEMENT les paiements pending qui mentionnent un transfert dans les notes
+        // Ces paiements ont été créés AVANT le transfert et ont des montants de l'ancienne classe
         $query = Payment::where('status', 'pending')
-            ->where('total_amount', '>', 0);
+            ->where('total_amount', '>', 0)
+            ->where(function($q) {
+                $q->where('notes', 'like', '%Transfert de%')
+                  ->orWhere('notes', 'like', '%transfert%')
+                  ->orWhereNull('notes'); // Inclure aussi les paiements sans notes qui pourraient être problématiques
+            });
 
         if ($specificStudentId) {
             $query->where('student_id', $specificStudentId);
             $this->info("Analyse de l'élève ID: {$specificStudentId}");
         } else {
-            $this->info("Analyse de tous les paiements pending...");
+            $this->info("Analyse des paiements pending liés aux transferts de classe...");
         }
 
-        $problematicPayments = $query->with(['student.classSeries.schoolClass'])->get();
+        $allPendingPayments = $query->with(['student.classSeries.schoolClass'])->get();
+
+        // Filtrer manuellement pour ne garder QUE les paiements réellement liés à des transferts
+        $problematicPayments = $allPendingPayments->filter(function($payment) {
+            // Si le paiement contient explicitement "Transfert" dans les notes, le garder
+            if ($payment->notes && (
+                str_contains($payment->notes, 'Transfert de') ||
+                str_contains($payment->notes, 'transfert')
+            )) {
+                return true;
+            }
+
+            // Sinon, vérifier si l'élève a des paiements validés avec mention de transfert
+            // Cela indique qu'il a été transféré et que ce paiement pending pourrait être lié
+            $hasTransferHistory = Payment::where('student_id', $payment->student_id)
+                ->where('status', 'validated')
+                ->where(function($q) {
+                    $q->where('notes', 'like', '%Transfert de%')
+                      ->orWhere('notes', 'like', '%Correction automatique après transfert%');
+                })
+                ->exists();
+
+            return $hasTransferHistory;
+        });
 
         if ($problematicPayments->isEmpty()) {
-            $this->info('✅ Aucun paiement problématique trouvé!');
+            $this->info('✅ Aucun paiement problématique lié à un transfert trouvé!');
+            $this->info('Note: Seuls les paiements des élèves transférés sont analysés.');
             return 0;
         }
 
-        $this->warn("⚠️  {$problematicPayments->count()} paiement(s) problématique(s) trouvé(s)");
+        $this->warn("⚠️  {$problematicPayments->count()} paiement(s) problématique(s) trouvé(s) pour des élèves transférés");
+        $this->info('Ces paiements sont en attente de validation suite à un transfert de classe.');
         $this->newLine();
 
         $bar = $this->output->createProgressBar($problematicPayments->count());
@@ -83,12 +113,23 @@ class FixTransferPayments extends Command
                 continue;
             }
 
+            // Extraire l'info de transfert depuis les notes si disponible
+            $transferInfo = 'Oui';
+            if ($payment->notes && str_contains($payment->notes, 'Transfert de')) {
+                // Extraire "de X vers Y" depuis les notes
+                preg_match('/Transfert de (.+?) vers (.+?)( -|$)/', $payment->notes, $matches);
+                if (count($matches) >= 3) {
+                    $transferInfo = $matches[1] . ' → ' . $matches[2];
+                }
+            }
+
             $issue = [
                 'payment_id' => $payment->id,
                 'student_id' => $student->id,
                 'student_name' => $student->first_name . ' ' . $student->last_name,
                 'student_number' => $student->student_number,
                 'current_class' => $student->classSeries ? $student->classSeries->name : 'N/A',
+                'transfer_info' => $transferInfo,
                 'amount_paid' => number_format($payment->total_amount, 0, ',', ' ') . ' FCFA',
                 'payment_date' => $payment->payment_date->format('d/m/Y'),
                 'receipt' => $payment->receipt_number,
@@ -186,10 +227,10 @@ class FixTransferPayments extends Command
         $this->newLine(2);
 
         // Afficher le tableau des résultats
-        $this->info('RÉSUMÉ DES PAIEMENTS PROBLÉMATIQUES:');
+        $this->info('RÉSUMÉ DES PAIEMENTS PROBLÉMATIQUES (ÉLÈVES TRANSFÉRÉS):');
         $this->newLine();
 
-        $headers = ['ID Paiement', 'Élève', 'N° Élève', 'Classe', 'Montant Payé', 'Inscription', 'Reste', 'Statut'];
+        $headers = ['ID', 'Élève', 'N° Élève', 'Classe Actuelle', 'Transfert', 'Montant Payé', 'Inscription', 'Reste', 'Statut'];
         $rows = [];
 
         foreach ($issues as $issue) {
@@ -198,6 +239,7 @@ class FixTransferPayments extends Command
                 $issue['student_name'],
                 $issue['student_number'],
                 $issue['current_class'],
+                $issue['transfer_info'],
                 $issue['amount_paid'],
                 $issue['inscription_amount'],
                 $issue['remaining'],
