@@ -111,6 +111,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Trimestres & Séquences", href: "/admin/trimesters-sequences", icon: <Calendar /> },
             { name: "Bulletins Scolaires", href: "/admin/bulletins", icon: <CardText /> },
             { name: "Procès-Verbaux (PV)", href: "/admin/pv", icon: <FileEarmarkText /> },
+            { name: "Fiches de Report de Notes", href: "/admin/mark-sheets", icon: <FileEarmarkText /> },
           ],
         },
         {
@@ -159,6 +160,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Trimestres & Séquences", href: "/admin/trimesters-sequences", icon: <Calendar /> },
             { name: "Bulletins Scolaires", href: "/admin/bulletins", icon: <CardText /> },
             { name: "Procès-Verbaux (PV)", href: "/admin/pv", icon: <FileEarmarkText /> },
+            { name: "Fiches de Report de Notes", href: "/admin/mark-sheets", icon: <FileEarmarkText /> },
           ],
         },
         {
@@ -230,12 +232,15 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Rechercher", href: "/search", icon: <Search /> },
           ],
         },
-        ...(userRole === "comptable_superieur" ? [{
+        {
           title: "Pédagogie",
           items: [
-            { name: "Procès-Verbaux (PV)", href: "/admin/pv", icon: <FileEarmarkText /> },
+            ...(userRole === "comptable_superieur" ? [
+              { name: "Procès-Verbaux (PV)", href: "/admin/pv", icon: <FileEarmarkText /> },
+            ] : []),
+            { name: "Fiches de Report de Notes", href: "/admin/mark-sheets", icon: <FileEarmarkText /> },
           ],
-        }] : []),
+        },
         {
           title: "Présences",
           items: [
@@ -476,6 +481,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Trimestres & Séquences", href: "/admin/trimesters-sequences", icon: <Calendar /> },
             { name: "Bulletins Scolaires", href: "/admin/bulletins", icon: <CardText /> },
             { name: "Procès-Verbaux (PV)", href: "/admin/pv", icon: <FileEarmarkText /> },
+            { name: "Fiches de Report de Notes", href: "/admin/mark-sheets", icon: <FileEarmarkText /> },
           ],
         },
         {
