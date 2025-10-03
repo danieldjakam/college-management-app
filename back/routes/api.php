@@ -1000,6 +1000,26 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/vacataires-list', [StaffAttendanceReportController::class, 'getVacatairesList'])
             ->middleware(['role:admin,principal,comptable_superieur,accountant']);
 
+        // Rapport mensuel calendrier pour vacataires (format In/Out par jour)
+        Route::get('/vacataire-attendance-calendar', [StaffAttendanceReportController::class, 'getVacataireMonthlyCalendarReport'])
+            ->middleware(['role:admin,principal,comptable_superieur,accountant']);
+        Route::get('/vacataire-attendance-calendar/export-pdf', [StaffAttendanceReportController::class, 'exportVacataireCalendarPdf'])
+            ->middleware(['role:admin,principal,comptable_superieur,accountant']);
+        Route::get('/vacataire-attendance-calendar/export-excel', [StaffAttendanceReportController::class, 'exportVacataireCalendarExcel'])
+            ->middleware(['role:admin,principal,comptable_superieur,accountant']);
+
+        // Rapport mensuel calendrier pour personnel permanent (format In/Out par jour)
+        Route::get('/staff-attendance-calendar', [StaffAttendanceReportController::class, 'getStaffMonthlyCalendarReport'])
+            ->middleware(['role:admin,principal,comptable_superieur,accountant']);
+        Route::get('/staff-attendance-calendar/export-pdf', function (Illuminate\Http\Request $request) {
+            $request->merge(['format' => 'pdf']);
+            return app(StaffAttendanceReportController::class)->getStaffMonthlyCalendarReport($request);
+        })->middleware(['role:admin,principal,comptable_superieur,accountant']);
+        Route::get('/staff-attendance-calendar/export-excel', function (Illuminate\Http\Request $request) {
+            $request->merge(['format' => 'excel']);
+            return app(StaffAttendanceReportController::class)->getStaffMonthlyCalendarReport($request);
+        })->middleware(['role:admin,principal,comptable_superieur,accountant']);
+
         // Rapports PDF supplémentaires
         Route::get('/detailed-collection/export-pdf', [ReportsController::class, 'exportDetailedCollectionPdf']);
         Route::get('/class-school-fees/export-pdf', [ReportsController::class, 'exportClassSchoolFeesPdf']);

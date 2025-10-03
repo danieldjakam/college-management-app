@@ -7,6 +7,11 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use App\Models\StaffAttendance;
+use App\Models\SchoolYear;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Carbon\Carbon;
+use Barryvdh\DomPDF\Facade\Pdf as PDF;
 
 class StaffAttendanceReportController extends Controller
 {
@@ -507,7 +512,7 @@ class StaffAttendanceReportController extends Controller
                 // Récupérer toutes les présences du mois avec les classes
                 $attendances = StaffAttendance::where('user_id', $vacataire->id)
                     ->whereBetween('attendance_date', [$monthStart, $monthEnd])
-                    ->where('staff_type', 'vacataire')
+                    ->whereIn('staff_type', ['vacataire', 'semi_permanent'])
                     ->with(['attendanceClasses.schoolClass'])
                     ->get();
 
@@ -650,9 +655,13 @@ class StaffAttendanceReportController extends Controller
                 }
             }
 
+            // Convertir les objets en tableaux pour le HTML
+            $vacataires = json_decode(json_encode($reportContent->data->vacataires), true);
+            $statistics = json_decode(json_encode($reportContent->data->statistics), true);
+
             $html = $this->generateVacataireAttendancePdfHtml(
-                $reportContent->data->vacataires,
-                $reportContent->data->statistics,
+                $vacataires,
+                $statistics,
                 $periodLabel
             );
 
@@ -946,5 +955,969 @@ class StaffAttendanceReportController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Rapport vacataires au format calendrier mensuel
+     * Format: Un vacataire par ligne, un jour par colonne avec In/Out
+     */
+    public function getVacataireMonthlyCalendarReport(Request $request)
+    {
+        try {
+            $month = $request->get('month', now()->format('Y-m'));
+            $userId = $request->get('user_id');
+            $startDate = $request->get('start_date');
+            $endDate = $request->get('end_date');
+
+            // Si des dates personnalisées sont fournies, les utiliser
+            if ($startDate && $endDate) {
+                $monthStart = $startDate;
+                $monthEnd = $endDate;
+
+                // Calculer le nombre de jours dans la période
+                $start = \Carbon\Carbon::parse($startDate);
+                $end = \Carbon\Carbon::parse($endDate);
+                $daysInMonth = $start->diffInDays($end) + 1;
+            } else {
+                // Sinon, utiliser le mois entier
+                $monthStart = $month . '-01';
+                $monthEnd = date('Y-m-t', strtotime($monthStart));
+                $daysInMonth = date('t', strtotime($monthStart));
+            }
+
+            // Générer la liste des jours de la période avec leur nom
+            $daysHeader = [];
+            if ($startDate && $endDate) {
+                // Mode dates personnalisées : itérer jour par jour
+                $currentDate = \Carbon\Carbon::parse($startDate);
+                $endDateCarbon = \Carbon\Carbon::parse($endDate);
+
+                while ($currentDate <= $endDateCarbon) {
+                    $daysHeader[] = [
+                        'day' => (int) $currentDate->format('d'),
+                        'day_name' => $currentDate->format('D'),
+                        'date' => $currentDate->format('Y-m-d')
+                    ];
+                    $currentDate->addDay();
+                }
+            } else {
+                // Mode mois : afficher tous les jours du mois
+                for ($day = 1; $day <= $daysInMonth; $day++) {
+                    $date = $month . '-' . str_pad($day, 2, '0', STR_PAD_LEFT);
+                    $dayName = \Carbon\Carbon::parse($date)->locale('en')->format('D'); // Mon, Tue, Wed...
+                    $daysHeader[] = [
+                        'day' => $day,
+                        'day_name' => $dayName,
+                        'date' => $date
+                    ];
+                }
+            }
+
+            // Récupérer tous les vacataires
+            $vacatairesQuery = User::whereHas('teacher', function($query) {
+                    $query->whereIn('type_personnel', ['V', 'SP']);
+                })
+                ->where('is_active', true)
+                ->with('teacher')
+                ->orderBy('name');
+
+            if ($userId) {
+                $vacatairesQuery->where('id', $userId);
+            }
+
+            $vacataires = $vacatairesQuery->get();
+            $vacataireData = [];
+
+            foreach ($vacataires as $vacataire) {
+                // Récupérer toutes les présences du mois
+                $attendances = StaffAttendance::where('user_id', $vacataire->id)
+                    ->whereBetween('attendance_date', [$monthStart, $monthEnd])
+                    ->whereIn('staff_type', ['vacataire', 'semi_permanent'])
+                    ->orderBy('scanned_at', 'asc')
+                    ->get();
+
+                // Organiser les présences par jour
+                $dailyAttendance = [];
+                $totalSeconds = 0;
+                $workingDays = 0;
+                $presentDays = 0;
+                $absentDays = 0;
+                $lateDays = 0;
+                $halfDays = 0;
+
+                foreach ($attendances as $att) {
+                    // Convertir la date en string si c'est un objet Carbon
+                    $date = is_string($att->attendance_date) ? $att->attendance_date : $att->attendance_date->format('Y-m-d');
+
+                    if (!isset($dailyAttendance[$date])) {
+                        $dailyAttendance[$date] = [
+                            'entries' => [],
+                            'exits' => []
+                        ];
+                    }
+
+                    if ($att->event_type === 'entry') {
+                        $dailyAttendance[$date]['entries'][] = [
+                            'time' => $att->scanned_at->format('H:i:s'),
+                            'scanned_at' => $att->scanned_at,
+                            'late_minutes' => $att->late_minutes ?? 0
+                        ];
+                        $presentDays++;
+                        if ($att->late_minutes > 0) {
+                            $lateDays++;
+                        }
+                    } elseif ($att->event_type === 'exit') {
+                        $dailyAttendance[$date]['exits'][] = [
+                            'time' => $att->scanned_at->format('H:i:s'),
+                            'scanned_at' => $att->scanned_at
+                        ];
+                    }
+                }
+
+                // Calculer les heures travaillées en associant chaque Entry avec sa Exit correspondante
+                foreach ($dailyAttendance as $date => $dayData) {
+                    $entries = $dayData['entries'];
+                    $exits = $dayData['exits'];
+
+                    // Associer chaque entrée avec sa sortie suivante
+                    $entryCount = count($entries);
+                    $exitCount = count($exits);
+
+                    for ($i = 0; $i < $entryCount; $i++) {
+                        if (isset($exits[$i])) {
+                            // Calculer la différence entre cette entrée et cette sortie
+                            $entryTime = $entries[$i]['scanned_at'];
+                            $exitTime = $exits[$i]['scanned_at'];
+
+                            $workedSeconds = $exitTime->diffInSeconds($entryTime);
+                            $totalSeconds += $workedSeconds;
+                        }
+                    }
+                }
+
+                // Créer le tableau des jours avec toutes les paires In/Out pour chaque jour
+                $days = [];
+                foreach ($daysHeader as $dayInfo) {
+                    $date = $dayInfo['date'];
+
+                    if (isset($dailyAttendance[$date])) {
+                        $entries = $dailyAttendance[$date]['entries'];
+                        $exits = $dailyAttendance[$date]['exits'];
+
+                        // Créer un tableau de paires [In/Out]
+                        $pairs = [];
+                        $entryCount = count($entries);
+
+                        for ($i = 0; $i < $entryCount; $i++) {
+                            $pairs[] = [
+                                'in' => $entries[$i]['time'],
+                                'out' => isset($exits[$i]) ? $exits[$i]['time'] : null,
+                                'late_minutes' => $entries[$i]['late_minutes']
+                            ];
+                        }
+
+                        $days[] = [
+                            'pairs' => $pairs,  // Toutes les paires [In/Out]
+                            'is_weekend' => \Carbon\Carbon::parse($date)->dayOfWeek == 0 || \Carbon\Carbon::parse($date)->dayOfWeek == 6
+                        ];
+                    } else {
+                        $days[] = null; // Jour non travaillé
+                    }
+                }
+
+                // Calculer le taux de présence (jours travaillés / jours ouvrables de la période)
+                // Pour simplifier, on considère tous les jours sauf dimanche
+                $workingDaysInMonth = 0;
+                foreach ($daysHeader as $dayInfo) {
+                    $dayOfWeek = \Carbon\Carbon::parse($dayInfo['date'])->dayOfWeek;
+                    if ($dayOfWeek != 0) { // 0 = Dimanche
+                        $workingDaysInMonth++;
+                    }
+                }
+
+                $attendanceRate = $workingDaysInMonth > 0 ? ($presentDays / $workingDaysInMonth) * 100 : 0;
+
+                // Formater le temps total en HH:MM:SS
+                $hours = floor($totalSeconds / 3600);
+                $minutes = floor(($totalSeconds % 3600) / 60);
+                $seconds = $totalSeconds % 60;
+                $totalTimeFormatted = sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds);
+
+                $typePersonnel = $vacataire->teacher && $vacataire->teacher->type_personnel === 'V' ? 'Vacataire' : 'Semi-Permanent';
+
+                $vacataireData[] = [
+                    'id' => $vacataire->id,
+                    'name' => $vacataire->teacher ?
+                        ($vacataire->teacher->first_name . ' ' . $vacataire->teacher->last_name) :
+                        $vacataire->name,
+                    'type' => $typePersonnel,
+                    'days' => $days,
+                    'attendance_rate' => round($attendanceRate, 2),
+                    'total_hours' => $totalTimeFormatted,
+                    'working_days' => $workingDaysInMonth,
+                    'present_days' => $presentDays,
+                    'absent_days' => $workingDaysInMonth - $presentDays,
+                    'late_days' => $lateDays,
+                    'half_days' => $halfDays
+                ];
+            }
+
+            // Préparer le nom de la période
+            $periodName = ($startDate && $endDate)
+                ? \Carbon\Carbon::parse($startDate)->locale('fr')->isoFormat('D MMM') . ' - ' .
+                  \Carbon\Carbon::parse($endDate)->locale('fr')->isoFormat('D MMM YYYY')
+                : \Carbon\Carbon::parse($monthStart)->locale('fr')->isoFormat('MMMM YYYY');
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'month' => $month,
+                    'monthName' => $periodName,
+                    'year' => \Carbon\Carbon::parse($monthStart)->year,
+                    'daysHeader' => $daysHeader,
+                    'vacataires' => $vacataireData,
+                    'workingDaysInMonth' => $workingDaysInMonth
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in getVacataireMonthlyCalendarReport: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du rapport calendrier',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export PDF du rapport calendrier mensuel vacataires
+     */
+    public function exportVacataireCalendarPdf(Request $request)
+    {
+        try {
+            $month = $request->input('month', now()->format('Y-m'));
+            $vacataireId = $request->input('vacataire_id');
+            $startDate = $request->input('start_date');
+            $endDate = $request->input('end_date');
+
+            // Utiliser la même méthode que l'API JSON
+            $request->merge(['user_id' => $vacataireId]);
+            $apiResponse = $this->getVacataireMonthlyCalendarReport($request);
+            $responseData = json_decode($apiResponse->getContent(), true);
+
+            if (!$responseData['success']) {
+                throw new \Exception($responseData['message'] ?? 'Erreur lors de la génération des données');
+            }
+
+            $reportData = $responseData['data'];
+
+            // Augmenter la limite de mémoire pour les gros rapports
+            ini_set('memory_limit', '256M');
+
+            // Ajouter les informations supplémentaires pour le PDF
+            $reportData['generatedAt'] = now()->locale('fr')->isoFormat('DD MMMM YYYY à HH:mm');
+            $reportData['schoolYear'] = SchoolYear::where('is_current', true)->first()->name ?? 'N/A';
+
+            // Générer le PDF
+            $pdf = \PDF::loadView('reports.vacataire-attendance-calendar', $reportData);
+            $pdf->setPaper('A3', 'landscape');
+
+            // Nom du fichier
+            $fileName = 'Rapport_Vacataires_Calendrier_' . $reportData['monthName'] . '_' . $reportData['year'] . '.pdf';
+
+            return $pdf->download($fileName);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de l\'export PDF calendrier vacataires', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du PDF',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export Excel du rapport calendrier mensuel vacataires
+     */
+    public function exportVacataireCalendarExcel(Request $request)
+    {
+        try {
+            $month = $request->input('month', now()->format('Y-m'));
+            $vacataireId = $request->input('vacataire_id');
+            $startDate = $request->input('start_date');
+            $endDate = $request->input('end_date');
+
+            // Utiliser la même méthode que l'API JSON
+            $request->merge(['user_id' => $vacataireId]);
+            $apiResponse = $this->getVacataireMonthlyCalendarReport($request);
+            $responseData = json_decode($apiResponse->getContent(), true);
+
+            if (!$responseData['success']) {
+                throw new \Exception($responseData['message'] ?? 'Erreur lors de la génération des données');
+            }
+
+            $reportData = $responseData['data'];
+
+            // Augmenter la limite de mémoire pour les gros rapports
+            ini_set('memory_limit', '256M');
+
+            // Créer un nouveau fichier Excel
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+
+            // En-tête
+            $sheet->setCellValue('A1', 'COLLÈGE POLYVALENT BILINGUE DE DOUALA');
+            $sheet->mergeCells('A1:' . chr(65 + count($reportData['daysHeader']) + 7) . '1');
+            $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+            $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+
+            $sheet->setCellValue('A2', 'Rapport Mensuel de Présences - Vacataires et Semi-Permanents');
+            $sheet->mergeCells('A2:' . chr(65 + count($reportData['daysHeader']) + 7) . '2');
+            $sheet->getStyle('A2')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+
+            // Informations du mois
+            $row = 4;
+            $sheet->setCellValue('A' . $row, 'Mois: ' . $reportData['monthName'] . ' ' . $reportData['year']);
+            $sheet->setCellValue('C' . $row, 'Total Vacataires: ' . count($reportData['vacataires']));
+            $sheet->setCellValue('E' . $row, 'Jours ouvrables: ' . ($reportData['workingDaysInMonth'] ?? 0));
+
+            // En-têtes de colonnes
+            $row = 6;
+            $col = 0;
+            $sheet->setCellValueByColumnAndRow(++$col, $row, 'Employé');
+
+            // Jours du mois
+            foreach ($reportData['daysHeader'] as $dayInfo) {
+                $sheet->setCellValueByColumnAndRow(++$col, $row, $dayInfo['day_name'] . ' ' . str_pad($dayInfo['day'], 2, '0', STR_PAD_LEFT));
+            }
+
+            // Colonnes statistiques
+            $sheet->setCellValueByColumnAndRow(++$col, $row, '(%)');
+            $sheet->setCellValueByColumnAndRow(++$col, $row, 'Total Heures');
+            $sheet->setCellValueByColumnAndRow(++$col, $row, 'W');
+            $sheet->setCellValueByColumnAndRow(++$col, $row, 'P');
+            $sheet->setCellValueByColumnAndRow(++$col, $row, 'A');
+            $sheet->setCellValueByColumnAndRow(++$col, $row, 'L');
+            $sheet->setCellValueByColumnAndRow(++$col, $row, 'HD');
+
+            // Style des en-têtes
+            $headerRange = 'A' . $row . ':' . chr(64 + $col) . $row;
+            $sheet->getStyle($headerRange)->getFill()
+                ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                ->getStartColor()->setARGB('FF007BFF');
+            $sheet->getStyle($headerRange)->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+            $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+
+            // Données des vacataires
+            foreach ($reportData['vacataires'] as $vacataire) {
+                $row++;
+                $col = 0;
+
+                $sheet->setCellValueByColumnAndRow(++$col, $row, $vacataire['name']);
+
+                // Jours de présence
+                foreach ($vacataire['days'] as $dayData) {
+                    $cellValue = '-';
+                    if ($dayData && isset($dayData['in'])) {
+                        $cellValue = 'In: ' . $dayData['in'] . "\n";
+                        $cellValue .= 'Out: ' . ($dayData['out'] ?? '--:--');
+                        if (isset($dayData['late_minutes']) && $dayData['late_minutes'] > 0) {
+                            $cellValue .= "\n(" . $dayData['late_minutes'] . 'min retard)';
+                        }
+                    }
+                    $sheet->setCellValueByColumnAndRow(++$col, $row, $cellValue);
+                    $sheet->getStyleByColumnAndRow($col, $row)->getAlignment()->setWrapText(true);
+                }
+
+                // Statistiques
+                $sheet->setCellValueByColumnAndRow(++$col, $row, $vacataire['attendance_rate'] . '%');
+                $sheet->setCellValueByColumnAndRow(++$col, $row, $vacataire['total_hours']);
+                $sheet->setCellValueByColumnAndRow(++$col, $row, $vacataire['working_days']);
+                $sheet->setCellValueByColumnAndRow(++$col, $row, $vacataire['present_days']);
+                $sheet->setCellValueByColumnAndRow(++$col, $row, $vacataire['absent_days']);
+                $sheet->setCellValueByColumnAndRow(++$col, $row, $vacataire['late_days']);
+                $sheet->setCellValueByColumnAndRow(++$col, $row, $vacataire['half_days']);
+            }
+
+            // Auto-size des colonnes
+            foreach (range('A', chr(64 + $col)) as $columnID) {
+                $sheet->getColumnDimension($columnID)->setAutoSize(true);
+            }
+
+            // Hauteur des lignes de données
+            for ($i = 7; $i <= $row; $i++) {
+                $sheet->getRowDimension($i)->setRowHeight(30);
+            }
+
+            // Bordures
+            $dataRange = 'A6:' . chr(64 + $col) . $row;
+            $sheet->getStyle($dataRange)->getBorders()->getAllBorders()
+                ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+
+            // Télécharger le fichier
+            $fileName = 'Rapport_Vacataires_Calendrier_' . $reportData['monthName'] . '_' . $reportData['year'] . '.xlsx';
+
+            $writer = new Xlsx($spreadsheet);
+
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            header('Content-Disposition: attachment; filename="' . $fileName . '"');
+            header('Cache-Control: max-age=0');
+
+            $writer->save('php://output');
+            exit;
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de l\'export Excel calendrier vacataires', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération de l\'Excel',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * DEPRECATED: Utiliser getVacataireMonthlyCalendarReport() à la place
+     * Générer les données du rapport calendrier (méthode commune)
+     */
+    private function generateCalendarReportData($month, $vacataireId = null)
+    {
+        $date = \Carbon\Carbon::parse($month . '-01');
+        $year = $date->year;
+        $monthNumber = $date->month;
+        $daysInMonth = $date->daysInMonth;
+
+        // Nom du mois en français
+        $monthName = $date->locale('fr')->translatedFormat('F');
+
+        // Générer l'en-tête des jours
+        $daysHeader = [];
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $currentDate = $month . '-' . str_pad($day, 2, '0', STR_PAD_LEFT);
+            $dayName = \Carbon\Carbon::parse($currentDate)->locale('en')->format('D');
+            $daysHeader[] = [
+                'day' => $day,
+                'day_name' => $dayName,
+                'date' => $currentDate
+            ];
+        }
+
+        // Récupérer les vacataires
+        $vacatairesQuery = User::whereIn('staff_type', ['vacataire', 'semi_permanent'])
+            ->where('is_active', true)
+            ->orderBy('last_name')
+            ->orderBy('first_name');
+
+        if ($vacataireId) {
+            $vacatairesQuery->where('id', $vacataireId);
+        }
+
+        $vacataires = $vacatairesQuery->get();
+
+        // Compter les jours ouvrables (lundi-samedi)
+        $workingDaysInMonth = 0;
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $currentDate = $month . '-' . str_pad($day, 2, '0', STR_PAD_LEFT);
+            $dayOfWeek = \Carbon\Carbon::parse($currentDate)->dayOfWeek;
+            if ($dayOfWeek >= 1 && $dayOfWeek <= 6) {
+                $workingDaysInMonth++;
+            }
+        }
+
+        // Préparer les données pour chaque vacataire
+        $vacataireData = [];
+
+        foreach ($vacataires as $vacataire) {
+            // Récupérer toutes les présences du mois
+            $attendances = StaffAttendance::where('user_id', $vacataire->id)
+                ->whereYear('attendance_date', $year)
+                ->whereMonth('attendance_date', $monthNumber)
+                ->orderBy('attendance_date')
+                ->orderBy('scanned_at')
+                ->get();
+
+            // Grouper par jour
+            $dailyAttendance = [];
+            foreach ($attendances as $attendance) {
+                $date = $attendance->attendance_date;
+                if (!isset($dailyAttendance[$date])) {
+                    $dailyAttendance[$date] = [
+                        'entries' => [],
+                        'exits' => []
+                    ];
+                }
+
+                if ($attendance->event_type === 'entry') {
+                    $dailyAttendance[$date]['entries'][] = $attendance;
+                } else {
+                    $dailyAttendance[$date]['exits'][] = $attendance;
+                }
+            }
+
+            // Construire le tableau des jours
+            $days = [];
+            $totalSeconds = 0;
+            $presentDays = 0;
+            $lateDays = 0;
+            $halfDays = 0;
+
+            foreach ($daysHeader as $dayInfo) {
+                $date = $dayInfo['date'];
+                $dayOfWeek = \Carbon\Carbon::parse($date)->dayOfWeek;
+                $isWeekend = ($dayOfWeek == 0); // Dimanche
+
+                if (isset($dailyAttendance[$date]) && !empty($dailyAttendance[$date]['entries'])) {
+                    $entry = $dailyAttendance[$date]['entries'][0];
+                    $exit = !empty($dailyAttendance[$date]['exits']) ? $dailyAttendance[$date]['exits'][0] : null;
+
+                    $inTime = \Carbon\Carbon::parse($entry->scanned_at)->format('H:i:s');
+                    $outTime = $exit ? \Carbon\Carbon::parse($exit->scanned_at)->format('H:i:s') : null;
+
+                    $lateMinutes = $entry->late_minutes ?? 0;
+
+                    // Calculer les heures travaillées
+                    if ($exit && $entry->work_hours > 0) {
+                        $totalSeconds += $entry->work_hours * 3600;
+                    }
+
+                    $days[] = [
+                        'in' => $inTime,
+                        'out' => $outTime,
+                        'late_minutes' => $lateMinutes,
+                        'is_weekend' => $isWeekend
+                    ];
+
+                    $presentDays++;
+                    if ($lateMinutes > 0) {
+                        $lateDays++;
+                    }
+                } else {
+                    $days[] = [
+                        'in' => null,
+                        'out' => null,
+                        'late_minutes' => 0,
+                        'is_weekend' => $isWeekend
+                    ];
+                }
+            }
+
+            // Formater le total des heures en HH:MM:SS
+            $hours = floor($totalSeconds / 3600);
+            $minutes = floor(($totalSeconds % 3600) / 60);
+            $seconds = $totalSeconds % 60;
+            $totalTimeFormatted = sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds);
+
+            // Calculer le taux de présence
+            $attendanceRate = $workingDaysInMonth > 0 ? round(($presentDays / $workingDaysInMonth) * 100, 2) : 0;
+
+            $vacataireData[] = [
+                'id' => $vacataire->id,
+                'name' => trim($vacataire->last_name . ' ' . $vacataire->first_name),
+                'days' => $days,
+                'attendance_rate' => $attendanceRate,
+                'total_hours' => $totalTimeFormatted,
+                'working_days' => $workingDaysInMonth,
+                'present_days' => $presentDays,
+                'absent_days' => $workingDaysInMonth - $presentDays,
+                'late_days' => $lateDays,
+                'half_days' => $halfDays
+            ];
+        }
+
+        return [
+            'month' => $month,
+            'year' => $year,
+            'monthName' => $monthName,
+            'daysInMonth' => $daysInMonth,
+            'daysHeader' => $daysHeader,
+            'vacataires' => $vacataireData,
+            'workingDaysInMonth' => $workingDaysInMonth
+        ];
+    }
+
+    /**
+     * Rapport calendrier mensuel pour le personnel permanent (format identique aux vacataires)
+     */
+    public function getStaffMonthlyCalendarReport(Request $request)
+    {
+        $month = $request->input('month', now()->month);
+        $year = $request->input('year', now()->year);
+        $format = $request->input('format', 'json');
+
+        // Récupérer tous les utilisateurs permanents (teachers, accountant, admin, secretaire, surveillant_general, comptable_superieur)
+        $staffUsers = User::whereIn('role', ['teacher', 'accountant', 'admin', 'secretaire', 'surveillant_general', 'comptable_superieur'])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        $staffIds = $staffUsers->pluck('id')->toArray();
+
+        // Récupérer toutes les présences du mois
+        $attendances = StaffAttendance::whereIn('user_id', $staffIds)
+            ->whereYear('attendance_date', $year)
+            ->whereMonth('attendance_date', $month)
+            ->orderBy('attendance_date')
+            ->orderBy('scanned_at')
+            ->get();
+
+        // Calculer les jours ouvrables du mois
+        $startDate = Carbon::create($year, $month, 1);
+        $endDate = $startDate->copy()->endOfMonth();
+        $workingDaysInMonth = 0;
+
+        for ($date = $startDate->copy(); $date->lte($endDate); $date->addDay()) {
+            if (!in_array($date->dayOfWeek, [0, 6])) {
+                $workingDaysInMonth++;
+            }
+        }
+
+        // Créer l'en-tête des jours
+        $daysHeader = [];
+        for ($day = 1; $day <= $endDate->day; $day++) {
+            $currentDate = Carbon::create($year, $month, $day);
+            $daysHeader[] = [
+                'day' => $day,
+                'day_name' => $currentDate->locale('fr')->isoFormat('ddd')
+            ];
+        }
+
+        // Traiter les données pour chaque employé
+        $staffData = [];
+
+        foreach ($staffUsers as $staff) {
+            $staffAttendances = $attendances->where('user_id', $staff->id);
+
+            // Grouper par jour
+            $dailyAttendance = [];
+            foreach ($staffAttendances as $att) {
+                // Convertir la date en string si c'est un objet Carbon
+                $date = is_string($att->attendance_date) ? $att->attendance_date : $att->attendance_date->format('Y-m-d');
+
+                if (!isset($dailyAttendance[$date])) {
+                    $dailyAttendance[$date] = [
+                        'entries' => [],
+                        'exits' => []
+                    ];
+                }
+
+                if ($att->event_type === 'entry') {
+                    $dailyAttendance[$date]['entries'][] = [
+                        'scanned_at' => Carbon::parse($att->scanned_at),
+                        'time' => Carbon::parse($att->scanned_at)->format('H:i:s'),
+                        'late_minutes' => $att->late_minutes ?? 0
+                    ];
+                } else {
+                    $dailyAttendance[$date]['exits'][] = [
+                        'scanned_at' => Carbon::parse($att->scanned_at),
+                        'time' => Carbon::parse($att->scanned_at)->format('H:i:s')
+                    ];
+                }
+            }
+
+            // Calculer les statistiques
+            $presentDays = 0;
+            $lateDays = 0;
+            $halfDays = 0;
+            $totalSeconds = 0;
+            $totalLateMinutes = 0; // Total des minutes de retard du mois
+
+            // Calculer les heures travaillées en associant chaque Entry avec sa Exit correspondante
+            foreach ($dailyAttendance as $date => $dayData) {
+                $entries = $dayData['entries'];
+                $exits = $dayData['exits'];
+
+                // Associer chaque entrée avec sa sortie suivante
+                $entryCount = count($entries);
+                $exitCount = count($exits);
+
+                for ($i = 0; $i < $entryCount; $i++) {
+                    if (isset($exits[$i])) {
+                        // Calculer la différence entre cette entrée et cette sortie
+                        $entryTime = $entries[$i]['scanned_at'];
+                        $exitTime = $exits[$i]['scanned_at'];
+
+                        $workedSeconds = $exitTime->diffInSeconds($entryTime);
+                        $totalSeconds += $workedSeconds;
+                    }
+                }
+
+                // Statistiques de présence
+                if (count($entries) > 0) {
+                    $presentDays++;
+
+                    // Calculer le total des minutes de retard
+                    foreach ($entries as $entry) {
+                        if ($entry['late_minutes'] > 0) {
+                            $totalLateMinutes += $entry['late_minutes'];
+                        }
+                    }
+
+                    if ($entries[0]['late_minutes'] > 0) {
+                        $lateDays++;
+                    }
+
+                    // Demi-journée si moins de 4h travaillées
+                    $daySeconds = 0;
+                    for ($i = 0; $i < $entryCount; $i++) {
+                        if (isset($exits[$i])) {
+                            $daySeconds += $exits[$i]['scanned_at']->diffInSeconds($entries[$i]['scanned_at']);
+                        }
+                    }
+
+                    if ($daySeconds < 4 * 3600) {
+                        $halfDays++;
+                    }
+                }
+            }
+
+            // Convertir les secondes en format H:i:s
+            $hours = floor($totalSeconds / 3600);
+            $minutes = floor(($totalSeconds % 3600) / 60);
+            $seconds = $totalSeconds % 60;
+            $totalHours = sprintf('%02d:%02d:%02d', $hours, $minutes, $seconds);
+
+            // Créer le tableau des jours pour l'affichage
+            $days = [];
+            for ($day = 1; $day <= $endDate->day; $day++) {
+                $dateStr = sprintf('%04d-%02d-%02d', $year, $month, $day);
+                $dayData = $dailyAttendance[$dateStr] ?? null;
+
+                if ($dayData) {
+                    $entries = $dayData['entries'];
+                    $exits = $dayData['exits'];
+
+                    // Créer un tableau de paires [In/Out]
+                    $pairs = [];
+                    $entryCount = count($entries);
+
+                    for ($i = 0; $i < $entryCount; $i++) {
+                        $pairs[] = [
+                            'in' => $entries[$i]['time'],
+                            'out' => isset($exits[$i]) ? $exits[$i]['time'] : null,
+                            'late_minutes' => $entries[$i]['late_minutes']
+                        ];
+                    }
+
+                    $days[] = [
+                        'pairs' => $pairs,  // Toutes les paires [In/Out]
+                        'is_weekend' => Carbon::parse($dateStr)->dayOfWeek == 0 || Carbon::parse($dateStr)->dayOfWeek == 6
+                    ];
+                } else {
+                    $days[] = [
+                        'pairs' => [],
+                        'is_weekend' => Carbon::parse($dateStr)->dayOfWeek == 0 || Carbon::parse($dateStr)->dayOfWeek == 6
+                    ];
+                }
+            }
+
+            $absentDays = $workingDaysInMonth - $presentDays;
+            $attendanceRate = $workingDaysInMonth > 0 ? round(($presentDays / $workingDaysInMonth) * 100, 2) : 0;
+
+            // Formater le temps de retard total en HH:mm
+            $lateHours = floor($totalLateMinutes / 60);
+            $lateMinutes = $totalLateMinutes % 60;
+            $totalLateFormatted = sprintf('%02d:%02d', $lateHours, $lateMinutes);
+
+            $staffData[] = [
+                'id' => $staff->id,
+                'name' => $staff->name,
+                'role' => $staff->role,
+                'days' => $days,
+                'attendance_rate' => $attendanceRate,
+                'total_hours' => $totalHours,
+                'working_days' => $workingDaysInMonth,
+                'present_days' => $presentDays,
+                'absent_days' => $absentDays,
+                'late_days' => $lateDays,
+                'half_days' => $halfDays,
+                'total_late_minutes' => $totalLateMinutes,
+                'total_late_formatted' => $totalLateFormatted
+            ];
+        }
+
+        $monthName = Carbon::create($year, $month, 1)->locale('fr')->isoFormat('MMMM');
+
+        // Déterminer l'année scolaire
+        $currentYear = SchoolYear::where('is_current', true)->first();
+        $schoolYear = $currentYear ? $currentYear->name : 'N/A';
+
+        $data = [
+            'month' => $month,
+            'year' => $year,
+            'monthName' => ucfirst($monthName),
+            'schoolYear' => $schoolYear,
+            'generatedAt' => now()->locale('fr')->isoFormat('DD MMMM YYYY à HH:mm'),
+            'daysHeader' => $daysHeader,
+            'staff' => $staffData,
+            'workingDaysInMonth' => $workingDaysInMonth
+        ];
+
+        if ($format === 'pdf') {
+            // Augmenter la limite de mémoire pour la génération du PDF
+            ini_set('memory_limit', '512M');
+
+            $pdf = PDF::loadView('reports.staff-attendance-calendar', $data);
+            $pdf->setPaper('a3', 'landscape');
+            $pdf->setOption('isHtml5ParserEnabled', true);
+            $pdf->setOption('isRemoteEnabled', false);
+            return $pdf->download("rapport_calendrier_personnel_{$year}_{$month}.pdf");
+        }
+
+        if ($format === 'excel') {
+            return $this->exportStaffCalendarToExcel($data);
+        }
+
+        return response()->json($data);
+    }
+
+    /**
+     * Export du calendrier personnel vers Excel
+     */
+    private function exportStaffCalendarToExcel($data)
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // En-tête
+        $sheet->setCellValue('A1', 'COLLÈGE POLYVALENT BILINGUE DE DOUALA');
+        $sheet->mergeCells('A1:AJ1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+
+        $sheet->setCellValue('A2', 'Rapport Mensuel de Présences - Personnel Permanent');
+        $sheet->mergeCells('A2:AJ2');
+        $sheet->getStyle('A2')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+
+        // Informations
+        $row = 4;
+        $sheet->setCellValue('A'.$row, "Mois: {$data['monthName']} {$data['year']}");
+        $sheet->setCellValue('E'.$row, "Total Personnel: " . count($data['staff']));
+        $sheet->setCellValue('I'.$row, "Jours ouvrables: {$data['workingDaysInMonth']}");
+        $sheet->setCellValue('M'.$row, "Année scolaire: {$data['schoolYear']}");
+
+        // En-têtes des colonnes
+        $row = 6;
+        $col = 'A';
+        $sheet->setCellValue($col.$row, 'Employé');
+        $col++;
+
+        // Jours du mois
+        foreach ($data['daysHeader'] as $dayInfo) {
+            $sheet->setCellValue($col.$row, $dayInfo['day_name'] . "\n" . str_pad($dayInfo['day'], 2, '0', STR_PAD_LEFT));
+            $sheet->getStyle($col.$row)->getAlignment()->setWrapText(true);
+            $col++;
+        }
+
+        // Statistiques
+        $sheet->setCellValue($col.$row, '%');
+        $col++;
+        $sheet->setCellValue($col.$row, 'Total Heures');
+        $col++;
+        $sheet->setCellValue($col.$row, 'W');
+        $col++;
+        $sheet->setCellValue($col.$row, 'P');
+        $col++;
+        $sheet->setCellValue($col.$row, 'A');
+        $col++;
+        $sheet->setCellValue($col.$row, 'L');
+        $col++;
+        $sheet->setCellValue($col.$row, 'HD');
+        $col++;
+        $sheet->setCellValue($col.$row, 'Total Retard');
+
+        // Style des en-têtes
+        $sheet->getStyle('A'.$row.':'.$col.$row)->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['rgb' => '007bff']],
+            'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER]
+        ]);
+
+        // Données
+        $row++;
+        foreach ($data['staff'] as $staff) {
+            $col = 'A';
+            $sheet->setCellValue($col.$row, $staff['name']);
+            $col++;
+
+            // Jours
+            foreach ($staff['days'] as $dayData) {
+                $cellValue = '';
+                if (isset($dayData['pairs']) && count($dayData['pairs']) > 0) {
+                    $pairsText = [];
+                    foreach ($dayData['pairs'] as $pair) {
+                        $inOut = "In: {$pair['in']}\nOut: " . ($pair['out'] ?? '--:--');
+                        if (isset($pair['late_minutes']) && $pair['late_minutes'] > 0) {
+                            $inOut .= "\n(+{$pair['late_minutes']}min)";
+                        }
+                        $pairsText[] = $inOut;
+                    }
+                    $cellValue = implode("\n---\n", $pairsText);
+                } else {
+                    $cellValue = '-';
+                }
+
+                $sheet->setCellValue($col.$row, $cellValue);
+                $sheet->getStyle($col.$row)->getAlignment()->setWrapText(true);
+
+                if ($dayData['is_weekend']) {
+                    $sheet->getStyle($col.$row)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                        ->getStartColor()->setRGB('ffe5e5');
+                }
+
+                $col++;
+            }
+
+            // Statistiques
+            $sheet->setCellValue($col.$row, $staff['attendance_rate'] . '%');
+            $col++;
+            $sheet->setCellValue($col.$row, $staff['total_hours']);
+            $col++;
+            $sheet->setCellValue($col.$row, $staff['working_days']);
+            $col++;
+            $sheet->setCellValue($col.$row, $staff['present_days']);
+            $col++;
+            $sheet->setCellValue($col.$row, $staff['absent_days']);
+            $col++;
+            $sheet->setCellValue($col.$row, $staff['late_days']);
+            $col++;
+            $sheet->setCellValue($col.$row, $staff['half_days']);
+            $col++;
+            $sheet->setCellValue($col.$row, $staff['total_late_formatted']);
+            // Style rouge pour la colonne Total Retard
+            $sheet->getStyle($col.$row)->getFont()->getColor()->setRGB('dc3545');
+            $sheet->getStyle($col.$row)->getFont()->setBold(true);
+
+            $row++;
+        }
+
+        // Légende
+        $row += 2;
+        $sheet->setCellValue('A'.$row, '(%) : Taux de présence | W : Working days | P : Present | A : Absent | L : Late days | HD : Half Day | Total Retard : Cumul retard mensuel (HH:MM)');
+        $sheet->mergeCells('A'.$row.':K'.$row);
+
+        // Footer
+        $row += 2;
+        $sheet->setCellValue('A'.$row, "Document généré le {$data['generatedAt']}");
+        $sheet->mergeCells('A'.$row.':J'.$row);
+        $sheet->getStyle('A'.$row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+
+        // Téléchargement
+        $writer = new Xlsx($spreadsheet);
+        $filename = "rapport_calendrier_personnel_{$data['year']}_{$data['month']}.xlsx";
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header("Content-Disposition: attachment; filename=\"{$filename}\"");
+        $writer->save('php://output');
+        exit;
     }
 }
