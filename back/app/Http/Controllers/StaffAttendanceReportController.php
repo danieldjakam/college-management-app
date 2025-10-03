@@ -1213,7 +1213,8 @@ class StaffAttendanceReportController extends Controller
             $reportData = $responseData['data'];
 
             // Augmenter la limite de mémoire pour les gros rapports
-            ini_set('memory_limit', '256M');
+            ini_set('memory_limit', '512M');
+            ini_set('max_execution_time', 300);
 
             // Ajouter les informations supplémentaires pour le PDF
             $reportData['generatedAt'] = now()->locale('fr')->isoFormat('DD MMMM YYYY à HH:mm');
@@ -1222,6 +1223,8 @@ class StaffAttendanceReportController extends Controller
             // Générer le PDF
             $pdf = \PDF::loadView('reports.vacataire-attendance-calendar', $reportData);
             $pdf->setPaper('A3', 'landscape');
+            $pdf->setOption('isHtml5ParserEnabled', true);
+            $pdf->setOption('isRemoteEnabled', false);
 
             // Nom du fichier
             $fileName = 'Rapport_Vacataires_Calendrier_' . $reportData['monthName'] . '_' . $reportData['year'] . '.pdf';
@@ -1265,7 +1268,8 @@ class StaffAttendanceReportController extends Controller
             $reportData = $responseData['data'];
 
             // Augmenter la limite de mémoire pour les gros rapports
-            ini_set('memory_limit', '256M');
+            ini_set('memory_limit', '512M');
+            ini_set('max_execution_time', 300);
 
             // Créer un nouveau fichier Excel
             $spreadsheet = new Spreadsheet();
