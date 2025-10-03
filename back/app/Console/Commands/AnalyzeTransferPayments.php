@@ -49,10 +49,13 @@ class AnalyzeTransferPayments extends Command
             $this->newLine();
         }
 
-        // Trouver tous les élèves qui ont été transférés (ont des paiements avec mention de transfert)
+        // Trouver tous les élèves qui ont des paiements pending OU qui ont été transférés
         $query = Student::whereHas('payments', function($q) {
             $q->where(function($sq) {
-                $sq->where('notes', 'like', '%Transfert de%')
+                // Paiements pending
+                $sq->where('status', 'pending')
+                  // OU paiements avec mention de transfert
+                  ->orWhere('notes', 'like', '%Transfert de%')
                   ->orWhere('notes', 'like', '%Correction automatique après transfert%');
             });
         })->with(['classSeries.schoolClass', 'payments' => function($q) {
@@ -260,60 +263,86 @@ class AnalyzeTransferPayments extends Command
             $totalPaid = $payment->total_amount;
             $remaining = $totalPaid - $inscriptionAmount;
 
-            // Supprimer les anciens détails
-            PaymentDetail::where('payment_id', $payment->id)->delete();
+            // Vérifier si le paiement a déjà des détails CORRECTS
+            $existingDetails = PaymentDetail::where('payment_id', $payment->id)->get();
+            $hasCorrectDetails = false;
 
-            // 1. Créer le détail pour l'inscription
-            PaymentDetail::create([
-                'payment_id' => $payment->id,
-                'payment_tranche_id' => $inscriptionTranche->id,
-                'amount_allocated' => min($inscriptionAmount, $totalPaid),
-                'previous_amount' => 0,
-                'new_total_amount' => min($inscriptionAmount, $totalPaid),
-                'is_fully_paid' => $totalPaid >= $inscriptionAmount,
-                'required_amount_at_time' => $inscriptionAmount,
-                'was_reduced' => false
-            ]);
+            if ($existingDetails->isNotEmpty()) {
+                // Vérifier si le montant d'inscription correspond à la classe actuelle
+                $inscriptionDetail = $existingDetails->where('payment_tranche_id', $inscriptionTranche->id)->first();
 
-            // 2. Si reste > 0, affecter à la 1ère tranche
-            if ($remaining > 0) {
-                $firstTranche = PaymentTranche::where('order', 2)->active()->first();
+                if ($inscriptionDetail) {
+                    // Les détails sont corrects si:
+                    // 1. Le montant d'inscription alloué = min(inscription classe actuelle, total payé)
+                    // 2. Le total alloué = total payé
+                    $expectedInscription = min($inscriptionAmount, $totalPaid);
+                    $totalAllocated = $existingDetails->sum('amount_allocated');
 
-                if ($firstTranche) {
-                    $firstTrancheAmount = $firstTranche->getAmountForStudent(
-                        $student,
-                        $student->is_new,
-                        false,
-                        false,
-                        false
-                    );
-
-                    $isFullyPaid = $remaining >= $firstTrancheAmount;
-
-                    PaymentDetail::create([
-                        'payment_id' => $payment->id,
-                        'payment_tranche_id' => $firstTranche->id,
-                        'amount_allocated' => $remaining,
-                        'previous_amount' => 0,
-                        'new_total_amount' => $remaining,
-                        'is_fully_paid' => $isFullyPaid,
-                        'required_amount_at_time' => $firstTrancheAmount,
-                        'was_reduced' => false
-                    ]);
+                    if ($inscriptionDetail->amount_allocated == $expectedInscription && $totalAllocated == $totalPaid) {
+                        $hasCorrectDetails = true;
+                    }
                 }
             }
 
-            // 3. Valider le paiement
+            // Si les détails ne sont pas corrects, les recalculer
+            if (!$hasCorrectDetails) {
+                // Supprimer les anciens détails
+                PaymentDetail::where('payment_id', $payment->id)->delete();
+
+                // 1. Créer le détail pour l'inscription
+                PaymentDetail::create([
+                    'payment_id' => $payment->id,
+                    'payment_tranche_id' => $inscriptionTranche->id,
+                    'amount_allocated' => min($inscriptionAmount, $totalPaid),
+                    'previous_amount' => 0,
+                    'new_total_amount' => min($inscriptionAmount, $totalPaid),
+                    'is_fully_paid' => $totalPaid >= $inscriptionAmount,
+                    'required_amount_at_time' => $inscriptionAmount,
+                    'was_reduced' => false
+                ]);
+
+                // 2. Si reste > 0, affecter à la 1ère tranche
+                if ($remaining > 0) {
+                    $firstTranche = PaymentTranche::where('order', 2)->active()->first();
+
+                    if ($firstTranche) {
+                        $firstTrancheAmount = $firstTranche->getAmountForStudent(
+                            $student,
+                            $student->is_new,
+                            false,
+                            false,
+                            false
+                        );
+
+                        $isFullyPaid = $remaining >= $firstTrancheAmount;
+
+                        PaymentDetail::create([
+                            'payment_id' => $payment->id,
+                            'payment_tranche_id' => $firstTranche->id,
+                            'amount_allocated' => $remaining,
+                            'previous_amount' => 0,
+                            'new_total_amount' => $remaining,
+                            'is_fully_paid' => $isFullyPaid,
+                            'required_amount_at_time' => $firstTrancheAmount,
+                            'was_reduced' => false
+                        ]);
+                    }
+                }
+            }
+
+            // 3. Valider le paiement (que les détails aient été recalculés ou non)
+            $noteText = $hasCorrectDetails
+                ? sprintf('Validation automatique - Détails corrects (Script: %s)', now()->format('d/m/Y H:i'))
+                : sprintf('Correction automatique - Inscription: %s FCFA, Reste: %s FCFA (Script: %s)',
+                    number_format($inscriptionAmount, 0, ',', ' '),
+                    number_format($remaining, 0, ',', ' '),
+                    now()->format('d/m/Y H:i'));
+
             $payment->update([
                 'status' => 'validated',
                 'validation_date' => now(),
                 'status_updated_at' => now(),
-                'notes' => sprintf(
-                    'Correction automatique après transfert - Inscription: %s FCFA, Reste: %s FCFA (Script: %s)',
-                    number_format($inscriptionAmount, 0, ',', ' '),
-                    number_format($remaining, 0, ',', ' '),
-                    now()->format('d/m/Y H:i')
-                )
+                'notes' => $payment->notes ? $payment->notes . ' | ' . $noteText : $noteText
             ]);
 
             DB::commit();

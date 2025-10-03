@@ -310,14 +310,8 @@ class WhatsAppService
                    "{$schoolName}\n\n" .
                    "*{$title}* : {$user->name}\n\n" .
                    "LE : {$date}\n\n" .
-                   "HEURE DE {$eventType}: {$time}\n\n";
-        
-        // Ajouter l'information de retard si c'est une entrée et qu'il y a du retard
-        if ($staffAttendance->event_type === 'entry' && $staffAttendance->late_minutes > 0) {
-            $message .= "⚠️ *RETARD: {$staffAttendance->late_minutes} minutes*\n\n";
-        }
-        
-        $message .= "VOTRE POINTAGE A ÉTÉ ENREGISTRÉ. NOUS VOUS REMERCIONS POUR VOS SERVICES.";
+                   "HEURE DE {$eventType}: {$time}\n\n" .
+                   "VOTRE POINTAGE A ÉTÉ ENREGISTRÉ. NOUS VOUS REMERCIONS POUR VOS SERVICES.";
         
         return $message;
     }

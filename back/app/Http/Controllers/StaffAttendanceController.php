@@ -2543,6 +2543,83 @@ class StaffAttendanceController extends Controller
                     ]);
                 }
 
+                // Si c'est une SORTIE, calculer et enregistrer les heures travaillées
+                if ($eventType === 'exit') {
+                    // Trouver l'entrée correspondante (la dernière entrée avant cette sortie)
+                    $entries = StaffAttendance::where('user_id', $user->id)
+                        ->where('attendance_date', $today)
+                        ->where('school_year_id', $currentSchoolYear->id)
+                        ->where('event_type', 'entry')
+                        ->orderBy('scanned_at', 'asc')
+                        ->get();
+
+                    $exits = StaffAttendance::where('user_id', $user->id)
+                        ->where('attendance_date', $today)
+                        ->where('school_year_id', $currentSchoolYear->id)
+                        ->where('event_type', 'exit')
+                        ->where('id', '!=', $attendance->id) // Exclure la sortie actuelle
+                        ->orderBy('scanned_at', 'asc')
+                        ->get();
+
+                    // Trouver l'entrée qui n'a pas encore de sortie correspondante
+                    $entryAttendance = null;
+                    foreach ($entries as $entry) {
+                        $hasExit = false;
+                        foreach ($exits as $exit) {
+                            if ($exit->scanned_at > $entry->scanned_at) {
+                                $hasExit = true;
+                                break;
+                            }
+                        }
+                        if (!$hasExit) {
+                            $entryAttendance = $entry;
+                            break;
+                        }
+                    }
+
+                    if ($entryAttendance) {
+                        $entryTime = Carbon::parse($entryAttendance->scanned_at);
+                        $exitTime = Carbon::parse($now);
+
+                        // Calculer les heures travaillées pour cette session
+                        $sessionMinutes = $entryTime->diffInMinutes($exitTime);
+                        $sessionHours = round($sessionMinutes / 60, 2);
+
+                        // Mettre à jour l'entrée avec les heures travaillées
+                        $entryAttendance->update([
+                            'work_hours' => $sessionHours
+                        ]);
+
+                        // Mettre à jour la sortie avec les mêmes heures
+                        $attendance->update([
+                            'work_hours' => $sessionHours
+                        ]);
+
+                        // Répartir les heures sur toutes les classes de l'entrée
+                        $entryClasses = StaffAttendanceClass::where('staff_attendance_id', $entryAttendance->id)->get();
+                        if ($entryClasses->count() > 0) {
+                            $hoursPerClass = round($sessionHours / $entryClasses->count(), 2);
+
+                            foreach ($entryClasses as $entryClass) {
+                                $entryClass->update([
+                                    'hours_taught' => $hoursPerClass
+                                ]);
+                            }
+                        }
+
+                        \Log::info('Heures de travail enregistrées pour vacataire/semi-permanent', [
+                            'user_id' => $user->id,
+                            'entry_id' => $entryAttendance->id,
+                            'exit_id' => $attendance->id,
+                            'entry_time' => $entryTime->format('H:i:s'),
+                            'exit_time' => $exitTime->format('H:i:s'),
+                            'session_hours' => $sessionHours,
+                            'classes_count' => $entryClasses->count(),
+                            'hours_per_class' => $hoursPerClass ?? 0
+                        ]);
+                    }
+                }
+
                 DB::commit();
             } catch (\Exception $e) {
                 DB::rollBack();
