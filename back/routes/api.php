@@ -689,17 +689,17 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/export/importable', [TeacherController::class, 'exportImportable'])->middleware(['role:admin,secretaire,accountant,comptable_superieur']);
         Route::get('/template/download', [TeacherController::class, 'downloadTemplate'])->middleware(['role:admin']);
 
-        // Routes pour administrateurs uniquement (gestion)
-        Route::post('/', [TeacherController::class, 'store'])->middleware(['role:admin']);
-        Route::put('/{teacher}', [TeacherController::class, 'update'])->middleware(['role:admin']);
-        Route::delete('/{teacher}', [TeacherController::class, 'destroy'])->middleware(['role:admin']);
-        Route::post('/{teacher}/toggle-status', [TeacherController::class, 'toggleStatus'])->middleware(['role:admin']);
-        Route::post('/{teacher}/assign-subjects', [TeacherController::class, 'assignSubjects'])->middleware(['role:admin']);
-        Route::post('/{teacher}/remove-assignment', [TeacherController::class, 'removeAssignment'])->middleware(['role:admin']);
-        Route::post('/{teacher}/create-user-account', [TeacherController::class, 'createUserAccount'])->middleware(['role:admin']);
-        Route::delete('/{teacher}/remove-user-account', [TeacherController::class, 'removeUserAccount'])->middleware(['role:admin']);
-        Route::post('/import/csv', [TeacherImportController::class, 'importCsv'])->middleware(['role:admin']);
-        Route::get('/template/csv', [TeacherImportController::class, 'downloadTemplate'])->middleware(['role:admin']);
+        // Routes pour administrateurs, principal et secrétaires (gestion)
+        Route::post('/', [TeacherController::class, 'store'])->middleware(['role:admin,principal,secretaire']);
+        Route::put('/{teacher}', [TeacherController::class, 'update'])->middleware(['role:admin,principal,secretaire']);
+        Route::delete('/{teacher}', [TeacherController::class, 'destroy'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/{teacher}/toggle-status', [TeacherController::class, 'toggleStatus'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/{teacher}/assign-subjects', [TeacherController::class, 'assignSubjects'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/{teacher}/remove-assignment', [TeacherController::class, 'removeAssignment'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/{teacher}/create-user-account', [TeacherController::class, 'createUserAccount'])->middleware(['role:admin,principal,secretaire']);
+        Route::delete('/{teacher}/remove-user-account', [TeacherController::class, 'removeUserAccount'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/import/csv', [TeacherImportController::class, 'importCsv'])->middleware(['role:admin,principal,secretaire']);
+        Route::get('/template/csv', [TeacherImportController::class, 'downloadTemplate'])->middleware(['role:admin,principal,secretaire']);
         
         // Routes pour corriger les utilisateurs enseignants
         Route::post('/fix-contacts', [TeacherFixController::class, 'fixTeacherContacts'])->middleware(['role:admin']);
@@ -742,11 +742,11 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/classes-without-main-teacher', [MainTeacherController::class, 'getClassesWithoutMainTeacher'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
         Route::get('/available-teachers', [MainTeacherController::class, 'getAvailableTeachers'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
 
-        // Routes pour administrateurs et principal (gestion)
-        Route::post('/', [MainTeacherController::class, 'store'])->middleware(['role:admin,principal']);
-        Route::put('/{mainTeacher}', [MainTeacherController::class, 'update'])->middleware(['role:admin,principal']);
-        Route::delete('/{mainTeacher}', [MainTeacherController::class, 'destroy'])->middleware(['role:admin,principal']);
-        Route::post('/{mainTeacher}/toggle-status', [MainTeacherController::class, 'toggleStatus'])->middleware(['role:admin,principal']);
+        // Routes pour administrateurs, principal et secrétaires (gestion)
+        Route::post('/', [MainTeacherController::class, 'store'])->middleware(['role:admin,principal,secretaire']);
+        Route::put('/{mainTeacher}', [MainTeacherController::class, 'update'])->middleware(['role:admin,principal,secretaire']);
+        Route::delete('/{mainTeacher}', [MainTeacherController::class, 'destroy'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/{mainTeacher}/toggle-status', [MainTeacherController::class, 'toggleStatus'])->middleware(['role:admin,principal,secretaire']);
     });
 
     // Routes pour les besoins
@@ -1148,11 +1148,11 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{trimester}/stats', [TrimesterController::class, 'getStats'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
         Route::get('/{trimester}/ds-details', [TrimesterController::class, 'getDSDetails'])->middleware(['role:teacher']);
         
-        // Gestion (admin et principal)
-        Route::post('/', [TrimesterController::class, 'store'])->middleware(['role:admin,principal']);
-        Route::put('/{trimester}', [TrimesterController::class, 'update'])->middleware(['role:admin,principal']);
-        Route::delete('/{trimester}', [TrimesterController::class, 'destroy'])->middleware(['role:admin,principal']);
-        Route::post('/{trimester}/activate', [TrimesterController::class, 'activate'])->middleware(['role:admin,principal']);
+        // Gestion (admin, principal et secrétaires)
+        Route::post('/', [TrimesterController::class, 'store'])->middleware(['role:admin,principal,secretaire']);
+        Route::put('/{trimester}', [TrimesterController::class, 'update'])->middleware(['role:admin,principal,secretaire']);
+        Route::delete('/{trimester}', [TrimesterController::class, 'destroy'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/{trimester}/activate', [TrimesterController::class, 'activate'])->middleware(['role:admin,principal,secretaire']);
     });
 
     // Routes pour les évaluations
@@ -1173,10 +1173,10 @@ Route::middleware(['auth:api'])->group(function () {
         // Consultation des notes par évaluation
         Route::get('/evaluation/{evaluation}', [GradeController::class, 'getGradesByEvaluation'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
         
-        // Saisie et gestion des notes (enseignants et admins)
-        Route::post('/', [GradeController::class, 'saveGrade'])->middleware(['role:admin,teacher']);
-        Route::post('/bulk', [GradeController::class, 'saveBulkGrades'])->middleware(['role:admin,teacher']);
-        Route::delete('/{grade}', [GradeController::class, 'deleteGrade'])->middleware(['role:admin,teacher']);
+        // Saisie et gestion des notes (enseignants, admins et secrétaires)
+        Route::post('/', [GradeController::class, 'saveGrade'])->middleware(['role:admin,teacher,secretaire']);
+        Route::post('/bulk', [GradeController::class, 'saveBulkGrades'])->middleware(['role:admin,teacher,secretaire']);
+        Route::delete('/{grade}', [GradeController::class, 'deleteGrade'])->middleware(['role:admin,teacher,secretaire']);
         
         // Statistiques
         Route::get('/evaluation/{evaluation}/stats', [GradeController::class, 'getEvaluationStats'])->middleware(['role:admin,teacher,accountant,comptable_superieur,secretaire']);
