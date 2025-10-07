@@ -18,7 +18,7 @@ const TeacherAssignmentManagement = () => {
     const [availableSubjects, setAvailableSubjects] = useState([]);
     const [availableClasses, setAvailableClasses] = useState([]);
     const [assignmentData, setAssignmentData] = useState({
-        series_subject_id: ''
+        class_series_subject_id: ''
     });
     const [mainTeacherData, setMainTeacherData] = useState({
         class_series_id: ''
@@ -100,7 +100,7 @@ const TeacherAssignmentManagement = () => {
             console.error('Erreur lors du chargement des matières disponibles:', error);
         }
 
-        setAssignmentData({ series_subject_id: '' });
+        setAssignmentData({ class_series_subject_id: '' });
         setShowAssignModal(true);
     };
 
@@ -132,7 +132,7 @@ const TeacherAssignmentManagement = () => {
     const handleAssignSubject = async (e) => {
         e.preventDefault();
         
-        if (!selectedTeacher || !assignmentData.series_subject_id) {
+        if (!selectedTeacher || !assignmentData.class_series_subject_id) {
             Swal.fire('Erreur', 'Veuillez sélectionner une matière', 'error');
             return;
         }
@@ -141,7 +141,7 @@ const TeacherAssignmentManagement = () => {
             const yearId = selectedSchoolYear === 'current' ? null : selectedSchoolYear;
             const data = {
                 teacher_id: selectedTeacher.id,
-                series_subject_id: assignmentData.series_subject_id
+                class_series_subject_id: assignmentData.class_series_subject_id
             };
             if (yearId !== null) {
                 data.school_year_id = yearId;
@@ -524,16 +524,16 @@ const TeacherAssignmentManagement = () => {
                         <Form.Group className="mb-3">
                             <Form.Label>Matière disponible <span className="text-danger">*</span></Form.Label>
                             <Form.Select
-                                value={assignmentData.series_subject_id}
-                                onChange={(e) => setAssignmentData(prev => ({ ...prev, series_subject_id: e.target.value }))}
+                                value={assignmentData.class_series_subject_id}
+                                onChange={(e) => setAssignmentData(prev => ({ ...prev, class_series_subject_id: e.target.value }))}
                                 required
                             >
                                 <option value="">Sélectionner une matière configurée...</option>
-                                {availableSubjects.map((seriesSubject) => (
-                                    <option key={seriesSubject.id} value={seriesSubject.id}>
-                                        {seriesSubject.subject?.name} - {seriesSubject.school_class?.name} 
-                                        {seriesSubject.school_class?.level && ` (${seriesSubject.school_class.level.name})`} 
-                                        - Coeff: {seriesSubject.coefficient}
+                                {availableSubjects.map((classSeriesSubject) => (
+                                    <option key={classSeriesSubject.id} value={classSeriesSubject.id}>
+                                        {classSeriesSubject.subject?.name} - {classSeriesSubject.class_series?.name}
+                                        {classSeriesSubject.class_series?.school_class?.level && ` (${classSeriesSubject.class_series.school_class.level.name})`}
+                                        - Coeff: {classSeriesSubject.coefficient}
                                     </option>
                                 ))}
                             </Form.Select>
@@ -556,7 +556,7 @@ const TeacherAssignmentManagement = () => {
                         <Button 
                             variant="primary" 
                             type="submit"
-                            disabled={!assignmentData.series_subject_id || availableSubjects.length === 0}
+                            disabled={!assignmentData.class_series_subject_id || availableSubjects.length === 0}
                         >
                             <PlusCircle className="me-2" />
                             Affecter
