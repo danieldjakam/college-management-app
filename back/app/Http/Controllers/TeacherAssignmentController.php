@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\TeacherAssignment;
 use App\Models\Teacher;
-use App\Models\SeriesSubject;
+use App\Models\ClassSeriesSubject;
 use App\Models\MainTeacher;
 use App\Models\SchoolYear;
 use App\Services\WhatsAppService;
@@ -22,8 +22,8 @@ class TeacherAssignmentController extends Controller
         try {
             $query = TeacherAssignment::with([
                 'teacher',
-                'seriesSubject.subject',
-                'seriesSubject.schoolClass.level',
+                'classSeriesSubject.subject',
+                'classSeriesSubject.classSeries.schoolClass.level',
                 'schoolYear'
             ]);
 
@@ -45,15 +45,15 @@ class TeacherAssignmentController extends Controller
 
             // Filtrer par matière
             if ($request->has('subject_id')) {
-                $query->whereHas('seriesSubject', function($q) use ($request) {
+                $query->whereHas('classSeriesSubject', function($q) use ($request) {
                     $q->where('subject_id', $request->subject_id);
                 });
             }
 
-            // Filtrer par classe
-            if ($request->has('school_class_id')) {
-                $query->whereHas('seriesSubject', function($q) use ($request) {
-                    $q->where('school_class_id', $request->school_class_id);
+            // Filtrer par série (6ème A, 6ème B, etc.)
+            if ($request->has('class_series_id')) {
+                $query->whereHas('classSeriesSubject', function($q) use ($request) {
+                    $q->where('class_series_id', $request->class_series_id);
                 });
             }
 
@@ -92,8 +92,8 @@ class TeacherAssignmentController extends Controller
                 ->where('school_year_id', $schoolYearId)
                 ->where('is_active', true)
                 ->with([
-                    'seriesSubject.subject',
-                    'seriesSubject.schoolClass.level',
+                    'classSeriesSubject.subject',
+                    'classSeriesSubject.classSeries.schoolClass.level',
                     'schoolYear'
                 ])
                 ->get();
@@ -133,7 +133,7 @@ class TeacherAssignmentController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'teacher_id' => 'required|exists:teachers,id',
-                'series_subject_id' => 'required|exists:series_subjects,id',
+                'class_series_subject_id' => 'required|exists:class_series_subjects,id',
                 'school_year_id' => 'nullable|exists:school_years,id'
             ]);
 
@@ -157,7 +157,7 @@ class TeacherAssignmentController extends Controller
 
             // Vérifier si l'affectation existe déjà
             $existingAssignment = TeacherAssignment::where('teacher_id', $request->teacher_id)
-                ->where('series_subject_id', $request->series_subject_id)
+                ->where('class_series_subject_id', $request->class_series_subject_id)
                 ->where('school_year_id', $schoolYearId)
                 ->first();
 
@@ -170,15 +170,15 @@ class TeacherAssignmentController extends Controller
 
             $assignment = TeacherAssignment::create([
                 'teacher_id' => $request->teacher_id,
-                'series_subject_id' => $request->series_subject_id,
+                'class_series_subject_id' => $request->class_series_subject_id,
                 'school_year_id' => $schoolYearId,
                 'is_active' => true
             ]);
 
             $assignment->load([
                 'teacher',
-                'seriesSubject.subject',
-                'seriesSubject.schoolClass.level',
+                'classSeriesSubject.subject',
+                'classSeriesSubject.classSeries.schoolClass.level',
                 'schoolYear'
             ]);
 
@@ -262,8 +262,8 @@ class TeacherAssignmentController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'school_year_id' => 'nullable|exists:school_years,id',
-                'series_subjects' => 'required|array',
-                'series_subjects.*' => 'exists:series_subjects,id'
+                'class_series_subjects' => 'required|array',
+                'class_series_subjects.*' => 'exists:class_series_subjects,id'
             ]);
 
             if ($validator->fails()) {
@@ -288,17 +288,17 @@ class TeacherAssignmentController extends Controller
 
             $assignments = [];
 
-            foreach ($request->series_subjects as $seriesSubjectId) {
+            foreach ($request->class_series_subjects as $classSeriesSubjectId) {
                 // Vérifier si l'affectation existe déjà
                 $existingAssignment = TeacherAssignment::where('teacher_id', $teacher->id)
-                    ->where('series_subject_id', $seriesSubjectId)
+                    ->where('class_series_subject_id', $classSeriesSubjectId)
                     ->where('school_year_id', $schoolYearId)
                     ->first();
 
                 if (!$existingAssignment) {
                     $assignment = TeacherAssignment::create([
                         'teacher_id' => $teacher->id,
-                        'series_subject_id' => $seriesSubjectId,
+                        'class_series_subject_id' => $classSeriesSubjectId,
                         'school_year_id' => $schoolYearId,
                         'is_active' => true
                     ]);
@@ -313,8 +313,8 @@ class TeacherAssignmentController extends Controller
             foreach ($assignments as $assignment) {
                 $assignment->load([
                     'teacher',
-                    'seriesSubject.subject',
-                    'seriesSubject.schoolClass.level',
+                    'classSeriesSubject.subject',
+                    'classSeriesSubject.classSeries.schoolClass.level',
                     'schoolYear'
                 ]);
                 
@@ -355,20 +355,20 @@ class TeacherAssignmentController extends Controller
             $schoolYearId = $request->school_year_id ?? SchoolYear::where('is_current', true)->first()?->id;
 
             // Obtenir les matières déjà affectées à cet enseignant
-            $assignedSeriesSubjectIds = TeacherAssignment::where('teacher_id', $teacher->id)
+            $assignedClassSeriesSubjectIds = TeacherAssignment::where('teacher_id', $teacher->id)
                 ->where('school_year_id', $schoolYearId)
                 ->where('is_active', true)
-                ->pluck('series_subject_id');
+                ->pluck('class_series_subject_id');
 
             // Obtenir toutes les matières configurées mais non affectées
-            $availableSeriesSubjects = SeriesSubject::whereNotIn('id', $assignedSeriesSubjectIds)
+            $availableClassSeriesSubjects = ClassSeriesSubject::whereNotIn('id', $assignedClassSeriesSubjectIds)
                 ->where('is_active', true)
-                ->with(['subject', 'schoolClass.level'])
+                ->with(['subject', 'classSeries.schoolClass.level'])
                 ->get();
 
             return response()->json([
                 'success' => true,
-                'data' => $availableSeriesSubjects
+                'data' => $availableClassSeriesSubjects
             ]);
         } catch (\Exception $e) {
             return response()->json([

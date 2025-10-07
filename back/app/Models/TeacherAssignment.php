@@ -11,7 +11,7 @@ class TeacherAssignment extends Model
 
     protected $fillable = [
         'teacher_id',
-        'series_subject_id',
+        'class_series_subject_id',
         'school_year_id',
         'is_active'
     ];
@@ -29,11 +29,11 @@ class TeacherAssignment extends Model
     }
 
     /**
-     * Relation avec la matière-série
+     * Relation avec la matière-série (ClassSeriesSubject)
      */
-    public function seriesSubject()
+    public function classSeriesSubject()
     {
-        return $this->belongsTo(SeriesSubject::class);
+        return $this->belongsTo(ClassSeriesSubject::class);
     }
 
     /**
@@ -49,15 +49,15 @@ class TeacherAssignment extends Model
      */
     public function getSubjectAttribute()
     {
-        return $this->seriesSubject?->subject;
+        return $this->classSeriesSubject?->subject;
     }
 
     /**
-     * Accessor pour obtenir la classe via la relation
+     * Accessor pour obtenir la série via la relation
      */
-    public function getSchoolClassAttribute()
+    public function getClassSeriesAttribute()
     {
-        return $this->seriesSubject?->schoolClass;
+        return $this->classSeriesSubject?->classSeries;
     }
 
     /**
@@ -65,6 +65,6 @@ class TeacherAssignment extends Model
      */
     public function getCoefficientAttribute()
     {
-        return $this->seriesSubject?->coefficient;
+        return $this->classSeriesSubject?->coefficient;
     }
 }
