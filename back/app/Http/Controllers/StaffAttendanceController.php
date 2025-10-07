@@ -550,51 +550,53 @@ class StaffAttendanceController extends Controller
                 }
             }
 
-            // VALIDATION STRICTE selon le bouton cliqué
+            // VALIDATION FLEXIBLE pour vacataires/semi-permanents (plusieurs cycles possibles)
             if ($eventType === 'entry') {
-                // Bouton ARRIVÉE : Vérifier qu'aucune entrée n'existe
-                if ($entriesCount >= 1) {
+                // Bouton ARRIVÉE : Vérifier qu'il n'y a pas une entrée sans sortie correspondante
+                if ($entriesCount > $exitsCount) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Entrée déjà effectuée aujourd\'hui. Vous ne pouvez faire qu\'une seule entrée par jour.',
-                        'error_code' => 'ENTRY_ALREADY_RECORDED',
+                        'message' => 'Vous devez d\'abord scanner votre sortie avant de faire une nouvelle entrée.',
+                        'error_code' => 'MUST_SCAN_EXIT_FIRST',
                         'data' => [
-                            'error_code' => 'ENTRY_ALREADY_RECORDED',
                             'entries_today' => $entriesCount,
-                            'first_entry' => $todaysMovements->where('event_type', 'entry')->first()->scanned_at,
-                            'suggestion' => 'Utilisez le bouton "Départ" pour scanner votre sortie'
+                            'exits_today' => $exitsCount,
+                            'last_entry' => $todaysMovements->where('event_type', 'entry')->last()->scanned_at,
+                            'suggestion' => 'Utilisez le bouton "Départ" pour scanner votre sortie d\'abord'
                         ]
                     ], 422);
                 }
-                
+                // ✅ OK pour l'entrée (permet plusieurs cycles entrée-sortie dans la journée)
+
             } elseif ($eventType === 'exit') {
-                // Bouton DÉPART : Vérifier qu'une entrée existe ET qu'aucune sortie n'existe
+                // Bouton DÉPART : Vérifier qu'il y a au moins une entrée
                 if ($entriesCount === 0) {
                     return response()->json([
                         'success' => false,
                         'message' => 'Aucune entrée trouvée aujourd\'hui. Vous devez d\'abord scanner votre arrivée.',
                         'error_code' => 'NO_ENTRY_RECORDED',
                         'data' => [
-                            'error_code' => 'NO_ENTRY_RECORDED',
                             'entries_today' => $entriesCount,
                             'suggestion' => 'Utilisez d\'abord le bouton "Arrivée" pour scanner votre entrée'
                         ]
                     ], 422);
                 }
-                
-                if ($exitsCount >= 1) {
+
+                // Vérifier qu'il n'y a pas déjà autant de sorties que d'entrées
+                if ($exitsCount >= $entriesCount) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Sortie déjà effectuée aujourd\'hui. Vous ne pouvez faire qu\'une seule sortie par jour.',
-                        'error_code' => 'EXIT_ALREADY_RECORDED',
+                        'message' => 'Vous devez d\'abord faire une nouvelle entrée avant de scanner une sortie.',
+                        'error_code' => 'MUST_SCAN_ENTRY_FIRST',
                         'data' => [
-                            'error_code' => 'EXIT_ALREADY_RECORDED',
+                            'entries_today' => $entriesCount,
                             'exits_today' => $exitsCount,
-                            'first_exit' => $todaysMovements->where('event_type', 'exit')->first()->scanned_at,
-                            'work_completed' => true
+                            'last_exit' => $todaysMovements->where('event_type', 'exit')->last()->scanned_at,
+                            'suggestion' => 'Utilisez le bouton "Arrivée" pour scanner une nouvelle entrée d\'abord'
                         ]
                     ], 422);
                 }
+                // ✅ OK pour la sortie
             }
 
             // Calculer le retard (seulement pour les entrées)
