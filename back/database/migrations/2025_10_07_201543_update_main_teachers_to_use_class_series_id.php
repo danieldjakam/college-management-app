@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -11,6 +12,22 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Vérifier et supprimer la clé étrangère si elle existe
+        $foreignKeys = DB::select("
+            SELECT CONSTRAINT_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_NAME = 'main_teachers'
+              AND TABLE_SCHEMA = DATABASE()
+              AND COLUMN_NAME = 'school_class_id'
+              AND REFERENCED_TABLE_NAME IS NOT NULL
+        ");
+
+        if (!empty($foreignKeys)) {
+            foreach ($foreignKeys as $fk) {
+                DB::statement("ALTER TABLE main_teachers DROP FOREIGN KEY {$fk->CONSTRAINT_NAME}");
+            }
+        }
+
         Schema::table('main_teachers', function (Blueprint $table) {
             // Supprimer l'index unique qui utilise school_class_id
             $table->dropUnique('unique_main_teacher_per_class');
