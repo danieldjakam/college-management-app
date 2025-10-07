@@ -204,10 +204,9 @@ class SeriesSubjectController extends Controller
 
             DB::beginTransaction();
 
-            // Supprimer automatiquement les affectations d'enseignants pour cette matière dans cette série
-            $deletedAssignments = DB::table('teacher_subjects')
-                ->where('class_series_id', $seriesSubject->class_series_id)
-                ->where('subject_id', $seriesSubject->subject_id)
+            // Supprimer automatiquement les affectations d'enseignants pour cette configuration
+            $deletedAssignments = DB::table('teacher_assignments')
+                ->where('class_series_subject_id', $seriesSubject->id)
                 ->delete();
 
             // Supprimer la configuration de la matière
@@ -251,9 +250,8 @@ class SeriesSubjectController extends Controller
             ]);
 
             // Mettre à jour également le statut des affectations d'enseignants
-            $updatedAssignments = DB::table('teacher_subjects')
-                ->where('class_series_id', $seriesSubject->class_series_id)
-                ->where('subject_id', $seriesSubject->subject_id)
+            $updatedAssignments = DB::table('teacher_assignments')
+                ->where('class_series_subject_id', $seriesSubject->id)
                 ->update(['is_active' => $newStatus]);
 
             DB::commit();

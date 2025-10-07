@@ -20,6 +20,9 @@ class TeacherAssignment extends Model
         'is_active' => 'boolean'
     ];
 
+    // Ne pas inclure les accessors dans le JSON par défaut
+    protected $appends = [];
+
     /**
      * Relation avec l'enseignant
      */
