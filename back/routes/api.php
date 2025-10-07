@@ -706,19 +706,19 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/fix-contact/{user_id}', [TeacherFixController::class, 'fixSpecificTeacher'])->middleware(['role:admin']);
     });
 
-    // Routes pour la configuration des matières par série
+    // Routes pour la configuration des matières par série (ClassSeries: 6ème A, 6ème B, etc.)
     Route::prefix('series-subjects')->group(function () {
         // Routes accessibles aux admins et comptables (consultation)
         Route::get('/', [SeriesSubjectController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant,teacher']);
-        Route::get('/{seriesSubject}', [SeriesSubjectController::class, 'show'])->middleware(['role:admin,principal,secretaire,accountant,teacher']);
-        Route::get('/class/{schoolClass}', [SeriesSubjectController::class, 'getByClass'])->middleware(['role:admin,principal,secretaire,accountant,teacher']);
+        Route::get('/{id}', [SeriesSubjectController::class, 'show'])->middleware(['role:admin,principal,secretaire,accountant,teacher']);
+        Route::get('/series/{seriesId}', [SeriesSubjectController::class, 'getBySeries'])->middleware(['role:admin,principal,secretaire,accountant,teacher']);
 
         // Routes pour administrateurs, principal et secrétaires (gestion)
         Route::post('/', [SeriesSubjectController::class, 'store'])->middleware(['role:admin,principal,secretaire']);
-        Route::put('/{seriesSubject}', [SeriesSubjectController::class, 'update'])->middleware(['role:admin,principal,secretaire']);
-        Route::delete('/{seriesSubject}', [SeriesSubjectController::class, 'destroy'])->middleware(['role:admin,principal,secretaire']);
-        Route::post('/{seriesSubject}/toggle-status', [SeriesSubjectController::class, 'toggleStatus'])->middleware(['role:admin,principal,secretaire']);
-        Route::post('/class/{schoolClass}/bulk-configure', [SeriesSubjectController::class, 'bulkConfigure'])->middleware(['role:admin,principal,secretaire']);
+        Route::put('/{id}', [SeriesSubjectController::class, 'update'])->middleware(['role:admin,principal,secretaire']);
+        Route::delete('/{id}', [SeriesSubjectController::class, 'destroy'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/{id}/toggle-status', [SeriesSubjectController::class, 'toggleStatus'])->middleware(['role:admin,principal,secretaire']);
+        Route::post('/series/{seriesId}/bulk-configure', [SeriesSubjectController::class, 'bulkConfigure'])->middleware(['role:admin,principal,secretaire']);
     });
 
     // Routes pour les affectations d'enseignants

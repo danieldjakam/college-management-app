@@ -7,7 +7,7 @@ import Swal from 'sweetalert2';
 
 const SeriesSubjectConfiguration = () => {
     const [loading, setLoading] = useState(false);
-    const [schoolClasses, setSchoolClasses] = useState([]);
+    const [classSeries, setClassSeries] = useState([]); // Changed from schoolClasses to classSeries
     const [subjects, setSubjects] = useState([]);
     const [seriesSubjects, setSeriesSubjects] = useState([]);
     const [showModal, setShowModal] = useState(false);
@@ -25,12 +25,12 @@ const SeriesSubjectConfiguration = () => {
     const loadData = async () => {
         try {
             setLoading(true);
-            const [classesRes, subjectsRes] = await Promise.all([
-                secureApiEndpoints.schoolClasses.getAll(),
+            const [classSeriesRes, subjectsRes] = await Promise.all([
+                secureApiEndpoints.classSeries.getAll(), // Changed from schoolClasses to classSeries
                 secureApiEndpoints.subjects.getAll({ active: true })
             ]);
 
-            if (classesRes.success) setSchoolClasses(classesRes.data);
+            if (classSeriesRes.success) setClassSeries(classSeriesRes.data);
             if (subjectsRes.success) setSubjects(subjectsRes.data);
 
             // Charger les configurations existantes
@@ -56,16 +56,16 @@ const SeriesSubjectConfiguration = () => {
 
     const handleConfigureSeries = (series) => {
         setSelectedSeries(series);
-        
+
         // Filtrer les matières déjà configurées pour cette série
         const configuredSubjectIds = seriesSubjects
-            .filter(ss => ss.school_class_id === series.id)
+            .filter(ss => ss.class_series_id === series.id) // Changed from school_class_id to class_series_id
             .map(ss => ss.subject_id);
-        
-        const available = subjects.filter(subject => 
+
+        const available = subjects.filter(subject =>
             !configuredSubjectIds.includes(subject.id)
         );
-        
+
         setAvailableSubjects(available);
         setFormData({ subject_id: '', coefficient: 1.0 });
         setShowModal(true);
@@ -80,7 +80,7 @@ const SeriesSubjectConfiguration = () => {
 
     const handleAddSubject = async (e) => {
         e.preventDefault();
-        
+
         if (!selectedSeries || !formData.subject_id) {
             Swal.fire('Erreur', 'Veuillez sélectionner une matière', 'error');
             return;
@@ -88,7 +88,7 @@ const SeriesSubjectConfiguration = () => {
 
         try {
             const response = await secureApiEndpoints.seriesSubjects.create({
-                school_class_id: selectedSeries.id,
+                class_series_id: selectedSeries.id, // Changed from school_class_id to class_series_id
                 subject_id: formData.subject_id,
                 coefficient: formData.coefficient
             });
@@ -121,7 +121,7 @@ const SeriesSubjectConfiguration = () => {
             if (result.isConfirmed) {
                 // Trouver l'ID de la configuration à supprimer
                 const configToDelete = seriesSubjects.find(
-                    ss => ss.school_class_id === seriesId && ss.subject_id === subjectId
+                    ss => ss.class_series_id === seriesId && ss.subject_id === subjectId // Changed from school_class_id
                 );
 
                 if (configToDelete) {
@@ -148,7 +148,7 @@ const SeriesSubjectConfiguration = () => {
 
     const getSeriesSubjects = (seriesId) => {
         return seriesSubjects
-            .filter(ss => ss.school_class_id === seriesId)
+            .filter(ss => ss.class_series_id === seriesId) // Changed from school_class_id
             .map(ss => ({
                 ...ss,
                 subject: subjects.find(s => s.id === ss.subject_id)
@@ -190,9 +190,9 @@ const SeriesSubjectConfiguration = () => {
 
             {/* Configuration par série */}
             <div className="row g-4">
-                {schoolClasses.map((series) => {
+                {classSeries.map((series) => {
                     const configuredSubjects = getSeriesSubjects(series.id);
-                    
+
                     return (
                         <div key={series.id} className="col-md-6 col-lg-4">
                             <Card className="h-100">
@@ -200,8 +200,8 @@ const SeriesSubjectConfiguration = () => {
                                     <div className="d-flex align-items-center">
                                         <HouseHeartFill className="text-primary me-2" />
                                         <strong>{series.name}</strong>
-                                        {series.level && (
-                                            <Badge bg="info" className="ms-2">{series.level.name}</Badge>
+                                        {series.school_class && (
+                                            <Badge bg="info" className="ms-2">{series.school_class.name}</Badge>
                                         )}
                                     </div>
                                     <Button
