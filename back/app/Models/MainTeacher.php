@@ -29,7 +29,7 @@ class MainTeacher extends Model
     }
 
     /**
-     * Relation avec la série (classe spécifique: 6ème A, 6ème B, etc.)
+     * Relation avec la série de classe (ex: 6ème A, 6ème B)
      */
     public function classSeries()
     {

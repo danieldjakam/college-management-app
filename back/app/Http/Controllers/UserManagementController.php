@@ -7,6 +7,7 @@ use App\Models\SchoolSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
 
@@ -18,8 +19,10 @@ class UserManagementController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = User::select('id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'qualification', 'is_active', 'created_at', 'staff_identifier')
-                ->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'enseignant', 'vacataire', 'SP', 'P', 'accountant', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe']); // Tous les rôles gérables incluant tous les enseignants
+            // Utiliser DB::table au lieu d'Eloquent pour éviter les problèmes de relations
+            $query = DB::table('users')
+                ->select('id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'qualification', 'is_active', 'created_at', 'staff_identifier')
+                ->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'enseignant', 'vacataire', 'SP', 'P', 'accountant', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe', 'agent_entretien']); // Tous les rôles gérables incluant tous les enseignants et agents d'entretien
 
             // Système de recherche
             if ($request->has('search') && !empty($request->search)) {
@@ -39,14 +42,15 @@ class UserManagementController extends Controller
 
             // Filtre par statut
             if ($request->has('status') && $request->status !== 'all') {
-                $query->where('is_active', $request->status === 'active');
+                $query->where('is_active', $request->status === 'active' ? 1 : 0);
             }
 
             $users = $query->orderBy('created_at', 'desc')->get();
 
             return response()->json([
                 'success' => true,
-                'data' => $users
+                'data' => $users,
+                'total' => DB::table('users')->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'enseignant', 'vacataire', 'SP', 'P', 'accountant', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe', 'agent_entretien'])->count()
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -92,7 +96,7 @@ class UserManagementController extends Controller
                 'email' => 'required|email|unique:users,email',
                 'contact' => 'nullable|string|max:20',
                 'photo' => 'nullable|string|max:500',
-                'role' => 'required|in:principal,user,teacher,surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe',
+                'role' => 'required|in:principal,user,teacher,surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe,agent_entretien',
                 'qualification' => 'nullable|string|max:100',
                 'generate_password' => 'boolean'
             ], [
@@ -192,7 +196,7 @@ class UserManagementController extends Controller
                 'email' => 'required|email|unique:users,email,' . $id,
                 'contact' => 'nullable|string|max:20',
                 'photo' => 'nullable|string|max:500', // Nullable en update
-                'role' => 'required|in:principal,user,teacher,surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe',
+                'role' => 'required|in:principal,user,teacher,surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe,agent_entretien',
                 'qualification' => 'nullable|string|max:100',
                 'is_active' => 'boolean'
             ], [

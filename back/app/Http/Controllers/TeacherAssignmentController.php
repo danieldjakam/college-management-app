@@ -20,6 +20,7 @@ class TeacherAssignmentController extends Controller
     public function index(Request $request)
     {
         try {
+            // Construire la requête avec Eloquent pour utiliser les relations
             $query = TeacherAssignment::with([
                 'teacher',
                 'classSeriesSubject.subject',
@@ -43,14 +44,14 @@ class TeacherAssignmentController extends Controller
                 }
             }
 
-            // Filtrer par matière
+            // Filtrer par matière via la relation
             if ($request->has('subject_id')) {
                 $query->whereHas('classSeriesSubject', function($q) use ($request) {
                     $q->where('subject_id', $request->subject_id);
                 });
             }
 
-            // Filtrer par série (6ème A, 6ème B, etc.)
+            // Filtrer par série via la relation
             if ($request->has('class_series_id')) {
                 $query->whereHas('classSeriesSubject', function($q) use ($request) {
                     $q->where('class_series_id', $request->class_series_id);
@@ -64,8 +65,15 @@ class TeacherAssignmentController extends Controller
             }
 
             $assignments = $query->orderBy('teacher_id')
-                                ->orderBy('series_subject_id')
+                                ->orderBy('class_series_subject_id')
                                 ->get();
+
+            // Transformer les données pour ajouter l'alias "series_subject"
+            // (pour compatibilité avec le frontend)
+            $assignments->transform(function($assignment) {
+                $assignment->series_subject = $assignment->classSeriesSubject;
+                return $assignment;
+            });
 
             return response()->json([
                 'success' => true,

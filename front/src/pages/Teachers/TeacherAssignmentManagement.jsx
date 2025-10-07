@@ -32,22 +32,31 @@ const TeacherAssignmentManagement = () => {
     const loadYearData = async () => {
         try {
             const yearId = selectedSchoolYear === 'current' ? null : selectedSchoolYear;
-            
+
             // Construire les paramètres sans school_year_id si yearId est null
             const assignmentParams = { active: true };
             const mainTeacherParams = { active: true };
-            
+
             if (yearId !== null) {
                 assignmentParams.school_year_id = yearId;
                 mainTeacherParams.school_year_id = yearId;
             }
-            
+
+            console.log('📊 Loading year data with params:', assignmentParams);
+
             const [assignmentsRes, mainTeachersRes] = await Promise.all([
                 secureApiEndpoints.teacherAssignments.getAll(assignmentParams),
                 secureApiEndpoints.mainTeachers.getAll(mainTeacherParams)
             ]);
 
-            if (assignmentsRes.success) setAssignments(assignmentsRes.data);
+            console.log('✅ Assignments loaded:', assignmentsRes);
+            console.log('✅ Main teachers loaded:', mainTeachersRes);
+
+            if (assignmentsRes.success) {
+                console.log('📋 Total assignments:', assignmentsRes.data.length);
+                console.log('📋 First assignment structure:', assignmentsRes.data[0]);
+                setAssignments(assignmentsRes.data);
+            }
             if (mainTeachersRes.success) setMainTeachers(mainTeachersRes.data);
 
         } catch (error) {
@@ -276,7 +285,24 @@ const TeacherAssignmentManagement = () => {
     };
 
     const getTeacherAssignments = (teacherId) => {
-        return assignments.filter(a => a.teacher_id === teacherId);
+        console.log(`🔍 Looking for assignments for teacher ${teacherId}. Total assignments in state: ${assignments.length}`);
+        if (assignments.length > 0) {
+            console.log('First assignment:', assignments[0]);
+            console.log('First assignment teacher_id type:', typeof assignments[0].teacher_id);
+            console.log('Searching teacher_id type:', typeof teacherId);
+        }
+        const filtered = assignments.filter(a => {
+            const match = a.teacher_id === teacherId;
+            if (a.teacher_id === teacherId || a.teacher_id == teacherId) {
+                console.log(`✅ Match found: assignment ${a.id} for teacher ${teacherId}`);
+            }
+            return match;
+        });
+        console.log(`👨‍🏫 Teacher ${teacherId} has ${filtered.length} assignments out of ${assignments.length} total`);
+        if (filtered.length > 0) {
+            console.log('Filtered assignments:', filtered);
+        }
+        return filtered;
     };
 
     const getTeacherMainClasses = (teacherId) => {
@@ -360,11 +386,12 @@ const TeacherAssignmentManagement = () => {
                 <Card.Body>
                     <Tabs activeKey={activeTab} onSelect={setActiveTab} className="mb-3">
                         <Tab eventKey="assignments" title="Affectations Matières">
+                            {console.log('📚 Rendering teachers:', teachers.length, 'Total assignments:', assignments.length)}
                             <div className="row g-4">
                                 {teachers.map((teacher) => {
                                     const teacherAssignments = getTeacherAssignments(teacher.id);
                                     const mainClasses = getTeacherMainClasses(teacher.id);
-                                    
+
                                     return (
                                         <div key={teacher.id} className="col-md-6 col-lg-4">
                                             <Card className="h-100">
@@ -411,9 +438,9 @@ const TeacherAssignmentManagement = () => {
                                                                             </strong>
                                                                             <br />
                                                                             <small className="text-muted">
-                                                                                {assignment.series_subject?.school_class?.name} 
-                                                                                {assignment.series_subject?.school_class?.level && 
-                                                                                    ` (${assignment.series_subject.school_class.level.name})`
+                                                                                {assignment.series_subject?.class_series?.name}
+                                                                                {assignment.series_subject?.class_series?.school_class?.level &&
+                                                                                    ` (${assignment.series_subject.class_series.school_class.level.name})`
                                                                                 }
                                                                             </small>
                                                                             <br />

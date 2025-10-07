@@ -92,6 +92,7 @@ const UserManagement = () => {
         chef_travaux: 'Chef des Travaux',
         chef_securite: 'Chef de Sécurité',
         reprographe: 'Reprographe',
+        agent_entretien: 'Agent d\'Entretien',
     }), []);
 
     const roleColors = useMemo(() => ({
@@ -116,11 +117,12 @@ const UserManagement = () => {
         chef_travaux: 'dark',
         chef_securite: 'danger',
         reprographe: 'light',
+        agent_entretien: 'secondary',
     }), []);
 
     // Liste complète des rôles du personnel (incluant tous les nouveaux rôles)
     const staffRoles = useMemo(() => [
-        'teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire', 'principal', 'user', 'bibliothecaire', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'chef_travaux', 'chef_securite', 'reprographe'
+        'teacher', 'accountant', 'admin', 'surveillant_general', 'comptable_superieur', 'general_accountant', 'secretaire', 'principal', 'user', 'bibliothecaire', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'chef_travaux', 'chef_securite', 'reprographe', 'agent_entretien'
     ], []);
 
     const getFieldLabel = (fieldName) => {
@@ -1032,6 +1034,7 @@ const UserManagement = () => {
                                     <option value="chef_travaux">🔧 Chef des Travaux</option>
                                     <option value="chef_securite">🛡️ Chef de Sécurité</option>
                                     <option value="reprographe">🖨️ Reprographe</option>
+                                    <option value="agent_entretien">🧹 Agent d'Entretien</option>
                                 </Form.Select>
                             </Form.Group>
                         </Col>
@@ -1201,6 +1204,7 @@ const UserManagement = () => {
                                         <option value="chef_travaux">Chefs des Travaux</option>
                                         <option value="chef_securite">Chefs de Sécurité</option>
                                         <option value="reprographe">Reprographes</option>
+                                        <option value="agent_entretien">Agents d'Entretien</option>
                                     </optgroup>
                                 </Form.Select>
                             </Form.Group>
