@@ -271,9 +271,9 @@ const AppContent = () => {
               <Route
                 path="/student-transfers"
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire']}>
                     <StudentTransfers />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
 

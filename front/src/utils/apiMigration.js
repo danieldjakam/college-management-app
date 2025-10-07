@@ -954,19 +954,27 @@ export const secureApiEndpoints = {
         delete: (id) => secureApi.delete(`/class-scholarships/${id}`)
     },
 
-    // === SERIES SUBJECTS ===
+    // === CLASS SERIES (6ème A, 6ème B, etc.) ===
+    classSeries: {
+        getAll: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/series${queryString ? '?' + queryString : ''}`);
+        }
+    },
+
+    // === SERIES SUBJECTS (Matières par série) ===
     seriesSubjects: {
         getAll: (params = {}) => {
             const queryString = new URLSearchParams(params).toString();
             return secureApi.get(`/series-subjects${queryString ? '?' + queryString : ''}`);
         },
         getById: (id) => secureApi.get(`/series-subjects/${id}`),
-        getByClass: (classId) => secureApi.get(`/series-subjects/class/${classId}`),
+        getBySeries: (seriesId) => secureApi.get(`/series-subjects/series/${seriesId}`),
         create: (data) => secureApi.post('/series-subjects', data),
         update: (id, data) => secureApi.put(`/series-subjects/${id}`, data),
         delete: (id) => secureApi.delete(`/series-subjects/${id}`),
         toggleStatus: (id) => secureApi.post(`/series-subjects/${id}/toggle-status`),
-        bulkConfigure: (classId, data) => secureApi.post(`/series-subjects/class/${classId}/bulk-configure`, data)
+        bulkConfigure: (seriesId, data) => secureApi.post(`/series-subjects/series/${seriesId}/bulk-configure`, data)
     },
 
     // === TEACHER ASSIGNMENTS ===

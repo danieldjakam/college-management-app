@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\SeriesSubject;
-use App\Models\SchoolClass;
+use App\Models\ClassSeriesSubject;
+use App\Models\ClassSeries;
 use App\Models\Subject;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -17,11 +17,11 @@ class SeriesSubjectController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = SeriesSubject::with(['schoolClass.level', 'subject']);
+            $query = ClassSeriesSubject::with(['classSeries.schoolClass.level', 'subject']);
 
             // Filtrer par série si spécifié
-            if ($request->has('school_class_id')) {
-                $query->where('school_class_id', $request->school_class_id);
+            if ($request->has('class_series_id')) {
+                $query->where('class_series_id', $request->class_series_id);
             }
 
             // Filtrer par matière si spécifié
@@ -35,7 +35,7 @@ class SeriesSubjectController extends Controller
                 $query->where('is_active', $isActive);
             }
 
-            $configurations = $query->orderBy('school_class_id')
+            $configurations = $query->orderBy('class_series_id')
                                    ->orderBy('subject_id')
                                    ->get();
 
@@ -55,11 +55,11 @@ class SeriesSubjectController extends Controller
     /**
      * Afficher une configuration de matière par série spécifique
      */
-    public function show(SeriesSubject $seriesSubject)
+    public function show($id)
     {
         try {
-            $seriesSubject->load(['schoolClass.level', 'subject']);
-            
+            $seriesSubject = ClassSeriesSubject::with(['classSeries.schoolClass.level', 'subject'])->findOrFail($id);
+
             return response()->json([
                 'success' => true,
                 'data' => $seriesSubject
@@ -74,12 +74,12 @@ class SeriesSubjectController extends Controller
     }
 
     /**
-     * Obtenir les matières configurées pour une série spécifique
+     * Obtenir les matières configurées pour une série spécifique (ex: 6ème A)
      */
-    public function getByClass(SchoolClass $schoolClass)
+    public function getBySeries($seriesId)
     {
         try {
-            $configurations = SeriesSubject::where('school_class_id', $schoolClass->id)
+            $configurations = ClassSeriesSubject::where('class_series_id', $seriesId)
                 ->where('is_active', true)
                 ->with(['subject'])
                 ->get();
@@ -104,7 +104,7 @@ class SeriesSubjectController extends Controller
     {
         try {
             $validator = Validator::make($request->all(), [
-                'school_class_id' => 'required|exists:school_classes,id',
+                'class_series_id' => 'required|exists:class_series,id',
                 'subject_id' => 'required|exists:subjects,id',
                 'coefficient' => 'required|numeric|min:0.5|max:10'
             ]);
@@ -118,7 +118,7 @@ class SeriesSubjectController extends Controller
             }
 
             // Vérifier si la configuration existe déjà
-            $existingConfig = SeriesSubject::where('school_class_id', $request->school_class_id)
+            $existingConfig = ClassSeriesSubject::where('class_series_id', $request->class_series_id)
                 ->where('subject_id', $request->subject_id)
                 ->first();
 
@@ -129,14 +129,14 @@ class SeriesSubjectController extends Controller
                 ], 422);
             }
 
-            $configuration = SeriesSubject::create([
-                'school_class_id' => $request->school_class_id,
+            $configuration = ClassSeriesSubject::create([
+                'class_series_id' => $request->class_series_id,
                 'subject_id' => $request->subject_id,
                 'coefficient' => $request->coefficient,
                 'is_active' => true
             ]);
 
-            $configuration->load(['schoolClass.level', 'subject']);
+            $configuration->load(['classSeries.schoolClass.level', 'subject']);
 
             return response()->json([
                 'success' => true,
@@ -155,9 +155,11 @@ class SeriesSubjectController extends Controller
     /**
      * Mettre à jour une configuration
      */
-    public function update(Request $request, SeriesSubject $seriesSubject)
+    public function update(Request $request, $id)
     {
         try {
+            $seriesSubject = ClassSeriesSubject::findOrFail($id);
+
             $validator = Validator::make($request->all(), [
                 'coefficient' => 'required|numeric|min:0.5|max:10',
                 'is_active' => 'boolean'
@@ -176,7 +178,7 @@ class SeriesSubjectController extends Controller
                 'is_active' => $request->is_active ?? $seriesSubject->is_active
             ]);
 
-            $seriesSubject->load(['schoolClass.level', 'subject']);
+            $seriesSubject->load(['classSeries.schoolClass.level', 'subject']);
 
             return response()->json([
                 'success' => true,
@@ -195,28 +197,33 @@ class SeriesSubjectController extends Controller
     /**
      * Supprimer une matière d'une série
      */
-    public function destroy(SeriesSubject $seriesSubject)
+    public function destroy($id)
     {
         try {
+            $seriesSubject = ClassSeriesSubject::findOrFail($id);
+
             DB::beginTransaction();
 
-            // Vérifier s'il y a des enseignants affectés à cette matière dans cette série
-            $hasAssignments = $seriesSubject->teacherAssignments()->exists();
+            // Supprimer automatiquement les affectations d'enseignants pour cette matière dans cette série
+            $deletedAssignments = DB::table('teacher_subjects')
+                ->where('class_series_id', $seriesSubject->class_series_id)
+                ->where('subject_id', $seriesSubject->subject_id)
+                ->delete();
 
-            if ($hasAssignments) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Impossible de supprimer cette configuration car des enseignants y sont affectés'
-                ], 422);
-            }
-
+            // Supprimer la configuration de la matière
             $seriesSubject->delete();
 
             DB::commit();
 
+            $message = 'Matière retirée de la série avec succès';
+            if ($deletedAssignments > 0) {
+                $message .= " ({$deletedAssignments} affectation(s) d'enseignant(s) supprimée(s))";
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'Matière retirée de la série avec succès'
+                'message' => $message,
+                'deleted_assignments' => $deletedAssignments
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -231,19 +238,40 @@ class SeriesSubjectController extends Controller
     /**
      * Activer/désactiver une configuration
      */
-    public function toggleStatus(SeriesSubject $seriesSubject)
+    public function toggleStatus($id)
     {
         try {
+            $seriesSubject = ClassSeriesSubject::findOrFail($id);
+
+            DB::beginTransaction();
+
+            $newStatus = !$seriesSubject->is_active;
             $seriesSubject->update([
-                'is_active' => !$seriesSubject->is_active
+                'is_active' => $newStatus
             ]);
+
+            // Mettre à jour également le statut des affectations d'enseignants
+            $updatedAssignments = DB::table('teacher_subjects')
+                ->where('class_series_id', $seriesSubject->class_series_id)
+                ->where('subject_id', $seriesSubject->subject_id)
+                ->update(['is_active' => $newStatus]);
+
+            DB::commit();
+
+            $message = 'Statut mis à jour avec succès';
+            if ($updatedAssignments > 0) {
+                $statusText = $newStatus ? 'activée(s)' : 'désactivée(s)';
+                $message .= " ({$updatedAssignments} affectation(s) d'enseignant(s) {$statusText})";
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => 'Statut mis à jour avec succès',
-                'data' => $seriesSubject
+                'message' => $message,
+                'data' => $seriesSubject,
+                'updated_assignments' => $updatedAssignments
             ]);
         } catch (\Exception $e) {
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la mise à jour du statut',
@@ -255,9 +283,11 @@ class SeriesSubjectController extends Controller
     /**
      * Configurer plusieurs matières pour une série en lot
      */
-    public function bulkConfigure(Request $request, SchoolClass $schoolClass)
+    public function bulkConfigure(Request $request, $seriesId)
     {
         try {
+            $classSeries = ClassSeries::findOrFail($seriesId);
+
             $validator = Validator::make($request->all(), [
                 'subjects' => 'required|array',
                 'subjects.*.subject_id' => 'required|exists:subjects,id',
@@ -278,7 +308,7 @@ class SeriesSubjectController extends Controller
 
             foreach ($request->subjects as $subjectData) {
                 // Vérifier si la configuration existe déjà
-                $existingConfig = SeriesSubject::where('school_class_id', $schoolClass->id)
+                $existingConfig = ClassSeriesSubject::where('class_series_id', $classSeries->id)
                     ->where('subject_id', $subjectData['subject_id'])
                     ->first();
 
@@ -291,8 +321,8 @@ class SeriesSubjectController extends Controller
                     $configurations[] = $existingConfig;
                 } else {
                     // Créer si elle n'existe pas
-                    $configuration = SeriesSubject::create([
-                        'school_class_id' => $schoolClass->id,
+                    $configuration = ClassSeriesSubject::create([
+                        'class_series_id' => $classSeries->id,
                         'subject_id' => $subjectData['subject_id'],
                         'coefficient' => $subjectData['coefficient'],
                         'is_active' => true
@@ -305,7 +335,7 @@ class SeriesSubjectController extends Controller
 
             // Charger les relations
             foreach ($configurations as $config) {
-                $config->load(['schoolClass.level', 'subject']);
+                $config->load(['classSeries.schoolClass.level', 'subject']);
             }
 
             return response()->json([
