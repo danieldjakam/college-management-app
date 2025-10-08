@@ -1047,7 +1047,10 @@ class WhatsAppService
         $classSeries = $classSeriesSubject->classSeries;
         $schoolYear = $teacherAssignment->schoolYear;
 
-        return "🎓 *NOUVELLE AFFECTATION - {$schoolName}*\n\n" .
+        // S'assurer que l'enseignant a un compte utilisateur
+        $credentials = $this->ensureTeacherHasUserAccount($teacher);
+
+        $message = "🎓 *NOUVELLE AFFECTATION - {$schoolName}*\n\n" .
                "👨‍🏫 *Cher(e) {$teacher->first_name} {$teacher->last_name},*\n\n" .
                "Vous avez été affecté(e) à une nouvelle matière :\n\n" .
                "📚 *Matière :* {$subject->name}\n" .
@@ -1055,9 +1058,104 @@ class WhatsAppService
                "📊 *Niveau :* " . ($classSeries->schoolClass->level->name ?? 'N/A') . "\n" .
                "📅 *Année scolaire :* " . ($schoolYear->name ?? 'Actuelle') . "\n\n" .
                "✅ Votre affectation est maintenant active.\n" .
-               "📖 Vous pouvez consulter la liste des élèves sur votre tableau de bord enseignant.\n\n" .
-               "📞 Pour toute question, contactez l'administration.\n\n" .
-               "📱 Notification automatique du système de gestion scolaire.";
+               "📖 Vous pouvez consulter la liste des élèves sur votre tableau de bord enseignant.\n\n";
+
+        // Ajouter les informations de connexion
+        if ($credentials) {
+            $message .= "🔐 *INFORMATIONS DE CONNEXION*\n\n" .
+                       "🌐 *Lien :* http://admin.cpb-douala.com\n" .
+                       "👤 *Nom d'utilisateur :* {$credentials['username']}\n" .
+                       "🔑 *Mot de passe :* {$credentials['password']}\n\n";
+        }
+
+        $message .= "📞 Pour toute question, contactez l'administration.\n\n" .
+                   "📱 Notification automatique du système de gestion scolaire.";
+
+        return $message;
+    }
+
+    /**
+     * S'assurer que l'enseignant a un compte utilisateur
+     */
+    protected function ensureTeacherHasUserAccount($teacher)
+    {
+        // Si l'enseignant a déjà un compte utilisateur
+        if ($teacher->user_id && $teacher->user) {
+            return [
+                'username' => $teacher->user->username ?? $teacher->user->email,
+                'password' => 'password123'
+            ];
+        }
+
+        // Créer un compte utilisateur pour l'enseignant
+        try {
+            $username = $this->generateUsername($teacher);
+            $defaultPassword = 'password123';
+
+            $user = \App\Models\User::create([
+                'name' => $teacher->full_name,
+                'username' => $username,
+                'email' => $teacher->email ?? "{$username}@cpb-douala.com",
+                'password' => bcrypt($defaultPassword),
+                'role' => 'teacher',
+                'is_active' => true,
+                'staff_identifier' => $teacher->staff_identifier
+            ]);
+
+            // Lier l'utilisateur à l'enseignant
+            $teacher->update(['user_id' => $user->id]);
+
+            return [
+                'username' => $username,
+                'password' => $defaultPassword
+            ];
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur création compte utilisateur enseignant', [
+                'teacher_id' => $teacher->id,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Générer un nom d'utilisateur unique pour l'enseignant
+     */
+    protected function generateUsername($teacher)
+    {
+        // Format: prenom.nom (en minuscules, sans accents)
+        $firstName = $this->removeAccents(strtolower($teacher->first_name));
+        $lastName = $this->removeAccents(strtolower($teacher->last_name));
+        $baseUsername = "{$firstName}.{$lastName}";
+
+        // Vérifier si le nom d'utilisateur existe déjà
+        $username = $baseUsername;
+        $counter = 1;
+
+        while (\App\Models\User::where('username', $username)->exists()) {
+            $username = "{$baseUsername}{$counter}";
+            $counter++;
+        }
+
+        return $username;
+    }
+
+    /**
+     * Supprimer les accents d'une chaîne
+     */
+    protected function removeAccents($string)
+    {
+        $unwanted_array = [
+            'Š'=>'S', 'š'=>'s', 'Ž'=>'Z', 'ž'=>'z', 'À'=>'A', 'Á'=>'A', 'Â'=>'A', 'Ã'=>'A', 'Ä'=>'A', 'Å'=>'A',
+            'Æ'=>'A', 'Ç'=>'C', 'È'=>'E', 'É'=>'E', 'Ê'=>'E', 'Ë'=>'E', 'Ì'=>'I', 'Í'=>'I', 'Î'=>'I', 'Ï'=>'I',
+            'Ñ'=>'N', 'Ò'=>'O', 'Ó'=>'O', 'Ô'=>'O', 'Õ'=>'O', 'Ö'=>'O', 'Ø'=>'O', 'Ù'=>'U', 'Ú'=>'U', 'Û'=>'U',
+            'Ü'=>'U', 'Ý'=>'Y', 'Þ'=>'B', 'ß'=>'Ss', 'à'=>'a', 'á'=>'a', 'â'=>'a', 'ã'=>'a', 'ä'=>'a', 'å'=>'a',
+            'æ'=>'a', 'ç'=>'c', 'è'=>'e', 'é'=>'e', 'ê'=>'e', 'ë'=>'e', 'ì'=>'i', 'í'=>'i', 'î'=>'i', 'ï'=>'i',
+            'ð'=>'o', 'ñ'=>'n', 'ò'=>'o', 'ó'=>'o', 'ô'=>'o', 'õ'=>'o', 'ö'=>'o', 'ø'=>'o', 'ù'=>'u', 'ú'=>'u',
+            'û'=>'u', 'ý'=>'y', 'þ'=>'b', 'ÿ'=>'y'
+        ];
+        return strtr($string, $unwanted_array);
     }
 
     /**
