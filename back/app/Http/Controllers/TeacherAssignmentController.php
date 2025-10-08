@@ -163,16 +163,31 @@ class TeacherAssignmentController extends Controller
                 ], 422);
             }
 
-            // Vérifier si l'affectation existe déjà
-            $existingAssignment = TeacherAssignment::where('teacher_id', $request->teacher_id)
-                ->where('class_series_subject_id', $request->class_series_subject_id)
+            // Vérifier si cette matière est déjà assignée à UN AUTRE enseignant dans cette classe
+            $existingAssignment = TeacherAssignment::where('class_series_subject_id', $request->class_series_subject_id)
                 ->where('school_year_id', $schoolYearId)
+                ->where('is_active', true)
+                ->with(['teacher', 'classSeriesSubject.subject', 'classSeriesSubject.classSeries'])
                 ->first();
 
             if ($existingAssignment) {
+                // Si c'est le même enseignant, message spécifique
+                if ($existingAssignment->teacher_id == $request->teacher_id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Cet enseignant est déjà affecté à cette matière dans cette classe'
+                    ], 422);
+                }
+
+                // Si c'est un autre enseignant, indiquer qui enseigne déjà cette matière
+                $teacherName = $existingAssignment->teacher->full_name ??
+                               ($existingAssignment->teacher->first_name . ' ' . $existingAssignment->teacher->last_name);
+                $subjectName = $existingAssignment->classSeriesSubject->subject->name ?? 'cette matière';
+                $className = $existingAssignment->classSeriesSubject->classSeries->name ?? 'cette classe';
+
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cet enseignant est déjà affecté à cette matière dans cette série'
+                    'message' => "{$subjectName} en {$className} est déjà enseigné(e) par {$teacherName}"
                 ], 422);
             }
 
