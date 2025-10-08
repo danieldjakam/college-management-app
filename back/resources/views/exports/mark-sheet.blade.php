@@ -21,11 +21,11 @@
         .header {
             text-align: center;
             margin-bottom: 15px;
-            border-bottom: 3px solid #9333ea;
+            border-bottom: 3px solid #7c3aed;
             padding-bottom: 10px;
-            background-color: #9333ea;
+            background-color: #f3e8ff;
             padding: 15px;
-            color: white;
+            color: #4c1d95;
         }
 
         .header-content {
@@ -58,20 +58,20 @@
             font-weight: bold;
             margin-bottom: 3px;
             text-transform: uppercase;
-            color: white;
+            color: #4c1d95;
         }
 
         .header h2 {
             font-size: 12px;
             font-weight: normal;
             margin-bottom: 2px;
-            color: white;
+            color: #6d28d9;
         }
 
         .header h3 {
             font-size: 10px;
             font-weight: normal;
-            color: white;
+            color: #7c3aed;
         }
 
         .info-section {
@@ -79,8 +79,8 @@
             width: 100%;
             margin-bottom: 10px;
             font-size: 10px;
-            background-color: #f3e8ff;
-            border: 2px solid #9333ea;
+            background-color: #faf5ff;
+            border: 2px solid #a78bfa;
             padding: 5px;
         }
 
@@ -96,7 +96,7 @@
 
         .info-label {
             font-weight: bold;
-            color: #9333ea;
+            color: #7c3aed;
         }
 
         table {
@@ -106,14 +106,14 @@
         }
 
         th, td {
-            border: 1px solid #9333ea;
+            border: 1px solid #a78bfa;
             padding: 4px 2px;
             text-align: center;
             font-size: 8px;
         }
 
         th {
-            background-color: #9333ea;
+            background-color: #7c3aed;
             color: white;
             font-weight: bold;
         }
@@ -162,7 +162,7 @@
             display: table;
             width: 100%;
             margin-top: 20px;
-            border-top: 3px solid #9333ea;
+            border-top: 3px solid #7c3aed;
             padding-top: 10px;
         }
 
@@ -233,7 +233,7 @@
                 <span class="info-label">Coefficient :</span> {{ $coefficient }}
             </div>
             <div class="info-cell">
-                <span class="info-label">Teacher's Name/Nom de l'enseignant :</span> {{ $teacher ? $teacher->name : '____________________' }}
+                <span class="info-label">Teacher's Name/Nom de l'enseignant :</span> {{ $teacher ? ($teacher->full_name ?? $teacher->first_name . ' ' . $teacher->last_name) : '____________________' }}
             </div>
         </div>
     </div>

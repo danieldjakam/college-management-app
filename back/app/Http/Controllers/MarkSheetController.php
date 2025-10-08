@@ -42,11 +42,12 @@ class MarkSheetController extends Controller
             $subject = Subject::find($request->subject_id);
             $schoolYear = SchoolYear::find($request->school_year_id);
 
-            // Récupérer tous les élèves de la classe-série, triés par ordre
+            // Récupérer tous les élèves de la classe-série, triés par ordre alphabétique
             $students = Student::where('class_series_id', $request->class_series_id)
                 ->where('school_year_id', $request->school_year_id)
                 ->where('is_active', true)
-                ->orderBy('order')
+                ->orderBy('last_name', 'asc')
+                ->orderBy('first_name', 'asc')
                 ->get();
 
             if ($students->isEmpty()) {
@@ -135,7 +136,8 @@ class MarkSheetController extends Controller
                 $students = Student::where('class_series_id', $request->class_series_id)
                     ->where('school_year_id', $request->school_year_id)
                     ->where('is_active', true)
-                    ->orderBy('order')
+                    ->orderBy('last_name', 'asc')
+                    ->orderBy('first_name', 'asc')
                     ->get();
 
                 if ($students->isEmpty()) {
@@ -183,18 +185,45 @@ class MarkSheetController extends Controller
      */
     private function findTeacherForSubject($classSeriesId, $subjectId)
     {
-        // Logique à adapter selon votre système d'affectation enseignant-matière
-        // Pour l'instant, retourne null
-        return null;
+        // Trouver le class_series_subject_id correspondant
+        $classSeriesSubject = \App\Models\ClassSeriesSubject::where('class_series_id', $classSeriesId)
+            ->where('subject_id', $subjectId)
+            ->where('is_active', true)
+            ->first();
+
+        if (!$classSeriesSubject) {
+            return null;
+        }
+
+        // Trouver l'affectation de l'enseignant pour cette matière dans cette classe
+        $currentSchoolYear = SchoolYear::where('is_current', true)->first();
+
+        $teacherAssignment = \App\Models\TeacherAssignment::where('class_series_subject_id', $classSeriesSubject->id)
+            ->where('school_year_id', $currentSchoolYear ? $currentSchoolYear->id : null)
+            ->where('is_active', true)
+            ->with('teacher')
+            ->first();
+
+        return $teacherAssignment ? $teacherAssignment->teacher : null;
     }
 
     /**
-     * Obtenir le coefficient d'une matière
+     * Obtenir le coefficient d'une matière pour une classe-série
      */
     private function getSubjectCoefficient($subject, $classSeries)
     {
-        // Logique à adapter selon votre système de coefficients
-        // Pour l'instant, retourne un coefficient par défaut
+        // Chercher le coefficient dans class_series_subjects
+        $classSeriesSubject = \App\Models\ClassSeriesSubject::where('class_series_id', $classSeries->id)
+            ->where('subject_id', $subject->id)
+            ->where('is_active', true)
+            ->first();
+
+        // Si trouvé, utiliser le coefficient spécifique à la classe-série
+        if ($classSeriesSubject && $classSeriesSubject->coefficient) {
+            return $classSeriesSubject->coefficient;
+        }
+
+        // Sinon, utiliser le coefficient par défaut de la matière
         return $subject->coefficient ?? 1;
     }
 
