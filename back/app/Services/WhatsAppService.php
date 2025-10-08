@@ -1042,17 +1042,17 @@ class WhatsAppService
     {
         $schoolName = SchoolSetting::getSettings()->school_name ?? 'COLLEGE POLYVALENT BILINGUE DE DOUALA';
         $teacher = $teacherAssignment->teacher;
-        $seriesSubject = $teacherAssignment->seriesSubject;
-        $subject = $seriesSubject->subject;
-        $class = $seriesSubject->schoolClass;
+        $classSeriesSubject = $teacherAssignment->classSeriesSubject;
+        $subject = $classSeriesSubject->subject;
+        $classSeries = $classSeriesSubject->classSeries;
         $schoolYear = $teacherAssignment->schoolYear;
-        
+
         return "🎓 *NOUVELLE AFFECTATION - {$schoolName}*\n\n" .
                "👨‍🏫 *Cher(e) {$teacher->first_name} {$teacher->last_name},*\n\n" .
                "Vous avez été affecté(e) à une nouvelle matière :\n\n" .
                "📚 *Matière :* {$subject->name}\n" .
-               "🏫 *Classe :* {$class->name}\n" .
-               "📊 *Niveau :* " . ($class->level->name ?? 'N/A') . "\n" .
+               "🏫 *Classe :* {$classSeries->name}\n" .
+               "📊 *Niveau :* " . ($classSeries->schoolClass->level->name ?? 'N/A') . "\n" .
                "📅 *Année scolaire :* " . ($schoolYear->name ?? 'Actuelle') . "\n\n" .
                "✅ Votre affectation est maintenant active.\n" .
                "📖 Vous pouvez consulter la liste des élèves sur votre tableau de bord enseignant.\n\n" .
@@ -1067,14 +1067,14 @@ class WhatsAppService
     {
         $schoolName = SchoolSetting::getSettings()->school_name ?? 'COLLEGE POLYVALENT BILINGUE DE DOUALA';
         $teacher = $mainTeacher->teacher;
-        $class = $mainTeacher->schoolClass;
+        $classSeries = $mainTeacher->classSeries;
         $schoolYear = $mainTeacher->schoolYear;
-        
+
         return "👑 *NOMINATION PROFESSEUR PRINCIPAL - {$schoolName}*\n\n" .
                "👨‍🏫 *Félicitations {$teacher->first_name} {$teacher->last_name} !*\n\n" .
                "Vous avez été nommé(e) professeur principal de :\n\n" .
-               "🏫 *Classe :* {$class->name}\n" .
-               "📊 *Niveau :* " . ($class->level->name ?? 'N/A') . "\n" .
+               "🏫 *Classe :* {$classSeries->name}\n" .
+               "📊 *Niveau :* " . ($classSeries->schoolClass->level->name ?? 'N/A') . "\n" .
                "📅 *Année scolaire :* " . ($schoolYear->name ?? 'Actuelle') . "\n\n" .
                "🎯 *Vos responsabilités incluent :*\n" .
                "• Suivi pédagogique des élèves\n" .

@@ -224,6 +224,13 @@ class TeacherAssignmentController extends Controller
                 'data' => $assignment
             ], 201);
         } catch (\Exception $e) {
+            \Log::error('Exception dans TeacherAssignmentController::store', [
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'affectation de l\'enseignant',
