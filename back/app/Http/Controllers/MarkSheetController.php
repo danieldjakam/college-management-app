@@ -75,7 +75,7 @@ class MarkSheetController extends Controller
             );
 
             $pdf = PDF::loadHTML($html);
-            $pdf->setPaper('A4', 'landscape');
+            $pdf->setPaper('A4', 'portrait');
 
             $filename = $this->generateFilename($classSeries, $subject, $schoolYear);
 

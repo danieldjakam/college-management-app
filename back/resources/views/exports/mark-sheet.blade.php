@@ -13,37 +13,37 @@
 
         body {
             font-family: 'Arial', sans-serif;
-            font-size: 9px;
+            font-size: 11px;
             color: #000;
-            padding: 10px;
+            padding: 8px;
         }
 
         .header {
             text-align: center;
-            margin-bottom: 15px;
-            border-bottom: 3px solid #7c3aed;
-            padding-bottom: 10px;
+            margin-bottom: 8px;
+            border-bottom: 2px solid #7c3aed;
+            padding-bottom: 6px;
             background-color: #f3e8ff;
-            padding: 15px;
+            padding: 8px;
             color: #4c1d95;
         }
 
         .header-content {
             display: table;
             width: 100%;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
 
         .header-logo {
             display: table-cell;
-            width: 80px;
+            width: 60px;
             vertical-align: middle;
             text-align: left;
         }
 
         .header-logo img {
-            width: 70px;
-            height: 70px;
+            width: 50px;
+            height: 50px;
             object-fit: contain;
         }
 
@@ -54,22 +54,22 @@
         }
 
         .header h1 {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: bold;
-            margin-bottom: 3px;
+            margin-bottom: 2px;
             text-transform: uppercase;
             color: #4c1d95;
         }
 
         .header h2 {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: normal;
-            margin-bottom: 2px;
+            margin-bottom: 1px;
             color: #6d28d9;
         }
 
         .header h3 {
-            font-size: 10px;
+            font-size: 9px;
             font-weight: normal;
             color: #7c3aed;
         }
@@ -77,11 +77,11 @@
         .info-section {
             display: table;
             width: 100%;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
             font-size: 10px;
             background-color: #faf5ff;
-            border: 2px solid #a78bfa;
-            padding: 5px;
+            border: 1px solid #a78bfa;
+            padding: 3px;
         }
 
         .info-row {
@@ -90,7 +90,7 @@
 
         .info-cell {
             display: table-cell;
-            padding: 5px 8px;
+            padding: 3px 5px;
             width: 50%;
         }
 
@@ -102,14 +102,14 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
 
         th, td {
             border: 1px solid #a78bfa;
-            padding: 4px 2px;
+            padding: 2px 1px;
             text-align: center;
-            font-size: 8px;
+            font-size: 9px;
         }
 
         th {
@@ -120,24 +120,24 @@
 
         .student-name {
             text-align: left;
-            padding-left: 5px;
-            font-size: 8px;
+            padding-left: 3px;
+            font-size: 9px;
         }
 
         .header-row-1 th {
             font-weight: bold;
             font-size: 9px;
-            padding: 5px 2px;
+            padding: 3px 1px;
         }
 
         .header-row-2 th {
             font-weight: bold;
             font-size: 8px;
-            padding: 4px 2px;
+            padding: 2px 1px;
         }
 
         .student-row td {
-            height: 20px;
+            height: 16px;
         }
 
         .stats-section {
@@ -161,9 +161,9 @@
         .signature-section {
             display: table;
             width: 100%;
-            margin-top: 20px;
-            border-top: 3px solid #7c3aed;
-            padding-top: 10px;
+            margin-top: 10px;
+            border-top: 2px solid #7c3aed;
+            padding-top: 6px;
         }
 
         .signature-cell {
@@ -173,19 +173,19 @@
         }
 
         .col-fixed {
-            width: 25px;
+            width: 20px;
         }
 
         .col-matricule {
-            width: 60px;
+            width: 50px;
         }
 
         .col-name {
-            width: 140px;
+            width: 120px;
         }
 
         .col-eval {
-            width: 35px;
+            width: 28px;
         }
 
         .trimester-header {
