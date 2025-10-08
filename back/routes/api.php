@@ -662,12 +662,12 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{subject}', [SubjectController::class, 'show'])->middleware(['role:admin,secretaire,accountant,teacher']);
         Route::get('/series/{classSeries}', [SubjectController::class, 'getForSeries'])->middleware(['role:admin,secretaire,accountant,teacher']);
 
-        // Routes pour administrateurs uniquement (gestion)
-        Route::post('/', [SubjectController::class, 'store'])->middleware(['role:admin']);
-        Route::put('/{subject}', [SubjectController::class, 'update'])->middleware(['role:admin']);
-        Route::delete('/{subject}', [SubjectController::class, 'destroy'])->middleware(['role:admin']);
-        Route::post('/{subject}/toggle-status', [SubjectController::class, 'toggleStatus'])->middleware(['role:admin']);
-        Route::post('/series/{classSeries}/configure', [SubjectController::class, 'configureForSeries'])->middleware(['role:admin']);
+        // Routes pour administrateurs et secrétaires (gestion)
+        Route::post('/', [SubjectController::class, 'store'])->middleware(['role:admin,secretaire']);
+        Route::put('/{subject}', [SubjectController::class, 'update'])->middleware(['role:admin,secretaire']);
+        Route::delete('/{subject}', [SubjectController::class, 'destroy'])->middleware(['role:admin,secretaire']);
+        Route::post('/{subject}/toggle-status', [SubjectController::class, 'toggleStatus'])->middleware(['role:admin,secretaire']);
+        Route::post('/series/{classSeries}/configure', [SubjectController::class, 'configureForSeries'])->middleware(['role:admin,secretaire']);
     });
 
     // Routes pour les enseignants

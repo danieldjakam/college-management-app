@@ -15,7 +15,7 @@ use App\Models\Evaluation;
 use App\Models\Grade;
 use App\Models\TeacherAssignment;
 use App\Models\MainTeacher;
-use App\Models\SeriesSubject;
+use App\Models\ClassSeriesSubject;
 use App\Models\SchoolYear;
 use App\Models\Need;
 use App\Models\StudentAttendance;
@@ -126,10 +126,10 @@ class AdminDashboardController extends Controller
 
             // 5. STATISTIQUES DE CONFIGURATION
             $configStats = [
-                'subjects_per_series' => SeriesSubject::where('is_active', true)->count(),
+                'subjects_per_series' => ClassSeriesSubject::where('is_active', true)->count(),
                 'active_subjects' => Subject::where('is_active', true)->count(),
-                'configured_classes' => SchoolClass::whereHas('seriesSubjects')->count(),
-                'total_coefficients' => SeriesSubject::where('is_active', true)
+                'configured_classes' => SchoolClass::whereHas('series.classSeriesSubjects')->count(),
+                'total_coefficients' => ClassSeriesSubject::where('is_active', true)
                     ->sum('coefficient')
             ];
 
