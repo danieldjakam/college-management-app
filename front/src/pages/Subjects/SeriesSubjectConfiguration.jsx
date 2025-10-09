@@ -18,6 +18,10 @@ const SeriesSubjectConfiguration = () => {
         coefficient: 1.0
     });
 
+    // États pour la modification
+    const [editingConfig, setEditingConfig] = useState(null);
+    const [editCoefficient, setEditCoefficient] = useState('');
+
     useEffect(() => {
         loadData();
     }, []);
@@ -102,6 +106,41 @@ const SeriesSubjectConfiguration = () => {
             }
         } catch (error) {
             const errorMessage = extractErrorMessage(error, 'Erreur lors de l\'ajout de la matière');
+            Swal.fire('Erreur', errorMessage, 'error');
+        }
+    };
+
+    const handleEditCoefficient = (config) => {
+        setEditingConfig(config.id);
+        setEditCoefficient(config.coefficient);
+    };
+
+    const handleCancelEdit = () => {
+        setEditingConfig(null);
+        setEditCoefficient('');
+    };
+
+    const handleSaveCoefficient = async (configId) => {
+        if (!editCoefficient || editCoefficient < 0.5 || editCoefficient > 10) {
+            Swal.fire('Erreur', 'Le coefficient doit être entre 0.5 et 10', 'error');
+            return;
+        }
+
+        try {
+            const response = await secureApiEndpoints.seriesSubjects.update(configId, {
+                coefficient: parseFloat(editCoefficient)
+            });
+
+            if (response.success) {
+                Swal.fire('Succès!', 'Coefficient modifié avec succès', 'success');
+                setEditingConfig(null);
+                setEditCoefficient('');
+                loadData();
+            } else {
+                Swal.fire('Erreur', response.message || 'Erreur lors de la modification', 'error');
+            }
+        } catch (error) {
+            const errorMessage = extractErrorMessage(error, 'Erreur lors de la modification du coefficient');
             Swal.fire('Erreur', errorMessage, 'error');
         }
     };
@@ -217,24 +256,66 @@ const SeriesSubjectConfiguration = () => {
                                     {configuredSubjects.length > 0 ? (
                                         <div className="space-y-2">
                                             {configuredSubjects.map((config) => (
-                                                <div key={config.subject_id} className="d-flex justify-content-between align-items-center p-2 bg-light rounded">
-                                                    <div>
-                                                        <strong className="text-primary">
-                                                            {config.subject?.name || getSubjectName(config.subject_id)}
-                                                        </strong>
-                                                        <div>
-                                                            <Badge bg="secondary">
-                                                                Coeff: {config.coefficient}
-                                                            </Badge>
+                                                <div key={config.subject_id} className="p-2 bg-light rounded mb-2">
+                                                    <div className="d-flex justify-content-between align-items-start">
+                                                        <div className="flex-grow-1">
+                                                            <strong className="text-primary d-block">
+                                                                {config.subject?.name || getSubjectName(config.subject_id)}
+                                                            </strong>
+                                                            {editingConfig === config.id ? (
+                                                                <div className="d-flex align-items-center gap-2 mt-2">
+                                                                    <Form.Control
+                                                                        type="number"
+                                                                        size="sm"
+                                                                        step="0.5"
+                                                                        min="0.5"
+                                                                        max="10"
+                                                                        value={editCoefficient}
+                                                                        onChange={(e) => setEditCoefficient(e.target.value)}
+                                                                        style={{ width: '80px' }}
+                                                                    />
+                                                                    <Button
+                                                                        variant="success"
+                                                                        size="sm"
+                                                                        onClick={() => handleSaveCoefficient(config.id)}
+                                                                    >
+                                                                        <Save size={12} />
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="secondary"
+                                                                        size="sm"
+                                                                        onClick={handleCancelEdit}
+                                                                    >
+                                                                        <X size={12} />
+                                                                    </Button>
+                                                                </div>
+                                                            ) : (
+                                                                <Badge bg="secondary" className="mt-1">
+                                                                    Coeff: {config.coefficient}
+                                                                </Badge>
+                                                            )}
                                                         </div>
+                                                        {editingConfig !== config.id && (
+                                                            <div className="d-flex gap-1">
+                                                                <Button
+                                                                    variant="outline-primary"
+                                                                    size="sm"
+                                                                    onClick={() => handleEditCoefficient(config)}
+                                                                    title="Modifier le coefficient"
+                                                                >
+                                                                    <PencilFill size={12} />
+                                                                </Button>
+                                                                <Button
+                                                                    variant="outline-danger"
+                                                                    size="sm"
+                                                                    onClick={() => handleRemoveSubject(series.id, config.subject_id)}
+                                                                    title="Supprimer"
+                                                                >
+                                                                    <Trash2 size={12} />
+                                                                </Button>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <Button
-                                                        variant="outline-danger"
-                                                        size="sm"
-                                                        onClick={() => handleRemoveSubject(series.id, config.subject_id)}
-                                                    >
-                                                        <Trash2 size={12} />
-                                                    </Button>
                                                 </div>
                                             ))}
                                         </div>
