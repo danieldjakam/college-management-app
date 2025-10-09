@@ -280,7 +280,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               href: "/payments/documentary-fees",
               icon: <FileTextFill />,
             },
-            ...(userRole === "comptable_superieur" ? [
+            ...((userRole === "comptable_superieur" || userRole === "accountant") ? [
               {
                 name: "Gestion des Paiements",
                 href: "/payment-management",

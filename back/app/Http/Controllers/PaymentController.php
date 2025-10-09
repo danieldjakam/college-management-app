@@ -3563,7 +3563,7 @@ HTML;
     }
 
     /**
-     * Lister les paiements en attente de validation pour comptable_superieur
+     * Lister les paiements en attente de validation pour comptables
      */
     public function getPendingPayments()
     {
@@ -3594,7 +3594,7 @@ HTML;
     }
 
     /**
-     * Modifier un paiement (comptable_superieur uniquement)
+     * Modifier un paiement (comptables et comptable_superieur)
      */
     public function update(Request $request, $paymentId)
     {
@@ -3700,7 +3700,7 @@ HTML;
     }
 
     /**
-     * Valider un paiement (comptable_superieur uniquement)
+     * Valider un paiement (comptables et comptable_superieur)
      */
     public function validatePayment($paymentId)
     {
@@ -3732,7 +3732,7 @@ HTML;
     }
 
     /**
-     * Annuler un paiement (comptable_superieur uniquement)
+     * Annuler un paiement (comptables et comptable_superieur)
      */
     public function cancelPayment(Request $request, $paymentId)
     {
@@ -3761,8 +3761,8 @@ HTML;
 
             DB::beginTransaction();
 
-            // Si c'est une comptable supérieur, supprimer réellement le paiement
-            if (Auth::user()->role === 'comptable_superieur') {
+            // Si c'est un comptable ou comptable supérieur, supprimer réellement le paiement
+            if (in_array(Auth::user()->role, ['comptable_superieur', 'accountant'])) {
                 $payment->delete();
 
                 DB::commit();
@@ -3795,7 +3795,7 @@ HTML;
     }
 
     /**
-     * Lister tous les paiements avec filtres pour comptable_superieur
+     * Lister tous les paiements avec filtres pour comptables
      */
     public function getAllPaymentsForManagement(Request $request)
     {

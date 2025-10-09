@@ -516,22 +516,89 @@ class SchoolClassController extends Controller
     {
         try {
             \Log::info('Export PDF démarré', ['user_id' => auth()->id()]);
-            
+
             $filters = [
                 'section_id' => $request->get('section_id'),
                 'level_id' => $request->get('level_id')
             ];
-            
+
             \Log::info('Filtres appliqués', $filters);
-            
+
+            // Récupérer les paramètres de l'école
+            $schoolSettings = \App\Models\SchoolSetting::first();
+
+            // Récupérer les données formatées
+            $query = SchoolClass::with(['level.section', 'series']);
+
+            if (!empty($filters['section_id'])) {
+                $query->whereHas('level', function($q) use ($filters) {
+                    $q->where('section_id', $filters['section_id']);
+                });
+            }
+
+            if (!empty($filters['level_id'])) {
+                $query->where('level_id', $filters['level_id']);
+            }
+
+            $classes = $query->orderBy('name')->limit(50)->get();
+
+            // Transformer pour avoir une ligne par série
+            $detailedRows = collect();
+
+            foreach ($classes as $class) {
+                if ($class->series->isNotEmpty()) {
+                    foreach ($class->series as $serie) {
+                        $detailedRows->push((object)[
+                            'class_id' => $class->id,
+                            'class_name' => $class->name,
+                            'section_name' => $class->level->section->name ?? 'N/A',
+                            'level_name' => $class->level->name ?? 'N/A',
+                            'class_description' => $class->description,
+                            'class_status' => $class->is_active,
+                            'class_created_at' => $class->created_at,
+                            'class_updated_at' => $class->updated_at,
+                            'serie_id' => $serie->id,
+                            'serie_name' => $serie->name,
+                            'serie_code' => $serie->code,
+                            'serie_capacity' => $serie->capacity,
+                            'serie_status' => $serie->is_active
+                        ]);
+                    }
+                } else {
+                    $detailedRows->push((object)[
+                        'class_id' => $class->id,
+                        'class_name' => $class->name,
+                        'section_name' => $class->level->section->name ?? 'N/A',
+                        'level_name' => $class->level->name ?? 'N/A',
+                        'class_description' => $class->description,
+                        'class_status' => $class->is_active,
+                        'class_created_at' => $class->created_at,
+                        'class_updated_at' => $class->updated_at,
+                        'serie_id' => null,
+                        'serie_name' => 'Aucune série',
+                        'serie_code' => '-',
+                        'serie_capacity' => '-',
+                        'serie_status' => '-'
+                    ]);
+                }
+            }
+
+            \Log::info('Export créé, génération PDF...', ['classes_count' => $detailedRows->count()]);
+
+            // Générer le PDF avec la vue blade
+            $html = view('exports.school-classes-pdf', [
+                'classes' => $detailedRows,
+                'schoolSettings' => $schoolSettings,
+                'filters' => $filters
+            ])->render();
+
+            $pdf = \PDF::loadHTML($html);
+            $pdf->setPaper('A4', 'landscape');
+
             $filename = 'classes_' . date('Y-m-d_H-i-s') . '.pdf';
-            
-            $export = new SchoolClassesDetailedExport($filters);
-            
-            \Log::info('Export créé, génération PDF...');
-            
-            return Excel::download($export, $filename, \Maatwebsite\Excel\Excel::DOMPDF);
-            
+
+            return $pdf->download($filename);
+
         } catch (\Exception $e) {
             \Log::error('Erreur export PDF', [
                 'message' => $e->getMessage(),
@@ -539,7 +606,7 @@ class SchoolClassController extends Controller
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'export PDF',

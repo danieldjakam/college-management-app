@@ -898,7 +898,7 @@ export const secureApiEndpoints = {
             return { success: true, filename };
         },
 
-        // Méthodes de gestion des paiements pour comptable_superieur
+        // Méthodes de gestion des paiements pour comptables
         getPending: () => secureApi.get('/payments/pending'),
         getForManagement: (params = {}) => {
             const queryString = new URLSearchParams(params).toString();

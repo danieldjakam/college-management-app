@@ -8,6 +8,7 @@ use App\Models\Teacher;
 use App\Models\Section;
 use App\Models\Level;
 use App\Models\SchoolClass;
+use App\Models\ClassSeries;
 use App\Models\Subject;
 use App\Models\Sequence;
 use App\Models\Trimester;
@@ -46,11 +47,15 @@ class AdminDashboardController extends Controller
             ];
 
             // 2. STATISTIQUES ÉTUDIANTS
+            $genderStats = Student::where('is_active', true)
+                ->select('gender', DB::raw('count(*) as count'))
+                ->groupBy('gender')
+                ->pluck('count', 'gender');
+
             $studentStats = [
-                'by_gender' => Student::where('is_active', true)
-                    ->select('gender', DB::raw('count(*) as count'))
-                    ->groupBy('gender')
-                    ->pluck('count', 'gender'),
+                'total_male' => $genderStats['M'] ?? 0,
+                'total_female' => $genderStats['F'] ?? 0,
+                'by_gender' => $genderStats,
                 'by_section' => Student::where('students.is_active', true)
                     ->join('class_series', 'students.class_series_id', '=', 'class_series.id')
                     ->join('school_classes', 'class_series.class_id', '=', 'school_classes.id')
@@ -84,7 +89,7 @@ class AdminDashboardController extends Controller
                     ->select('qualification', DB::raw('count(*) as count'))
                     ->groupBy('qualification')
                     ->pluck('count', 'qualification'),
-                'classes_without_main_teacher' => SchoolClass::whereDoesntHave('mainTeacher', function($query) {
+                'classes_without_main_teacher' => ClassSeries::whereDoesntHave('mainTeacher', function($query) {
                     $query->where('is_active', true);
                 })->where('is_active', true)->count()
             ];
@@ -128,7 +133,9 @@ class AdminDashboardController extends Controller
             $configStats = [
                 'subjects_per_series' => ClassSeriesSubject::where('is_active', true)->count(),
                 'active_subjects' => Subject::where('is_active', true)->count(),
-                'configured_classes' => SchoolClass::whereHas('series.classSeriesSubjects')->count(),
+                'configured_classes' => SchoolClass::whereHas('series', function($query) {
+                    $query->whereHas('subjects');
+                })->count(),
                 'total_coefficients' => ClassSeriesSubject::where('is_active', true)
                     ->sum('coefficient')
             ];
@@ -192,6 +199,13 @@ class AdminDashboardController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            \Log::error('Admin Dashboard Error', [
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la génération du tableau de bord',
@@ -244,7 +258,7 @@ class AdminDashboardController extends Controller
         $alerts = [];
 
         // Classes sans professeur principal
-        $classesWithoutMainTeacher = SchoolClass::whereDoesntHave('mainTeacher', function($query) {
+        $classesWithoutMainTeacher = ClassSeries::whereDoesntHave('mainTeacher', function($query) {
             $query->where('is_active', true);
         })->where('is_active', true)->count();
 

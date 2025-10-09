@@ -858,7 +858,7 @@ const AppContent = () => {
               <Route
                 path="/payment-management"
                 element={
-                  <ProtectedRoute requiredRoles={['comptable_superieur']}>
+                  <ProtectedRoute requiredRoles={['comptable_superieur', 'accountant']}>
                     <PaymentManagement />
                   </ProtectedRoute>
                 }

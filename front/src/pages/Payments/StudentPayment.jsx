@@ -72,7 +72,7 @@ const StudentPayment = () => {
   const [printWindow, setPrintWindow] = useState(null);
   const [currentPaymentId, setCurrentPaymentId] = useState(null);
 
-  // États pour modifier/supprimer paiements (comptable_superieur)
+  // États pour modifier/supprimer paiements (comptables)
   const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
   const [editingPayment, setEditingPayment] = useState(null);
   const [editForm, setEditForm] = useState({
@@ -991,7 +991,7 @@ const StudentPayment = () => {
     return methods[method] || method;
   };
 
-  // Fonctions pour modifier/supprimer paiements (comptable_superieur uniquement)
+  // Fonctions pour modifier/supprimer paiements (comptables)
   const handleEditPayment = (payment) => {
     setEditingPayment(payment);
 
@@ -1603,7 +1603,7 @@ const StudentPayment = () => {
           <Card>
             <Card.Header className="d-flex justify-content-between align-items-center">
               <h5 className="mb-0">Historique des Paiements</h5>
-              {user?.role === 'comptable_superieur' && paymentHistory.length > 0 && (
+              {(user?.role === 'comptable_superieur' || user?.role === 'accountant') && paymentHistory.length > 0 && (
                 <Button
                   variant="outline-danger"
                   size="sm"
@@ -1752,8 +1752,8 @@ const StudentPayment = () => {
                             )}
                           </Button>
 
-                          {/* Boutons Modifier/Supprimer pour comptable_superieur et admin */}
-                          {((user?.role === 'comptable_superieur') ||
+                          {/* Boutons Modifier/Supprimer pour comptables et admin */}
+                          {((user?.role === 'comptable_superieur' || user?.role === 'accountant') ||
                             (user?.role === 'admin' && payment.status !== 'cancelled')) && (
                             <>
                               <Button
@@ -1769,7 +1769,7 @@ const StudentPayment = () => {
                                 size="sm"
                                 onClick={() => handleDeletePayment(payment)}
                                 title="Supprimer le paiement"
-                                disabled={payment.status === 'cancelled' && user?.role !== 'comptable_superieur'}
+                                disabled={payment.status === 'cancelled' && (user?.role !== 'comptable_superieur' && user?.role !== 'accountant')}
                               >
                                 <Trash size={14} />
                               </Button>

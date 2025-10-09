@@ -68,13 +68,13 @@ const AdminDashboard = () => {
 
     // Configuration des graphiques
     const getGenderChartData = () => {
-        if (!dashboardData?.student_stats?.by_gender) return null;
+        if (!dashboardData?.student_stats) return null;
 
-        const data = dashboardData.student_stats.by_gender;
+        const stats = dashboardData.student_stats;
         return {
             labels: ['Masculin', 'Féminin'],
             datasets: [{
-                data: [data.male || 0, data.female || 0],
+                data: [stats.total_male || 0, stats.total_female || 0],
                 backgroundColor: ['#007bff', '#e83e8c'],
                 borderWidth: 0
             }]
@@ -201,6 +201,12 @@ const AdminDashboard = () => {
                             <PeopleFill size={40} className="text-primary mb-2" />
                             <h3 className="mb-1">{general_stats?.total_students || 0}</h3>
                             <p className="text-muted mb-0">Étudiants</p>
+                            {student_stats && (
+                                <div className="mt-2 small">
+                                    <Badge bg="primary" className="me-1">♂ {student_stats.total_male || 0}</Badge>
+                                    <Badge bg="danger">♀ {student_stats.total_female || 0}</Badge>
+                                </div>
+                            )}
                         </Card.Body>
                     </Card>
                 </Col>

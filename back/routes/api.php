@@ -451,6 +451,9 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/export/importable', [StudentController::class, 'exportImportable']);
         Route::get('/template/download', [StudentController::class, 'downloadTemplate']);
 
+        // Carte scolaire
+        Route::get('/{id}/card', [StudentController::class, 'generateStudentCard']);
+
         Route::post('/', [StudentController::class, 'store']);
         Route::put('/{student}', [StudentController::class, 'update']);
         Route::patch('/{student}/status', [StudentController::class, 'updateStatus']);
@@ -515,8 +518,8 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/tranche-lists-report', [PaymentController::class, 'generateTrancheListsReport']);
         Route::get('/tranches', [PaymentController::class, 'getPaymentTranches']);
 
-        // Routes de gestion des paiements pour comptable_superieur uniquement
-        Route::middleware(['role:comptable_superieur'])->group(function () {
+        // Routes de gestion des paiements pour comptables et comptable_superieur
+        Route::middleware(['role:accountant,comptable_superieur'])->group(function () {
             Route::get('/pending', [PaymentController::class, 'getPendingPayments']);
             Route::get('/management', [PaymentController::class, 'getAllPaymentsForManagement']);
             Route::put('/{paymentId}', [PaymentController::class, 'update']);

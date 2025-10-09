@@ -84,7 +84,7 @@ class WhatsAppService
     }
 
     /**
-     * Envoyer une notification de paiement avec facture aux parents
+     * Envoyer une notification de paiement avec reçu PDF aux parents
      */
     public function sendPaymentNotification($payment)
     {
@@ -93,7 +93,7 @@ class WhatsAppService
         }
 
         $student = $payment->student;
-        
+
         // Vérifier que l'étudiant a un contact parent
         if (!$student || !$student->parent_phone) {
             Log::info('Étudiant sans contact parent pour notification de paiement WhatsApp', [
@@ -104,34 +104,41 @@ class WhatsAppService
         }
 
         $message = $this->formatPaymentMessage($payment);
-        
+
         // D'abord envoyer le message texte
         $textResult = $this->sendMessage($student->parent_phone, $message);
-        
-        // Ensuite générer et envoyer l'image du reçu
-        $imageResult = false;
+
+        // Ensuite générer et envoyer le PDF du reçu
+        $pdfResult = false;
         try {
-            $receiptImageUrl = $this->generateReceiptImage($payment);
-            if ($receiptImageUrl) {
-                $imageResult = $this->sendImageMessage($student->parent_phone, $receiptImageUrl, "Reçu de paiement N° {$payment->id}");
+            $receiptPDF = $this->generateReceiptPDF($payment);
+            if ($receiptPDF && isset($receiptPDF['url']) && isset($receiptPDF['filename'])) {
+                $caption = "📄 Reçu de paiement N° {$payment->receipt_number}\n\nMerci pour votre confiance. 🙏";
+                $pdfResult = $this->sendDocumentMessage(
+                    $student->parent_phone,
+                    $receiptPDF['url'],
+                    $receiptPDF['filename'],
+                    $caption
+                );
             }
         } catch (\Exception $e) {
-            Log::error('Erreur lors de la génération/envoi de l\'image du reçu', [
+            Log::error('Erreur lors de la génération/envoi du PDF du reçu', [
                 'payment_id' => $payment->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
         }
-        
-        if ($textResult || $imageResult) {
+
+        if ($textResult || $pdfResult) {
             Log::info('Notification de paiement WhatsApp envoyée', [
                 'payment_id' => $payment->id,
                 'student_id' => $student->id,
                 'parent_phone' => $student->parent_phone,
                 'text_sent' => $textResult,
-                'image_sent' => $imageResult
+                'pdf_sent' => $pdfResult
             ]);
         }
-        
+
         return $textResult; // Au minimum le message texte doit passer
     }
 
@@ -484,21 +491,90 @@ class WhatsAppService
             // Utiliser la nouvelle méthode pour générer le reçu parent
             $paymentController = app()->make(\App\Http\Controllers\PaymentController::class);
             $receiptData = $paymentController->generateParentReceipt($payment->id);
-            
+
             if (!$receiptData['success']) {
                 Log::error('Impossible de générer le HTML du reçu parent', ['payment_id' => $payment->id]);
                 return null;
             }
-            
+
             $receiptHtml = $receiptData['html'];
-            
+
             // Utiliser wkhtmltoimage ou une alternative pour convertir HTML en image
             return $this->createReceiptImageFile($receiptHtml, $payment->id);
-            
+
         } catch (\Exception $e) {
             Log::error('Erreur lors de la génération de l\'image du reçu', [
                 'payment_id' => $payment->id,
                 'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Générer le PDF du reçu et retourner son URL publique
+     */
+    protected function generateReceiptPDF($payment)
+    {
+        try {
+            // Charger les informations nécessaires
+            $payment->load(['student.classSeries.schoolClass.level', 'paymentDetails.paymentTranche']);
+            $schoolSettings = \App\Models\SchoolSetting::getSettings();
+
+            // Générer le HTML du reçu
+            $paymentController = app()->make(\App\Http\Controllers\PaymentController::class);
+
+            // Utiliser la réflexion pour accéder à la méthode privée
+            $reflection = new \ReflectionClass($paymentController);
+            $method = $reflection->getMethod('generateReceiptHtmlForPDF');
+            $method->setAccessible(true);
+            $receiptHtml = $method->invoke($paymentController, $payment, $schoolSettings);
+
+            // Créer le nom de fichier
+            $filename = "Recu_{$payment->receipt_number}_" . time() . ".pdf";
+            $pdfPath = public_path("receipts/pdf/{$filename}");
+
+            // Créer le dossier s'il n'existe pas
+            $pdfDir = public_path('receipts/pdf');
+            if (!file_exists($pdfDir)) {
+                mkdir($pdfDir, 0755, true);
+            }
+
+            // Générer le PDF avec DomPDF
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($receiptHtml);
+            $pdf->setPaper('A4', 'portrait');
+            $pdf->save($pdfPath);
+
+            // Retourner l'URL publique
+            $publicUrl = url("receipts/pdf/{$filename}");
+
+            // En environnement local, uploader sur un service temporaire
+            if (app()->environment('local') && strpos($publicUrl, 'localhost') !== false) {
+                Log::info('Environnement local détecté, upload sur service temporaire...');
+                $uploadedUrl = $this->uploadToTemporaryFileService($pdfPath, $filename);
+                if ($uploadedUrl) {
+                    $publicUrl = $uploadedUrl;
+                    Log::info('PDF uploadé sur service temporaire', ['url' => $uploadedUrl]);
+                }
+            }
+
+            Log::info('PDF du reçu généré avec succès', [
+                'payment_id' => $payment->id,
+                'filename' => $filename,
+                'url' => $publicUrl
+            ]);
+
+            return [
+                'url' => $publicUrl,
+                'filename' => $filename,
+                'path' => $pdfPath
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la génération du PDF du reçu', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             return null;
         }
@@ -693,30 +769,107 @@ class WhatsAppService
     /**
      * Uploader l'image sur un service temporaire accessible publiquement
      */
+    /**
+     * Upload un PDF sur un service temporaire (file.io)
+     */
+    protected function uploadToTemporaryFileService($filePath, $filename)
+    {
+        try {
+            Log::info('Tentative d\'upload du PDF sur file.io', ['filename' => $filename]);
+
+            // Utiliser file.io - service gratuit sans clé API
+            $response = Http::attach(
+                'file',
+                file_get_contents($filePath),
+                $filename
+            )->post('https://file.io', [
+                'expires' => '1d' // Expire dans 1 jour
+            ]);
+
+            if ($response->successful()) {
+                $responseData = $response->json();
+                if ($responseData['success'] && isset($responseData['link'])) {
+                    Log::info('PDF uploadé sur file.io avec succès', [
+                        'url' => $responseData['link']
+                    ]);
+                    return $responseData['link'];
+                }
+            }
+
+            Log::warning('Échec upload file.io', ['response' => $response->body()]);
+
+            // Fallback: essayer tmpfiles.org
+            return $this->uploadToTmpFiles($filePath, $filename);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de l\'upload sur file.io', [
+                'error' => $e->getMessage()
+            ]);
+            // Essayer tmpfiles en fallback
+            return $this->uploadToTmpFiles($filePath, $filename);
+        }
+    }
+
+    /**
+     * Upload sur tmpfiles.org (fallback)
+     */
+    protected function uploadToTmpFiles($filePath, $filename)
+    {
+        try {
+            Log::info('Tentative d\'upload du PDF sur tmpfiles.org', ['filename' => $filename]);
+
+            $response = Http::attach(
+                'file',
+                file_get_contents($filePath),
+                $filename
+            )->post('https://tmpfiles.org/api/v1/upload');
+
+            if ($response->successful()) {
+                $responseData = $response->json();
+                if (isset($responseData['data']['url'])) {
+                    // tmpfiles retourne une URL du type: https://tmpfiles.org/123/file.pdf
+                    // Il faut la convertir en URL de téléchargement direct
+                    $url = str_replace('tmpfiles.org/', 'tmpfiles.org/dl/', $responseData['data']['url']);
+                    Log::info('PDF uploadé sur tmpfiles.org avec succès', ['url' => $url]);
+                    return $url;
+                }
+            }
+
+            Log::warning('Échec upload tmpfiles.org', ['response' => $response->body()]);
+            return null;
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de l\'upload sur tmpfiles.org', [
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
     protected function uploadToTempImageService($imagePath)
     {
         try {
             // Utiliser un service comme imgbb.com, postimages.org, ou similaire
             // Ici, nous utilisons imgbb.com comme exemple (nécessite une clé API gratuite)
-            
+
             // Encoder l'image en base64
             $imageData = base64_encode(file_get_contents($imagePath));
-            
+
             // Utiliser un service d'upload temporaire (exemple avec imgbb)
             // Vous pouvez créer un compte gratuit sur imgbb.com et obtenir une clé API
             $apiKey = env('IMGBB_API_KEY', null);
-            
+
             if (!$apiKey) {
                 Log::info('Aucune clé API imgbb configurée, utilisation de l\'URL locale');
                 return null;
             }
-            
+
             $response = Http::asForm()->post('https://api.imgbb.com/1/upload', [
                 'key' => $apiKey,
                 'image' => $imageData,
                 'expiration' => 86400 // Expire dans 24h
             ]);
-            
+
             if ($response->successful()) {
                 $responseData = $response->json();
                 if (isset($responseData['data']['url'])) {
@@ -726,10 +879,10 @@ class WhatsAppService
                     return $responseData['data']['url'];
                 }
             }
-            
+
             Log::warning('Échec upload imgbb', ['response' => $response->body()]);
             return null;
-            
+
         } catch (\Exception $e) {
             Log::error('Erreur lors de l\'upload sur service temporaire', [
                 'error' => $e->getMessage()
@@ -788,6 +941,64 @@ class WhatsAppService
             Log::error('Exception lors de l\'envoi d\'image WhatsApp via UltraMsg', [
                 'to' => $phoneNumber,
                 'image_url' => $imageUrl,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Envoyer un document PDF via WhatsApp
+     */
+    protected function sendDocumentMessage($phoneNumber, $documentUrl, $filename, $caption = '')
+    {
+        try {
+            $settings = SchoolSetting::getSettings();
+
+            if (!$settings->whatsapp_api_url || !$settings->whatsapp_instance_id || !$settings->whatsapp_token) {
+                Log::info('Configuration WhatsApp incomplète pour envoi de document');
+                return false;
+            }
+
+            // URL pour envoyer des documents via UltraMsg
+            $url = "https://api.ultramsg.com/instance{$settings->whatsapp_instance_id}/messages/document";
+
+            $headers = [
+                'Content-Type' => 'application/x-www-form-urlencoded'
+            ];
+
+            $params = [
+                'token' => $settings->whatsapp_token,
+                'to' => $this->formatPhoneNumber($phoneNumber),
+                'document' => $documentUrl,
+                'filename' => $filename,
+                'caption' => $caption
+            ];
+
+            $response = Http::withHeaders($headers)->asForm()->post($url, $params);
+
+            if ($response->successful()) {
+                $responseBody = $response->body();
+                Log::info('Document WhatsApp envoyé via UltraMsg', [
+                    'to' => $phoneNumber,
+                    'document_url' => $documentUrl,
+                    'filename' => $filename,
+                    'response' => $responseBody
+                ]);
+                return true;
+            } else {
+                Log::error('Erreur HTTP lors de l\'envoi de document WhatsApp via UltraMsg', [
+                    'to' => $phoneNumber,
+                    'document_url' => $documentUrl,
+                    'status' => $response->status(),
+                    'response' => $response->body()
+                ]);
+                return false;
+            }
+        } catch (\Exception $e) {
+            Log::error('Exception lors de l\'envoi de document WhatsApp via UltraMsg', [
+                'to' => $phoneNumber,
+                'document_url' => $documentUrl,
                 'error' => $e->getMessage()
             ]);
             return false;
@@ -896,20 +1107,37 @@ class WhatsAppService
      */
     protected function formatPhoneNumber($phoneNumber)
     {
-        // Supprimer tous les caractères non numériques
-        $cleaned = preg_replace('/[^0-9]/', '', $phoneNumber);
-        
-        // Si le numéro commence par 0, remplacer par +237 (Cameroun)
+        // Supprimer tous les caractères non numériques sauf le +
+        $cleaned = preg_replace('/[^0-9+]/', '', $phoneNumber);
+
+        // Si le numéro commence déjà par +237, retourner tel quel
+        if (substr($cleaned, 0, 4) === '+237') {
+            return $cleaned;
+        }
+
+        // Si le numéro commence par 237 (sans +), ajouter le +
+        if (substr($cleaned, 0, 3) === '237') {
+            return '+' . $cleaned;
+        }
+
+        // Si le numéro commence par 0, remplacer par +237
         if (substr($cleaned, 0, 1) === '0') {
-            $cleaned = '237' . substr($cleaned, 1);
+            return '+237' . substr($cleaned, 1);
         }
-        
-        // Si le numéro ne commence pas par +, l'ajouter
-        if (substr($cleaned, 0, 1) !== '+') {
-            $cleaned = '+' . $cleaned;
+
+        // Si le numéro commence par 6 ou 2 (numéros camerounais typiques)
+        // Ajouter le code pays +237
+        if (preg_match('/^[62]/', $cleaned)) {
+            return '+237' . $cleaned;
         }
-        
-        return $cleaned;
+
+        // Si le numéro commence par +, le retourner tel quel
+        if (substr($cleaned, 0, 1) === '+') {
+            return $cleaned;
+        }
+
+        // Par défaut, ajouter +237 (Cameroun)
+        return '+237' . $cleaned;
     }
 
     /**
