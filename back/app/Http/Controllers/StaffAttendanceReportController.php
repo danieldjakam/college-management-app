@@ -1079,18 +1079,47 @@ class StaffAttendanceReportController extends Controller
                     $entries = $dayData['entries'];
                     $exits = $dayData['exits'];
 
-                    // Associer chaque entrée avec sa sortie suivante
+                    // Trier les entrées et sorties par heure
+                    usort($entries, function($a, $b) {
+                        return $a['scanned_at'] <=> $b['scanned_at'];
+                    });
+                    usort($exits, function($a, $b) {
+                        return $a['scanned_at'] <=> $b['scanned_at'];
+                    });
+
+                    // Sauvegarder les tableaux triés dans dailyAttendance
+                    $dailyAttendance[$date]['entries'] = $entries;
+                    $dailyAttendance[$date]['exits'] = $exits;
+
+                    // Associer chaque entrée avec la première sortie qui vient après
                     $entryCount = count($entries);
-                    $exitCount = count($exits);
+                    $exitIndex = 0;
 
                     for ($i = 0; $i < $entryCount; $i++) {
-                        if (isset($exits[$i])) {
-                            // Calculer la différence entre cette entrée et cette sortie
-                            $entryTime = $entries[$i]['scanned_at'];
-                            $exitTime = $exits[$i]['scanned_at'];
+                        $entryTime = $entries[$i]['scanned_at'];
 
-                            $workedSeconds = $exitTime->diffInSeconds($entryTime);
-                            $totalSeconds += $workedSeconds;
+                        // Chercher la prochaine sortie qui vient après cette entrée
+                        while ($exitIndex < count($exits)) {
+                            $exitTime = $exits[$exitIndex]['scanned_at'];
+
+                            if ($exitTime > $entryTime) {
+                                // Trouvé une sortie valide après l'entrée
+                                // Utiliser diffInSeconds avec false pour avoir une valeur signée
+                                $workedSeconds = $entryTime->diffInSeconds($exitTime, false);
+
+                                // Ne prendre que les valeurs positives
+                                if ($workedSeconds > 0) {
+                                    $totalSeconds += $workedSeconds;
+                                    \Log::info("Added worked time for {$vacataire->name} on {$date}: {$workedSeconds} seconds (Entry: {$entryTime->format('Y-m-d H:i:s')}, Exit: {$exitTime->format('Y-m-d H:i:s')})");
+                                } else {
+                                    \Log::warning("Negative worked time for {$vacataire->name} on {$date}: {$workedSeconds} seconds (Entry: {$entryTime->format('Y-m-d H:i:s')}, Exit: {$exitTime->format('Y-m-d H:i:s')})");
+                                }
+                                $exitIndex++; // Passer à la sortie suivante
+                                break;
+                            } else {
+                                // Cette sortie est avant l'entrée, passer à la suivante
+                                $exitIndex++;
+                            }
                         }
                     }
                 }
@@ -1138,6 +1167,8 @@ class StaffAttendanceReportController extends Controller
                 $attendanceRate = $workingDaysInMonth > 0 ? ($presentDays / $workingDaysInMonth) * 100 : 0;
 
                 // Formater le temps total en HH:MM:SS
+                // S'assurer que totalSeconds n'est pas négatif
+                $totalSeconds = max(0, $totalSeconds);
                 $hours = floor($totalSeconds / 3600);
                 $minutes = floor(($totalSeconds % 3600) / 60);
                 $seconds = $totalSeconds % 60;

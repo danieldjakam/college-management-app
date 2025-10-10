@@ -438,7 +438,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/students/class/{classId}', [StudentController::class, 'getByClass'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,teacher,bibliothecaire,surveillant_general,surveillant_secteur']);
 
     // Routes pour les élèves
-    Route::prefix('students')->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur'])->group(function () {
+    Route::prefix('students')->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur,teacher'])->group(function () {
         Route::get('/class-series/{seriesId}', [StudentController::class, 'getByClassSeries']);
 
         // Export routes - amélioration des routes existantes
@@ -547,8 +547,8 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les paramètres de l'école
     Route::prefix('school-settings')->group(function () {
-        Route::get('/', [SchoolSettingsController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant,surveillant_general,comptable_superieur']);
-        Route::get('/logo', [SchoolSettingsController::class, 'getLogo'])->middleware(['role:admin,principal,secretaire,accountant,surveillant_general,comptable_superieur']);
+        Route::get('/', [SchoolSettingsController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant,surveillant_general,comptable_superieur,teacher']);
+        Route::get('/logo', [SchoolSettingsController::class, 'getLogo'])->middleware(['role:admin,principal,secretaire,accountant,surveillant_general,comptable_superieur,teacher']);
 
         // Routes admin uniquement
         Route::put('/', [SchoolSettingsController::class, 'update'])->middleware(['role:admin']);

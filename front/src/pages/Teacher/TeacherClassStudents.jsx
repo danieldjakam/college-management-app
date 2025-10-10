@@ -33,20 +33,17 @@ const TeacherClassStudents = () => {
     const loadStudents = async () => {
         try {
             setLoading(true);
-            
-            // Charger les étudiants de la classe
-            console.log('DEBUG - Chargement des élèves pour la classe:', classId);
-            const response = await secureApiEndpoints.students.getByClass(classId, {
-                with_details: true,
-                include_payment_status: true
-            });
+
+            // Charger les étudiants de la série
+            console.log('DEBUG - Chargement des élèves pour la série:', classId);
+            const response = await secureApiEndpoints.students.getByClassSeries(classId);
             console.log('DEBUG - Réponse API complète:', response);
-            
+
             if (response.success) {
                 const studentsData = response.data.students || response.data || [];
                 console.log('DEBUG - Données élèves extraites:', studentsData);
                 setStudents(studentsData);
-                setClassInfo(response.data.class_info || null);
+                setClassInfo(response.data.class_series || response.data.class_info || null);
             } else {
                 console.error('Erreur API:', response.message);
             }
@@ -98,14 +95,9 @@ const TeacherClassStudents = () => {
     };
 
     const handleViewStudentDetails = (studentId) => {
-        // Navigation vers détails de l'étudiant (si route existe)
-        navigate(`/teacher/student/${studentId}`, {
-            state: { 
-                returnTo: `/teacher/class/${classId}/students`,
-                className,
-                subjectName 
-            }
-        });
+        // Pour l'instant, fonctionnalité non disponible pour les enseignants
+        // TODO: Créer une page de détails étudiant pour les enseignants
+        console.log('Voir détails étudiant:', studentId);
     };
 
     if (loading) {
@@ -261,6 +253,8 @@ const TeacherClassStudents = () => {
                                                         size="sm"
                                                         variant="outline-primary"
                                                         onClick={() => handleViewStudentDetails(student.id)}
+                                                        disabled
+                                                        title="Fonctionnalité non disponible"
                                                     >
                                                         <Eye size={14} />
                                                     </Button>

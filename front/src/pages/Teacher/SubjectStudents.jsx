@@ -25,11 +25,18 @@ const SubjectStudents = () => {
         try {
             setLoading(true);
             setError(null);
-            
+
+            // Vérifier que les paramètres sont valides
+            if (!sequenceId || !subjectId) {
+                setError('Paramètres manquants (sequenceId ou subjectId)');
+                setLoading(false);
+                return;
+            }
+
             // Charger les détails de la séquence
             const sequenceResponse = await secureApiEndpoints.sequences.getById(sequenceId);
             setSequence(sequenceResponse.data);
-            
+
             // Charger les détails de la matière
             const subjectResponse = await secureApiEndpoints.seriesSubjects.getById(subjectId);
             setSubject(subjectResponse.data);

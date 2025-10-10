@@ -67,8 +67,20 @@ const SequenceSubjects = () => {
 
     const handleSubjectClick = (assignment) => {
         // Navigation vers la liste des élèves de cette matière/classe
-        // Utiliser l'ID de la series_subject depuis l'assignation
-        navigate(`/teacher/sequences/${sequenceId}/subjects/${assignment.series_subject_id}/students`);
+        // L'ID à utiliser est l'ID de l'assignation (teacher_assignment.id)
+        // qui pointe vers class_series_subject_id dans la base de données
+        const subjectId = assignment.class_series_subject_id;
+
+        console.log('Assignment object:', assignment);
+        console.log('Subject ID:', subjectId);
+
+        if (!subjectId) {
+            console.error('Aucun ID de matière trouvé dans l\'assignation:', assignment);
+            alert('Impossible d\'accéder à cette matière. ID manquant.');
+            return;
+        }
+
+        navigate(`/teacher/sequences/${sequenceId}/subjects/${subjectId}/students`);
     };
 
     if (loading) {

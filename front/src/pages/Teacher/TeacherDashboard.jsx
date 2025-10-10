@@ -71,10 +71,10 @@ const TeacherDashboard = () => {
     const calculateStats = (assignments, mainClasses) => {
         const uniqueClasses = new Set();
         const uniqueSubjects = new Set();
-        
+
         assignments.forEach(assignment => {
-            if (assignment.series_subject?.school_class) {
-                uniqueClasses.add(assignment.series_subject.school_class.id);
+            if (assignment.series_subject?.class_series?.school_class) {
+                uniqueClasses.add(assignment.series_subject.class_series.school_class.id);
             }
             if (assignment.series_subject?.subject) {
                 uniqueSubjects.add(assignment.series_subject.subject.id);
@@ -90,13 +90,13 @@ const TeacherDashboard = () => {
     };
 
     const handleViewStudents = (assignment) => {
-        const classId = assignment.series_subject?.school_class?.id;
+        const classSeriesId = assignment.series_subject?.class_series?.id;
         const subjectId = assignment.series_subject?.subject?.id;
-        
-        if (classId) {
-            navigate(`/teacher/class/${classId}/students`, {
-                state: { 
-                    className: assignment.series_subject.school_class.name,
+
+        if (classSeriesId) {
+            navigate(`/teacher/class/${classSeriesId}/students`, {
+                state: {
+                    className: assignment.series_subject.class_series.name,
                     subjectName: assignment.series_subject.subject?.name,
                     subjectId: subjectId
                 }
@@ -293,11 +293,11 @@ const TeacherDashboard = () => {
                                                     </Badge>
                                                 </td>
                                                 <td>
-                                                    {assignment.series_subject?.school_class?.name || 'N/A'}
+                                                    {assignment.series_subject?.class_series?.name || 'N/A'}
                                                 </td>
                                                 <td>
                                                     <small className="text-muted">
-                                                        {assignment.series_subject?.school_class?.level?.name || 'N/A'}
+                                                        {assignment.series_subject?.class_series?.school_class?.level?.name || 'N/A'}
                                                     </small>
                                                 </td>
                                                 <td>

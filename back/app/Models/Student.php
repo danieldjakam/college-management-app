@@ -70,7 +70,8 @@ class Student extends Model
 
     protected $appends = [
         'full_name',
-        'photo_url'
+        'photo_url',
+        'matricule'
     ];
 
     /**
@@ -177,6 +178,14 @@ class Student extends Model
             return url('/storage/' . $this->photo);
         }
         return null;
+    }
+
+    /**
+     * Obtenir le matricule (alias pour student_number)
+     */
+    public function getMatriculeAttribute()
+    {
+        return $this->student_number;
     }
 
     /**

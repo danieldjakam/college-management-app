@@ -106,6 +106,15 @@ class TeacherAssignmentController extends Controller
                 ])
                 ->get();
 
+            // Transformer les données pour ajouter l'alias "series_subject"
+            // (pour compatibilité avec le frontend)
+            // Conserver explicitement class_series_subject_id
+            $assignments->transform(function($assignment) {
+                $assignment->series_subject = $assignment->classSeriesSubject;
+                $assignment->makeVisible(['class_series_subject_id']);
+                return $assignment;
+            });
+
             // Ajouter les informations sur les classes où il est professeur principal
             $mainTeacherClasses = MainTeacher::where('teacher_id', $teacher->id)
                 ->where('school_year_id', $schoolYearId)
@@ -115,7 +124,7 @@ class TeacherAssignmentController extends Controller
 
             // Récupérer les informations de l'année scolaire
             $schoolYear = \App\Models\SchoolYear::find($schoolYearId);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => [

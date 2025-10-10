@@ -71,9 +71,9 @@ class TrimesterController extends Controller
             $teacherClassIds = $teacher->assignments()
                 ->where('school_year_id', $currentYear->id)
                 ->where('is_active', true)
-                ->with('seriesSubject.schoolClass.level')
+                ->with('classSeriesSubject.classSeries.schoolClass.level')
                 ->get()
-                ->pluck('seriesSubject.school_class_id')
+                ->pluck('classSeriesSubject.classSeries.schoolClass.id')
                 ->unique();
 
             if ($teacherClassIds->isEmpty()) {
@@ -88,9 +88,9 @@ class TrimesterController extends Controller
             $teacherLevels = $teacher->assignments()
                 ->where('school_year_id', $currentYear->id)
                 ->where('is_active', true)
-                ->with('seriesSubject.schoolClass.level')
+                ->with('classSeriesSubject.classSeries.schoolClass.level')
                 ->get()
-                ->pluck('seriesSubject.schoolClass.level.id')
+                ->pluck('classSeriesSubject.classSeries.schoolClass.level.id')
                 ->unique();
 
             // Récupérer les configs d'évaluation pour ces niveaux
