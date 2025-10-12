@@ -100,10 +100,22 @@ class SyncTeacherUserData extends Command
 
         // Vérifier si le QR code doit être synchronisé
         if ($teacher->qr_code && $user->qr_code !== $teacher->qr_code) {
-            $changes['qr_code'] = [
-                'from' => $user->qr_code ?? 'VIDE',
-                'to' => $teacher->qr_code
-            ];
+            // Vérifier si ce QR code est déjà utilisé par un autre utilisateur
+            $existingUser = User::where('qr_code', $teacher->qr_code)
+                ->where('id', '!=', $user->id)
+                ->first();
+
+            if ($existingUser) {
+                if ($verbose) {
+                    $this->warn("⚠️ QR code {$teacher->qr_code} déjà utilisé par {$existingUser->name} (ID: {$existingUser->id})");
+                    $this->warn("   Synchronisation du QR code ignorée pour {$teacherFullName}");
+                }
+            } else {
+                $changes['qr_code'] = [
+                    'from' => $user->qr_code ?? 'VIDE',
+                    'to' => $teacher->qr_code
+                ];
+            }
         }
 
         // Appliquer les changements
