@@ -62,7 +62,7 @@ class SequenceController extends Controller
                 'trimester',
                 'schoolYear',
                 'evaluations.seriesSubject.subject',
-                'evaluations.seriesSubject.schoolClass'
+                'evaluations.seriesSubject.classSeries.schoolClass'
             ]);
 
             return response()->json([
@@ -90,7 +90,7 @@ class SequenceController extends Controller
                     'trimester',
                     'schoolYear',
                     'evaluations.seriesSubject.subject',
-                    'evaluations.seriesSubject.schoolClass'
+                    'evaluations.seriesSubject.classSeries.schoolClass'
                 ])
                 ->first();
 

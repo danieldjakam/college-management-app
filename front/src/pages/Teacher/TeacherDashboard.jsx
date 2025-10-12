@@ -246,13 +246,18 @@ const TeacherDashboard = () => {
                             </Card.Header>
                             <Card.Body>
                                 {mainTeacherClasses.map((mainClass, index) => (
-                                    <div key={index} className="mb-2">
-                                        <Badge bg="success" className="me-2">
-                                            {mainClass.school_class?.name}
+                                    <div key={index} className="mb-3 p-2 border rounded">
+                                        <Badge bg="success" className="me-2 mb-1">
+                                            {mainClass.class_series?.name || 'N/A'}
                                         </Badge>
-                                        <small className="text-muted">
-                                            {mainClass.school_class?.level?.name}
-                                        </small>
+                                        <div>
+                                            <small className="text-muted d-block">
+                                                Classe: {mainClass.class_series?.school_class?.name || 'N/A'}
+                                            </small>
+                                            <small className="text-muted">
+                                                Niveau: {mainClass.class_series?.school_class?.level?.name || 'N/A'}
+                                            </small>
+                                        </div>
                                     </div>
                                 ))}
                             </Card.Body>

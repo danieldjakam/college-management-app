@@ -119,7 +119,7 @@ class TeacherAssignmentController extends Controller
             $mainTeacherClasses = MainTeacher::where('teacher_id', $teacher->id)
                 ->where('school_year_id', $schoolYearId)
                 ->where('is_active', true)
-                ->with(['schoolClass.level'])
+                ->with(['classSeries.schoolClass.level'])
                 ->get();
 
             // Récupérer les informations de l'année scolaire
