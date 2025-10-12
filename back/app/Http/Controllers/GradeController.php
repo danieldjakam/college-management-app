@@ -18,11 +18,11 @@ class GradeController extends Controller
     {
         try {
             // Récupérer tous les étudiants de la classe/matière
-            $seriesSubject = $evaluation->seriesSubject;
-            
+            $classSeriesSubject = $evaluation->classSeriesSubject;
+
             // Récupérer tous les étudiants actifs de cette série
-            $students = Student::whereHas('classSeries', function($query) use ($seriesSubject) {
-                $query->where('class_id', $seriesSubject->school_class_id)
+            $students = Student::whereHas('classSeries', function($query) use ($classSeriesSubject) {
+                $query->where('class_series_id', $classSeriesSubject->class_series_id)
                       ->where('is_active', true);
             })
             ->with(['classSeries'])
@@ -39,7 +39,7 @@ class GradeController extends Controller
             // Préparer les données avec notes existantes ou vides
             $gradeData = $students->map(function($student) use ($existingGrades, $evaluation) {
                 $existingGrade = $existingGrades->get($student->id);
-                
+
                 return [
                     'student_id' => $student->id,
                     'student' => [
@@ -65,7 +65,7 @@ class GradeController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'evaluation' => $evaluation->load(['sequence', 'seriesSubject.subject', 'seriesSubject.schoolClass']),
+                    'evaluation' => $evaluation->load(['sequence', 'classSeriesSubject.subject', 'classSeriesSubject.classSeries']),
                     'grades' => $gradeData,
                     'statistics' => [
                         'total_students' => $students->count(),
@@ -110,15 +110,6 @@ class GradeController extends Controller
 
             $evaluation = Evaluation::findOrFail($request->evaluation_id);
 
-            // Vérifier si la séquence/composition est terminée
-            $sequence = \App\Models\Sequence::find($evaluation->sequence_id);
-            if ($sequence && $sequence->is_completed) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cette période est terminée et ne peut plus être modifiée.',
-                ], 403);
-            }
-
             // Validation de la note selon la note maximale de l'évaluation
             if ($request->score !== null && $request->score > $evaluation->max_score) {
                 return response()->json([
@@ -140,7 +131,7 @@ class GradeController extends Controller
                 $grade->sequence_id = $evaluation->sequence_id;
                 $grade->trimester_id = $evaluation->trimester_id;
                 $grade->school_year_id = $evaluation->school_year_id;
-                $grade->series_subject_id = $evaluation->series_subject_id;
+                $grade->class_series_subject_id = $evaluation->class_series_subject_id;
                 $grade->max_score = $evaluation->max_score;
                 $grade->coefficient = $evaluation->coefficient;
             }
@@ -206,15 +197,6 @@ class GradeController extends Controller
 
             $evaluation = Evaluation::findOrFail($request->evaluation_id);
 
-            // Vérifier si la séquence/composition est terminée
-            $sequence = \App\Models\Sequence::find($evaluation->sequence_id);
-            if ($sequence && $sequence->is_completed) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cette période est terminée et ne peut plus être modifiée.',
-                ], 403);
-            }
-            
             $savedGrades = [];
             $errors = [];
 
@@ -237,7 +219,7 @@ class GradeController extends Controller
                             'sequence_id' => $evaluation->sequence_id,
                             'trimester_id' => $evaluation->trimester_id,
                             'school_year_id' => $evaluation->school_year_id,
-                            'series_subject_id' => $evaluation->series_subject_id,
+                            'class_series_subject_id' => $evaluation->class_series_subject_id,
                             'max_score' => $evaluation->max_score,
                             'coefficient' => $evaluation->coefficient,
                             'score' => ($gradeData['is_absent'] ?? false) ? null : ($gradeData['score'] ?? null),
@@ -344,7 +326,7 @@ class GradeController extends Controller
             ];
 
             $totalStudents = Student::whereHas('classSeries', function($query) use ($evaluation) {
-                $query->where('class_id', $evaluation->seriesSubject->school_class_id);
+                $query->where('class_series_id', $evaluation->classSeriesSubject->class_series_id);
             })->count();
 
             return response()->json([

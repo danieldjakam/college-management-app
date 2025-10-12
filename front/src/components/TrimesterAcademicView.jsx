@@ -69,9 +69,7 @@ const TrimesterAcademicView = ({
         
         if (type === 'composition') {
             if (item.is_active) return { status: 'active', label: 'Active', variant: 'success', icon: FileText };
-            if (item.is_locked === true || (!item.is_active && item.is_locked !== false)) {
-                return { status: 'locked', label: 'Verrouillée', variant: 'danger', icon: XCircle };
-            }
+            if (item.is_completed) return { status: 'completed', label: 'Terminée', variant: 'info', icon: CheckCircle };
             return { status: 'scheduled', label: 'Programmée', variant: 'secondary', icon: Clock };
         }
         
@@ -202,8 +200,8 @@ const TrimesterAcademicView = ({
                                                                         <compStatus.icon className="me-1" size={12} />
                                                                         {composition.name}
                                                                     </small>
-                                                                    <Badge bg={composition.is_locked ? 'danger' : compStatus.variant}>
-                                                                        {composition.is_locked ? 'Verrouillée' : compStatus.label}
+                                                                    <Badge bg={compStatus.variant}>
+                                                                        {compStatus.label}
                                                                     </Badge>
                                                                 </div>
                                                             );
@@ -217,18 +215,9 @@ const TrimesterAcademicView = ({
                                         <Card.Footer className="bg-transparent">
                                             <div className="d-flex justify-content-between align-items-center">
                                                 <small className="text-muted">
-                                                    {new Date(trimester.start_date).toLocaleDateString()} - 
+                                                    {new Date(trimester.start_date).toLocaleDateString()} -
                                                     {new Date(trimester.end_date).toLocaleDateString()}
                                                 </small>
-                                                {!trimester.is_current && (
-                                                    <Button 
-                                                        size="sm" 
-                                                        variant="outline-success"
-                                                        onClick={() => onActivateTrimester && onActivateTrimester(trimester.id)}
-                                                    >
-                                                        Activer
-                                                    </Button>
-                                                )}
                                             </div>
                                         </Card.Footer>
                                     </Card>
@@ -285,9 +274,7 @@ const TrimesterDetailView = ({
         
         if (type === 'composition') {
             if (item.is_active) return { status: 'active', label: 'Active', variant: 'success', icon: FileText };
-            if (item.is_locked === true || (!item.is_active && item.is_locked !== false)) {
-                return { status: 'locked', label: 'Verrouillée', variant: 'danger', icon: XCircle };
-            }
+            if (item.is_completed) return { status: 'completed', label: 'Terminée', variant: 'info', icon: CheckCircle };
             return { status: 'scheduled', label: 'Programmée', variant: 'secondary', icon: Clock };
         }
         
@@ -360,27 +347,7 @@ const TrimesterDetailView = ({
                                                     )}
                                                 </td>
                                                 <td>
-                                                    {sequence.is_current ? (
-                                                        <Button 
-                                                            size="sm" 
-                                                            variant="outline-info"
-                                                            onClick={() => onCompleteSequence && onCompleteSequence(sequence.id)}
-                                                        >
-                                                            <CheckCircle size={14} className="me-1" />
-                                                            Terminer
-                                                        </Button>
-                                                    ) : !sequence.is_completed ? (
-                                                        <Button 
-                                                            size="sm" 
-                                                            variant="outline-success"
-                                                            onClick={() => onActivateSequence && onActivateSequence(sequence.id)}
-                                                        >
-                                                            <Play size={14} className="me-1" />
-                                                            Activer
-                                                        </Button>
-                                                    ) : (
-                                                        <Badge bg="light" text="dark">Terminée</Badge>
-                                                    )}
+                                                    <small className="text-muted">Toujours accessible</small>
                                                 </td>
                                             </tr>
                                         ))}
@@ -461,40 +428,18 @@ const TrimesterDetailView = ({
                                                     </small>
                                                 </td>
                                                 <td>
-                                                    {composition.is_locked ? (
-                                                        <Badge bg="danger">Verrouillée</Badge>
-                                                    ) : composition.is_current ? (
+                                                    {composition.is_current ? (
                                                         <Badge bg="success">En cours</Badge>
                                                     ) : composition.is_completed ? (
                                                         <Badge bg="info">Terminée</Badge>
+                                                    ) : composition.is_active ? (
+                                                        <Badge bg="primary">Disponible</Badge>
                                                     ) : (
                                                         <Badge bg="secondary">Programmée</Badge>
                                                     )}
                                                 </td>
                                                 <td>
-                                                    {composition.is_locked ? (
-                                                        <small className="text-muted">🔒 Verrouillée</small>
-                                                    ) : composition.is_current ? (
-                                                        <Button 
-                                                            size="sm" 
-                                                            variant="outline-info"
-                                                            onClick={() => onCompleteSequence && onCompleteSequence(composition.id)}
-                                                        >
-                                                            <CheckCircle size={14} className="me-1" />
-                                                            Terminer
-                                                        </Button>
-                                                    ) : !composition.is_completed ? (
-                                                        <Button 
-                                                            size="sm" 
-                                                            variant="outline-success"
-                                                            onClick={() => onActivateSequence && onActivateSequence(composition.id)}
-                                                        >
-                                                            <Play size={14} className="me-1" />
-                                                            Activer
-                                                        </Button>
-                                                    ) : (
-                                                        <Badge bg="light" text="dark">Terminée</Badge>
-                                                    )}
+                                                    <small className="text-muted">Toujours accessible</small>
                                                 </td>
                                             </tr>
                                         ))}

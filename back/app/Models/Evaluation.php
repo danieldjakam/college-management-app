@@ -16,7 +16,7 @@ class Evaluation extends Model
         'sequence_id',
         'trimester_id',
         'school_year_id',
-        'series_subject_id',
+        'class_series_subject_id',
         'teacher_id',
         'date',
         'max_score',
@@ -64,11 +64,20 @@ class Evaluation extends Model
     }
 
     /**
-     * Relation avec la matière de la série
+     * Relation avec la matière de la série de classe
+     */
+    public function classSeriesSubject()
+    {
+        return $this->belongsTo(ClassSeriesSubject::class);
+    }
+
+    /**
+     * Alias pour compatibilité (deprecated)
+     * @deprecated Use classSeriesSubject() instead
      */
     public function seriesSubject()
     {
-        return $this->belongsTo(SeriesSubject::class);
+        return $this->classSeriesSubject();
     }
 
     /**
@@ -155,9 +164,10 @@ class Evaluation extends Model
 
     /**
      * Vérifier si l'évaluation peut être modifiée
+     * Note: Toujours true car le système de verrouillage a été désactivé
      */
     public function canBeEdited()
     {
-        return $this->is_active && $this->sequence && $this->sequence->canAcceptEvaluations();
+        return true;
     }
 }

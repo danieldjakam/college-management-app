@@ -15,7 +15,7 @@ class Grade extends Model
         'sequence_id',
         'trimester_id',
         'school_year_id',
-        'series_subject_id',
+        'class_series_subject_id',
         'score',
         'max_score',
         'coefficient',
@@ -75,11 +75,20 @@ class Grade extends Model
     }
 
     /**
-     * Relation avec la matière de la série
+     * Relation avec la matière de la série de classe
+     */
+    public function classSeriesSubject()
+    {
+        return $this->belongsTo(ClassSeriesSubject::class);
+    }
+
+    /**
+     * Alias pour compatibilité (deprecated)
+     * @deprecated Use classSeriesSubject() instead
      */
     public function seriesSubject()
     {
-        return $this->belongsTo(SeriesSubject::class);
+        return $this->classSeriesSubject();
     }
 
     /**

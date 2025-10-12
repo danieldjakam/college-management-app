@@ -133,9 +133,10 @@ class Sequence extends Model
 
     /**
      * Vérifier si les évaluations peuvent être saisies
+     * Note: Toujours true car le système de verrouillage a été désactivé
      */
     public function canAcceptEvaluations()
     {
-        return $this->is_active && ($this->isInProgress() || $this->is_current);
+        return true;
     }
 }

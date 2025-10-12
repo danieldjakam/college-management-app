@@ -264,11 +264,10 @@ const TrimesterSequenceManagement = () => {
                 school_year_id: trimester.school_year_id,
                 start_date: new Date(new Date(trimester.end_date).getTime() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 14 jours avant la fin
                 end_date: new Date(new Date(trimester.end_date).getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 3 jours avant la fin
-                is_active: false, // VERROUILLÉE par défaut
+                is_active: true, // Disponible par défaut (pas de verrouillage)
                 is_current: false,
                 is_completed: false,
-                is_composition: true, // Marquer comme composition
-                is_locked: true // Verrouillée par défaut
+                is_composition: true // Marquer comme composition
             };
             
             console.log('Données composition à créer:', compositionSequenceData);
@@ -677,11 +676,10 @@ const TrimesterSequenceManagement = () => {
                 school_year_id: trimester.school_year_id,
                 start_date: new Date(new Date(trimester.end_date).getTime() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 14 jours avant la fin
                 end_date: new Date(new Date(trimester.end_date).getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 3 jours avant la fin
-                is_active: false, // VERROUILLÉE par défaut
+                is_active: true, // Disponible par défaut (pas de verrouillage)
                 is_current: false,
                 is_completed: false,
-                is_composition: true, // Marquer comme composition pour la différencier
-                is_locked: true // Propriété pour indiquer qu'elle est verrouillée
+                is_composition: true // Marquer comme composition pour la différencier
             };
 
             // Créer la composition comme SÉQUENCE (uniquement si elle n'existe pas)
@@ -906,17 +904,8 @@ const TrimesterSequenceManagement = () => {
 
                                             <div className="d-flex justify-content-between align-items-center">
                                                 <div>
-                                                    {trimester.is_current ? (
+                                                    {trimester.is_current && (
                                                         <Badge bg="success">Trimestre actuel</Badge>
-                                                    ) : (
-                                                        <Button 
-                                                            size="sm" 
-                                                            variant="outline-success"
-                                                            onClick={() => handleActivateTrimester(trimester.id)}
-                                                        >
-                                                            <Play className="me-1" />
-                                                            Activer
-                                                        </Button>
                                                     )}
                                                 </div>
                                                 
@@ -1004,135 +993,22 @@ const TrimesterSequenceManagement = () => {
                                                         </small>
                                                     </td>
                                                     <td>
-                                                        {sequence.is_locked ? (
-                                                            <Badge bg="danger">Verrouillée</Badge>
-                                                        ) : sequence.is_current ? (
+                                                        {sequence.is_current ? (
                                                             <Badge bg="success">En cours</Badge>
                                                         ) : sequence.is_completed ? (
-                                                            <Badge bg="info">Terminé</Badge>
+                                                            <Badge bg="info">Terminée</Badge>
                                                         ) : sequence.is_active ? (
                                                             <Badge bg="primary">Disponible</Badge>
                                                         ) : (
-                                                            <Badge bg="secondary">Programmé</Badge>
+                                                            <Badge bg="secondary">Programmée</Badge>
                                                         )}
                                                     </td>
                                                     <td>
                                                         <div className="d-flex gap-1">
-                                                            {sequence.is_composition ? (
-                                                                /* Logique spéciale pour les COMPOSITIONS */
-                                                                sequence.is_locked ? (
-                                                                    /* Composition verrouillée : peut être activée manuellement */
-                                                                    <>
-                                                                        <Button 
-                                                                            size="sm" 
-                                                                            variant="success"
-                                                                            onClick={() => handleActivateComposition(sequence.id)}
-                                                                            title="Activer cette composition pour les enseignants"
-                                                                        >
-                                                                            <Play size={14} className="me-1" />
-                                                                            Activer
-                                                                        </Button>
-                                                                        <small className="text-danger align-self-center ms-1">🔒</small>
-                                                                    </>
-                                                                ) : sequence.is_active ? (
-                                                                    /* Composition active : afficher les options de gestion */
-                                                                    <>
-                                                                        <Button 
-                                                                            size="sm" 
-                                                                            variant="info"
-                                                                            onClick={() => handleMarkSequenceCompleted(sequence.id)}
-                                                                            title="Clôturer cette composition"
-                                                                        >
-                                                                            <CheckSquare size={14} className="me-1" />
-                                                                            Clôturer
-                                                                        </Button>
-                                                                        <Button 
-                                                                            size="sm" 
-                                                                            variant="outline-warning"
-                                                                            onClick={() => handleActivateComposition(sequence.id)}
-                                                                            title="Réactiver/Relancer cette composition"
-                                                                        >
-                                                                            <Play size={14} />
-                                                                        </Button>
-                                                                        <small className="text-success align-self-center ms-1">✅</small>
-                                                                    </>
-                                                                ) : sequence.is_completed ? (
-                                                                    /* Composition terminée : peut être réouverte */
-                                                                    <>
-                                                                        <Button 
-                                                                            size="sm" 
-                                                                            variant="outline-success"
-                                                                            onClick={() => handleActivateComposition(sequence.id)}
-                                                                            title="Réactiver cette composition"
-                                                                        >
-                                                                            <Play size={14} className="me-1" />
-                                                                            Réactiver
-                                                                        </Button>
-                                                                        <Button 
-                                                                            size="sm" 
-                                                                            variant="outline-warning"
-                                                                            onClick={() => handleMarkSequenceIncomplete(sequence.id)}
-                                                                            title="Réouvrir (marquer comme programmé)"
-                                                                        >
-                                                                            <XCircle size={14} />
-                                                                        </Button>
-                                                                    </>
-                                                                ) : (
-                                                                    /* Composition programmée : peut être activée */
-                                                                    <Button 
-                                                                        size="sm" 
-                                                                        variant="outline-success"
-                                                                        onClick={() => handleActivateComposition(sequence.id)}
-                                                                        title="Activer cette composition"
-                                                                    >
-                                                                        <Play size={14} className="me-1" />
-                                                                        Activer
-                                                                    </Button>
-                                                                )
-                                                            ) : (
-                                                                /* Logique pour les SÉQUENCES normales */
-                                                                sequence.is_current ? (
-                                                                    /* Séquence en cours : peut être marquée comme terminée */
-                                                                    <Button 
-                                                                        size="sm" 
-                                                                        variant="outline-info"
-                                                                        onClick={() => handleMarkSequenceCompleted(sequence.id)}
-                                                                        title="Marquer comme terminé"
-                                                                    >
-                                                                        <CheckSquare size={14} />
-                                                                    </Button>
-                                                                ) : sequence.is_completed ? (
-                                                                    /* Séquence terminée : peut être réouverte */
-                                                                    <Button 
-                                                                        size="sm" 
-                                                                        variant="outline-warning"
-                                                                        onClick={() => handleMarkSequenceIncomplete(sequence.id)}
-                                                                        title="Réouvrir (marquer comme programmé)"
-                                                                    >
-                                                                        <XCircle size={14} />
-                                                                    </Button>
-                                                                ) : (
-                                                                    /* Séquence programmée : peut être activée ou marquée terminée directement */
-                                                                    <>
-                                                                        <Button 
-                                                                            size="sm" 
-                                                                            variant="outline-success"
-                                                                            onClick={() => handleActivateSequence(sequence.id)}
-                                                                            title="Activer cette séquence"
-                                                                        >
-                                                                            <Play size={14} />
-                                                                        </Button>
-                                                                        <Button 
-                                                                            size="sm" 
-                                                                            variant="outline-info"
-                                                                            onClick={() => handleMarkSequenceCompleted(sequence.id)}
-                                                                            title="Marquer directement comme terminé"
-                                                                        >
-                                                                            <CheckSquare size={14} />
-                                                                        </Button>
-                                                                    </>
-                                                                )
-                                                            )}
+                                                            {/* Système ouvert - pas de gestion d'activation */}
+                                                            <small className="text-muted align-self-center">
+                                                                Toujours accessible
+                                                            </small>
                                                         </div>
                                                     </td>
                                                 </tr>

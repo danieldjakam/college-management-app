@@ -20,18 +20,21 @@ const EvaluationCreate = () => {
         name: '',
         type: '',
         series_subject_id: '',
+        sequence_id: '', // Ajout de sequence_id dans le formulaire
         max_score: '20',
         coefficient: '1',
         description: ''
     });
-    
+
     const [selectedSeriesSubject, setSelectedSeriesSubject] = useState(null);
+    const [createForAllSequences, setCreateForAllSequences] = useState(false);
 
     // États de l'interface
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(false);
+    const [successMessage, setSuccessMessage] = useState('');
     const [validationErrors, setValidationErrors] = useState({});
 
     // Données de référence
@@ -69,17 +72,26 @@ const EvaluationCreate = () => {
             setLoading(true);
             setError(null);
 
-            // Charger la séquence courante
+            // Charger toutes les séquences (système ouvert - toutes les séquences sont accessibles)
+            const sequencesData = await secureApiEndpoints.sequences.getAll();
+            const allSequences = sequencesData.data || [];
+            setSequences(allSequences);
+
+            // Essayer de charger la séquence courante, sinon utiliser la première disponible
             try {
                 const sequenceData = await secureApiEndpoints.sequences.getCurrent();
                 setCurrentSequence(sequenceData.data);
+                // Pré-sélectionner la séquence courante si elle existe
+                if (sequenceData.data?.id) {
+                    setFormData(prev => ({ ...prev, sequence_id: sequenceData.data.id.toString() }));
+                }
             } catch (seqError) {
                 console.warn('Pas de séquence courante:', seqError);
+                // Pré-sélectionner la première séquence disponible
+                if (allSequences.length > 0) {
+                    setFormData(prev => ({ ...prev, sequence_id: allSequences[0].id.toString() }));
+                }
             }
-
-            // Charger toutes les séquences
-            const sequencesData = await secureApiEndpoints.sequences.getAll();
-            setSequences(sequencesData.data || []);
 
             // DEBUG COMPLET pour jean.dupont
             console.log('=== DEBUG MATIÈRES ENSEIGNANT ===');
@@ -199,11 +211,26 @@ const EvaluationCreate = () => {
         }
         
         // Générer automatiquement le nom quand on sélectionne le type
-        if (name === 'type' && value && selectedSeriesSubject && currentSequence) {
+        if (name === 'type' && value && selectedSeriesSubject && formData.sequence_id) {
+            const selectedSequence = sequences.find(s => s.id.toString() === formData.sequence_id);
             const subjectName = selectedSeriesSubject.subject?.name || '';
             const typeLabel = evaluationTypesConfig[value]?.label || '';
-            const sequenceName = currentSequence.name || '';
-            
+            const sequenceName = selectedSequence?.name || '';
+
+            const generatedName = `${sequenceName} [${typeLabel} de ${subjectName}]`;
+            setFormData(prev => ({
+                ...prev,
+                name: generatedName
+            }));
+        }
+
+        // Régénérer le nom quand on change de séquence
+        if (name === 'sequence_id' && value && selectedSeriesSubject && formData.type) {
+            const selectedSequence = sequences.find(s => s.id.toString() === value);
+            const subjectName = selectedSeriesSubject.subject?.name || '';
+            const typeLabel = evaluationTypesConfig[formData.type]?.label || '';
+            const sequenceName = selectedSequence?.name || '';
+
             const generatedName = `${sequenceName} [${typeLabel} de ${subjectName}]`;
             setFormData(prev => ({
                 ...prev,
@@ -241,6 +268,10 @@ const EvaluationCreate = () => {
             errors.series_subject_id = 'La matière est requise';
         }
 
+        // Validation séquence
+        if (!formData.sequence_id) {
+            errors.sequence_id = 'La séquence est requise';
+        }
 
         // Validation note maximale
         const maxScore = parseFloat(formData.max_score);
@@ -272,14 +303,22 @@ const EvaluationCreate = () => {
 
             const evaluationData = {
                 ...formData,
-                teacher_id: user.id,
-                sequence_id: currentSequence?.id
+                teacher_id: user.teacher_id || user.id,  // Utiliser teacher_id si disponible
+                create_for_all_sequences: createForAllSequences  // Ajouter l'option
+                // sequence_id est déjà dans formData
             };
 
             const response = await secureApiEndpoints.evaluations.create(evaluationData);
 
             if (response.success) {
                 setSuccess(true);
+                // Message personnalisé selon le nombre d'évaluations créées
+                const createdCount = response.data?.created_count || 1;
+                if (createdCount > 1) {
+                    setSuccessMessage(`${createdCount} évaluations créées avec succès pour toutes les séquences !`);
+                } else {
+                    setSuccessMessage('Évaluation créée avec succès !');
+                }
                 setTimeout(() => {
                     navigate('/teacher/evaluations');
                 }, 2000);
@@ -327,7 +366,7 @@ const EvaluationCreate = () => {
                                         Créer une Évaluation
                                     </h4>
                                     <p className="mb-0 opacity-75">
-                                        Système d'évaluation camerounais - {currentSequence?.name || 'Aucune séquence active'}
+                                        Système d'évaluation camerounais - Toutes séquences disponibles
                                     </p>
                                 </div>
                                 <div className="text-end">
@@ -357,7 +396,7 @@ const EvaluationCreate = () => {
                     <Col>
                         <Alert variant="success">
                             <CheckCircle className="me-2" />
-                            Évaluation créée avec succès ! Redirection en cours...
+                            {successMessage || 'Évaluation créée avec succès !'} Redirection en cours...
                         </Alert>
                     </Col>
                 </Row>
@@ -377,7 +416,7 @@ const EvaluationCreate = () => {
                             <Form onSubmit={handleSubmit}>
                                 <Row>
                                     {/* Matière */}
-                                    <Col md={12} className="mb-3">
+                                    <Col md={6} className="mb-3">
                                         <FloatingLabel label="Matière">
                                             <Form.Select
                                                 name="series_subject_id"
@@ -397,6 +436,53 @@ const EvaluationCreate = () => {
                                             </Form.Control.Feedback>
                                         </FloatingLabel>
                                     </Col>
+
+                                    {/* Séquence */}
+                                    <Col md={6} className="mb-3">
+                                        <FloatingLabel label="Séquence">
+                                            <Form.Select
+                                                name="sequence_id"
+                                                value={formData.sequence_id}
+                                                onChange={handleInputChange}
+                                                isInvalid={!!validationErrors.sequence_id}
+                                            >
+                                                <option value="">Choisir la séquence...</option>
+                                                {sequences.map(seq => (
+                                                    <option key={seq.id} value={seq.id}>
+                                                        {seq.name} - {seq.trimester?.name}
+                                                    </option>
+                                                ))}
+                                            </Form.Select>
+                                            <Form.Control.Feedback type="invalid">
+                                                {validationErrors.sequence_id}
+                                            </Form.Control.Feedback>
+                                        </FloatingLabel>
+                                    </Col>
+
+                                    {/* Option pour créer pour toutes les séquences */}
+                                    {formData.sequence_id && sequences.length > 1 && (
+                                        <Col md={12} className="mb-3">
+                                            <Card className="border-info">
+                                                <Card.Body className="py-2">
+                                                    <Form.Check
+                                                        type="checkbox"
+                                                        id="createForAllSequences"
+                                                        label={
+                                                            <span>
+                                                                <strong>Créer cette évaluation pour toutes les séquences</strong>
+                                                                <br />
+                                                                <small className="text-muted">
+                                                                    L'évaluation sera automatiquement créée pour toutes les {sequences.filter(s => !s.is_composition).length} séquences disponibles avec les mêmes paramètres
+                                                                </small>
+                                                            </span>
+                                                        }
+                                                        checked={createForAllSequences}
+                                                        onChange={(e) => setCreateForAllSequences(e.target.checked)}
+                                                    />
+                                                </Card.Body>
+                                            </Card>
+                                        </Col>
+                                    )}
 
                                     {/* Type d'évaluation - N'apparaît que si une matière est sélectionnée */}
                                     {selectedSeriesSubject && (
@@ -525,7 +611,7 @@ const EvaluationCreate = () => {
                                     <Button
                                         type="submit"
                                         variant="primary"
-                                        disabled={submitting || !currentSequence || !selectedSeriesSubject || !formData.type}
+                                        disabled={submitting || !formData.sequence_id || !selectedSeriesSubject || !formData.type}
                                     >
                                         {submitting ? (
                                             <>
@@ -547,24 +633,27 @@ const EvaluationCreate = () => {
 
                 {/* Panneau d'aide */}
                 <Col lg={4}>
-                    {/* Info séquence courante */}
-                    {currentSequence && (
-                        <Card className="mb-4">
-                            <Card.Header className="bg-success text-white">
-                                <Calendar className="me-2" />
-                                Séquence Courante
-                            </Card.Header>
-                            <Card.Body>
-                                <h6>{currentSequence.name}</h6>
-                                <p className="text-muted mb-2">
-                                    {currentSequence.trimester?.name}
-                                </p>
-                                <small className="text-muted">
-                                    Du {formatDate(currentSequence.start_date)} au {formatDate(currentSequence.end_date)}
-                                </small>
-                            </Card.Body>
-                        </Card>
-                    )}
+                    {/* Info séquence sélectionnée */}
+                    {formData.sequence_id && (() => {
+                        const selectedSequence = sequences.find(s => s.id.toString() === formData.sequence_id);
+                        return selectedSequence ? (
+                            <Card className="mb-4">
+                                <Card.Header className="bg-success text-white">
+                                    <Calendar className="me-2" />
+                                    Séquence Sélectionnée
+                                </Card.Header>
+                                <Card.Body>
+                                    <h6>{selectedSequence.name}</h6>
+                                    <p className="text-muted mb-2">
+                                        {selectedSequence.trimester?.name}
+                                    </p>
+                                    <small className="text-muted">
+                                        Du {formatDate(selectedSequence.start_date)} au {formatDate(selectedSequence.end_date)}
+                                    </small>
+                                </Card.Body>
+                            </Card>
+                        ) : null;
+                    })()}
 
                     {/* Info type sélectionné */}
                     {formData.type && (

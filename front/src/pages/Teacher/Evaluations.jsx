@@ -55,8 +55,10 @@ const Evaluations = () => {
             setError(null);
 
             // Charger les évaluations de l'enseignant
+            // Utiliser teacher_id de l'utilisateur, pas user_id
+            const teacherId = user.teacher_id || user.id;
             const evaluationsData = await secureApiEndpoints.evaluations.getAll({
-                teacher_id: user.id
+                teacher_id: teacherId
             });
 
             // Charger la séquence courante
@@ -371,15 +373,14 @@ const Evaluations = () => {
                                         Mes Évaluations
                                     </h4>
                                     <p className="mb-0 opacity-75">
-                                        Gestion des évaluations - {currentSequence ? currentSequence.name : 'Aucune séquence active'}
+                                        Gestion des évaluations - Toutes séquences disponibles
                                     </p>
                                 </div>
                                 <div>
-                                    <Button 
-                                        variant="light" 
+                                    <Button
+                                        variant="light"
                                         size="lg"
                                         onClick={() => navigate('/teacher/evaluations/create')}
-                                        disabled={!currentSequence}
                                     >
                                         <Plus className="me-2" />
                                         Nouvelle Évaluation
@@ -463,17 +464,7 @@ const Evaluations = () => {
                 </Row>
             )}
 
-            {/* Message si pas de séquence courante */}
-            {!currentSequence && (
-                <Row className="mb-4">
-                    <Col>
-                        <Alert variant="warning">
-                            <Calendar className="me-2" />
-                            Aucune séquence active. Contactez l'administration pour activer une séquence.
-                        </Alert>
-                    </Col>
-                </Row>
-            )}
+            {/* Plus besoin de message - toutes les séquences sont accessibles */}
 
             {/* Statistiques */}
             <Row className="mb-4">
@@ -522,14 +513,14 @@ const Evaluations = () => {
                                 <div className="text-center p-5">
                                     <FileText size={48} className="text-muted mb-3" />
                                     <p className="text-muted">
-                                        {evaluations.length === 0 
+                                        {evaluations.length === 0
                                             ? "Aucune évaluation créée pour le moment"
                                             : "Aucune évaluation trouvée avec ces filtres"
                                         }
                                     </p>
-                                    {currentSequence && evaluations.length === 0 && (
-                                        <Button 
-                                            variant="primary" 
+                                    {evaluations.length === 0 && (
+                                        <Button
+                                            variant="primary"
                                             onClick={() => navigate('/teacher/evaluations/create')}
                                         >
                                             <Plus className="me-2" />

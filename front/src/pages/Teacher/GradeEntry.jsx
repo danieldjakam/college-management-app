@@ -237,11 +237,7 @@ const GradeEntry = () => {
                                     <p className="mb-0 opacity-75">
                                         {evaluation?.name} - {evaluation?.series_subject?.subject?.name}
                                     </p>
-                                    {evaluation?.sequence?.is_completed && (
-                                        <Badge bg="warning" className="mt-2">
-                                            🔒 Période terminée - Lecture seule
-                                        </Badge>
-                                    )}
+                                    {/* Plus de restriction - toujours modifiable */}
                                 </div>
                                 <div className="text-end">
                                     <div className="d-flex gap-2">
@@ -367,11 +363,11 @@ const GradeEntry = () => {
                                     )}
                                 </div>
                                 <div>
-                                    <Button 
-                                        variant="success" 
+                                    <Button
+                                        variant="success"
                                         size="sm"
                                         onClick={saveBulkGrades}
-                                        disabled={saving || !unsavedChanges || evaluation?.sequence?.is_completed}
+                                        disabled={saving || !unsavedChanges}
                                     >
                                         {saving ? (
                                             <>
@@ -448,10 +444,10 @@ const GradeEntry = () => {
                                                                 min="0"
                                                                 max={evaluation?.max_score}
                                                                 value={grade.score || ''}
-                                                                disabled={grade.is_absent || evaluation?.sequence?.is_completed}
+                                                                disabled={grade.is_absent}
                                                                 onChange={(e) => handleGradeChange(
-                                                                    student.id, 
-                                                                    'score', 
+                                                                    student.id,
+                                                                    'score',
                                                                     e.target.value ? parseFloat(e.target.value) : null
                                                                 )}
                                                                 className={grade.score !== null ? 'border-success' : ''}
@@ -481,10 +477,9 @@ const GradeEntry = () => {
                                                             <Form.Check
                                                                 type="checkbox"
                                                                 checked={grade.is_absent || false}
-                                                                disabled={evaluation?.sequence?.is_completed}
                                                                 onChange={(e) => handleGradeChange(
-                                                                    student.id, 
-                                                                    'is_absent', 
+                                                                    student.id,
+                                                                    'is_absent',
                                                                     e.target.checked
                                                                 )}
                                                             />
@@ -493,10 +488,10 @@ const GradeEntry = () => {
                                                             <Form.Check
                                                                 type="checkbox"
                                                                 checked={grade.is_excused || false}
-                                                                disabled={!grade.is_absent || evaluation?.sequence?.is_completed}
+                                                                disabled={!grade.is_absent}
                                                                 onChange={(e) => handleGradeChange(
-                                                                    student.id, 
-                                                                    'is_excused', 
+                                                                    student.id,
+                                                                    'is_excused',
                                                                     e.target.checked
                                                                 )}
                                                             />
@@ -507,10 +502,9 @@ const GradeEntry = () => {
                                                                 size="sm"
                                                                 placeholder="Commentaire..."
                                                                 value={grade.comment || ''}
-                                                                disabled={evaluation?.sequence?.is_completed}
                                                                 onChange={(e) => handleGradeChange(
-                                                                    student.id, 
-                                                                    'comment', 
+                                                                    student.id,
+                                                                    'comment',
                                                                     e.target.value
                                                                 )}
                                                             />

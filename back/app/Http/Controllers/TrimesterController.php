@@ -486,17 +486,17 @@ class TrimesterController extends Controller
                 ], 403);
             }
 
-            // Récupérer les séquences normales (non compositions) terminées du trimestre
+            // Récupérer toutes les séquences normales (non compositions) du trimestre
+            // Note: Le verrouillage a été désactivé, toutes les séquences sont accessibles
             $normalSequences = $trimester->sequences()
                 ->where('is_composition', false)
-                ->where('is_completed', true)
                 ->orderBy('number')
                 ->get();
 
             if ($normalSequences->isEmpty()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Aucune séquence terminée pour ce trimestre'
+                    'message' => 'Aucune séquence disponible pour ce trimestre'
                 ], 404);
             }
 
