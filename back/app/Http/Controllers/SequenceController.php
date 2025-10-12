@@ -116,22 +116,21 @@ class SequenceController extends Controller
 
     /**
      * Activer une séquence (la définir comme courante)
+     * Note: Le système de verrouillage a été désactivé, toutes les séquences restent ouvertes
      */
     public function activate(Sequence $sequence)
     {
         try {
-            // Si c'est une composition, la déverrouiller et l'activer
+            // Si c'est une composition, l'activer simplement
             if ($sequence->is_composition) {
                 $sequence->update([
                     'is_active' => true,
-                    'is_locked' => false,  // Déverrouiller la composition
                     'is_current' => false, // Les compositions ne sont pas "current" mais disponibles
-                    'is_completed' => false
+                    'is_completed' => false,
+                    'is_locked' => false  // Déverrouiller automatiquement lors de l'activation
                 ]);
 
-                $message = $sequence->is_composition ? 
-                    'Composition activée avec succès. Les enseignants peuvent maintenant saisir les notes.' : 
-                    'Séquence activée avec succès';
+                $message = 'Composition activée avec succès. Les enseignants peuvent saisir les notes.';
 
             } else {
                 // Pour les séquences normales, désactiver les autres

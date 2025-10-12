@@ -102,7 +102,7 @@ class AuthController extends Controller
     {
         try {
             $user = auth()->user();
-            
+
             if (!$user) {
                 return response()->json([
                     'success' => false,
@@ -160,6 +160,79 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors du changement de mot de passe',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update user profile (name)
+     */
+    public function updateProfile(Request $request)
+    {
+        try {
+            $user = auth()->user();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Utilisateur non trouvé'
+                ], 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|min:2|max:255',
+            ], [
+                'name.required' => 'Le nom est requis',
+                'name.min' => 'Le nom doit contenir au moins 2 caractères',
+                'name.max' => 'Le nom ne peut pas dépasser 255 caractères',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreurs de validation',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Mettre à jour le nom de l'utilisateur
+            $user->update([
+                'name' => $request->name
+            ]);
+
+            // Si l'utilisateur est un enseignant, mettre à jour aussi le nom dans la table teachers
+            if ($user->role === 'teacher') {
+                $teacher = \App\Models\Teacher::where('user_id', $user->id)->first();
+                if ($teacher) {
+                    $teacher->update([
+                        'name' => $request->name
+                    ]);
+                }
+            }
+
+            // Recharger l'utilisateur avec ses relations
+            $user->refresh();
+            $userData = $user->toArray();
+
+            if ($user->role === 'teacher') {
+                $teacher = \App\Models\Teacher::where('user_id', $user->id)->first();
+                if ($teacher) {
+                    $userData['teacher_id'] = $teacher->id;
+                    $userData['teacher'] = $teacher;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Profil mis à jour avec succès',
+                'user' => $userData
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour du profil',
                 'error' => $e->getMessage()
             ], 500);
         }

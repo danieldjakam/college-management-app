@@ -23,8 +23,8 @@ class EvaluationController extends Controller
                 'sequence',
                 'trimester',
                 'schoolYear',
-                'seriesSubject.subject',
-                'seriesSubject.schoolClass',
+                'classSeriesSubject.subject',
+                'classSeriesSubject.classSeries',
                 'teacher'
             ]);
 
@@ -38,9 +38,12 @@ class EvaluationController extends Controller
                 $query->where('trimester_id', $request->trimester_id);
             }
 
-            // Filtrer par matière
+            // Filtrer par matière (support des deux noms pour compatibilité)
             if ($request->has('series_subject_id')) {
-                $query->where('series_subject_id', $request->series_subject_id);
+                $query->where('class_series_subject_id', $request->series_subject_id);
+            }
+            if ($request->has('class_series_subject_id')) {
+                $query->where('class_series_subject_id', $request->class_series_subject_id);
             }
 
             // Filtrer par type
@@ -78,10 +81,13 @@ class EvaluationController extends Controller
                 'name' => 'required|string|max:255',
                 'type' => 'required|in:composition,tp',
                 'sequence_id' => 'required|exists:sequences,id',
-                'series_subject_id' => 'required|exists:series_subjects,id',
+                'series_subject_id' => 'required|exists:class_series_subjects,id',
+                'teacher_id' => 'required|exists:teachers,id',
                 'max_score' => 'required|numeric|min:0|max:100',
-                'coefficient' => 'nullable|numeric|min:0.1|max:10', // Optionnel car récupéré de SeriesSubject
-                'description' => 'nullable|string'
+                'coefficient' => 'nullable|numeric|min:0.1|max:10', // Optionnel car récupéré de ClassSeriesSubject
+                'description' => 'nullable|string',
+                'date' => 'nullable|date',
+                'create_for_all_sequences' => 'nullable|boolean'
             ]);
 
             if ($validator->fails()) {
@@ -95,28 +101,73 @@ class EvaluationController extends Controller
             // Récupérer les infos de la séquence pour compléter
             $sequence = Sequence::with('trimester')->find($request->sequence_id);
 
-            // Récupérer le coefficient de la SeriesSubject au lieu d'utiliser celui fourni
-            $seriesSubject = SeriesSubject::find($request->series_subject_id);
+            // Récupérer le coefficient de la ClassSeriesSubject au lieu d'utiliser celui fourni
+            $classSeriesSubject = \App\Models\ClassSeriesSubject::find($request->series_subject_id);
 
-            // Priorité : coefficient SeriesSubject > coefficient fourni > 1.0 par défaut
+            // Priorité : coefficient ClassSeriesSubject > coefficient fourni > 1.0 par défaut
             $finalCoefficient = 1.0; // Valeur par défaut
-            if ($seriesSubject && $seriesSubject->coefficient) {
-                $finalCoefficient = $seriesSubject->coefficient;
+            if ($classSeriesSubject && $classSeriesSubject->coefficient) {
+                $finalCoefficient = $classSeriesSubject->coefficient;
             } elseif ($request->coefficient) {
                 $finalCoefficient = $request->coefficient;
             }
 
+            // Vérifier si on doit créer pour toutes les séquences
+            $createForAll = $request->create_for_all_sequences === true || $request->create_for_all_sequences === 'true';
+
+            if ($createForAll) {
+                // Récupérer toutes les séquences de l'année scolaire (sauf compositions)
+                $allSequences = Sequence::where('school_year_id', $sequence->school_year_id)
+                    ->where('is_composition', false)
+                    ->orderBy('number')
+                    ->get();
+
+                $createdEvaluations = [];
+
+                foreach ($allSequences as $seq) {
+                    // Générer le nom de l'évaluation pour cette séquence
+                    $evaluationName = $this->generateEvaluationName($request->name, $seq->name);
+
+                    $evaluation = Evaluation::create([
+                        'name' => $evaluationName,
+                        'type' => $request->type,
+                        'sequence_id' => $seq->id,
+                        'trimester_id' => $seq->trimester_id,
+                        'school_year_id' => $seq->school_year_id,
+                        'class_series_subject_id' => $request->series_subject_id,
+                        'teacher_id' => $request->teacher_id,
+                        'date' => $request->date ?? now()->toDateString(),
+                        'max_score' => $request->max_score,
+                        'coefficient' => $finalCoefficient,
+                        'description' => $request->description,
+                        'is_active' => true
+                    ]);
+
+                    $createdEvaluations[] = $evaluation;
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'message' => count($createdEvaluations) . ' évaluations créées avec succès',
+                    'data' => [
+                        'evaluations' => $createdEvaluations,
+                        'created_count' => count($createdEvaluations)
+                    ]
+                ], 201);
+            }
+
+            // Créer une seule évaluation
             $evaluation = Evaluation::create([
                 'name' => $request->name,
                 'type' => $request->type,
                 'sequence_id' => $request->sequence_id,
                 'trimester_id' => $sequence->trimester_id,
                 'school_year_id' => $sequence->school_year_id,
-                'series_subject_id' => $request->series_subject_id,
+                'class_series_subject_id' => $request->series_subject_id,
                 'teacher_id' => $request->teacher_id,
-                'date' => now()->toDateString(), // Utiliser la date actuelle
+                'date' => $request->date ?? now()->toDateString(),
                 'max_score' => $request->max_score,
-                'coefficient' => $finalCoefficient, // Utiliser le coefficient de SeriesSubject
+                'coefficient' => $finalCoefficient, // Utiliser le coefficient de ClassSeriesSubject
                 'description' => $request->description,
                 'is_active' => true
             ]);
@@ -125,8 +176,8 @@ class EvaluationController extends Controller
                 'sequence',
                 'trimester',
                 'schoolYear',
-                'seriesSubject.subject',
-                'seriesSubject.schoolClass',
+                'classSeriesSubject.subject',
+                'classSeriesSubject.classSeries',
                 'teacher'
             ]);
 
@@ -145,17 +196,36 @@ class EvaluationController extends Controller
     }
 
     /**
+     * Générer le nom de l'évaluation en remplaçant la séquence dans le nom original
+     */
+    private function generateEvaluationName($originalName, $sequenceName)
+    {
+        // Si le nom contient déjà un nom de séquence (ex: "Séquence 1 [Composition de Chimie]")
+        // on remplace la partie séquence
+        if (preg_match('/^(Séquence|Sequence)\s+\d+\s+(.*)$/i', $originalName, $matches)) {
+            return $sequenceName . ' ' . $matches[2];
+        }
+
+        // Sinon, on préfixe simplement avec le nom de la séquence
+        return $sequenceName . ' - ' . $originalName;
+    }
+
+    /**
      * Supprimer une évaluation
      */
     public function destroy(Evaluation $evaluation)
     {
         try {
             // Vérifier si l'enseignant peut supprimer cette évaluation
-            if (auth()->check() && $evaluation->teacher_id !== auth()->id()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Vous nêtes pas autorisé à supprimer cette évaluation'
-                ], 403);
+            $user = auth()->user();
+            if ($user && $user->role === 'teacher') {
+                $teacher = \App\Models\Teacher::where('user_id', $user->id)->first();
+                if (!$teacher || $evaluation->teacher_id !== $teacher->id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Vous nêtes pas autorisé à supprimer cette évaluation'
+                    ], 403);
+                }
             }
 
             // Vérifier s'il y a des notes saisies

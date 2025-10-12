@@ -71,6 +71,7 @@ Route::middleware('auth:api')->prefix('auth')->group(function () {
     Route::post('refresh', [AuthController::class, 'refresh']);
     Route::get('me', [AuthController::class, 'me']);
     Route::put('change-password', [AuthController::class, 'changePassword']);
+    Route::put('update-profile', [AuthController::class, 'updateProfile']);
 });
 
 // Dashboard Admin (accès complet sauf finances)
