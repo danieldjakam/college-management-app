@@ -4,3 +4,7 @@
 /cli/node_modules
 /front/build
 /src/utils/fetch.js
+
+# Fichiers APK et AAB (mobile builds)
+*.apk
+*.aab
