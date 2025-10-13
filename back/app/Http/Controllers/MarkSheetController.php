@@ -232,9 +232,14 @@ class MarkSheetController extends Controller
      */
     private function generateFilename($classSeries, $subject, $schoolYear)
     {
-        $className = str_replace(' ', '_', $classSeries->name);
-        $subjectName = str_replace(' ', '_', $subject->name);
-        $year = str_replace('/', '-', $schoolYear->name);
+        // Nettoyer le nom de la classe (enlever espaces et caractères spéciaux)
+        $className = str_replace([' ', '/', '\\', ':', '*', '?', '"', '<', '>', '|'], '_', $classSeries->name ?? 'Classe');
+
+        // Nettoyer le nom de la matière
+        $subjectName = str_replace([' ', '/', '\\', ':', '*', '?', '"', '<', '>', '|'], '_', $subject->name ?? 'Matiere');
+
+        // Nettoyer l'année scolaire (remplacer / par -)
+        $year = str_replace([' ', '/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $schoolYear->name ?? date('Y'));
 
         return "Mark_Sheet_{$className}_{$subjectName}_{$year}.pdf";
     }
