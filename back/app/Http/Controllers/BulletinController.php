@@ -498,7 +498,7 @@ class BulletinController extends Controller
         foreach ($subjects as $subject) {
             $hasGrade = \App\Models\Grade::where('student_id', $studentId)
                 ->where('sequence_id', $sequence->id)
-                ->where('series_subject_id', $subject->id)
+                ->where('class_series_subject_id', $subject->id)
                 ->whereNotNull('score')
                 ->exists();
             
@@ -603,7 +603,7 @@ class BulletinController extends Controller
         foreach ($sequences as $sequence) {
             $hasGrade = \App\Models\Grade::where('student_id', $studentId)
                 ->where('sequence_id', $sequence->id)
-                ->where('series_subject_id', $subjectId)
+                ->where('class_series_subject_id', $subjectId)
                 ->where('trimester_id', $trimesterNumber)
                 ->whereNotNull('score')
                 ->exists();
@@ -626,7 +626,7 @@ class BulletinController extends Controller
         
         $evaluation = \App\Models\Evaluation::where('type', 'composition')
             ->where('trimester_id', $trimesterNumber)
-            ->where('series_subject_id', $subjectId)
+            ->where('class_series_subject_id', $subjectId)
             ->first();
         
         

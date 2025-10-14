@@ -98,7 +98,7 @@ class Grade extends Model
     {
         static::saving(function ($grade) {
             if ($grade->score !== null && $grade->coefficient !== null) {
-                $grade->weighted_score = $grade->score * $grade->coefficient;
+                $grade->weighted_score = (float)$grade->score * (float)$grade->coefficient;
             }
         });
     }
@@ -112,7 +112,7 @@ class Grade extends Model
             return null;
         }
 
-        return round(($this->score / $this->max_score) * 20, 2);
+        return round(((float)$this->score / (float)$this->max_score) * 20, 2);
     }
 
     /**

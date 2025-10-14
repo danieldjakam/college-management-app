@@ -94,7 +94,7 @@ class BulletinAutoGenerationService
         foreach ($subjects as $subject) {
             $hasGrade = Grade::where('student_id', $studentId)
                            ->where('sequence_id', $sequence->id)
-                           ->where('series_subject_id', $subject->id)
+                           ->where('class_series_subject_id', $subject->id)
                            ->whereNotNull('score')
                            ->exists();
 
@@ -217,7 +217,7 @@ class BulletinAutoGenerationService
         foreach ($sequences as $sequence) {
             $hasGrade = Grade::where('student_id', $studentId)
                            ->where('sequence_id', $sequence->id)
-                           ->where('series_subject_id', $subjectId)
+                           ->where('class_series_subject_id', $subjectId)
                            ->whereNotNull('score')
                            ->exists();
             

@@ -50,7 +50,7 @@ class SeriesSubject extends Model
      */
     public function teachers()
     {
-        return $this->belongsToMany(Teacher::class, 'teacher_assignments')
+        return $this->belongsToMany(Teacher::class, 'teacher_assignments', 'class_series_subject_id', 'teacher_id')
                     ->withPivot(['school_year_id', 'is_active'])
                     ->withTimestamps();
     }

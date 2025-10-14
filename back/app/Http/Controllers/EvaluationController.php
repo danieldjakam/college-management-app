@@ -24,7 +24,7 @@ class EvaluationController extends Controller
                 'trimester',
                 'schoolYear',
                 'classSeriesSubject.subject',
-                'classSeriesSubject.classSeries',
+                'classSeriesSubject.classSeries.schoolClass',
                 'teacher'
             ]);
 
@@ -57,6 +57,13 @@ class EvaluationController extends Controller
             }
 
             $evaluations = $query->orderBy('date', 'desc')->get();
+
+            // Transformer les données pour ajouter l'alias "series_subject"
+            // (pour compatibilité avec le frontend)
+            $evaluations->transform(function($evaluation) {
+                $evaluation->series_subject = $evaluation->classSeriesSubject;
+                return $evaluation;
+            });
 
             return response()->json([
                 'success' => true,
@@ -143,6 +150,19 @@ class EvaluationController extends Controller
                         'is_active' => true
                     ]);
 
+                    // Charger les relations
+                    $evaluation->load([
+                        'sequence',
+                        'trimester',
+                        'schoolYear',
+                        'classSeriesSubject.subject',
+                        'classSeriesSubject.classSeries.schoolClass',
+                        'teacher'
+                    ]);
+
+                    // Ajouter l'alias pour compatibilité frontend
+                    $evaluation->series_subject = $evaluation->classSeriesSubject;
+
                     $createdEvaluations[] = $evaluation;
                 }
 
@@ -177,9 +197,12 @@ class EvaluationController extends Controller
                 'trimester',
                 'schoolYear',
                 'classSeriesSubject.subject',
-                'classSeriesSubject.classSeries',
+                'classSeriesSubject.classSeries.schoolClass',
                 'teacher'
             ]);
+
+            // Ajouter l'alias "series_subject" pour compatibilité frontend
+            $evaluation->series_subject = $evaluation->classSeriesSubject;
 
             return response()->json([
                 'success' => true,

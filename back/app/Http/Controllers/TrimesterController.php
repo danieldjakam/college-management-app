@@ -626,7 +626,7 @@ class TrimesterController extends Controller
 
                     // Récupérer les notes de cet élève pour cette matière dans les séquences terminées
                     $grades = \App\Models\Grade::where('student_id', $student->id)
-                        ->where('series_subject_id', $seriesSubjectId)
+                        ->where('class_series_subject_id', $seriesSubjectId)
                         ->whereIn('sequence_id', $sequenceIds)
                         ->where('trimester_id', $trimester->id)
                         ->with('sequence')
@@ -654,7 +654,7 @@ class TrimesterController extends Controller
                         // Calculer la moyenne DS pour cette matière : (Seq1 + Seq2) / 2
                         if (count($sequenceAverages) >= 2) {
                             $subjectDSAverage = array_sum($sequenceAverages) / count($sequenceAverages);
-                            $weightedScore = $subjectDSAverage * $coefficient;
+                            $weightedScore = (float)$subjectDSAverage * (float)$coefficient;
                             
                             $subjectAverages[] = [
                                 'subject' => $subject->name,

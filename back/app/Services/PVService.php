@@ -99,14 +99,14 @@ class PVService
         foreach ($seriesSubjects as $seriesSubject) {
             $grade = Grade::where('student_id', $student->id)
                 ->where('evaluation_id', $evaluation->id)
-                ->where('series_subject_id', $seriesSubject->id)
+                ->where('class_series_subject_id', $seriesSubject->id)
                 ->first();
 
             if ($grade && !$grade->is_absent) {
                 $scoreOn20 = $grade->getScoreOn20();
                 $grades[$seriesSubject->id] = $scoreOn20;
-                $totalPoints += $scoreOn20 * $seriesSubject->coefficient;
-                $totalCoef += $seriesSubject->coefficient;
+                $totalPoints += (float)$scoreOn20 * (float)$seriesSubject->coefficient;
+                $totalCoef += (float)$seriesSubject->coefficient;
             } else {
                 $grades[$seriesSubject->id] = null; // Absent ou pas de note
             }

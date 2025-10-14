@@ -44,7 +44,7 @@ class BulletinService
             // 🔧 FIX: Ajouter trimester dans la requête comme TrimesterController
             $grade = Grade::where('student_id', $studentId)
                          ->where('sequence_id', $sequence->id)
-                         ->where('series_subject_id', $subjectId)
+                         ->where('class_series_subject_id', $subjectId)
                          ->where('trimester_id', $trimester)
                          ->whereNotNull('score')
                          ->first();
@@ -54,7 +54,7 @@ class BulletinService
             // Si pas de note directe, chercher via les évaluations de la séquence
             if (!$grade) {
                 $evaluations = Evaluation::where('sequence_id', $sequence->id)
-                                        ->where('series_subject_id', $subjectId)
+                                        ->where('class_series_subject_id', $subjectId)
                                         ->get();
                 
                 \Log::info("🔍 Evaluations for sequence: " . $evaluations->count());
@@ -160,7 +160,7 @@ class BulletinService
         foreach ($sequences as $sequence) {
             $grade = Grade::where('student_id', $studentId)
                          ->where('sequence_id', $sequence->id)
-                         ->where('series_subject_id', $subjectId)
+                         ->where('class_series_subject_id', $subjectId)
                          ->where('trimester_id', $trimester)
                          ->whereNotNull('score')
                          ->first();
@@ -168,7 +168,7 @@ class BulletinService
             if (!$grade) {
                 // Chercher via les évaluations de la séquence
                 $evaluations = Evaluation::where('sequence_id', $sequence->id)
-                                        ->where('series_subject_id', $subjectId)
+                                        ->where('class_series_subject_id', $subjectId)
                                         ->get();
 
                 foreach ($evaluations as $evaluation) {
@@ -234,7 +234,7 @@ class BulletinService
         foreach ($sequences as $index => $sequence) {
             $grade = Grade::where('student_id', $studentId)
                          ->where('sequence_id', $sequence->id)
-                         ->where('series_subject_id', $subjectId)
+                         ->where('class_series_subject_id', $subjectId)
                          ->where('trimester_id', $trimester)
                          ->whereNotNull('score')
                          ->first();
@@ -242,7 +242,7 @@ class BulletinService
             if (!$grade) {
                 // Chercher via les évaluations de la séquence
                 $evaluations = Evaluation::where('sequence_id', $sequence->id)
-                                        ->where('series_subject_id', $subjectId)
+                                        ->where('class_series_subject_id', $subjectId)
                                         ->get();
 
                 foreach ($evaluations as $evaluation) {
@@ -262,7 +262,7 @@ class BulletinService
             if (!$grade) {
                 $grade = Grade::where('student_id', $studentId)
                              ->where('sequence_id', $sequence->id)
-                             ->where('series_subject_id', $subjectId)
+                             ->where('class_series_subject_id', $subjectId)
                              ->where('trimester_id', $trimester)
                              ->where('is_absent', true)
                              ->first();
@@ -293,7 +293,7 @@ class BulletinService
         // Chercher les évaluations avec type = 'composition' (pas evaluation_type)
         $evaluation = Evaluation::where('type', 'composition')
                                ->where('trimester_id', $trimester)
-                               ->where('series_subject_id', $subjectId)
+                               ->where('class_series_subject_id', $subjectId)
                                ->first();
         
         // RETOUR NULL SI AUCUNE COMPOSITION TROUVÉE
@@ -388,12 +388,12 @@ class BulletinService
             foreach ($subjects as $subject) {
                 $grade = $this->calculateTrimesterGrade($trimester, $studentId, $subject->id);
                 if ($grade !== null) {
-                    $subjectGrades[] = $grade * $subject->coefficient;
+                    $subjectGrades[] = (float)$grade * (float)$subject->coefficient;
                 }
             }
-            
+
             if (count($subjectGrades) > 0) {
-                $totalCoefficient = $subjects->sum('coefficient');
+                $totalCoefficient = (float)$subjects->sum('coefficient');
                 $trimesterAverages[] = array_sum($subjectGrades) / $totalCoefficient;
             }
         }
@@ -453,7 +453,7 @@ class BulletinService
         foreach ($subjects as $seriesSubject) {
             $grade = Grade::where('student_id', $studentId)
                          ->where('sequence_id', $sequence->id)
-                         ->where('series_subject_id', $seriesSubject->id)
+                         ->where('class_series_subject_id', $seriesSubject->id)
                          ->first();
 
             // Vérifier si absent
@@ -467,7 +467,7 @@ class BulletinService
             }
 
             // CORRECTION: Si pas de note ou absent, weightedScore doit être null (pas 0)
-            $weightedScore = ($scoreOn20 !== null && $scoreOn20 !== 'ABS') ? $scoreOn20 * $seriesSubject->coefficient : null;
+            $weightedScore = ($scoreOn20 !== null && $scoreOn20 !== 'ABS') ? (float)$scoreOn20 * (float)$seriesSubject->coefficient : null;
 
             // Get the first teacher assigned to this subject
             $teacherName = 'N/A';
@@ -492,7 +492,7 @@ class BulletinService
             // CORRECTION: Inclure uniquement les matières avec notes dans le calcul (exclure absents et nulls)
             if ($scoreOn20 !== null && $scoreOn20 !== 'ABS' && $weightedScore !== null) {
                 $totalPoints += $weightedScore;
-                $totalCoefficient += $seriesSubject->coefficient;
+                $totalCoefficient += (float)$seriesSubject->coefficient;
             }
         }
         
@@ -574,7 +574,7 @@ class BulletinService
                 \Log::info("🎓 DEUXIÈME CYCLE - {$seriesSubject->subject->name}: Seq1={$sequenceGrades[0]}, Seq2={$sequenceGrades[1]}, Compo={$compositionGrade}, Avg={$trimesterGrade}");
 
                 // CORRECTION: Si pas de note, weightedScore doit être null (pas 0) pour ne pas compter dans le total
-                $weightedScore = $trimesterGrade !== null ? $trimesterGrade * $seriesSubject->coefficient : null;
+                $weightedScore = $trimesterGrade !== null ? (float)$trimesterGrade * (float)$seriesSubject->coefficient : null;
 
                 // Get the first teacher assigned to this subject
                 $teacherName = 'N/A';
@@ -612,7 +612,7 @@ class BulletinService
                 \Log::info("🔍 Final Trimester Grade for {$seriesSubject->subject->name}: " . ($trimesterGrade ?? 'null'));
 
                 // CORRECTION: Si pas de note, weightedScore doit être null (pas 0) pour ne pas compter dans le total
-                $weightedScore = $trimesterGrade !== null ? $trimesterGrade * $seriesSubject->coefficient : null;
+                $weightedScore = $trimesterGrade !== null ? (float)$trimesterGrade * (float)$seriesSubject->coefficient : null;
 
                 // Get the first teacher assigned to this subject
                 $teacherName = 'N/A';
@@ -640,7 +640,7 @@ class BulletinService
             // CORRECTION: Inclure uniquement les matières avec des notes dans le calcul du total
             if ($trimesterGrade !== null && $weightedScore !== null) {
                 $totalPoints += $weightedScore;
-                $totalCoefficient += $seriesSubject->coefficient;
+                $totalCoefficient += (float)$seriesSubject->coefficient;
             }
         }
         
@@ -666,7 +666,7 @@ class BulletinService
     protected function getSubjectMinMax($sequenceId, $seriesSubjectId)
     {
         $grades = Grade::where('sequence_id', $sequenceId)
-                      ->where('series_subject_id', $seriesSubjectId)
+                      ->where('class_series_subject_id', $seriesSubjectId)
                       ->whereNotNull('score')
                       ->pluck('score')
                       ->map(function($score) {
@@ -1207,14 +1207,14 @@ class BulletinService
             $coef = $subject['coefficient'] ?? 1;
 
             // CORRECTION: Si pas de note, ne pas compter dans le total
-            $weightedGrade = ($grade !== null) ? $grade * $coef : null;
+            $weightedGrade = ($grade !== null) ? (float)$grade * (float)$coef : null;
             $gradeClass = $this->getGradeClass($grade);
             $competence = $subject['competence'] ?? $this->getCompetence($grade, $cycleType);
 
             // CORRECTION: Ne compter que les matières avec notes
             if ($grade !== null && $weightedGrade !== null) {
-                $totalCoef += $coef;
-                $totalPoints += $weightedGrade;
+                $totalCoef += (float)$coef;
+                $totalPoints += (float)$weightedGrade;
             }
 
             $html .= '<tr>';

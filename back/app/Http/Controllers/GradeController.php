@@ -20,15 +20,14 @@ class GradeController extends Controller
             // Récupérer tous les étudiants de la classe/matière
             $classSeriesSubject = $evaluation->classSeriesSubject;
 
-            // Récupérer tous les étudiants actifs de cette série
-            $students = Student::whereHas('classSeries', function($query) use ($classSeriesSubject) {
-                $query->where('class_series_id', $classSeriesSubject->class_series_id)
-                      ->where('is_active', true);
-            })
-            ->with(['classSeries'])
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->get();
+            // Récupérer tous les étudiants actifs de cette série, triés par ordre alphabétique
+            $students = Student::where('class_series_id', $classSeriesSubject->class_series_id)
+                ->where('school_year_id', $evaluation->school_year_id)
+                ->where('is_active', true)
+                ->with(['classSeries.schoolClass'])
+                ->orderBy('last_name', 'asc')
+                ->orderBy('first_name', 'asc')
+                ->get();
 
             // Récupérer les notes existantes pour cette évaluation
             $existingGrades = Grade::where('evaluation_id', $evaluation->id)
@@ -47,7 +46,7 @@ class GradeController extends Controller
                         'nom' => $student->last_name,
                         'prenom' => $student->first_name,
                         'matricule' => $student->student_number,
-                        'class_name' => $student->classSeries->first()?->schoolClass?->name
+                        'class_name' => $student->classSeries?->schoolClass?->name
                     ],
                     'grade' => $existingGrade ? [
                         'id' => $existingGrade->id,
