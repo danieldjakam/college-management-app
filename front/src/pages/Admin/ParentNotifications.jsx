@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    Container, Row, Col, Card, Form, Button, Alert, 
+import {
+    Container, Row, Col, Card, Form, Button, Alert,
     ListGroup, Badge, Modal, Spinner
 } from 'react-bootstrap';
-import { 
+import {
     Bell, Send, People, PersonFill, BookHalf, ExclamationTriangleFill,
-    InfoCircle, CheckCircleFill, Trash, ChatDots
+    InfoCircle, CheckCircleFill, Trash, ChatDots, Paperclip, FileEarmarkPdf, XCircle
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import './ParentNotifications.css';
@@ -16,7 +16,6 @@ const ParentNotifications = () => {
     const [success, setSuccess] = useState(null);
     
     // Données
-    const [parents, setParents] = useState([]);
     const [students, setStudents] = useState([]);
     const [classes, setClasses] = useState([]);
     const [notifications, setNotifications] = useState([]);
@@ -29,10 +28,12 @@ const ParentNotifications = () => {
         type: 'general',
         priority: 'normal',
         send_to: 'all',
-        parent_id: '',
         student_id: '',
         send_to_class: ''
     });
+
+    // Pièces jointes PDF
+    const [attachments, setAttachments] = useState([]);
     
     // Données pour notifications rapides d'absence
     const [subjects, setSubjects] = useState([
@@ -58,18 +59,16 @@ const ParentNotifications = () => {
     const loadInitialData = async () => {
         try {
             setLoading(true);
-            const [parentsRes, studentsRes, classesRes, statsRes] = await Promise.all([
-                secureApiEndpoints.admin.notifications.getParents(),
+            const [studentsRes, classesRes, statsRes] = await Promise.all([
                 secureApiEndpoints.admin.notifications.getStudents(),
                 secureApiEndpoints.admin.notifications.getClasses(),
                 secureApiEndpoints.admin.notifications.stats()
             ]);
-            
-            if (parentsRes.success) setParents(parentsRes.data);
+
             if (studentsRes.success) setStudents(studentsRes.data);
             if (classesRes.success) setClasses(classesRes.data);
             if (statsRes.success) setStats(statsRes.data);
-            
+
             loadNotifications();
         } catch (err) {
             setError('Erreur lors du chargement des données');
@@ -88,6 +87,48 @@ const ParentNotifications = () => {
         } catch (err) {
             console.error('Erreur chargement notifications:', err);
         }
+    };
+
+    // Gérer les pièces jointes
+    const handleFileChange = (e) => {
+        const files = Array.from(e.target.files);
+
+        // Validation
+        if (files.length + attachments.length > 5) {
+            setError('Vous ne pouvez pas ajouter plus de 5 pièces jointes au total');
+            return;
+        }
+
+        // Vérifier chaque fichier
+        const validFiles = [];
+        for (const file of files) {
+            // Vérifier le type
+            if (file.type !== 'application/pdf') {
+                setError(`Le fichier ${file.name} n'est pas un PDF`);
+                continue;
+            }
+
+            // Vérifier la taille (10MB max)
+            if (file.size > 10 * 1024 * 1024) {
+                setError(`Le fichier ${file.name} dépasse 10MB`);
+                continue;
+            }
+
+            validFiles.push(file);
+        }
+
+        setAttachments([...attachments, ...validFiles]);
+        e.target.value = null; // Réinitialiser l'input
+    };
+
+    const removeAttachment = (index) => {
+        setAttachments(attachments.filter((_, i) => i !== index));
+    };
+
+    const formatFileSize = (bytes) => {
+        if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + ' MB';
+        if (bytes >= 1024) return (bytes / 1024).toFixed(2) + ' KB';
+        return bytes + ' B';
     };
     
     const handleSubmit = (e) => {
@@ -112,8 +153,6 @@ const ParentNotifications = () => {
             submitData.send_to_all = true;
         } else if (formData.send_to === 'class' && formData.send_to_class) {
             submitData.send_to_class = formData.send_to_class;
-        } else if (formData.send_to === 'parent' && formData.parent_id) {
-            submitData.parent_id = formData.parent_id;
         } else if (formData.send_to === 'student' && formData.student_id) {
             submitData.student_id = formData.student_id;
         } else {
@@ -129,9 +168,24 @@ const ParentNotifications = () => {
         try {
             setLoading(true);
             setShowConfirm(false);
-            
-            const response = await secureApiEndpoints.admin.notifications.store(pendingSubmit);
-            
+
+            // Créer un FormData pour inclure les fichiers
+            const formDataToSend = new FormData();
+
+            // Ajouter les données du formulaire
+            Object.keys(pendingSubmit).forEach(key => {
+                if (pendingSubmit[key] !== null && pendingSubmit[key] !== '') {
+                    formDataToSend.append(key, pendingSubmit[key]);
+                }
+            });
+
+            // Ajouter les pièces jointes
+            attachments.forEach((file) => {
+                formDataToSend.append('attachments[]', file);
+            });
+
+            const response = await secureApiEndpoints.admin.notifications.store(formDataToSend);
+
             if (response.success) {
                 setSuccess(response.message);
                 // Réinitialiser le formulaire
@@ -141,10 +195,10 @@ const ParentNotifications = () => {
                     type: 'general',
                     priority: 'normal',
                     send_to: 'all',
-                    parent_id: '',
                     student_id: '',
                     send_to_class: ''
                 });
+                setAttachments([]);
                 // Recharger les stats et notifications
                 loadInitialData();
             } else {
@@ -403,7 +457,55 @@ const ParentNotifications = () => {
                                         required
                                     />
                                 </Form.Group>
-                                
+
+                                {/* Section Pièces jointes */}
+                                <Form.Group className="mb-3">
+                                    <Form.Label>
+                                        <Paperclip className="me-2" />
+                                        Pièces jointes (PDF uniquement)
+                                    </Form.Label>
+                                    <Form.Control
+                                        type="file"
+                                        multiple
+                                        accept=".pdf"
+                                        onChange={handleFileChange}
+                                        disabled={attachments.length >= 5}
+                                    />
+                                    <Form.Text className="text-muted">
+                                        Maximum 5 fichiers PDF, 10MB chacun. Les fichiers seront envoyés via WhatsApp avec le message.
+                                    </Form.Text>
+                                </Form.Group>
+
+                                {/* Afficher les pièces jointes sélectionnées */}
+                                {attachments.length > 0 && (
+                                    <div className="mb-3">
+                                        <small className="text-muted d-block mb-2">
+                                            <strong>{attachments.length}</strong> fichier(s) sélectionné(s):
+                                        </small>
+                                        <ListGroup>
+                                            {attachments.map((file, index) => (
+                                                <ListGroup.Item key={index} className="d-flex justify-content-between align-items-center py-2">
+                                                    <div className="d-flex align-items-center">
+                                                        <FileEarmarkPdf className="text-danger me-2" size={20} />
+                                                        <div>
+                                                            <div className="fw-bold" style={{fontSize: '0.9rem'}}>{file.name}</div>
+                                                            <small className="text-muted">{formatFileSize(file.size)}</small>
+                                                        </div>
+                                                    </div>
+                                                    <Button
+                                                        variant="link"
+                                                        size="sm"
+                                                        className="text-danger p-0"
+                                                        onClick={() => removeAttachment(index)}
+                                                    >
+                                                        <XCircle size={20} />
+                                                    </Button>
+                                                </ListGroup.Item>
+                                            ))}
+                                        </ListGroup>
+                                    </div>
+                                )}
+
                                 <Row>
                                     <Col md={6}>
                                         <Form.Group className="mb-3">
@@ -445,7 +547,6 @@ const ParentNotifications = () => {
                                     >
                                         <option value="all">Tous les parents</option>
                                         <option value="class">Une classe</option>
-                                        <option value="parent">Un parent spécifique</option>
                                         <option value="student">Parents d'un élève</option>
                                     </Form.Select>
                                 </Form.Group>
@@ -467,25 +568,7 @@ const ParentNotifications = () => {
                                         </Form.Select>
                                     </Form.Group>
                                 )}
-                                
-                                {formData.send_to === 'parent' && (
-                                    <Form.Group className="mb-3">
-                                        <Form.Label>Sélectionner le parent</Form.Label>
-                                        <Form.Select
-                                            value={formData.parent_id}
-                                            onChange={(e) => setFormData({...formData, parent_id: e.target.value})}
-                                            required
-                                        >
-                                            <option value="">-- Choisir un parent --</option>
-                                            {parents.map(parent => (
-                                                <option key={parent.id} value={parent.id}>
-                                                    {parent.name} ({parent.phone})
-                                                </option>
-                                            ))}
-                                        </Form.Select>
-                                    </Form.Group>
-                                )}
-                                
+
                                 {formData.send_to === 'student' && (
                                     <Form.Group className="mb-3">
                                         <Form.Label>Sélectionner l'élève</Form.Label>
@@ -587,6 +670,12 @@ const ParentNotifications = () => {
                                                                     📱 ❌
                                                                 </Badge>
                                                             )}
+                                                            {notification.attachments && notification.attachments.length > 0 && (
+                                                                <Badge bg="info" className="me-2" title={`${notification.attachments.length} pièce(s) jointe(s)`}>
+                                                                    <Paperclip className="me-1" />
+                                                                    {notification.attachments.length}
+                                                                </Badge>
+                                                            )}
                                                             <Button
                                                                 variant="link"
                                                                 size="sm"
@@ -619,14 +708,21 @@ const ParentNotifications = () => {
                 <Modal.Body>
                     <p>Êtes-vous sûr de vouloir envoyer cette notification ?</p>
                     {pendingSubmit && (
-                        <Alert variant={pendingSubmit.priority === 'urgent' ? 'danger' : 'info'}>
-                            <strong>Destinataires :</strong> {
-                                pendingSubmit.send_to_all ? 'Tous les parents' :
-                                pendingSubmit.send_to_class ? 'Parents de la classe sélectionnée' :
-                                pendingSubmit.parent_id ? 'Parent sélectionné' :
-                                pendingSubmit.student_id ? 'Parents de l\'élève sélectionné' : 'Non défini'
-                            }
-                        </Alert>
+                        <>
+                            <Alert variant={pendingSubmit.priority === 'urgent' ? 'danger' : 'info'}>
+                                <strong>Destinataires :</strong> {
+                                    pendingSubmit.send_to_all ? 'Tous les parents' :
+                                    pendingSubmit.send_to_class ? 'Parents de la classe sélectionnée' :
+                                    pendingSubmit.student_id ? 'Parents de l\'élève sélectionné' : 'Non défini'
+                                }
+                            </Alert>
+                            {attachments.length > 0 && (
+                                <Alert variant="info">
+                                    <Paperclip className="me-2" />
+                                    <strong>{attachments.length}</strong> pièce(s) jointe(s) sera(ont) envoyée(s) via WhatsApp
+                                </Alert>
+                            )}
+                        </>
                     )}
                 </Modal.Body>
                 <Modal.Footer>

@@ -894,7 +894,7 @@ class WhatsAppService
     /**
      * Envoyer une image via WhatsApp UltraMsg
      */
-    protected function sendImageMessage($phoneNumber, $imageUrl, $caption = '')
+    public function sendImageMessage($phoneNumber, $imageUrl, $caption = '')
     {
         try {
             $settings = SchoolSetting::getSettings();
@@ -950,7 +950,7 @@ class WhatsAppService
     /**
      * Envoyer un document PDF via WhatsApp
      */
-    protected function sendDocumentMessage($phoneNumber, $documentUrl, $filename, $caption = '')
+    public function sendDocumentMessage($phoneNumber, $documentUrl, $filename, $caption = '')
     {
         try {
             $settings = SchoolSetting::getSettings();
@@ -1008,7 +1008,7 @@ class WhatsAppService
     /**
      * Envoyer un message WhatsApp via UltraMsg API selon votre exemple d'intégration
      */
-    protected function sendMessage($phoneNumber, $message)
+    public function sendMessage($phoneNumber, $message)
     {
         try {
             $settings = SchoolSetting::getSettings();
@@ -1589,6 +1589,72 @@ class WhatsAppService
     }
 
     /**
+     * Envoyer les pièces jointes d'une notification parent via WhatsApp
+     */
+    public function sendParentNotificationAttachments($parentNotification)
+    {
+        if (!$this->isWhatsAppConfigured()) {
+            return false;
+        }
+
+        $parent = $parentNotification->parent;
+
+        if (!$parent || !$parent->phone) {
+            Log::info('Parent sans numéro pour envoi pièces jointes WhatsApp', [
+                'notification_id' => $parentNotification->id
+            ]);
+            return false;
+        }
+
+        $attachments = $parentNotification->attachments;
+        if (!$attachments || $attachments->isEmpty()) {
+            return false;
+        }
+
+        $successCount = 0;
+        foreach ($attachments as $attachment) {
+            try {
+                // Obtenir l'URL publique du fichier
+                $fileUrl = url('storage/' . $attachment->file_path);
+
+                // Créer un message de légende pour le document
+                $caption = "📄 {$attachment->file_name}\n" .
+                          "📎 Pièce jointe - {$parentNotification->title}\n" .
+                          "📅 " . $attachment->created_at->setTimezone('Africa/Douala')->format('d/m/Y à H:i');
+
+                // Envoyer le document via WhatsApp
+                $result = $this->sendDocumentMessage(
+                    $parent->phone,
+                    $fileUrl,
+                    $attachment->file_name,
+                    $caption
+                );
+
+                if ($result) {
+                    // Marquer l'attachment comme envoyé
+                    $attachment->update([
+                        'whatsapp_sent' => true
+                    ]);
+                    $successCount++;
+
+                    Log::info('Pièce jointe envoyée via WhatsApp', [
+                        'attachment_id' => $attachment->id,
+                        'notification_id' => $parentNotification->id,
+                        'filename' => $attachment->file_name
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::error('Erreur envoi pièce jointe WhatsApp', [
+                    'attachment_id' => $attachment->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        return $successCount > 0;
+    }
+
+    /**
      * Récupérer la dernière erreur WhatsApp des logs
      */
     private function getRecentWhatsAppError()
@@ -1596,17 +1662,17 @@ class WhatsAppService
         try {
             $logFile = storage_path('logs/laravel.log');
             if (!file_exists($logFile)) return '';
-            
+
             $logs = file_get_contents($logFile);
             $lines = explode("\n", $logs);
             $recentLines = array_slice($lines, -50); // Dernières 50 lignes
-            
+
             foreach (array_reverse($recentLines) as $line) {
                 if (strpos($line, 'WhatsApp') !== false || strpos($line, 'UltraMsg') !== false) {
                     return $line;
                 }
             }
-            
+
             return '';
         } catch (\Exception $e) {
             return '';

@@ -19,6 +19,7 @@ import {
     ListCheck,
     CardText,
     FileEarmarkText,
+    ChatDots,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -124,13 +125,18 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
         {
+          title: "Communication",
+          items: [
+            { name: "Communication Parents", href: "/admin/parent-notifications", icon: <ChatDots /> },
+          ],
+        },
+        {
           title: "Administration",
           items: [
             { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> },
             { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
             { name: 'Utilisateurs', href: '/user-management', icon: <People/> },
             { name: 'Surveillants Généraux', href: '/supervisor-assignments', icon: <PersonCircle/> },
-            { name: "Notifications Parents", href: "/admin/parent-notifications", icon: <Bell /> },
             { name: "Générateur de Cartes", href: "/card-generator", icon: <QrCode /> },
             { name: "Badges Personnel PDF", href: "/bulk-staff-cards", icon: <CreditCard /> },
             { name: "Profil", href: "/profile", icon: <PersonCircle /> },
@@ -183,6 +189,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         {
           title: "Communication",
           items: [
+            { name: "Communication Parents", href: "/admin/parent-notifications", icon: <ChatDots /> },
             { name: "Mes Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
           ],
         },

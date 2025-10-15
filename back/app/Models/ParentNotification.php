@@ -70,6 +70,14 @@ class ParentNotification extends Model
     }
 
     /**
+     * Relation avec les pièces jointes
+     */
+    public function attachments()
+    {
+        return $this->hasMany(ParentNotificationAttachment::class);
+    }
+
+    /**
      * Marquer comme lu
      */
     public function markAsRead()

@@ -1417,14 +1417,24 @@ export const secureApiEndpoints = {
             },
             store: async (data) => {
                 const token = authService.getToken();
+
+                // Si data est un FormData, ne pas définir Content-Type (le navigateur le fera automatiquement)
+                const isFormData = data instanceof FormData;
+
+                const headers = {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                };
+
+                // Ajouter Content-Type uniquement si ce n'est pas du FormData
+                if (!isFormData) {
+                    headers['Content-Type'] = 'application/json';
+                }
+
                 const response = await fetch(`${host}/api/notifications`, {
                     method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(data)
+                    headers: headers,
+                    body: isFormData ? data : JSON.stringify(data)
                 });
                 return await response.json();
             },

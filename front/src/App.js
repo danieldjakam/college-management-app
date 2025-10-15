@@ -515,9 +515,9 @@ const AppContent = () => {
               <Route
                 path="/admin/parent-notifications"
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
                     <ParentNotifications />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
 
