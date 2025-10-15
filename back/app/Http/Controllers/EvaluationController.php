@@ -130,8 +130,20 @@ class EvaluationController extends Controller
                     ->get();
 
                 $createdEvaluations = [];
+                $skippedCount = 0;
 
                 foreach ($allSequences as $seq) {
+                    // Vérifier si l'évaluation existe déjà pour éviter les doublons
+                    $existingEval = Evaluation::where('class_series_subject_id', $request->series_subject_id)
+                        ->where('sequence_id', $seq->id)
+                        ->where('teacher_id', $request->teacher_id)
+                        ->first();
+
+                    if ($existingEval) {
+                        $skippedCount++;
+                        continue; // Passer à la séquence suivante
+                    }
+
                     // Générer le nom de l'évaluation pour cette séquence
                     $evaluationName = $this->generateEvaluationName($request->name, $seq->name);
 
@@ -166,14 +178,43 @@ class EvaluationController extends Controller
                     $createdEvaluations[] = $evaluation;
                 }
 
+                $message = count($createdEvaluations) . ' évaluation(s) créée(s) avec succès';
+                if ($skippedCount > 0) {
+                    $message .= '. ' . $skippedCount . ' évaluation(s) déjà existante(s) ignorée(s)';
+                }
+
                 return response()->json([
                     'success' => true,
-                    'message' => count($createdEvaluations) . ' évaluations créées avec succès',
+                    'message' => $message,
                     'data' => [
                         'evaluations' => $createdEvaluations,
-                        'created_count' => count($createdEvaluations)
+                        'created_count' => count($createdEvaluations),
+                        'skipped_count' => $skippedCount
                     ]
                 ], 201);
+            }
+
+            // Vérifier si une évaluation identique existe déjà
+            $existingEval = Evaluation::where('class_series_subject_id', $request->series_subject_id)
+                ->where('sequence_id', $request->sequence_id)
+                ->where('teacher_id', $request->teacher_id)
+                ->first();
+
+            if ($existingEval) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Une évaluation existe déjà pour cette matière, cette séquence et cet enseignant',
+                    'data' => [
+                        'existing_evaluation' => $existingEval->load([
+                            'sequence',
+                            'trimester',
+                            'schoolYear',
+                            'classSeriesSubject.subject',
+                            'classSeriesSubject.classSeries.schoolClass',
+                            'teacher'
+                        ])
+                    ]
+                ], 422);
             }
 
             // Créer une seule évaluation
@@ -209,6 +250,21 @@ class EvaluationController extends Controller
                 'message' => 'Évaluation créée avec succès',
                 'data' => $evaluation
             ], 201);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Vérifier si c'est une erreur de contrainte unique
+            if ($e->getCode() === '23000' && strpos($e->getMessage(), 'unique_evaluation_per_teacher_subject_sequence') !== false) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Une évaluation identique existe déjà pour cette matière, cette séquence et cet enseignant. Impossible de créer un doublon.',
+                    'error' => 'Duplicate entry'
+                ], 422);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de base de données lors de la création de l\'évaluation',
+                'error' => $e->getMessage()
+            ], 500);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

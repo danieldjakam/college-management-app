@@ -177,7 +177,7 @@ const Evaluations = () => {
                 <div class="text-left">
                     <p><strong>Type:</strong> ${getTypeConfig(evaluation.type).label}</p>
                     <p><strong>Matière:</strong> ${evaluation.series_subject?.subject?.name || 'N/A'}</p>
-                    <p><strong>Classe:</strong> ${evaluation.series_subject?.class_series?.school_class?.name || evaluation.series_subject?.class_series?.name || 'N/A'}</p>
+                    <p><strong>Classe:</strong> ${evaluation.series_subject?.class_series?.name || evaluation.series_subject?.class_series?.school_class?.name || 'N/A'}</p>
                     <p><strong>Séquence:</strong> ${getSequenceName(evaluation.sequence_id)}</p>
                     <p><strong>Note maximale:</strong> ${evaluation.max_score}</p>
                     <p><strong>Coefficient:</strong> ${evaluation.coefficient}</p>
@@ -272,8 +272,8 @@ const Evaluations = () => {
 
     // Fonction pour supprimer une évaluation
     const handleDeleteEvaluation = async (evaluation) => {
-        const className = evaluation.series_subject?.class_series?.school_class?.name ||
-                         evaluation.series_subject?.class_series?.name || 'N/A';
+        const className = evaluation.series_subject?.class_series?.name ||
+                         evaluation.series_subject?.class_series?.school_class?.name || 'N/A';
         const subjectName = evaluation.series_subject?.subject?.name || 'N/A';
 
         const result = await Swal.fire({
@@ -567,8 +567,8 @@ const Evaluations = () => {
                                                     <div>
                                                         <strong>{evaluation.series_subject?.subject?.name || 'N/A'}</strong>
                                                         <small className="d-block text-muted">
-                                                            {evaluation.series_subject?.class_series?.school_class?.name ||
-                                                             evaluation.series_subject?.class_series?.name || 'N/A'}
+                                                            {evaluation.series_subject?.class_series?.name ||
+                                                             evaluation.series_subject?.class_series?.school_class?.name || 'N/A'}
                                                         </small>
                                                         {/* Info mobile pour note max et coeff */}
                                                         <div className="d-sm-none mt-1">
