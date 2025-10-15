@@ -8,7 +8,7 @@ use App\Models\Sequence;
 use App\Models\Trimester;
 use App\Models\BulletinGeneration;
 use App\Models\BulletinTemplate;
-use App\Models\SeriesSubject;
+use App\Models\ClassSeriesSubject;
 use Illuminate\Support\Facades\Log;
 
 class BulletinAutoGenerationService
@@ -85,7 +85,7 @@ class BulletinAutoGenerationService
         // (Pas de restriction, continuer le traitement)
 
         // Récupérer toutes les matières de l'étudiant
-        $subjects = SeriesSubject::where('school_class_id', $student->schoolClass->id)->get();
+        $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();
 
         $totalSubjects = $subjects->count();
         $gradedSubjects = 0;
@@ -151,8 +151,8 @@ class BulletinAutoGenerationService
     {
         $student = Student::find($studentId);
         if (!$student) return;
-        
-        $subjects = SeriesSubject::where('school_class_id', $student->schoolClass->id)->get();
+
+        $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();
         
         $completionData = [];
         $overallCompletion = 0;

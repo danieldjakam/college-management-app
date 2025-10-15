@@ -60,4 +60,22 @@ class ClassSeriesSubject extends Model
     {
         return $query->where('subject_id', $subjectId);
     }
+
+    /**
+     * Relation avec les affectations d'enseignants
+     */
+    public function teacherAssignments()
+    {
+        return $this->hasMany(TeacherAssignment::class, 'class_series_subject_id');
+    }
+
+    /**
+     * Obtenir les enseignants affectés à cette matière dans cette série
+     */
+    public function teachers()
+    {
+        return $this->belongsToMany(Teacher::class, 'teacher_assignments', 'class_series_subject_id', 'teacher_id')
+                    ->withPivot(['school_year_id', 'is_active'])
+                    ->withTimestamps();
+    }
 }

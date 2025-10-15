@@ -8,6 +8,7 @@ use App\Models\Sequence;
 use App\Models\Trimester;
 use App\Models\Evaluation;
 use App\Models\SeriesSubject;
+use App\Models\ClassSeriesSubject;
 use App\Models\BulletinTemplate;
 use App\Models\BulletinGeneration;
 use Dompdf\Dompdf;
@@ -378,8 +379,8 @@ class BulletinService
     {
         $student = Student::find($studentId);
         if (!$student) return null;
-        
-        $subjects = SeriesSubject::where('school_class_id', $student->schoolClass->id)->get();
+
+        $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();
         $trimesterAverages = [];
         
         for ($trimester = 1; $trimester <= 3; $trimester++) {
@@ -419,8 +420,8 @@ class BulletinService
         $currentSchoolYear = \App\Models\SchoolYear::where('is_active', true)->first();
         $schoolYearId = $currentSchoolYear ? $currentSchoolYear->id : null;
         
-        // Utiliser school_class_id de la relation schoolClass
-        $subjects = SeriesSubject::where('school_class_id', $student->schoolClass->id)
+        // Utiliser class_series_id de l'étudiant
+        $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)
                                  ->with(['subject', 'teachers' => function($query) use ($schoolYearId) {
                                      $query->wherePivot('is_active', true);
                                      if ($schoolYearId) {
@@ -532,8 +533,8 @@ class BulletinService
         $currentSchoolYear = \App\Models\SchoolYear::where('is_active', true)->first();
         $schoolYearId = $currentSchoolYear ? $currentSchoolYear->id : null;
         
-        // Utiliser school_class_id de la relation schoolClass
-        $subjects = SeriesSubject::where('school_class_id', $student->schoolClass->id)
+        // Utiliser class_series_id de l'étudiant
+        $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)
                                  ->with(['subject', 'teachers' => function($query) use ($schoolYearId) {
                                      $query->wherePivot('is_active', true);
                                      if ($schoolYearId) {

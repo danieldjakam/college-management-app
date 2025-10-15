@@ -5,7 +5,7 @@ namespace App\Services;
 use App\Models\ClassSeries;
 use App\Models\Student;
 use App\Models\Grade;
-use App\Models\SeriesSubject;
+use App\Models\ClassSeriesSubject;
 use App\Models\Evaluation;
 use App\Models\Sequence;
 use App\Models\Trimester;
@@ -39,7 +39,7 @@ class PVService
             $mainTeacherName = $mainTeacher ? $mainTeacher->teacher->first_name . ' ' . $mainTeacher->teacher->last_name : 'Non désigné';
 
             // Récupérer les matières de cette série
-            $seriesSubjects = SeriesSubject::where('school_class_id', $classSeries->class_id)
+            $seriesSubjects = ClassSeriesSubject::where('class_series_id', $classSeriesId)
                 ->where('is_active', true)
                 ->with('subject')
                 ->orderBy('subject_id')

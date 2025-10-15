@@ -456,9 +456,9 @@ class BulletinController extends Controller
     private function calculateSequenceCompletion($studentId, $sequenceNumber)
     {
         $student = \App\Models\Student::find($studentId);
-        if (!$student || !$student->schoolClass) return 0;
+        if (!$student || !$student->class_series_id) return 0;
 
-        $subjects = \App\Models\SeriesSubject::where('school_class_id', $student->schoolClass->id)->get();
+        $subjects = \App\Models\ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();
         if ($subjects->count() === 0) return 0;
 
         $sequence = \App\Models\Sequence::where('number', $sequenceNumber)->first();
@@ -518,11 +518,11 @@ class BulletinController extends Controller
     {
         try {
             $student = \App\Models\Student::find($studentId);
-            if (!$student || !$student->schoolClass) {
+            if (!$student || !$student->class_series_id) {
                 return 0;
             }
 
-            $subjects = \App\Models\SeriesSubject::where('school_class_id', $student->schoolClass->id)->get();
+            $subjects = \App\Models\ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();
             if ($subjects->count() === 0) {
                 return 0;
             }
