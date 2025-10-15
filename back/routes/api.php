@@ -1211,6 +1211,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/students', [NotificationController::class, 'getStudents']);
         Route::get('/classes', [NotificationController::class, 'getClasses']);
         Route::get('/stats', [NotificationController::class, 'stats']);
+        Route::get('/{id}/status', [NotificationController::class, 'getStatus']);
         Route::delete('/{id}', [NotificationController::class, 'destroy']);
     });
 

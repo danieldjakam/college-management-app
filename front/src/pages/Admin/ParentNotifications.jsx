@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
     Container, Row, Col, Card, Form, Button, Alert,
-    ListGroup, Badge, Modal, Spinner
+    ListGroup, Badge, Modal, Spinner, ProgressBar
 } from 'react-bootstrap';
 import {
     Bell, Send, People, PersonFill, BookHalf, ExclamationTriangleFill,
-    InfoCircle, CheckCircleFill, Trash, ChatDots, Paperclip, FileEarmarkPdf, XCircle
+    InfoCircle, CheckCircleFill, Trash, ChatDots, Paperclip, FileEarmarkPdf, XCircle, ClockHistory
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import './ParentNotifications.css';
@@ -51,10 +51,34 @@ const ParentNotifications = () => {
     // Modal de confirmation
     const [showConfirm, setShowConfirm] = useState(false);
     const [pendingSubmit, setPendingSubmit] = useState(null);
+
+    // Barre de progression
+    const [showProgress, setShowProgress] = useState(false);
+    const [progressData, setProgressData] = useState(null);
+    const [currentLogId, setCurrentLogId] = useState(null);
     
     useEffect(() => {
         loadInitialData();
     }, []);
+
+    // Polling pour mettre à jour la progression
+    useEffect(() => {
+        let interval;
+
+        if (currentLogId && showProgress) {
+            // Fetch immédiatement
+            fetchProgress(currentLogId);
+
+            // Puis toutes les 2 secondes
+            interval = setInterval(() => {
+                fetchProgress(currentLogId);
+            }, 2000);
+        }
+
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [currentLogId, showProgress]);
     
     const loadInitialData = async () => {
         try {
@@ -86,6 +110,36 @@ const ParentNotifications = () => {
             }
         } catch (err) {
             console.error('Erreur chargement notifications:', err);
+        }
+    };
+
+    // Récupérer la progression d'envoi
+    const fetchProgress = async (logId) => {
+        try {
+            const response = await fetch(`${secureApiEndpoints.getBaseUrl()}/notifications/${logId}/status`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    setProgressData(data.data);
+
+                    // Si terminé, arrêter le polling après 5 secondes
+                    if (data.data.status === 'completed') {
+                        setTimeout(() => {
+                            setShowProgress(false);
+                            setCurrentLogId(null);
+                            loadInitialData(); // Recharger l'historique
+                        }, 5000);
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('Erreur récupération progression:', err);
         }
     };
 
@@ -188,6 +242,13 @@ const ParentNotifications = () => {
 
             if (response.success) {
                 setSuccess(response.message);
+
+                // Démarrer le suivi de progression
+                if (response.data && response.data.log_id) {
+                    setCurrentLogId(response.data.log_id);
+                    setShowProgress(true);
+                }
+
                 // Réinitialiser le formulaire
                 setFormData({
                     title: '',
@@ -199,8 +260,6 @@ const ParentNotifications = () => {
                     send_to_class: ''
                 });
                 setAttachments([]);
-                // Recharger les stats et notifications
-                loadInitialData();
             } else {
                 setError(response.message || 'Erreur lors de l\'envoi');
             }
@@ -851,6 +910,119 @@ const ParentNotifications = () => {
                                 Envoyer notification d'absence
                             </>
                         )}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Modal de progression d'envoi */}
+            <Modal show={showProgress} onHide={() => setShowProgress(false)} size="lg" backdrop="static">
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <ClockHistory className="me-2" />
+                        Envoi en cours
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {progressData ? (
+                        <>
+                            <div className="mb-4">
+                                <div className="d-flex justify-content-between mb-2">
+                                    <span><strong>{progressData.title}</strong></span>
+                                    <Badge bg={progressData.status === 'completed' ? 'success' : 'primary'}>
+                                        {progressData.status === 'completed' ? 'Terminé' :
+                                         progressData.status === 'in_progress' ? 'En cours' : 'En attente'}
+                                    </Badge>
+                                </div>
+
+                                <ProgressBar
+                                    now={progressData.progress_percentage}
+                                    label={`${progressData.progress_percentage}%`}
+                                    variant={
+                                        progressData.progress_percentage === 100 ? 'success' :
+                                        progressData.progress_percentage > 50 ? 'info' : 'primary'
+                                    }
+                                    animated={progressData.status !== 'completed'}
+                                    striped
+                                    className="mb-3"
+                                    style={{height: '25px'}}
+                                />
+
+                                <Row className="text-center">
+                                    <Col>
+                                        <div className="p-3 border rounded">
+                                            <h3 className="text-primary mb-0">{progressData.total_recipients}</h3>
+                                            <small className="text-muted">Total</small>
+                                        </div>
+                                    </Col>
+                                    <Col>
+                                        <div className="p-3 border rounded bg-success bg-opacity-10">
+                                            <h3 className="text-success mb-0">
+                                                <CheckCircleFill className="me-1" />
+                                                {progressData.sent}
+                                            </h3>
+                                            <small className="text-muted">Envoyés</small>
+                                        </div>
+                                    </Col>
+                                    <Col>
+                                        <div className="p-3 border rounded bg-danger bg-opacity-10">
+                                            <h3 className="text-danger mb-0">
+                                                <XCircle className="me-1" />
+                                                {progressData.failed}
+                                            </h3>
+                                            <small className="text-muted">Échecs</small>
+                                        </div>
+                                    </Col>
+                                    <Col>
+                                        <div className="p-3 border rounded bg-warning bg-opacity-10">
+                                            <h3 className="text-warning mb-0">
+                                                <ClockHistory className="me-1" />
+                                                {progressData.pending}
+                                            </h3>
+                                            <small className="text-muted">En attente</small>
+                                        </div>
+                                    </Col>
+                                </Row>
+                            </div>
+
+                            {progressData.has_attachments && (
+                                <Alert variant="info" className="mb-3">
+                                    <Paperclip className="me-2" />
+                                    <strong>{progressData.attachments_count}</strong> pièce(s) jointe(s) en cours d'envoi
+                                </Alert>
+                            )}
+
+                            {progressData.status === 'completed' && (
+                                <Alert variant="success">
+                                    <CheckCircleFill className="me-2" />
+                                    <strong>Envoi terminé !</strong> Cette fenêtre se fermera automatiquement dans quelques secondes.
+                                </Alert>
+                            )}
+
+                            {progressData.status !== 'completed' && (
+                                <Alert variant="info">
+                                    <Spinner animation="border" size="sm" className="me-2" />
+                                    Les messages sont envoyés en arrière-plan. Vous pouvez fermer cette fenêtre et continuer à travailler.
+                                    <br />
+                                    <small className="text-muted">
+                                        💡 Protection anti-spam : Après 10 messages, le système attend 30 minutes avant de continuer.
+                                    </small>
+                                </Alert>
+                            )}
+                        </>
+                    ) : (
+                        <div className="text-center py-4">
+                            <Spinner animation="border" variant="primary" />
+                            <p className="mt-3 text-muted">Chargement des statistiques...</p>
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button
+                        variant="secondary"
+                        onClick={() => setShowProgress(false)}
+                        disabled={progressData?.status === 'completed'}
+                    >
+                        {progressData?.status === 'completed' ? 'Fermeture automatique...' : 'Fermer et continuer en arrière-plan'}
                     </Button>
                 </Modal.Footer>
             </Modal>

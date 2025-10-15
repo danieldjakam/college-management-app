@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CommunicationLog;
 use App\Models\Student;
 use App\Services\WhatsAppService;
+use App\Jobs\SendWhatsAppNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -192,70 +193,7 @@ class NotificationController extends Controller
                 }
             }
 
-            // Envoyer les messages WhatsApp
-            $successCount = 0;
-            $failCount = 0;
-
-            foreach ($recipients as $index => $recipient) {
-                try {
-                    // Préparer le message personnalisé
-                    $personalizedMessage = $this->formatWhatsAppMessage(
-                        $request->title,
-                        $request->message,
-                        $recipient['student_name'],
-                        $recipient['parent_name'],
-                        $request->priority
-                    );
-
-                    // Envoyer le message texte
-                    $result = $this->whatsAppService->sendMessage(
-                        $recipient['phone'],
-                        $personalizedMessage
-                    );
-
-                    if ($result) {
-                        $recipients[$index]['status'] = 'sent';
-                        $recipients[$index]['sent_at'] = now()->toDateTimeString();
-                        $successCount++;
-
-                        // Envoyer les pièces jointes si présentes
-                        if (!empty($attachmentUrls)) {
-                            foreach ($attachmentUrls as $attachment) {
-                                try {
-                                    $caption = "📄 {$attachment['name']}\n📎 Pièce jointe - {$request->title}";
-                                    $this->whatsAppService->sendDocumentMessage(
-                                        $recipient['phone'],
-                                        $attachment['url'],
-                                        $attachment['name'],
-                                        $caption
-                                    );
-                                } catch (\Exception $e) {
-                                    Log::error('Erreur envoi pièce jointe WhatsApp', [
-                                        'phone' => $recipient['phone'],
-                                        'attachment' => $attachment['name'],
-                                        'error' => $e->getMessage()
-                                    ]);
-                                }
-                            }
-                        }
-                    } else {
-                        $recipients[$index]['status'] = 'failed';
-                        $recipients[$index]['error'] = 'Échec envoi WhatsApp';
-                        $failCount++;
-                    }
-                } catch (\Exception $e) {
-                    $recipients[$index]['status'] = 'failed';
-                    $recipients[$index]['error'] = $e->getMessage();
-                    $failCount++;
-
-                    Log::error('Erreur envoi message WhatsApp', [
-                        'phone' => $recipient['phone'],
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
-
-            // Créer le log de communication
+            // Créer d'abord le log de communication avec statut "en cours"
             $communicationLog = CommunicationLog::create([
                 'admin_id' => $admin->id,
                 'title' => $request->title,
@@ -266,25 +204,45 @@ class NotificationController extends Controller
                 'send_to_class_id' => $sendToClassId,
                 'send_to_student_id' => $sendToStudentId,
                 'total_recipients' => count($recipients),
-                'successful_sends' => $successCount,
-                'failed_sends' => $failCount,
+                'successful_sends' => 0,
+                'failed_sends' => 0,
                 'recipients_details' => $recipients,
                 'has_attachments' => !empty($attachmentUrls),
                 'attachments_count' => count($attachmentUrls)
             ]);
 
+            // Dispatcher les jobs pour envoi asynchrone via la queue
+            foreach ($recipients as $recipient) {
+                // Préparer le message personnalisé
+                $personalizedMessage = $this->formatWhatsAppMessage(
+                    $request->title,
+                    $request->message,
+                    $recipient['student_name'],
+                    $recipient['parent_name'],
+                    $request->priority
+                );
+
+                // Dispatcher le job dans la queue
+                SendWhatsAppNotification::dispatch(
+                    $recipient,
+                    $personalizedMessage,
+                    $attachmentUrls,
+                    $communicationLog->id
+                );
+            }
+
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => "{$successCount} message(s) envoyé(s) avec succès via WhatsApp" .
-                            ($failCount > 0 ? " ({$failCount} échec(s))" : ''),
+                'message' => count($recipients) . " message(s) WhatsApp mis en file d'attente pour envoi. " .
+                            "Les messages seront envoyés en arrière-plan.",
                 'data' => [
                     'log_id' => $communicationLog->id,
                     'total_recipients' => count($recipients),
-                    'successful_sends' => $successCount,
-                    'failed_sends' => $failCount,
-                    'attachments_sent' => count($attachmentUrls)
+                    'status' => 'queued',
+                    'attachments_count' => count($attachmentUrls),
+                    'info' => 'Les statuts seront mis à jour en temps réel dans l\'historique'
                 ]
             ]);
         } catch (\Exception $e) {
@@ -509,6 +467,72 @@ class NotificationController extends Controller
                 'error' => $e->getMessage()
             ]);
             return null;
+        }
+    }
+
+    /**
+     * Obtenir le statut d'un envoi spécifique (pour la barre de progression)
+     */
+    public function getStatus($logId)
+    {
+        try {
+            $log = CommunicationLog::findOrFail($logId);
+
+            $recipients = $log->recipients_details ?? [];
+            $totalRecipients = count($recipients);
+
+            // Compter les statuts
+            $sentCount = 0;
+            $failedCount = 0;
+            $pendingCount = 0;
+
+            foreach ($recipients as $recipient) {
+                $status = $recipient['status'] ?? 'pending';
+
+                if ($status === 'sent') {
+                    $sentCount++;
+                } elseif ($status === 'failed') {
+                    $failedCount++;
+                } else {
+                    $pendingCount++;
+                }
+            }
+
+            // Calculer le pourcentage de progression
+            $progressPercentage = $totalRecipients > 0
+                ? round((($sentCount + $failedCount) / $totalRecipients) * 100, 1)
+                : 0;
+
+            // Déterminer le statut global
+            $overallStatus = 'pending';
+            if ($sentCount + $failedCount === $totalRecipients) {
+                $overallStatus = 'completed';
+            } elseif ($sentCount > 0 || $failedCount > 0) {
+                $overallStatus = 'in_progress';
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'log_id' => $log->id,
+                    'title' => $log->title,
+                    'created_at' => $log->created_at,
+                    'total_recipients' => $totalRecipients,
+                    'sent' => $sentCount,
+                    'failed' => $failedCount,
+                    'pending' => $pendingCount,
+                    'progress_percentage' => $progressPercentage,
+                    'status' => $overallStatus,
+                    'has_attachments' => $log->has_attachments,
+                    'attachments_count' => $log->attachments_count
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération du statut',
+                'error' => $e->getMessage()
+            ], 404);
         }
     }
 
