@@ -13,6 +13,7 @@ const MarkSheetGeneration = () => {
     const [selectedSubject, setSelectedSubject] = useState('');
     const [selectedSchoolYear, setSelectedSchoolYear] = useState('');
     const [generating, setGenerating] = useState(false);
+    const [generatingFilled, setGeneratingFilled] = useState(false);
     const [generatingAll, setGeneratingAll] = useState(false);
 
     useEffect(() => {
@@ -135,6 +136,58 @@ const MarkSheetGeneration = () => {
             Swal.fire('Erreur', 'Une erreur est survenue lors de la génération de la fiche', 'error');
         } finally {
             setGenerating(false);
+        }
+    };
+
+    const handleGenerateFilled = async () => {
+        if (!selectedSeries || !selectedSubject || !selectedSchoolYear) {
+            Swal.fire('Attention', 'Veuillez sélectionner une classe, une matière et une année scolaire', 'warning');
+            return;
+        }
+
+        try {
+            setGeneratingFilled(true);
+            const token = localStorage.getItem('token');
+
+            const response = await fetch(`${host}/api/mark-sheets/generate-filled`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    class_series_id: selectedSeries,
+                    subject_id: selectedSubject,
+                    school_year_id: selectedSchoolYear
+                })
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+
+                const selectedClass = classSeries.find(c => c.id === parseInt(selectedSeries));
+                const selectedSubj = subjects.find(s => s.id === parseInt(selectedSubject));
+                const fileName = `Fiche_Report_Notes_Remplie_${selectedClass?.name.replace(/\s+/g, '_')}_${selectedSubj?.name.replace(/\s+/g, '_')}.pdf`;
+
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                Swal.fire('Succès !', 'La fiche de report avec les notes réelles a été générée avec succès', 'success');
+            } else {
+                const errorData = await response.json();
+                Swal.fire('Erreur', errorData.message || 'Erreur lors de la génération de la fiche', 'error');
+            }
+        } catch (error) {
+            console.error('Erreur:', error);
+            Swal.fire('Erreur', 'Une erreur est survenue lors de la génération de la fiche', 'error');
+        } finally {
+            setGeneratingFilled(false);
         }
     };
 
@@ -332,7 +385,7 @@ const MarkSheetGeneration = () => {
                         </Button>
 
                         <Button
-                            variant="success"
+                            variant="outline-success"
                             onClick={handleGenerateBlank}
                             disabled={!selectedSeries || !selectedSubject || !selectedSchoolYear || generating}
                         >
@@ -344,7 +397,25 @@ const MarkSheetGeneration = () => {
                             ) : (
                                 <>
                                     <Download className="me-2" />
-                                    Générer la Fiche Vierge (PDF)
+                                    Fiche Vierge
+                                </>
+                            )}
+                        </Button>
+
+                        <Button
+                            variant="success"
+                            onClick={handleGenerateFilled}
+                            disabled={!selectedSeries || !selectedSubject || !selectedSchoolYear || generatingFilled}
+                        >
+                            {generatingFilled ? (
+                                <>
+                                    <Spinner animation="border" size="sm" className="me-2" />
+                                    Génération...
+                                </>
+                            ) : (
+                                <>
+                                    <Download className="me-2" />
+                                    Fiche avec Notes Réelles
                                 </>
                             )}
                         </Button>
@@ -382,9 +453,17 @@ const MarkSheetGeneration = () => {
                         <li>Espace pour signature de l'enseignant et date</li>
                     </ul>
 
-                    <Alert variant="warning" className="mb-0">
-                        <strong>⚠️ Important :</strong> Les fiches sont générées vierges (sans notes).
-                        Les enseignants les rempliront manuellement avec les notes de leurs élèves.
+                    <Alert variant="success" className="mb-2">
+                        <strong>✅ Deux types de fiches :</strong>
+                        <ul className="mb-0 mt-2">
+                            <li><strong>Fiche Vierge :</strong> Sans notes, à remplir manuellement par l'enseignant</li>
+                            <li><strong>Fiche avec Notes Réelles :</strong> Contient toutes les notes déjà saisies dans le système + statistiques automatiques calculées en temps réel</li>
+                        </ul>
+                    </Alert>
+
+                    <Alert variant="info" className="mb-0">
+                        <strong>💡 Mise à jour automatique :</strong> Au fur et à mesure qu'un enseignant remplit les notes dans le système,
+                        la "Fiche avec Notes Réelles" se remplira automatiquement et les statistiques seront calculées en temps réel !
                     </Alert>
                 </Card.Body>
             </Card>

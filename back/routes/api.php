@@ -1320,6 +1320,10 @@ Route::middleware(['auth:api'])->prefix('mark-sheets')->group(function () {
     Route::post('/generate-blank', [MarkSheetController::class, 'generateBlankMarkSheet'])
         ->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
 
+    // Générer une fiche avec les notes réelles déjà saisies
+    Route::post('/generate-filled', [MarkSheetController::class, 'generateFilledMarkSheet'])
+        ->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
+
     // Lister toutes les matières d'une classe pour génération
     Route::post('/generate-all', [MarkSheetController::class, 'generateAllBlankMarkSheetsForClass'])
         ->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
