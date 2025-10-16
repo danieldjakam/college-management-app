@@ -5623,7 +5623,7 @@ class ReportsController extends Controller
             case 'rame':
                 return $this->generateRameTableContent($reportData);
             case 'scholarships_discounts':
-                return $this->generateScholarshipsTableContent($reportData);
+                return $this->generateScholarshipsDiscountsContent($reportData);
             case 'recovery':
                 return $this->generateRecoveryTableContent($reportData);
             default:
