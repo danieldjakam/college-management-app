@@ -127,10 +127,6 @@ export const safeFetch = async (url, options = {}, config = {}) => {
 
   // Configuration par défaut des headers
   const token = authService.getToken();
-  console.log("API Debug - Token found:", !!token);
-  if (token) {
-    console.log("Token preview:", token.substring(0, 20) + "...");
-  }
   const defaultHeaders = {
     "Content-Type": "application/json",
     ...(token && { Authorization: `Bearer ${token}` }),
@@ -160,9 +156,6 @@ export const safeFetch = async (url, options = {}, config = {}) => {
           ? Math.min(retryDelay * Math.pow(2, attempt), maxRetryDelay)
           : retryDelay * attempt;
 
-        console.log(
-          `Waiting ${delayTime}ms before retry attempt ${attempt}...`
-        );
         await delay(delayTime);
       }
 
@@ -206,9 +199,7 @@ export const safeFetch = async (url, options = {}, config = {}) => {
 
       // Pour les erreurs 429, on continue à retry mais avec plus de délai
       if (error instanceof NetworkError && error.status === 429) {
-        console.warn(
-          `Rate limit hit (429), will retry with exponential backoff...`
-        );
+        // Rate limit hit, will retry with exponential backoff
       }
 
       if (error instanceof ValidationError) {
@@ -220,7 +211,7 @@ export const safeFetch = async (url, options = {}, config = {}) => {
         break;
       }
 
-      console.warn(`Attempt ${attempt + 1} failed, retrying...`, error.message);
+      // Retry on next attempt
     }
   }
 
@@ -463,6 +454,26 @@ export const apiEndpoints = {
     });
   },
   deleteCardTemplate: (id) => api.delete(`/card-templates/${id}`),
+
+  // School Years
+  getSchoolYears: () => api.get("/students/school-years"),
+
+  // Bus System
+  getBusSettings: () => api.get("/bus/settings"),
+  updateBusSettings: (data) => api.put("/bus/settings", data),
+  createBusSubscription: (data) => api.post("/bus/subscriptions", data),
+  getBusSubscriptions: (filters = {}) => {
+    const params = new URLSearchParams(filters);
+    const url = params.toString() ? `/bus/subscriptions?${params}` : "/bus/subscriptions";
+    return api.get(url);
+  },
+  downloadBusTickets: (subscriptionId) => `/bus/subscriptions/${subscriptionId}/download`,
+  getBusTransportReport: (filters = {}) => {
+    const params = new URLSearchParams(filters);
+    const url = params.toString() ? `/bus/report?${params}` : "/bus/report";
+    return api.get(url);
+  },
+  scanBusTicket: (data) => api.post("/bus/scan-ticket", data),
 };
 
 export default api;

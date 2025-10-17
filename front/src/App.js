@@ -125,6 +125,11 @@ import TestInventory from "./pages/Inventory/TestInventory";
 // Documents
 import DocumentsManager from "./pages/Documents/DocumentsManager";
 
+// Bus Management
+import BusSettings from "./pages/Bus/BusSettings";
+import BusSubscriptions from "./pages/Bus/BusSubscriptions";
+import BusSubscribers from "./pages/Bus/BusSubscribers";
+
 // Staff Attendance
 import StaffAttendanceManagement from "./pages/Staff/StaffAttendanceManagement";
 import StaffDailyAttendance from "./pages/Staff/StaffDailyAttendance";
@@ -861,6 +866,32 @@ const AppContent = () => {
                   <ProtectedRoute requiredRoles={['comptable_superieur', 'accountant']}>
                     <PaymentManagement />
                   </ProtectedRoute>
+                }
+              />
+
+              {/* Routes Bus - Transport */}
+              <Route
+                path="/bus/settings"
+                element={
+                  <AccountantRoute>
+                    <BusSettings />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/bus/subscriptions"
+                element={
+                  <AccountantRoute>
+                    <BusSubscriptions />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/bus/subscribers"
+                element={
+                  <AccountantRoute>
+                    <BusSubscribers />
+                  </AccountantRoute>
                 }
               />
 

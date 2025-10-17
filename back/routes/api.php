@@ -56,6 +56,7 @@ use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\MobileAttendanceController;
 use App\Http\Controllers\BulletinController;
 use App\Http\Controllers\MarkSheetController;
+use App\Http\Controllers\BusController;
 
 
 // Routes d'authentification
@@ -440,6 +441,7 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les élèves
     Route::prefix('students')->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur,teacher'])->group(function () {
+        Route::get('/getAll', [StudentController::class, 'getAll']);
         Route::get('/class-series/{seriesId}', [StudentController::class, 'getByClassSeries']);
 
         // Export routes - amélioration des routes existantes
@@ -1327,4 +1329,33 @@ Route::middleware(['auth:api'])->prefix('mark-sheets')->group(function () {
     // Lister toutes les matières d'une classe pour génération
     Route::post('/generate-all', [MarkSheetController::class, 'generateAllBlankMarkSheetsForClass'])
         ->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
+});
+
+// Routes pour la gestion des tickets de bus
+Route::middleware(['auth:api'])->prefix('bus')->group(function () {
+    // Configuration du tarif (Admin et Comptables)
+    Route::get('/settings', [BusController::class, 'getSettings'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    Route::put('/settings', [BusController::class, 'updateSettings'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    // Gestion des abonnements (Admin et Comptable)
+    Route::post('/subscriptions', [BusController::class, 'createSubscription'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    Route::get('/subscriptions', [BusController::class, 'listSubscriptions'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal,secretaire']);
+
+    // Téléchargement des tickets PDF
+    Route::get('/subscriptions/{subscriptionId}/download', [BusController::class, 'downloadTickets'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal,secretaire']);
+
+    // Rapport financier transport
+    Route::get('/report', [BusController::class, 'getTransportReport'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal']);
+
+    // Scanner un ticket QR (pour le chauffeur ou surveillant)
+    Route::post('/scan-ticket', [BusController::class, 'scanTicket'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal,secretaire,teacher,supervisor']);
 });

@@ -20,6 +20,7 @@ import {
     CardText,
     FileEarmarkText,
     ChatDots,
+    BusFront,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -122,6 +123,14 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Documents", href: "/documents", icon: <FolderFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
             { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
+          ],
+        },
+        {
+          title: "Transport Scolaire",
+          items: [
+            { name: "Configuration Bus", href: "/bus/settings", icon: <GearFill /> },
+            { name: "Vendre Abonnements", href: "/bus/subscriptions", icon: <BusFront /> },
+            { name: "Liste des Abonnés", href: "/bus/subscribers", icon: <People /> },
           ],
         },
         {
@@ -294,6 +303,14 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
                 icon: <CashCoin />,
               }
             ] : []),
+          ],
+        },
+        {
+          title: "Transport Scolaire",
+          items: [
+            { name: "Configuration Bus", href: "/bus/settings", icon: <GearFill /> },
+            { name: "Vendre Abonnements", href: "/bus/subscriptions", icon: <BusFront /> },
+            { name: "Liste des Abonnés", href: "/bus/subscribers", icon: <People /> },
           ],
         },
         {

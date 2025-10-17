@@ -2305,4 +2305,47 @@ class StudentController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Récupérer tous les étudiants (actifs et nouveaux)
+     */
+    public function getAll()
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+
+            if (!$workingYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire active trouvée'
+                ], 404);
+            }
+
+            $students = Student::with([
+                'classSeries.schoolClass',
+                'classSeries.schoolClass.level'
+            ])
+                ->where('school_year_id', $workingYear->id)
+                ->whereIn('status', ['active', 'new'])
+                ->orderBy('last_name', 'asc')
+                ->orderBy('first_name', 'asc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $students
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error fetching all students', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des étudiants',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

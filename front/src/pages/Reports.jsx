@@ -57,12 +57,16 @@ const Reports = () => {
 
     // Filtres pour les solvables
     solvable_type: "all", // all, total, inscription, tranche_1, tranche_2, tranche_3, pension
+
+    // Filtre par tranche (pour insolvables)
+    tranche_id: "",
   });
 
   const [availableOptions, setAvailableOptions] = useState({
     sections: [],
     classes: [],
     series: [],
+    paymentTranches: [],
   });
 
   useEffect(() => {
@@ -71,10 +75,11 @@ const Reports = () => {
 
   const loadAvailableOptions = async () => {
     try {
-      // Charger les sections, classes et toutes les séries
-      const [sectionsRes, classesRes] = await Promise.all([
+      // Charger les sections, classes, séries et tranches de paiement
+      const [sectionsRes, classesRes, tranchesRes] = await Promise.all([
         secureApiEndpoints.sections.getAll(),
         secureApiEndpoints.accountant.getClasses(), // Utilise getClasses qui donne plus d'infos
+        secureApiEndpoints.paymentTranches.getAll(),
       ]);
 
       // S'assurer que les données sont des tableaux
@@ -82,7 +87,7 @@ const Reports = () => {
         sectionsRes.success && Array.isArray(sectionsRes.data)
           ? sectionsRes.data
           : [];
-      
+
       // Classes avec leurs relations complètes
       const classesData = classesRes.success && classesRes.data ? classesRes.data : {};
       const classes = Array.isArray(classesData.classes) ? classesData.classes : [];
@@ -104,13 +109,21 @@ const Reports = () => {
         }
       });
 
-      console.log('Loaded options:', { sections: sections.length, classes: classes.length, series: allSeries.length });
+      // Tranches de paiement
+      const paymentTranches =
+        tranchesRes.success && Array.isArray(tranchesRes.data)
+          ? tranchesRes.data
+          : [];
+
+      console.log('Loaded options:', { sections: sections.length, classes: classes.length, series: allSeries.length, tranches: paymentTranches.length });
       console.log('Series data:', allSeries);
+      console.log('Payment tranches:', paymentTranches);
 
       setAvailableOptions({
         sections,
         classes,
         series: allSeries,
+        paymentTranches,
       });
     } catch (error) {
       console.error("Error loading options:", error);
@@ -414,9 +427,13 @@ const Reports = () => {
     }
 
     const workbook = XLSX.utils.book_new();
-    const fileName = `rapport_${reportType}_${
-      new Date().toISOString().split("T")[0]
-    }.xlsx`;
+
+    // Nom de fichier avec mention de la tranche filtrée si applicable
+    let fileName = `rapport_${reportType}`;
+    if (reportType === 'insolvable' && data.filtered_tranche) {
+      fileName += `_${data.filtered_tranche.name.replace(/\s+/g, '_')}`;
+    }
+    fileName += `_${new Date().toISOString().split("T")[0]}.xlsx`;
 
     // Fonction pour nettoyer et convertir les données
     const cleanValue = (value) => {
@@ -429,6 +446,19 @@ const Reports = () => {
       switch (reportType) {
         case "insolvable":
           if (data.students && Array.isArray(data.students)) {
+            // Créer un array avec en-tête si filtre de tranche actif
+            const excelData = [];
+
+            // Ajouter l'information de filtre si présente
+            if (data.filtered_tranche) {
+              excelData.push([`RAPPORT FILTRÉ PAR TRANCHE: ${data.filtered_tranche.name}`]);
+              if (data.filtered_tranche.description) {
+                excelData.push([data.filtered_tranche.description]);
+              }
+              excelData.push(['Affichage uniquement des élèves qui n\'ont pas soldé cette tranche']);
+              excelData.push([]); // Ligne vide
+            }
+
             const studentsData = data.students.map((student) => ({
               Étudiant: cleanValue(student?.student?.full_name),
               "Classe/Série": cleanValue(student?.student?.class_series),
@@ -444,7 +474,19 @@ const Reports = () => {
                   .join(", ") || "",
             }));
 
-            const worksheet = XLSX.utils.json_to_sheet(studentsData);
+            let worksheet;
+            if (excelData.length > 0) {
+              // Créer le worksheet avec les en-têtes personnalisés
+              worksheet = XLSX.utils.aoa_to_sheet(excelData);
+              // Ajouter les données des étudiants
+              XLSX.utils.sheet_add_json(worksheet, studentsData, {
+                origin: -1, // Ajouter à la fin
+                skipHeader: false
+              });
+            } else {
+              worksheet = XLSX.utils.json_to_sheet(studentsData);
+            }
+
             XLSX.utils.book_append_sheet(
               workbook,
               worksheet,
@@ -981,6 +1023,34 @@ const Reports = () => {
               />
             </Form.Group>
           </Col>
+          {activeTab === "insolvable" && (
+            <Col md={3}>
+              <Form.Group className="mb-3">
+                <Form.Label>Filtrer par Tranche</Form.Label>
+                <Form.Select
+                  value={filters.tranche_id}
+                  onChange={(e) => {
+                    setFilters({
+                      ...filters,
+                      tranche_id: e.target.value,
+                    });
+                  }}
+                >
+                  <option value="">-- Toutes les tranches --</option>
+                  {availableOptions.paymentTranches.map((tranche) => (
+                    <option key={tranche.id} value={tranche.id}>
+                      {tranche.name}
+                    </option>
+                  ))}
+                </Form.Select>
+                {filters.tranche_id && (
+                  <Form.Text className="text-info">
+                    Afficher uniquement les élèves qui n'ont pas soldé cette tranche
+                  </Form.Text>
+                )}
+              </Form.Group>
+            </Col>
+          )}
           {activeTab === "solvable" && (
             <Col md={3}>
               <Form.Group className="mb-3">
@@ -1052,10 +1122,10 @@ const Reports = () => {
                 </Button>
               </>
             )}
-            {(filters.sectionId || filters.classId || filters.seriesId) && (
+            {(filters.sectionId || filters.classId || filters.seriesId || filters.tranche_id) && (
               <Button
                 variant="outline-secondary"
-                onClick={() => setFilters({ sectionId: "", classId: "", seriesId: "", startDate: "", endDate: "" })}
+                onClick={() => setFilters({ sectionId: "", classId: "", seriesId: "", startDate: "", endDate: "", solvable_type: "all", tranche_id: "" })}
               >
                 Réinitialiser filtres
               </Button>
@@ -1220,6 +1290,18 @@ const Reports = () => {
         <h5 className="mb-0">
           État Insolvable - Élèves n'ayant pas fini de payer
         </h5>
+        {paginatedReportData?.filtered_tranche && (
+          <div className="mt-2">
+            <Badge bg="warning" className="me-2">
+              Filtre actif: {paginatedReportData.filtered_tranche.name}
+            </Badge>
+            {paginatedReportData.filtered_tranche.description && (
+              <small className="text-muted">
+                {paginatedReportData.filtered_tranche.description}
+              </small>
+            )}
+          </div>
+        )}
       </Card.Header>
       <Card.Body>
         {paginatedReportData ? (
@@ -1229,6 +1311,11 @@ const Reports = () => {
                 Total des élèves insolvables:{" "}
                 {paginatedReportData?.total_insolvable_students || 0}
               </Badge>
+              {paginatedReportData?.filtered_tranche && (
+                <Badge bg="warning" className="ms-2">
+                  N'ont pas soldé: {paginatedReportData.filtered_tranche.name}
+                </Badge>
+              )}
             </div>
             <Table responsive striped size="sm">
               <thead>

@@ -515,6 +515,7 @@ class ReportsController extends Controller
             $sectionId = $request->get('sectionId');
             $classId = $request->get('classId');
             $seriesId = $request->get('seriesId');
+            $trancheId = $request->get('tranche_id'); // NOUVEAU: Filtre par tranche
 
             // Récupérer tous les étudiants avec leurs informations de paiement
             $studentsQuery = Student::with([
@@ -606,9 +607,14 @@ class ReportsController extends Controller
                 // Vérifier si l'étudiant est réellement insolvable
                 if ($studentTotalPaid < ($effectiveRequired - 1)) { // Tolérance de 1 FCFA
                     $hasIncompletePayments = true;
-                    
+
                     // Calculer les détails par tranche pour les insolvables
                     foreach ($paymentTranches as $tranche) {
+                        // NOUVEAU: Si un filtre de tranche est spécifié, vérifier seulement cette tranche
+                        if ($trancheId && $tranche->id != $trancheId) {
+                            continue;
+                        }
+
                         $normalAmount = DB::table('class_payment_amounts')
                             ->where('class_id', $student->classSeries->class_id)
                             ->where('payment_tranche_id', $tranche->id)
@@ -630,12 +636,18 @@ class ReportsController extends Controller
 
                         if ($remainingAmount > 0) {
                             $incompletesTranches[] = [
+                                'tranche_id' => $tranche->id, // AJOUTÉ: ID de la tranche
                                 'tranche_name' => $tranche->name,
                                 'required_amount' => $normalAmount,
                                 'paid_amount' => $paidAmount,
                                 'remaining_amount' => $remainingAmount
                             ];
                         }
+                    }
+
+                    // NOUVEAU: Si filtre par tranche et aucune tranche incomplète trouvée, ne pas inclure l'étudiant
+                    if ($trancheId && empty($incompletesTranches)) {
+                        $hasIncompletePayments = false;
                     }
                 }
 
@@ -662,11 +674,25 @@ class ReportsController extends Controller
                 }
             }
 
+            // NOUVEAU: Récupérer les infos de la tranche filtrée si spécifiée
+            $trancheInfo = null;
+            if ($trancheId) {
+                $tranche = PaymentTranche::find($trancheId);
+                if ($tranche) {
+                    $trancheInfo = [
+                        'id' => $tranche->id,
+                        'name' => $tranche->name,
+                        'description' => $tranche->description
+                    ];
+                }
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => [
                     'students' => $insolvableStudents,
-                    'total_insolvable_students' => count($insolvableStudents)
+                    'total_insolvable_students' => count($insolvableStudents),
+                    'filtered_tranche' => $trancheInfo // NOUVEAU: Info de la tranche filtrée
                 ]
             ]);
         } catch (\Exception $e) {
@@ -5645,7 +5671,19 @@ class ReportsController extends Controller
         $html = "
         <div class='summary'>
             <strong>Nombre d'élèves insolvables:</strong> " . count($students) .
-            (count($reportData['students']) > 500 ? " (limité aux 500 premiers)" : "") . "
+            (count($reportData['students']) > 500 ? " (limité aux 500 premiers)" : "");
+
+        // Afficher l'information de la tranche filtrée si présente
+        if (isset($reportData['filtered_tranche'])) {
+            $tranche = $reportData['filtered_tranche'];
+            $html .= "<br><strong style='color: #d9534f;'>🔍 Filtre actif: " . htmlspecialchars($tranche['name']) . "</strong>";
+            if (!empty($tranche['description'])) {
+                $html .= " - " . htmlspecialchars($tranche['description']);
+            }
+            $html .= "<br><em style='font-size: 9px;'>Affichage uniquement des élèves qui n'ont pas soldé cette tranche</em>";
+        }
+
+        $html .= "
         </div>
 
         <table>
@@ -5658,6 +5696,7 @@ class ReportsController extends Controller
                     <th>Montant Payé</th>
                     <th>Reste à Payer</th>
                     <th>% Payé</th>
+                    <th>Tranches Incomplètes</th>
                 </tr>
             </thead>
             <tbody>";
@@ -5669,6 +5708,20 @@ class ReportsController extends Controller
             $fullName = $studentData['full_name'] ?? ($student['full_name'] ?? 'N/A');
             $className = $studentData['class_series'] ?? ($student['class_name'] ?? 'N/A');
 
+            // Formater les tranches incomplètes
+            $incompleteTranches = '';
+            if (isset($student['incomplete_tranches']) && is_array($student['incomplete_tranches'])) {
+                $tranchesTexts = [];
+                foreach ($student['incomplete_tranches'] as $tranche) {
+                    $trancheName = $tranche['tranche_name'] ?? 'N/A';
+                    $paidAmount = number_format($tranche['paid_amount'] ?? 0, 0, '.', ' ');
+                    $requiredAmount = number_format($tranche['required_amount'] ?? 0, 0, '.', ' ');
+                    $remainingAmount = number_format($tranche['remaining_amount'] ?? 0, 0, '.', ' ');
+                    $tranchesTexts[] = "{$trancheName}: {$paidAmount}/{$requiredAmount} (reste: {$remainingAmount})";
+                }
+                $incompleteTranches = implode('<br>', $tranchesTexts);
+            }
+
             $html .= "
                 <tr>
                     <td class='text-center'>{$counter}</td>
@@ -5678,6 +5731,7 @@ class ReportsController extends Controller
                     <td class='text-right'>" . number_format($student['total_paid'] ?? 0, 0, '.', ' ') . " FCFA</td>
                     <td class='text-right'>" . number_format($student['remaining_amount'] ?? $student['total_remaining'] ?? 0, 0, '.', ' ') . " FCFA</td>
                     <td class='text-center'>" . number_format($student['payment_percentage'] ?? 0, 1) . "%</td>
+                    <td style='font-size: 7px;'>" . $incompleteTranches . "</td>
                 </tr>";
             $counter++;
         }
