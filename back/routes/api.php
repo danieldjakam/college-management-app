@@ -1358,4 +1358,47 @@ Route::middleware(['auth:api'])->prefix('bus')->group(function () {
     // Scanner un ticket QR (pour le chauffeur ou surveillant)
     Route::post('/scan-ticket', [BusController::class, 'scanTicket'])
         ->middleware(['role:admin,accountant,comptable_superieur,principal,secretaire,teacher,supervisor']);
+
+    // ============ TICKETS JOURNALIERS (NOUVEAU SYSTÈME) ============
+
+    // Génération de lots de tickets
+    Route::post('/tickets/generate-batch', [App\Http\Controllers\BusTicketController::class, 'generateBatch'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    // Télécharger le lot complet de tickets en PDF
+    Route::get('/tickets/batches/{batchId}/download', [App\Http\Controllers\BusTicketController::class, 'downloadBatchTickets'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    // Gestion des lots
+    Route::get('/tickets/batches', [App\Http\Controllers\BusTicketController::class, 'getBatches'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    Route::get('/tickets/batches/today', [App\Http\Controllers\BusTicketController::class, 'getTodayBatches'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    Route::post('/tickets/batches/{batchId}/deactivate', [App\Http\Controllers\BusTicketController::class, 'deactivateBatch'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    // Vente de tickets
+    Route::post('/tickets/sell', [App\Http\Controllers\BusTicketController::class, 'sellTicket'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    // Gestion des ventes
+    Route::get('/tickets/sales', [App\Http\Controllers\BusTicketController::class, 'getSales'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal']);
+
+    Route::get('/tickets/sales/today', [App\Http\Controllers\BusTicketController::class, 'getTodaySales'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    // Rapports
+    Route::get('/tickets/daily-report', [App\Http\Controllers\BusTicketController::class, 'getDailyReport'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal']);
+
+    // Télécharger un ticket PDF
+    Route::get('/tickets/{saleId}/download', [App\Http\Controllers\BusTicketController::class, 'downloadTicket'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal,secretaire']);
+
+    // Validation de ticket (scan)
+    Route::post('/tickets/validate', [App\Http\Controllers\BusTicketController::class, 'validateTicket'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal,secretaire,teacher,supervisor']);
 });

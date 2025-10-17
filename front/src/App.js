@@ -129,6 +129,9 @@ import DocumentsManager from "./pages/Documents/DocumentsManager";
 import BusSettings from "./pages/Bus/BusSettings";
 import BusSubscriptions from "./pages/Bus/BusSubscriptions";
 import BusSubscribers from "./pages/Bus/BusSubscribers";
+import BusTicketGeneration from "./pages/Bus/BusTicketGeneration";
+import BusTicketSales from "./pages/Bus/BusTicketSales";
+import BusDailyReport from "./pages/Bus/BusDailyReport";
 
 // Staff Attendance
 import StaffAttendanceManagement from "./pages/Staff/StaffAttendanceManagement";
@@ -891,6 +894,30 @@ const AppContent = () => {
                 element={
                   <AccountantRoute>
                     <BusSubscribers />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/bus/ticket-generation"
+                element={
+                  <AccountantRoute>
+                    <BusTicketGeneration />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/bus/ticket-sales"
+                element={
+                  <AccountantRoute>
+                    <BusTicketSales />
+                  </AccountantRoute>
+                }
+              />
+              <Route
+                path="/bus/daily-report"
+                element={
+                  <AccountantRoute>
+                    <BusDailyReport />
                   </AccountantRoute>
                 }
               />

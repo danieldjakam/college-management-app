@@ -21,6 +21,8 @@ import {
     FileEarmarkText,
     ChatDots,
     BusFront,
+    Ticket,
+    Cart3,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -131,6 +133,9 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Configuration Bus", href: "/bus/settings", icon: <GearFill /> },
             { name: "Vendre Abonnements", href: "/bus/subscriptions", icon: <BusFront /> },
             { name: "Liste des Abonnés", href: "/bus/subscribers", icon: <People /> },
+            { name: "Générer Tickets Journaliers", href: "/bus/ticket-generation", icon: <Ticket /> },
+            { name: "Point de Vente Tickets", href: "/bus/ticket-sales", icon: <Cart3 /> },
+            { name: "Rapport Quotidien Bus", href: "/bus/daily-report", icon: <BarChartFill /> },
           ],
         },
         {
@@ -311,6 +316,9 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Configuration Bus", href: "/bus/settings", icon: <GearFill /> },
             { name: "Vendre Abonnements", href: "/bus/subscriptions", icon: <BusFront /> },
             { name: "Liste des Abonnés", href: "/bus/subscribers", icon: <People /> },
+            { name: "Générer Tickets Journaliers", href: "/bus/ticket-generation", icon: <Ticket /> },
+            { name: "Point de Vente Tickets", href: "/bus/ticket-sales", icon: <Cart3 /> },
+            { name: "Rapport Quotidien Bus", href: "/bus/daily-report", icon: <BarChartFill /> },
           ],
         },
         {

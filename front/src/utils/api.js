@@ -474,6 +474,20 @@ export const apiEndpoints = {
     return api.get(url);
   },
   scanBusTicket: (data) => api.post("/bus/scan-ticket", data),
+
+  // Tickets journaliers (daily tickets)
+  generateBusTicketBatch: (data) => api.post("/bus/tickets/generate-batch", data),
+  downloadBatchTickets: (batchId) => `${host}/api/bus/tickets/batches/${batchId}/download`,
+  getBusTicketBatches: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/bus/tickets/batches${queryString ? '?' + queryString : ''}`);
+  },
+  getTodayBusTicketBatches: () => api.get("/bus/tickets/batches/today"),
+  sellBusTicket: (data) => api.post("/bus/tickets/sell", data),
+  getTodayBusTicketSales: () => api.get("/bus/tickets/sales/today"),
+  getBusTicketDailyReport: (date) => api.get(`/bus/tickets/daily-report?date=${date}`),
+  deactivateBusTicketBatch: (batchId) => api.post(`/bus/tickets/batches/${batchId}/deactivate`),
+  downloadBusTicket: (saleId) => `${host}/api/bus/tickets/${saleId}/download`,
 };
 
 export default api;
