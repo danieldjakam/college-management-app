@@ -81,7 +81,7 @@ const TopBar = ({ onSidebarToggle, showSidebarToggle = false }) => {
                 
                 <nav className="breadcrumb">
                     {breadcrumbs.map((crumb, index) => (
-                        <React.Fragment key={index}>
+                        <React.Fragment key={crumb.path}>
                             {index > 0 && (
                                 <ChevronRight className="breadcrumb-separator" size={14} />
                             )}

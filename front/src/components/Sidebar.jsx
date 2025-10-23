@@ -226,6 +226,11 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               icon: <Award />,
             },
             {
+              name: "Fiche de Scolarité par Classe",
+              href: "/reports/class-fees-sheet",
+              icon: <FileTextFill />,
+            },
+            {
               name: "Rapports Détaillés",
               href: "/reports/detailed-collection",
               icon: <FileTextFill />,
@@ -354,6 +359,11 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               href: "/reports/school-certificates",
               icon: <Award />,
             },
+            {
+              name: "Fiche de Scolarité par Classe",
+              href: "/reports/class-fees-sheet",
+              icon: <FileTextFill />,
+            },
           ],
         },
         {
@@ -364,64 +374,6 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> }
             ] : []),
             { name: "Profil", href: "/profile", icon: <PersonCircle /> }
-          ],
-        },
-      ];
-    } else if (userRole === "accountant") {
-      return [
-        {
-          title: "Gestion des Étudiants",
-          items: [
-            { name: "Étudiants", href: "/students", icon: <PeopleFill /> },
-            { name: "Classes", href: "/school-classes", icon: <HouseHeartFill /> },
-            { name: "Imports/Exports", href: "/students/import", icon: <FileTextFill /> },
-          ],
-        },
-        {
-          title: "Gestion Financière",
-          items: [
-            { name: "Paiements", href: "/payment-reports", icon: <CashCoin /> },
-            { name: "Frais de Dossiers", href: "/payments/documentary-fees", icon: <Receipt /> },
-            { name: "Tranches Paiement", href: "/payment-tranches", icon: <CreditCard /> },
-          ],
-        },
-        {
-          title: "Présence",
-          items: [
-            { name: "Rapport Présence Personnel", href: "/reports/staff-attendance-report", icon: <BarChartFill /> },
-            { name: "Rapport Vacataires", href: "/reports/vacataire-attendance", icon: <FileEarmarkText /> },
-            { name: "Suivi Présence Quotidien", href: "/staff-daily-attendance", icon: <Calendar /> },
-          ],
-        },
-        {
-          title: "Rapports",
-          items: [
-            { name: "États des Paiements", href: "/payment-reports", icon: <Receipt /> },
-            { name: "Encaissement Détaillé", href: "/reports/detailed-collection", icon: <CashCoin /> },
-            { name: "État des Recouvrements", href: "/reports/recovery-status", icon: <BarChartFill /> },
-            { name: "Paiement par Classe", href: "/reports/class-school-fees", icon: <Receipt /> },
-            { name: "Certificats de Scolarité", href: "/reports/school-certificates", icon: <Award /> },
-          ],
-        },
-        {
-          title: "Communication",
-          items: [
-            { name: "Mes Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
-          ],
-        },
-        {
-          title: "Outils",
-          items: [
-            { name: "Documents", href: "/documents", icon: <FolderFill /> },
-            { name: "Inventaire", href: "/inventory", icon: <Archive /> },
-            { name: "Rechercher", href: "/search", icon: <Search /> },
-          ],
-        },
-        {
-          title: "Compte",
-          items: [
-            { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
-            { name: "Profil", href: "/profile", icon: <PersonCircle /> },
           ],
         },
       ];
@@ -688,27 +640,30 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
     return null;
   }
 
-  const navigationSections = getNavigationSections() || [];
+  const navigationSections = (getNavigationSections() || []).filter(
+    section => section.items && section.items.length > 0
+  );
 
   // Render the sidebar with proper styling
   return (
     <>
       {/* Mobile overlay */}
-      {isMobile && isOpen && (
-        <div
-          className="sidebar-overlay"
-          onClick={() => setIsOpen(false)}
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            zIndex: 999,
-          }}
-        />
-      )}
+      <div
+        className="sidebar-overlay"
+        onClick={() => setIsOpen(false)}
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.5)",
+          zIndex: 999,
+          opacity: isMobile && isOpen ? 1 : 0,
+          pointerEvents: isMobile && isOpen ? "auto" : "none",
+          transition: "opacity 0.3s ease",
+        }}
+      />
 
       {/* Sidebar */}
       <div
@@ -778,8 +733,8 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
 
         {/* Navigation */}
         <div style={{ flex: 1, padding: "20px 0", overflowY: "auto" }}>
-          {navigationSections.map((section, sectionIndex) => (
-            <div key={sectionIndex} style={{ marginBottom: "30px" }}>
+          {navigationSections.map((section) => (
+            <div key={section.title} style={{ marginBottom: "30px" }}>
               {(!isCollapsed || isMobile) && (
                 <div
                   style={{
@@ -794,57 +749,41 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
                   {section.title}
                 </div>
               )}
-              {section.items.map((item, itemIndex) => (
-                <Link
-                  key={itemIndex}
-                  to={item.href}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    padding: "12px 20px",
-                    color:
-                      location.pathname === item.href
-                        ? primaryColor
-                        : "rgba(0,0,0,0.6)",
-                    backgroundColor:
-                      location.pathname === item.href
+              {section.items.map((item) => {
+                const isActive = location.pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    className="sidebar-nav-link"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      padding: "12px 20px",
+                      color: isActive ? primaryColor : "rgba(0,0,0,0.6)",
+                      backgroundColor: isActive
                         ? hexToRgba(primaryColor, 0.2)
                         : "transparent",
-                    textDecoration: "none",
-                    transition: "all 0.2s ease",
-                    borderLeft:
-                      location.pathname === item.href
+                      textDecoration: "none",
+                      transition: "all 0.2s ease",
+                      borderLeft: isActive
                         ? `3px solid ${primaryColor}`
                         : "3px solid transparent",
-                  }}
-                  onClick={() => handleLinkClick(item.href)}
-                  onMouseEnter={(e) => {
-                    if (location.pathname !== item.href) {
-                      e.target.style.backgroundColor = hexToRgba(
-                        primaryColor,
-                        0.15
-                      );
-                      e.target.style.color = "white";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (location.pathname !== item.href) {
-                      e.target.style.backgroundColor = "transparent";
-                      e.target.style.color = "rgba(0,0,0,0.6)";
-                    }
-                  }}
-                >
-                  <div style={{ fontSize: "18px", minWidth: "18px" }}>
-                    {item.icon}
-                  </div>
-                  {(!isCollapsed || isMobile) && (
-                    <span style={{ fontSize: "14px", fontWeight: "500" }}>
-                      {item.name}
-                    </span>
-                  )}
-                </Link>
-              ))}
+                    }}
+                    onClick={() => handleLinkClick(item.href)}
+                  >
+                    <div style={{ fontSize: "18px", minWidth: "18px" }}>
+                      {item.icon}
+                    </div>
+                    {(!isCollapsed || isMobile) && (
+                      <span style={{ fontSize: "14px", fontWeight: "500" }}>
+                        {item.name}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
             </div>
           ))}
         </div>

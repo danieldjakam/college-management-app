@@ -1402,3 +1402,103 @@ Route::middleware(['auth:api'])->prefix('bus')->group(function () {
     Route::post('/tickets/validate', [App\Http\Controllers\BusTicketController::class, 'validateTicket'])
         ->middleware(['role:admin,accountant,comptable_superieur,principal,secretaire,teacher,supervisor']);
 });
+
+// ============================================
+// UNIFORM SALES (VENTE DE TENUES SCOLAIRES)
+// ============================================
+Route::prefix('uniforms')->middleware('auth:api')->group(function () {
+
+    // ============ STOCK MANAGEMENT ============
+
+    // Get all uniform items with variants
+    Route::get('/items', [App\Http\Controllers\UniformController::class, 'getItems'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    // Create new uniform item
+    Route::post('/items', [App\Http\Controllers\UniformController::class, 'createItem'])
+        ->middleware(['role:admin,comptable_superieur']);
+
+    // Update uniform item
+    Route::put('/items/{id}', [App\Http\Controllers\UniformController::class, 'updateItem'])
+        ->middleware(['role:admin,comptable_superieur']);
+
+    // Delete uniform item
+    Route::delete('/items/{id}', [App\Http\Controllers\UniformController::class, 'deleteItem'])
+        ->middleware(['role:admin,comptable_superieur']);
+
+    // Create variant for an item
+    Route::post('/items/{itemId}/variants', [App\Http\Controllers\UniformController::class, 'createVariant'])
+        ->middleware(['role:admin,comptable_superieur']);
+
+    // Update variant stock
+    Route::put('/variants/{variantId}/stock', [App\Http\Controllers\UniformController::class, 'updateVariantStock'])
+        ->middleware(['role:admin,comptable_superieur']);
+
+    // Get low stock items
+    Route::get('/low-stock', [App\Http\Controllers\UniformController::class, 'getLowStockItems'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    // ============ ORDER MANAGEMENT ============
+
+    // Place new order
+    Route::post('/orders', [App\Http\Controllers\UniformController::class, 'placeOrder'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    // Get orders with filters
+    Route::get('/orders', [App\Http\Controllers\UniformController::class, 'getOrders'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal']);
+
+    // Get single order details
+    Route::get('/orders/{orderId}', [App\Http\Controllers\UniformController::class, 'getOrderDetails'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal']);
+
+    // Mark order as ready
+    Route::post('/orders/{orderId}/ready', [App\Http\Controllers\UniformController::class, 'markOrderReady'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    // Cancel order
+    Route::post('/orders/{orderId}/cancel', [App\Http\Controllers\UniformController::class, 'cancelOrder'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    // Get pending orders summary
+    Route::get('/orders-summary', [App\Http\Controllers\UniformController::class, 'getPendingOrdersSummary'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    // ============ PICKUP & PAYMENT ============
+
+    // Process pickup and payment
+    Route::post('/orders/{orderId}/pickup', [App\Http\Controllers\UniformController::class, 'processPickup'])
+        ->middleware(['role:admin,accountant,comptable_superieur']);
+
+    // Download receipt PDF
+    Route::get('/sales/{saleId}/receipt', [App\Http\Controllers\UniformController::class, 'downloadReceipt'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal,secretaire']);
+
+    // ============ REPORTS ============
+
+    // Get sales report
+    Route::get('/sales-report', [App\Http\Controllers\UniformController::class, 'getSalesReport'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal']);
+});
+
+// ============================================
+// CLASS SCHOOL FEES SHEET (FICHE DE SCOLARITÉ PAR CLASSE)
+// ============================================
+Route::prefix('class-fees-sheet')->middleware('auth:api')->group(function () {
+
+    // Get school classes (ex: 6ème, 5ème)
+    Route::get('/school-classes', [App\Http\Controllers\ClassSchoolFeesSheetController::class, 'getSchoolClasses'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal,secretaire']);
+
+    // Get class series for a specific school class (ex: 6ème A, 6ème B)
+    Route::get('/class-series', [App\Http\Controllers\ClassSchoolFeesSheetController::class, 'getClassSeries'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal,secretaire']);
+
+    // Get class fees data for a specific class series
+    Route::get('/{classSeriesId}/data', [App\Http\Controllers\ClassSchoolFeesSheetController::class, 'getClassFeesData'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal,secretaire']);
+
+    // Download class fees PDF for a specific class series
+    Route::get('/{classSeriesId}/download', [App\Http\Controllers\ClassSchoolFeesSheetController::class, 'downloadClassFeesPDF'])
+        ->middleware(['role:admin,accountant,comptable_superieur,principal,secretaire']);
+});

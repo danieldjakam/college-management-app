@@ -59,6 +59,7 @@ import ClassSchoolFeesReport from "./pages/Reports/ClassSchoolFeesReport";
 import RecoveryStatus from "./pages/Reports/RecoveryStatus";
 import SchoolCertificates from "./pages/Reports/SchoolCertificates";
 import StaffAttendanceReport from "./pages/Reports/StaffAttendanceReport";
+import ClassFeesSheet from "./pages/Reports/ClassFeesSheet";
 
 
 // User Management
@@ -774,6 +775,14 @@ const AppContent = () => {
                   <AccountantRoute>
                     <SchoolCertificates />
                   </AccountantRoute>
+                }
+              />
+              <Route
+                path="/reports/class-fees-sheet"
+                element={
+                  <ProtectedRoute requiredRoles={['admin', 'accountant', 'comptable_superieur', 'principal', 'secretaire']}>
+                    <ClassFeesSheet />
+                  </ProtectedRoute>
                 }
               />
               <Route

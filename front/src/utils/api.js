@@ -488,6 +488,15 @@ export const apiEndpoints = {
   getBusTicketDailyReport: (date) => api.get(`/bus/tickets/daily-report?date=${date}`),
   deactivateBusTicketBatch: (batchId) => api.post(`/bus/tickets/batches/${batchId}/deactivate`),
   downloadBusTicket: (saleId) => `${host}/api/bus/tickets/${saleId}/download`,
+
+  // Class Fees Sheet
+  getClassesForFeesSheet: (filters = {}) => {
+    const params = new URLSearchParams(filters);
+    const url = params.toString() ? `/class-fees-sheet/classes?${params}` : "/class-fees-sheet/classes";
+    return api.get(url);
+  },
+  getClassFeesData: (classId) => api.get(`/class-fees-sheet/${classId}/data`),
+  downloadClassFeesPDF: (classId) => `${host}/api/class-fees-sheet/${classId}/download`,
 };
 
 export default api;

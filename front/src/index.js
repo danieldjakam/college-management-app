@@ -13,7 +13,8 @@ if (process.env.NODE_ENV === 'production') {
 }
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <React.StrictMode>
+  // StrictMode temporairement désactivé pour résoudre l'erreur insertBefore
+  // <React.StrictMode>
     <App />
-  </React.StrictMode>
+  // </React.StrictMode>
 );

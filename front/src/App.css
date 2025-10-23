@@ -307,6 +307,13 @@ body {
   font-size: 0.875rem;
 }
 
+/* Sidebar Navigation Link Hover Effects */
+.sidebar-nav-link:not([style*="background"]):hover,
+.sidebar-nav-link:hover:not(.active) {
+  background-color: var(--primary-violet-100) !important;
+  color: white !important;
+}
+
 .sidebar-footer {
   padding: 1.5rem;
   border-top: 1px solid var(--gray-200);
