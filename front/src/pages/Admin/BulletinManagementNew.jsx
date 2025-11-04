@@ -791,8 +791,10 @@ function BulletinManagementNew() {
                           <th>Étudiant</th>
                           <th>Matricule</th>
                           <th>Séq 1</th>
-                          <th>Séq 3</th>
+                          <th>Séq 2</th>
                           <th>Trim 1</th>
+                          <th>Séq 3</th>
+                          <th>Séq 4</th>
                           <th>Trim 2</th>
                           <th>Trim 3</th>
                           <th>Actions</th>
@@ -825,53 +827,119 @@ function BulletinManagementNew() {
                                 <div className="d-flex flex-column align-items-start">
                                   {getCompletionBadge(student.bulletins.sequence_1)}
                                   {student.bulletins.sequence_1.completion_percentage > 0 && (
-                                    <ProgressBar 
-                                      now={student.bulletins.sequence_1.completion_percentage} 
-                                      size="sm" 
-                                      className="mt-1 w-100" 
+                                    <ProgressBar
+                                      now={student.bulletins.sequence_1.completion_percentage}
+                                      size="sm"
+                                      className="mt-1 w-100"
                                       style={{height: '4px'}}
                                     />
                                   )}
                                 </div>
                               )}
                             </td>
-                            
+
+                            {/* Séquence 2 */}
+                            <td>
+                              {student.bulletins.sequence_2 && (
+                                <div className="d-flex flex-column align-items-start">
+                                  {getCompletionBadge(student.bulletins.sequence_2)}
+                                  {student.bulletins.sequence_2.completion_percentage > 0 && (
+                                    <ProgressBar
+                                      now={student.bulletins.sequence_2.completion_percentage}
+                                      size="sm"
+                                      className="mt-1 w-100"
+                                      style={{height: '4px'}}
+                                    />
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Trimestre 1 */}
+                            <td>
+                              {student.bulletins.trimester_1 && (
+                                <div className="d-flex flex-column align-items-start">
+                                  {getCompletionBadge(student.bulletins.trimester_1)}
+                                  {student.bulletins.trimester_1.completion_percentage > 0 && (
+                                    <ProgressBar
+                                      now={student.bulletins.trimester_1.completion_percentage}
+                                      size="sm"
+                                      className="mt-1 w-100"
+                                      style={{height: '4px'}}
+                                    />
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
                             {/* Séquence 3 */}
                             <td>
                               {student.bulletins.sequence_3 && (
                                 <div className="d-flex flex-column align-items-start">
                                   {getCompletionBadge(student.bulletins.sequence_3)}
                                   {student.bulletins.sequence_3.completion_percentage > 0 && (
-                                    <ProgressBar 
-                                      now={student.bulletins.sequence_3.completion_percentage} 
-                                      size="sm" 
-                                      className="mt-1 w-100" 
+                                    <ProgressBar
+                                      now={student.bulletins.sequence_3.completion_percentage}
+                                      size="sm"
+                                      className="mt-1 w-100"
                                       style={{height: '4px'}}
                                     />
                                   )}
                                 </div>
                               )}
                             </td>
-                            
-                            {/* Trimestres */}
-                            {[1, 2, 3].map(trimNumber => (
-                              <td key={`trim_${trimNumber}`}>
-                                {student.bulletins[`trimester_${trimNumber}`] && (
-                                  <div className="d-flex flex-column align-items-start">
-                                    {getCompletionBadge(student.bulletins[`trimester_${trimNumber}`])}
-                                    {student.bulletins[`trimester_${trimNumber}`].completion_percentage > 0 && (
-                                      <ProgressBar 
-                                        now={student.bulletins[`trimester_${trimNumber}`].completion_percentage} 
-                                        size="sm" 
-                                        className="mt-1 w-100" 
-                                        style={{height: '4px'}}
-                                      />
-                                    )}
-                                  </div>
-                                )}
-                              </td>
-                            ))}
-                            
+
+                            {/* Séquence 4 */}
+                            <td>
+                              {student.bulletins.sequence_4 && (
+                                <div className="d-flex flex-column align-items-start">
+                                  {getCompletionBadge(student.bulletins.sequence_4)}
+                                  {student.bulletins.sequence_4.completion_percentage > 0 && (
+                                    <ProgressBar
+                                      now={student.bulletins.sequence_4.completion_percentage}
+                                      size="sm"
+                                      className="mt-1 w-100"
+                                      style={{height: '4px'}}
+                                    />
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Trimestre 2 */}
+                            <td>
+                              {student.bulletins.trimester_2 && (
+                                <div className="d-flex flex-column align-items-start">
+                                  {getCompletionBadge(student.bulletins.trimester_2)}
+                                  {student.bulletins.trimester_2.completion_percentage > 0 && (
+                                    <ProgressBar
+                                      now={student.bulletins.trimester_2.completion_percentage}
+                                      size="sm"
+                                      className="mt-1 w-100"
+                                      style={{height: '4px'}}
+                                    />
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Trimestre 3 */}
+                            <td>
+                              {student.bulletins.trimester_3 && (
+                                <div className="d-flex flex-column align-items-start">
+                                  {getCompletionBadge(student.bulletins.trimester_3)}
+                                  {student.bulletins.trimester_3.completion_percentage > 0 && (
+                                    <ProgressBar
+                                      now={student.bulletins.trimester_3.completion_percentage}
+                                      size="sm"
+                                      className="mt-1 w-100"
+                                      style={{height: '4px'}}
+                                    />
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
                             {/* Actions */}
                             <td>
                               <div className="d-flex gap-1 flex-wrap">

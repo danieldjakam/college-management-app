@@ -11,6 +11,7 @@ use App\Models\Sequence;
 use App\Models\Trimester;
 use App\Models\MainTeacher;
 use App\Models\SchoolSetting;
+use App\Models\SchoolYear;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
@@ -18,7 +19,157 @@ use Illuminate\Support\Facades\Log;
 class PVService
 {
     /**
-     * Générer le PV pour une série de classe et une évaluation
+     * Générer le PV pour une série de classe et une période d'évaluation (séquence + trimestre)
+     */
+    public function generatePVByPeriod($classSeriesId, $sequenceId, $trimesterId)
+    {
+        try {
+            Log::info("🎯 Génération PV pour class_series_id: {$classSeriesId}, sequence_id: {$sequenceId}, trimester_id: {$trimesterId}");
+
+            // Récupérer les informations de base
+            $classSeries = ClassSeries::with(['schoolClass.level'])->findOrFail($classSeriesId);
+            $sequence = Sequence::findOrFail($sequenceId);
+            $trimester = Trimester::findOrFail($trimesterId);
+            $schoolYear = SchoolYear::where('is_current', true)->firstOrFail();
+
+            // Créer un objet "evaluation" virtuel pour la compatibilité
+            $evaluationData = (object) [
+                'sequence' => $sequence,
+                'trimester' => $trimester,
+                'schoolYear' => $schoolYear,
+                'school_year_id' => $schoolYear->id
+            ];
+
+            // Récupérer le professeur principal
+            $mainTeacher = MainTeacher::where('class_series_id', $classSeriesId)
+                ->where('school_year_id', $schoolYear->id)
+                ->where('is_active', true)
+                ->with('teacher')
+                ->first();
+
+            $mainTeacherName = $mainTeacher ? $mainTeacher->teacher->first_name . ' ' . $mainTeacher->teacher->last_name : 'Non désigné';
+
+            // Récupérer les matières de cette série
+            $seriesSubjects = ClassSeriesSubject::where('class_series_id', $classSeriesId)
+                ->where('is_active', true)
+                ->with('subject')
+                ->orderBy('subject_id')
+                ->get();
+
+            // Récupérer tous les élèves de cette série
+            $students = Student::where('class_series_id', $classSeriesId)
+                ->where('is_active', true)
+                ->get();
+
+            // Calculer les résultats de chaque élève
+            $studentsResults = [];
+            foreach ($students as $student) {
+                $result = $this->calculateStudentResultsByPeriod($student, $seriesSubjects, $sequenceId, $trimesterId, $schoolYear->id);
+                $studentsResults[] = $result;
+            }
+
+            // Trier par moyenne décroissante
+            usort($studentsResults, function ($a, $b) {
+                return $b['average'] <=> $a['average'];
+            });
+
+            // Attribuer les rangs
+            foreach ($studentsResults as $index => &$result) {
+                $result['rank'] = $index + 1;
+            }
+
+            // Calculer les statistiques
+            $statistics = $this->calculateStatistics($studentsResults);
+
+            // Générer le HTML
+            $html = $this->generateHTML($classSeries, $evaluationData, $seriesSubjects, $studentsResults, $statistics, $mainTeacherName);
+
+            // Générer le PDF
+            $pdf = PDF::loadHTML($html);
+            $pdf->setPaper('A4', 'landscape'); // Mode paysage pour avoir plus d'espace
+
+            Log::info("✅ PV généré avec succès");
+
+            return $pdf;
+
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur génération PV: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Générer le HTML de prévisualisation pour une période
+     */
+    public function generateHTMLByPeriod($classSeriesId, $sequenceId, $trimesterId)
+    {
+        try {
+            // Récupérer les informations de base
+            $classSeries = ClassSeries::with(['schoolClass.level'])->findOrFail($classSeriesId);
+            $sequence = Sequence::findOrFail($sequenceId);
+            $trimester = Trimester::findOrFail($trimesterId);
+            $schoolYear = SchoolYear::where('is_current', true)->firstOrFail();
+
+            // Créer un objet "evaluation" virtuel
+            $evaluationData = (object) [
+                'sequence' => $sequence,
+                'trimester' => $trimester,
+                'schoolYear' => $schoolYear,
+                'school_year_id' => $schoolYear->id
+            ];
+
+            // Récupérer le professeur principal
+            $mainTeacher = MainTeacher::where('class_series_id', $classSeriesId)
+                ->where('school_year_id', $schoolYear->id)
+                ->where('is_active', true)
+                ->with('teacher')
+                ->first();
+
+            $mainTeacherName = $mainTeacher ? $mainTeacher->teacher->first_name . ' ' . $mainTeacher->teacher->last_name : 'Non désigné';
+
+            // Récupérer les matières
+            $seriesSubjects = ClassSeriesSubject::where('class_series_id', $classSeriesId)
+                ->where('is_active', true)
+                ->with('subject')
+                ->orderBy('subject_id')
+                ->get();
+
+            // Récupérer les élèves
+            $students = Student::where('class_series_id', $classSeriesId)
+                ->where('is_active', true)
+                ->get();
+
+            // Calculer les résultats
+            $studentsResults = [];
+            foreach ($students as $student) {
+                $result = $this->calculateStudentResultsByPeriod($student, $seriesSubjects, $sequenceId, $trimesterId, $schoolYear->id);
+                $studentsResults[] = $result;
+            }
+
+            // Trier et attribuer rangs
+            usort($studentsResults, function ($a, $b) {
+                return $b['average'] <=> $a['average'];
+            });
+
+            foreach ($studentsResults as $index => &$result) {
+                $result['rank'] = $index + 1;
+            }
+
+            // Statistiques
+            $statistics = $this->calculateStatistics($studentsResults);
+
+            // Générer et retourner le HTML
+            return $this->generateHTML($classSeries, $evaluationData, $seriesSubjects, $studentsResults, $statistics, $mainTeacherName);
+
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur génération HTML: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * ANCIENNE MÉTHODE - Garder pour compatibilité mais déprécier
+     * @deprecated Use generatePVByPeriod() instead
      */
     public function generatePV($classSeriesId, $evaluationId)
     {
@@ -88,7 +239,49 @@ class PVService
     }
 
     /**
-     * Calculer les résultats d'un élève
+     * Calculer les résultats d'un élève pour une période donnée
+     */
+    private function calculateStudentResultsByPeriod($student, $seriesSubjects, $sequenceId, $trimesterId, $schoolYearId)
+    {
+        $totalPoints = 0;
+        $totalCoef = 0;
+        $grades = [];
+
+        foreach ($seriesSubjects as $seriesSubject) {
+            // Chercher la note pour cette matière dans cette période
+            $grade = Grade::where('student_id', $student->id)
+                ->where('sequence_id', $sequenceId)
+                ->where('trimester_id', $trimesterId)
+                ->where('school_year_id', $schoolYearId)
+                ->where('class_series_subject_id', $seriesSubject->id)
+                ->first();
+
+            if ($grade && !$grade->is_absent) {
+                $scoreOn20 = $grade->getScoreOn20();
+                $grades[$seriesSubject->id] = $scoreOn20;
+                $totalPoints += (float)$scoreOn20 * (float)$seriesSubject->coefficient;
+                $totalCoef += (float)$seriesSubject->coefficient;
+            } else {
+                $grades[$seriesSubject->id] = null; // Absent ou pas de note
+            }
+        }
+
+        // Si aucune note, retourner quand même l'élève avec moyenne 0
+        $average = $totalCoef > 0 ? round($totalPoints / $totalCoef, 2) : 0;
+
+        return [
+            'student' => $student,
+            'grades' => $grades,
+            'total_points' => round($totalPoints, 2),
+            'average' => $average,
+            'mention' => $this->getMention($average),
+            'passed' => $average >= 10
+        ];
+    }
+
+    /**
+     * Calculer les résultats d'un élève (ANCIENNE MÉTHODE - pour compatibilité)
+     * @deprecated Use calculateStudentResultsByPeriod() instead
      */
     private function calculateStudentResults($student, $seriesSubjects, $evaluation)
     {

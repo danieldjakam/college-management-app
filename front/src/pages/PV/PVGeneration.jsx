@@ -162,6 +162,11 @@ const PVGeneration = () => {
         }
     };
 
+    const getEvaluationId = (evaluation) => {
+        // Retourne l'ID composite au format "sequenceId_trimesterId"
+        return evaluation.id || `${evaluation.sequence_id}_${evaluation.trimester_id}`;
+    };
+
     if (loading && classSeries.length === 0) {
         return (
             <div className="container-fluid py-4">
@@ -236,11 +241,14 @@ const PVGeneration = () => {
                                     size="lg"
                                 >
                                     <option value="">-- Sélectionner une évaluation --</option>
-                                    {evaluations.map((evaluation) => (
-                                        <option key={evaluation.id} value={evaluation.id}>
-                                            {getEvaluationLabel(evaluation)}
-                                        </option>
-                                    ))}
+                                    {evaluations.map((evaluation) => {
+                                        const evalId = getEvaluationId(evaluation);
+                                        return (
+                                            <option key={evalId} value={evalId}>
+                                                {getEvaluationLabel(evaluation)}
+                                            </option>
+                                        );
+                                    })}
                                 </Form.Select>
                                 <Form.Text className="text-muted">
                                     Séquence ou Composition
@@ -298,31 +306,34 @@ const PVGeneration = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {evaluations.map((evaluation, index) => (
-                                    <tr key={evaluation.id}>
-                                        <td>{index + 1}</td>
-                                        <td>{getEvaluationBadge(evaluation)}</td>
-                                        <td>
-                                            <Badge bg="secondary">
-                                                Trimestre {evaluation.trimester?.number || 'N/A'}
-                                            </Badge>
-                                        </td>
-                                        <td>{getEvaluationLabel(evaluation)}</td>
-                                        <td>
-                                            <Button
-                                                variant="outline-success"
-                                                size="sm"
-                                                onClick={() => {
-                                                    setSelectedEvaluation(evaluation.id.toString());
-                                                    setTimeout(() => handleGeneratePV(), 100);
-                                                }}
-                                            >
-                                                <Download size={14} className="me-1" />
-                                                Générer
-                                            </Button>
-                                        </td>
-                                    </tr>
-                                ))}
+                                {evaluations.map((evaluation, index) => {
+                                    const evalId = getEvaluationId(evaluation);
+                                    return (
+                                        <tr key={evalId}>
+                                            <td>{index + 1}</td>
+                                            <td>{getEvaluationBadge(evaluation)}</td>
+                                            <td>
+                                                <Badge bg="secondary">
+                                                    Trimestre {evaluation.trimester?.number || 'N/A'}
+                                                </Badge>
+                                            </td>
+                                            <td>{getEvaluationLabel(evaluation)}</td>
+                                            <td>
+                                                <Button
+                                                    variant="outline-success"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setSelectedEvaluation(evalId.toString());
+                                                        setTimeout(() => handleGeneratePV(), 100);
+                                                    }}
+                                                >
+                                                    <Download size={14} className="me-1" />
+                                                    Générer
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </Table>
                     </Card.Body>

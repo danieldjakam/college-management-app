@@ -34,21 +34,19 @@ class BulletinAutoGenerationService
         $student = $grade->student;
         $sequence = $grade->sequence;
         
-        // Logique académique camerounaise :
-        // - Séquences 1,3 : Génèrent des bulletins individuels
-        // - Séquences 2,4 : Saisie notes seulement, mais calculent les trimestres
-        
-        if (in_array($sequence->number, [1, 3])) {
-            // Générer bulletin individuel pour séquences 1 et 3
-            $this->checkSequenceBulletinCompletion($student->id, $sequence->number);
-        }
-        
+        // Logique académique camerounaise modifiée :
+        // - TOUTES les séquences (1,2,3,4) génèrent maintenant des bulletins individuels
+        // - Les séquences 2 et 4 sont aussi utilisées pour calculer les trimestres
+
+        // Générer bulletin individuel pour toutes les séquences
+        $this->checkSequenceBulletinCompletion($student->id, $sequence->number);
+
         // Calculer trimestre selon la séquence actuelle
         if ($sequence->number == 2) {
             // Séquence 2 terminée → Calculer Trimestre 1 (DS1 + Composition1)
             $this->checkTrimesterBulletinCompletion($student->id, 1);
         } elseif ($sequence->number == 4) {
-            // Séquence 4 terminée → Calculer Trimestre 2 (DS2 + Composition2) 
+            // Séquence 4 terminée → Calculer Trimestre 2 (DS2 + Composition2)
             $this->checkTrimesterBulletinCompletion($student->id, 2);
         } else {
             // Pour séquences 1,3 : vérifier aussi les trimestres associés
@@ -73,16 +71,9 @@ class BulletinAutoGenerationService
         // 🎓 VÉRIFIER LE CYCLE DE L'ÉTUDIANT
         $cycleType = $this->determineCycleType($student);
 
-        // 📚 PREMIER CYCLE: Seulement séquences 1 et 3 ont des bulletins
-        if ($cycleType === 'premier') {
-            if (!in_array($sequenceNumber, [1, 3])) {
-                Log::info("Premier Cycle - Séquence {$sequenceNumber} : Pas de bulletin (saisie uniquement)");
-                return; // Pas de bulletin pour séquences 2 et 4
-            }
-        }
-
-        // 🎓 DEUXIÈME CYCLE: Toutes les séquences ont des bulletins
-        // (Pas de restriction, continuer le traitement)
+        // 📚 MODIFICATION: Maintenant TOUTES les séquences (1,2,3,4) génèrent des bulletins
+        // pour tous les cycles (premier et deuxième)
+        Log::info("Génération bulletin - Cycle: {$cycleType}, Séquence: {$sequenceNumber}");
 
         // Récupérer toutes les matières de l'étudiant
         $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();

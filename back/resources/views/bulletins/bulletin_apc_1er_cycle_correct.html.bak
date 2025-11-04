@@ -195,7 +195,7 @@
                 <b>YASSA</b>
             </td>
             <td class="header-center">
-                <div class="logo"><img src="{{ public_path('assets/images/logo.png') }}" alt="Logo CPBD"></div>
+                <div class="logo">CPBD</div>
             </td>
             <td class="header-right">
                 <b>MINISTRY OF SECONDARY EDUCATION</b><br>

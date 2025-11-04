@@ -20,17 +20,17 @@
         /* En-tête CPBD */
         table { border-collapse: collapse; width: 100%; }
 
-        .header-table { margin-bottom: 8px; }
+        .header-table { margin-bottom: 6px; }
         .header-table td {
             background: #EFE9F3;
             padding: 3px 4px;
-            font-size: 6pt;
+            font-size: 5.5pt;
             vertical-align: middle;
         }
 
-        .header-left { text-align: left; width: 38%; }
-        .header-center { text-align: center; width: 24%; }
-        .header-right { text-align: right; width: 38%; }
+        .header-left { text-align: left; width: 37%; }
+        .header-center { text-align: center; width: 26%; }
+        .header-right { text-align: right; width: 37%; }
 
         .logo {
             width: 45px;
@@ -49,82 +49,84 @@
 
         .title {
             text-align: center;
-            font-size: 13pt;
+            font-size: 12pt;
             font-weight: bold;
             background: #EFE9F3;
             padding: 5px;
             margin: 5px 0;
         }
 
-        .year { text-align: center; font-size: 9pt; margin-bottom: 8px; }
+        .year { text-align: center; font-size: 8pt; margin-bottom: 6px; }
 
         /* Tableau infos élève */
-        .student-table { margin-bottom: 8px; }
+        .student-table { margin-bottom: 6px; }
         .student-table td {
             border: 1px solid #000;
-            padding: 3px 5px;
-            font-size: 7.5pt;
+            padding: 2px 4px;
+            font-size: 7pt;
             vertical-align: middle;
         }
 
         .photo-cell {
-            width: 80px;
+            width: 75px;
             text-align: center;
             background: #f5f5f5;
         }
 
         .photo-box {
-            width: 70px;
-            height: 85px;
+            width: 65px;
+            height: 80px;
             border: 1px dashed #999;
-            margin: 3px auto;
+            margin: 2px auto;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 6pt;
+            font-size: 5.5pt;
             color: #666;
         }
 
-        /* Tableau des notes */
-        .grades-table { margin-bottom: 8px; }
+        /* Tableau des notes (AVEC TOTAL/MOYENNE À LA FIN) */
+        .grades-table { margin-bottom: 6px; }
         .grades-table th, .grades-table td {
             border: 1px solid #000;
             padding: 2px;
-            font-size: 6.5pt;
+            font-size: 6pt;
             text-align: center;
             vertical-align: middle;
         }
 
-        .grades-table th { background: #EFE9F3; font-weight: bold; font-size: 6pt; }
+        .grades-table th { background: #EFE9F3; font-weight: bold; font-size: 5.5pt; }
 
-        .subject-col { text-align: left; width: 14%; font-size: 6pt; }
-        .competence-col { text-align: left; width: 26%; font-size: 5.5pt; line-height: 1.1; }
+        .subject-col { text-align: left; width: 14%; font-size: 5.5pt; }
+        .competence-col { text-align: left; width: 26%; font-size: 5pt; line-height: 1.1; }
         .note-col { width: 4.5%; }
         .avg-col { width: 5%; font-weight: bold; }
         .coef-col { width: 4%; }
         .total-col { width: 6%; }
         .cote-col { width: 4.5%; font-weight: bold; }
-        .minmax-col { width: 8%; font-size: 5.5pt; }
-        .app-col { width: 14%; font-size: 5.5pt; }
+        .minmax-col { width: 8%; font-size: 5pt; }
+        .app-col { width: 14%; font-size: 5pt; }
 
-        .teacher-name { font-size: 5.5pt; font-style: italic; color: #555; }
+        .teacher-name { font-size: 5pt; font-style: italic; color: #555; }
 
-        /* Tableau TOTAL/MOYENNE */
-        .total-table { margin-bottom: 8px; }
-        .total-table td {
-            border: 1px solid #000;
-            padding: 3px;
-            font-size: 7pt;
+        /* Ligne TOTAL/MOYENNE dans le tableau de notes */
+        .total-row td {
             font-weight: bold;
-            text-align: center;
+            font-size: 6.5pt;
+            background: #f9f9f9;
+        }
+
+        .total-row .label-cell {
+            text-align: right;
+            padding-right: 8px;
         }
 
         /* Tableau Discipline/Travail/Profil (10 colonnes) */
-        .bottom-table { margin-bottom: 8px; }
+        .bottom-table { margin-bottom: 6px; }
         .bottom-table td {
             border: 1px solid #000;
             padding: 2px;
-            font-size: 6.5pt;
+            font-size: 6pt;
             vertical-align: top;
             text-align: center;
         }
@@ -136,7 +138,7 @@
         }
 
         .app-cell {
-            font-size: 6pt;
+            font-size: 5.5pt;
             text-align: left;
             padding: 4px;
         }
@@ -146,7 +148,7 @@
         .final-table td {
             border: 1px solid #000;
             padding: 3px 5px;
-            font-size: 7pt;
+            font-size: 6.5pt;
             vertical-align: top;
         }
 
@@ -157,13 +159,13 @@
         }
 
         .app-box {
-            min-height: 50px;
-            font-size: 6.5pt;
+            min-height: 45px;
+            font-size: 6pt;
         }
 
         .signature-cell {
             text-align: center;
-            height: 40px;
+            height: 35px;
             vertical-align: bottom;
             font-weight: bold;
         }
@@ -195,7 +197,7 @@
                 <b>YASSA</b>
             </td>
             <td class="header-center">
-                <div class="logo"><img src="{{ public_path('assets/images/logo.png') }}" alt="Logo CPBD"></div>
+                <div class="logo">CPBD</div>
             </td>
             <td class="header-right">
                 <b>MINISTRY OF SECONDARY EDUCATION</b><br>
@@ -220,24 +222,24 @@
         </tr>
         <tr>
             <td colspan="2"><b>Classe :</b> {{class_level}}<sup>ème</sup> {{class_section}}</td>
-            <td colspan="2"></td>
+            <td colspan="2"><b>Effectif :</b> {{class_size}}</td>
         </tr>
         <tr>
             <td><b>Date et lieu de naissance :</b> {{birth_date}} à {{birth_place}}</td>
             <td><b>Genre :</b> {{gender}}</td>
-            <td><b>Effectif :</b> {{class_size}}</td>
+            <td colspan="2"><b>Redoublant :</b> Oui ☐  Non ☐</td>
         </tr>
         <tr>
             <td><b>Identifiant Unique :</b> {{unique_id}}</td>
-            <td><b>Redoublant :</b> Oui ☐  Non ☐</td>
             <td colspan="2"><b>Professeur principal :</b> {{main_teacher}}</td>
+            <td colspan="2"></td>
         </tr>
         <tr>
             <td colspan="5"><b>Noms et contacts des Parents / Tuteurs :</b> {{parent_info}}</td>
         </tr>
     </table>
 
-    <!-- Tableau des notes -->
+    <!-- Tableau des notes AVEC TOTAL/MOYENNE À LA FIN -->
     <table class="grades-table">
         <thead>
             <tr>
@@ -254,34 +256,28 @@
         </thead>
         <tbody>
             {{subjects_html}}
+
+            <!-- TOTAL/MOYENNE à la fin du tableau (pas séparé) -->
+            <tr class="total-row">
+                <td colspan="3" class="label-cell"><b>TOTAL</b></td>
+                <td colspan="2">{{total_general}}</td>
+                <td></td>
+                <td colspan="3" style="text-align: center;"><b>MOYENNE : {{general_average}}</b></td>
+            </tr>
         </tbody>
     </table>
 
-    <!-- Tableau TOTAL et MOYENNE -->
-    <table class="total-table">
-        <tr>
-            <td style="width: 42%; text-align: right;"><b>TOTAL</b></td>
-            <td style="width: 15%;"></td>
-            <td style="width: 15%;"></td>
-            <td style="width: 28%;"><b>MOYENNE : {{general_average}}</b></td>
-        </tr>
-    </table>
-
-    <!-- Tableau Discipline / Travail de l'élève / Profil de la classe (10 colonnes) -->
+    <!-- Tableau Discipline / Travail de l'élève / Profil de la classe (6 colonnes uniquement) -->
     <table class="bottom-table">
         <tr>
             <td colspan="2" class="section-header"><b>Discipline</b></td>
             <td colspan="2" class="section-header"><b>Travail de l'élève</b></td>
             <td colspan="2" class="section-header"><b>Profil de la classe</b></td>
-            <td rowspan="7" colspan="4" class="app-cell section-header">
-                <b>APPRECIATIONS</b><br><br>
-                {{appreciation_text}}
-            </td>
         </tr>
         <tr>
             <td>Abs. non. J. (h)</td>
             <td>{{abs_non_just}}</td>
-            <td>Avertissement conduite</td>
+            <td>Avertissement de conduite</td>
             <td>{{warning}}</td>
             <td>TOTAL GENERAL</td>
             <td>{{total_general}}</td>
@@ -289,7 +285,7 @@
         <tr>
             <td>Abs just. (h)</td>
             <td>{{abs_just}}</td>
-            <td>Blâme conduite</td>
+            <td>Blâme de conduite</td>
             <td>{{blame}}</td>
             <td>COEF</td>
             <td>{{total_coef}}</td>
@@ -307,9 +303,9 @@
             <td>{{stat_cba}}</td>
         </tr>
         <tr>
-            <td>Retards (nb fois)</td>
+            <td>Retards (nombre de fois)</td>
             <td>{{delays}}</td>
-            <td>Exclusions (j)</td>
+            <td>Exclusions (jours)</td>
             <td>{{exclusions}}</td>
             <td>MOYENNE TRIM</td>
             <td>{{general_average}}</td>
@@ -321,32 +317,46 @@
             <td>{{stat_ca}}</td>
         </tr>
         <tr>
-            <td>Consignes (h)</td>
+            <td>Consignes (heures)</td>
             <td>{{consignes}}</td>
             <td>Exclusion définitive</td>
             <td>{{def_exclusion}}</td>
             <td>COTE</td>
             <td><b>{{student_cote}}</b></td>
+        </tr>
+        <tr>
+            <td colspan="2"></td>
+            <td colspan="2"></td>
+            <td>CMA</td>
+            <td>{{stat_cma}}</td>
+        </tr>
+        <tr>
+            <td colspan="2"></td>
+            <td colspan="2"></td>
+            <td>CNA</td>
+            <td>{{stat_cna}}</td>
+        </tr>
+        <tr>
+            <td colspan="2"></td>
+            <td colspan="2"></td>
             <td>Moyenne Générale</td>
             <td>{{general_average}}</td>
+        </tr>
+        <tr>
+            <td colspan="2"></td>
+            <td colspan="2"></td>
             <td>[Min – Max]</td>
             <td>{{class_min_max}}</td>
         </tr>
         <tr>
             <td colspan="2"></td>
             <td colspan="2"></td>
-            <td colspan="2"></td>
-            <td>CMA</td>
-            <td>{{stat_cma}}</td>
-            <td>Nombre moyennes</td>
+            <td>Nombre de moyennes</td>
             <td>{{nb_averages}}</td>
         </tr>
         <tr>
             <td colspan="2"></td>
             <td colspan="2"></td>
-            <td colspan="2"></td>
-            <td>CNA</td>
-            <td>{{stat_cna}}</td>
             <td>Taux de réussite</td>
             <td><b>{{success_rate}}%</b></td>
         </tr>

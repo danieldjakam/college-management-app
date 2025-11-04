@@ -20,23 +20,36 @@ class PVController extends Controller
     }
 
     /**
-     * Générer le PV pour une série de classe et une évaluation
-     * GET /api/pv/generate/{classSeriesId}/{evaluationId}
+     * Générer le PV pour une série de classe et une période d'évaluation
+     * GET /api/pv/generate/{classSeriesId}/{periodId}
+     * periodId format: "sequenceId_trimesterId" ou "sequenceId/trimesterId"
      */
-    public function generate($classSeriesId, $evaluationId)
+    public function generate($classSeriesId, $periodId)
     {
         try {
-            Log::info("🎯 Requête génération PV - ClassSeries: {$classSeriesId}, Evaluation: {$evaluationId}");
+            Log::info("🎯 Requête génération PV - ClassSeries: {$classSeriesId}, Period: {$periodId}");
 
-            // Valider que la série et l'évaluation existent
+            // Valider que la série existe
             $classSeries = ClassSeries::findOrFail($classSeriesId);
-            $evaluation = Evaluation::findOrFail($evaluationId);
 
-            // Générer le PV
-            $pdf = $this->pvService->generatePV($classSeriesId, $evaluationId);
+            // Parser le periodId (format: "sequenceId_trimesterId")
+            $parts = explode('_', $periodId);
+            if (count($parts) !== 2) {
+                throw new \Exception("Format de période invalide. Attendu: sequenceId_trimesterId");
+            }
+
+            $sequenceId = (int) $parts[0];
+            $trimesterId = (int) $parts[1];
+
+            // Valider que la séquence et le trimestre existent
+            $sequence = \App\Models\Sequence::findOrFail($sequenceId);
+            $trimester = \App\Models\Trimester::findOrFail($trimesterId);
+
+            // Générer le PV basé sur la période
+            $pdf = $this->pvService->generatePVByPeriod($classSeriesId, $sequenceId, $trimesterId);
 
             // Nom du fichier
-            $fileName = 'PV_' . str_replace(' ', '_', $classSeries->name) . '_' . date('Y-m-d') . '.pdf';
+            $fileName = 'PV_' . str_replace(' ', '_', $classSeries->name) . '_Seq' . $sequence->number . '_T' . $trimester->number . '_' . date('Y-m-d') . '.pdf';
 
             Log::info("✅ PV généré avec succès: {$fileName}");
 
@@ -54,7 +67,7 @@ class PVController extends Controller
     }
 
     /**
-     * Obtenir la liste des évaluations disponibles pour une série
+     * Obtenir la liste des périodes d'évaluation disponibles pour une série
      * GET /api/pv/evaluations/{classSeriesId}
      */
     public function getAvailableEvaluations($classSeriesId)
@@ -72,12 +85,39 @@ class PVController extends Controller
                 ], 404);
             }
 
-            // Récupérer toutes les évaluations de l'année
-            $evaluations = Evaluation::where('school_year_id', $currentYear->id)
-                ->with(['sequence', 'trimester'])
+            // Récupérer les périodes uniques (séquences) pour cette année
+            // On utilise DISTINCT pour éviter les doublons
+            $periods = \DB::table('evaluations')
+                ->select([
+                    'sequence_id',
+                    'trimester_id',
+                    'school_year_id'
+                ])
+                ->where('school_year_id', $currentYear->id)
+                ->whereNotNull('sequence_id')
+                ->whereNotNull('trimester_id')
+                ->distinct()
                 ->orderBy('trimester_id')
                 ->orderBy('sequence_id')
                 ->get();
+
+            // Enrichir avec les relations
+            $evaluations = [];
+            foreach ($periods as $period) {
+                $sequence = \App\Models\Sequence::find($period->sequence_id);
+                $trimester = \App\Models\Trimester::find($period->trimester_id);
+
+                if ($sequence && $trimester) {
+                    $evaluations[] = [
+                        'id' => "{$period->sequence_id}_{$period->trimester_id}", // ID composite
+                        'sequence_id' => $period->sequence_id,
+                        'trimester_id' => $period->trimester_id,
+                        'school_year_id' => $period->school_year_id,
+                        'sequence' => $sequence,
+                        'trimester' => $trimester
+                    ];
+                }
+            }
 
             return response()->json([
                 'success' => true,
@@ -134,23 +174,29 @@ class PVController extends Controller
 
     /**
      * Prévisualiser le PV (retourner en HTML pour debug)
-     * GET /api/pv/preview/{classSeriesId}/{evaluationId}
+     * GET /api/pv/preview/{classSeriesId}/{periodId}
+     * periodId format: "sequenceId_trimesterId"
      */
-    public function preview($classSeriesId, $evaluationId)
+    public function preview($classSeriesId, $periodId)
     {
         try {
             $classSeries = ClassSeries::findOrFail($classSeriesId);
-            $evaluation = Evaluation::findOrFail($evaluationId);
 
-            // Générer le HTML uniquement (pas de PDF)
-            $html = $this->pvService->generateHTML(
-                $classSeries,
-                $evaluation,
-                $this->pvService->getSeriesSubjects($classSeriesId),
-                $this->pvService->getStudentsResults($classSeriesId, $evaluationId),
-                $this->pvService->getStatistics($classSeriesId, $evaluationId),
-                $this->pvService->getMainTeacher($classSeriesId, $evaluation->school_year_id)
-            );
+            // Parser le periodId
+            $parts = explode('_', $periodId);
+            if (count($parts) !== 2) {
+                throw new \Exception("Format de période invalide. Attendu: sequenceId_trimesterId");
+            }
+
+            $sequenceId = (int) $parts[0];
+            $trimesterId = (int) $parts[1];
+
+            // Valider que la séquence et le trimestre existent
+            $sequence = \App\Models\Sequence::findOrFail($sequenceId);
+            $trimester = \App\Models\Trimester::findOrFail($trimesterId);
+
+            // Générer le HTML de prévisualisation
+            $html = $this->pvService->generateHTMLByPeriod($classSeriesId, $sequenceId, $trimesterId);
 
             return response($html, 200)->header('Content-Type', 'text/html');
 

@@ -385,8 +385,8 @@ class BulletinController extends Controller
                 'bulletins' => []
             ];
 
-            // Vérifier les bulletins de séquence (1 et 3)
-            foreach ([1, 3] as $seqNumber) {
+            // Vérifier les bulletins de séquence (1, 2, 3 et 4)
+            foreach ([1, 2, 3, 4] as $seqNumber) {
                 $completion = $this->calculateSequenceCompletion($student->id, $seqNumber);
                 $bulletin = BulletinGeneration::where('student_id', $student->id)
                     ->where('period_type', 'sequence')
@@ -464,12 +464,11 @@ class BulletinController extends Controller
         $sequence = \App\Models\Sequence::where('number', $sequenceNumber)->first();
         if (!$sequence) return 0;
         
-        // Logique de reset: si la séquence est terminée, garder 100%
-        // Si la séquence n'est pas encore active, 0%
-        // Si la séquence est active, calculer le pourcentage réel
-        
-        $currentActiveSequence = \App\Models\Sequence::where('is_active', true)->first();
-        
+        // Logique:
+        // - Si la séquence est terminée (is_completed), garder 100% si bulletin existe
+        // - Si la séquence n'est pas active (is_active = false), c'est une séquence future -> 0%
+        // - Si la séquence est active (is_active = true), calculer le pourcentage réel
+
         if ($sequence->is_completed) {
             // Séquence terminée -> garder le statut à 100% si un bulletin existe
             $existingBulletin = \App\Models\BulletinGeneration::where('student_id', $studentId)
@@ -478,22 +477,13 @@ class BulletinController extends Controller
                 ->first();
             return $existingBulletin ? 100 : 0;
         }
-        
-        if ($currentActiveSequence && $currentActiveSequence->number > $sequenceNumber) {
-            // Séquence passée -> garder le statut final
-            $existingBulletin = \App\Models\BulletinGeneration::where('student_id', $studentId)
-                ->where('period_type', 'sequence')
-                ->where('period_identifier', "seq{$sequenceNumber}")
-                ->first();
-            return $existingBulletin ? 100 : 0;
-        }
-        
-        if ($currentActiveSequence && $currentActiveSequence->number < $sequenceNumber) {
-            // Séquence future -> 0%
+
+        if (!$sequence->is_active) {
+            // Séquence future (pas encore active) -> 0%
             return 0;
         }
 
-        // Séquence actuelle -> calculer le pourcentage réel
+        // Séquence active -> calculer le pourcentage réel basé sur les notes saisies
         $gradedSubjects = 0;
         foreach ($subjects as $subject) {
             $hasGrade = \App\Models\Grade::where('student_id', $studentId)
