@@ -113,18 +113,7 @@ class MainTeacherController extends Controller
                 ], 422);
             }
 
-            // Vérifier si cet enseignant est déjà professeur principal d'une autre classe
-            $teacherHasClass = MainTeacher::where('teacher_id', $request->teacher_id)
-                ->where('school_year_id', $schoolYearId)
-                ->where('is_active', true)
-                ->exists();
-
-            if ($teacherHasClass) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cet enseignant est déjà professeur principal d\'une autre série'
-                ], 422);
-            }
+            // Note: Un enseignant peut maintenant être professeur principal de plusieurs classes
 
             $mainTeacher = MainTeacher::create([
                 'teacher_id' => $request->teacher_id,
@@ -190,21 +179,7 @@ class MainTeacherController extends Controller
 
             DB::beginTransaction();
 
-            // Si on change d'enseignant, vérifier qu'il n'est pas déjà professeur principal ailleurs
-            if ($request->teacher_id != $mainTeacher->teacher_id) {
-                $teacherHasClass = MainTeacher::where('teacher_id', $request->teacher_id)
-                    ->where('school_year_id', $mainTeacher->school_year_id)
-                    ->where('is_active', true)
-                    ->where('id', '!=', $mainTeacher->id)
-                    ->exists();
-
-                if ($teacherHasClass) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Cet enseignant est déjà professeur principal d\'une autre série'
-                    ], 422);
-                }
-            }
+            // Note: Un enseignant peut maintenant être professeur principal de plusieurs classes
 
             $mainTeacher->update([
                 'teacher_id' => $request->teacher_id,
@@ -332,16 +307,8 @@ class MainTeacherController extends Controller
     public function getAvailableTeachers(Request $request)
     {
         try {
-            $schoolYearId = $request->school_year_id ?? SchoolYear::where('is_current', true)->first()?->id;
-
-            // Obtenir les IDs des enseignants qui sont déjà professeurs principaux
-            $teachersWithMainClass = MainTeacher::where('school_year_id', $schoolYearId)
-                ->where('is_active', true)
-                ->pluck('teacher_id');
-
-            // Obtenir les enseignants disponibles
-            $availableTeachers = Teacher::whereNotIn('id', $teachersWithMainClass)
-                ->where('is_active', true)
+            // Obtenir tous les enseignants actifs (un enseignant peut être professeur principal de plusieurs classes)
+            $availableTeachers = Teacher::where('is_active', true)
                 ->get();
 
             return response()->json([

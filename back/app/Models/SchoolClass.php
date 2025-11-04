@@ -47,11 +47,13 @@ class SchoolClass extends Model
     }
 
     /**
-     * Relation avec les étudiants via les séries
+     * Relation avec les étudiants via les séries (triés par ordre alphabétique)
      */
     public function students()
     {
-        return $this->hasManyThrough(Student::class, ClassSeries::class, 'class_id', 'class_series_id');
+        return $this->hasManyThrough(Student::class, ClassSeries::class, 'class_id', 'class_series_id')
+                    ->orderByRaw('COALESCE(last_name, name) ASC')
+                    ->orderByRaw('COALESCE(first_name, subname) ASC');
     }
 
     /**

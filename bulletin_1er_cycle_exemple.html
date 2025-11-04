@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulletin de Notes - CPBD</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e8e8e8 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .bulletin-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #EFE9F3 0%, #a855f7 100%);
+            color: white;
+            padding: 25px;
+            position: relative;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+            opacity: 0.3;
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .school-info {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 20px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #EFE9F3;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .school-left, .school-right {
+            text-align: center;
+        }
+
+        .school-left h3, .school-right h3 {
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .bulletin-title {
+            text-align: center;
+            font-size: 28px;
+            font-weight: bold;
+            margin: 20px 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .student-info {
+            background: linear-gradient(135deg, #EFE9F3 0%, #a855f7 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .info-label {
+            font-weight: bold;
+            min-width: 120px;
+        }
+
+        .grades-section {
+            margin-bottom: 30px;
+        }
+
+        .group-header {
+            background: linear-gradient(135deg, #EFE9F3 0%, #a855f7 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px 8px 0 0;
+            font-weight: bold;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .subjects-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            border-radius: 0 0 8px 8px;
+            overflow: hidden;
+        }
+
+        .subjects-table th {
+            background: linear-gradient(135deg, #EFE9F3 0%, #a855f7 100%);
+            color: white;
+            padding: 12px 8px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            border-right: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .subjects-table td {
+            padding: 10px 8px;
+            text-align: center;
+            border-bottom: 1px solid #e0e0e0;
+            border-right: 1px solid #e0e0e0;
+            font-size: 13px;
+        }
+
+        .subjects-table tr:hover {
+            background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+            transform: scale(1.01);
+            transition: all 0.3s ease;
+        }
+
+        .subject-name {
+            text-align: left !important;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .total-row {
+            background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+            font-weight: bold;
+        }
+
+        .grade-excellent { color: #27ae60; font-weight: bold; }
+        .grade-good { color: #2980b9; font-weight: bold; }
+        .grade-average { color: #f39c12; font-weight: bold; }
+        .grade-poor { color: #e74c3c; font-weight: bold; }
+
+        .summary-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .discipline-table, .summary-stats {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            height: fit-content;
+        }
+
+        .discipline-table h3, .summary-stats h3 {
+            color: #EFE9F3;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .discipline-table-content {
+            border: 2px solid #EFE9F3;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .discipline-header {
+            background: #EFE9F3;
+            color: white;
+            text-align: center;
+            padding: 12px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .discipline-subheader {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
+            background: #666;
+            color: white;
+        }
+
+        .discipline-subheader div {
+            padding: 8px 4px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+            border-right: 1px solid #999;
+        }
+
+        .discipline-subheader div:last-child {
+            border-right: none;
+        }
+
+        .discipline-third-row {
+            display: grid;
+            grid-template-columns: 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 1fr 1fr;
+            background: #999;
+            color: white;
+        }
+
+        .discipline-third-row div {
+            padding: 6px 2px;
+            text-align: center;
+            font-size: 10px;
+            font-weight: 500;
+            border-right: 1px solid #bbb;
+        }
+
+        .discipline-third-row div:last-child {
+            border-right: none;
+        }
+
+        .discipline-data {
+            display: grid;
+            grid-template-columns: 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 0.5fr 1fr 1fr;
+            background: white;
+        }
+
+        .discipline-data div {
+            padding: 8px 2px;
+            text-align: center;
+            font-size: 12px;
+            border-right: 1px solid #e0e0e0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .discipline-data div:last-child {
+            border-right: none;
+        }
+
+        .visa-row {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: center;
+            font-weight: bold;
+            color: #333;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .observations {
+            background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .signature-area {
+            margin-top: 30px;
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .stamp {
+            display: inline-block;
+            width: 120px;
+            height: 120px;
+            border: 3px solid #EFE9F3;
+            border-radius: 50%;
+            margin: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #EFE9F3;
+            background: white;
+        }
+
+        @media (max-width: 768px) {
+            .bulletin-container {
+                margin: 10px;
+                border-radius: 10px;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .school-info {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+
+            .student-info {
+                grid-template-columns: 1fr;
+            }
+
+            .subjects-table {
+                font-size: 11px;
+            }
+
+            .subjects-table th,
+            .subjects-table td {
+                padding: 8px 4px;
+            }
+
+            .discipline-third-row {
+                grid-template-columns: repeat(10, 1fr);
+            }
+
+            .discipline-data {
+                grid-template-columns: repeat(10, 1fr);
+            }
+
+            .discipline-third-row div,
+            .discipline-data div {
+                padding: 4px 1px;
+                font-size: 9px;
+            }
+
+            .bulletin-title {
+                font-size: 18px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+
+            .subjects-table {
+                font-size: 10px;
+            }
+
+            .subjects-table th,
+            .subjects-table td {
+                padding: 6px 2px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bulletin-container">
+        <div class="header">
+            <div class="header-content">
+                <div class="school-info">
+                    <div class="school-left">
+                        <h3>MINISTÈRE DES ENSEIGNEMENTS SECONDAIRES</h3>
+                        <h3>COLLÈGE POLYVALENT BILINGUE DE DOUALA</h3>
+                        <p>B.P.: 4100 Douala Tél.: 233 43 25 47</p>
+                        <p>E-mail: info@cpbdyassa.com</p>
+                        <p>YASSA</p>
+                    </div>
+                    <div class="logo">CPBD</div>
+                    <div class="school-right">
+                        <h3>REPUBLIC OF CAMEROON</h3>
+                        <h3>Peace - Work - Fatherland</h3>
+                        <h3>MINISTRY OF SECONDARY EDUCATION</h3>
+                        <h3>BILINGUAL COMPREHENSIVE COLLEGE DLA</h3>
+                        <p>P.O. Box: 4100 Douala Phone: 233 43 25 47</p>
+                        <p>E-mail: info@cpbdyassa.com</p>
+                        <p>YASSA</p>
+                    </div>
+                </div>
+                <div class="bulletin-title">BULLETIN DE NOTES</div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="student-info">
+                <div class="info-item">
+                    <span class="info-label">Nom et Prénoms:</span>
+                    <span>MYOGO JUSTIN GERMAIN COEUR DE LION</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Date et lieu de naissance:</span>
+                    <span>22/11/2012</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Classe:</span>
+                    <span>SIXIÈME A</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Lieu de naissance:</span>
+                    <span>EMANA</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Nom de l'enseignant titulaire:</span>
+                    <span>TCHAMENI MATHIEU</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Effectif:</span>
+                    <span>72</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Matricule:</span>
+                    <span>24A856</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Évaluation N°1:</span>
+                    <span>ANNÉE SCOLAIRE: 2024/2025</span>
+                </div>
+            </div>
+
+            <!-- GROUPE III -->
+            <div class="grades-section">
+                <div class="group-header">GROUPE III : AUTRES MATIÈRES</div>
+                <table class="subjects-table">
+                    <tr>
+                        <th>DISCIPLINE</th>
+                        <th>NOTES /20</th>
+                        <th>COEF.</th>
+                        <th>(NXC)</th>
+                        <th>RANG</th>
+                        <th>COMPÉTENCES</th>
+                        <th>NOMS DES PROFESSEURS</th>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">ÉDUCATION À LA CITOYENNETÉ</td>
+                        <td>13,00</td>
+                        <td>01,00</td>
+                        <td>13,00</td>
+                        <td>47e</td>
+                        <td>ECA</td>
+                        <td>OWONO MVENG</td>
+                    </tr>
+                    <tr class="total-row">
+                        <td class="subject-name">TOTAL</td>
+                        <td>01,00</td>
+                        <td>13,00</td>
+                        <td colspan="2">Moy gpe: 13,00</td>
+                        <td colspan="2">Rang: 47e Moy Gen Gpe 15,2</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- GROUPE A -->
+            <div class="grades-section">
+                <div class="group-header">GROUPE A : MATIÈRES LITTÉRAIRES</div>
+                <table class="subjects-table">
+                    <tr>
+                        <th>DISCIPLINE</th>
+                        <th>NOTES /20</th>
+                        <th>COEF.</th>
+                        <th>(NXC)</th>
+                        <th>RANG</th>
+                        <th>COMPÉTENCES</th>
+                        <th>NOMS DES PROFESSEURS</th>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">ANGLAIS</td>
+                        <td>00,50</td>
+                        <td>03,00</td>
+                        <td class="grade-poor">01,50</td>
+                        <td>67e</td>
+                        <td>NA</td>
+                        <td>JAMES NGANYA</td>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">ÉTUDE DE TEXTE</td>
+                        <td>02,00</td>
+                        <td>01,00</td>
+                        <td class="grade-poor">02,00</td>
+                        <td>71e</td>
+                        <td>NA</td>
+                        <td>TCHAMENI MATHIEU</td>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">EXPRESSION ÉCRITE</td>
+                        <td>07,00</td>
+                        <td>02,00</td>
+                        <td class="grade-average">14,00</td>
+                        <td>68e</td>
+                        <td>NA</td>
+                        <td>TCHAMENI MATHIEU</td>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">EXPRESSION ORALE</td>
+                        <td>10,00</td>
+                        <td>02,00</td>
+                        <td class="grade-excellent">20,00</td>
+                        <td>69e</td>
+                        <td>ECA</td>
+                        <td>TCHAMENI MATHIEU</td>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">GÉOGRAPHIE</td>
+                        <td>09,00</td>
+                        <td>02,00</td>
+                        <td class="grade-good">18,00</td>
+                        <td>70e</td>
+                        <td>NA</td>
+                        <td>NDZANA DONATIEN</td>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">HISTOIRE</td>
+                        <td>10,00</td>
+                        <td>02,00</td>
+                        <td class="grade-excellent">20,00</td>
+                        <td>55e</td>
+                        <td>ECA</td>
+                        <td>NDZANA DONATIEN</td>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">LANGUES ET CULTURES NATIONALES</td>
+                        <td>10,00</td>
+                        <td>02,00</td>
+                        <td class="grade-excellent">20,00</td>
+                        <td>60e</td>
+                        <td>ECA</td>
+                        <td>NDONDOCK EPSE MOUSSONGUI</td>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">ORTHOGRAPHE</td>
+                        <td>03,00</td>
+                        <td>01,00</td>
+                        <td class="grade-poor">03,00</td>
+                        <td>69e</td>
+                        <td>NA</td>
+                        <td>TCHAMENI MATHIEU</td>
+                    </tr>
+                    <tr class="total-row">
+                        <td class="subject-name">TOTAL</td>
+                        <td>13,00</td>
+                        <td>98,50</td>
+                        <td colspan="2">Moy gpe: 06,57</td>
+                        <td colspan="2">Rang: 71e Moy Gen Gpe 11,68</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- GROUPE B -->
+            <div class="grades-section">
+                <div class="group-header">GROUPE B : MATIÈRES SCIENTIFIQUES</div>
+                <table class="subjects-table">
+                    <tr>
+                        <th>DISCIPLINE</th>
+                        <th>NOTES /20</th>
+                        <th>COEF.</th>
+                        <th>(NXC)</th>
+                        <th>RANG</th>
+                        <th>COMPÉTENCES</th>
+                        <th>NOMS DES PROFESSEURS</th>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">MATHÉMATIQUES</td>
+                        <td>00,50</td>
+                        <td>04,00</td>
+                        <td class="grade-poor">02,00</td>
+                        <td>65e</td>
+                        <td>NA</td>
+                        <td>MBOCK NOL ANDRE</td>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">SVT</td>
+                        <td>06,00</td>
+                        <td>02,00</td>
+                        <td class="grade-average">12,00</td>
+                        <td>60e</td>
+                        <td>NA</td>
+                        <td>YOSSA KEMALEU</td>
+                    </tr>
+                    <tr class="total-row">
+                        <td class="subject-name">TOTAL</td>
+                        <td>06,00</td>
+                        <td>14,00</td>
+                        <td colspan="2">Moy gpe: 02,33</td>
+                        <td colspan="2">Rang: 72e Moy Gen Gpe 10,59</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- GROUPE C -->
+            <div class="grades-section">
+                <div class="group-header">GROUPE C : MATIÈRES PRATIQUES</div>
+                <table class="subjects-table">
+                    <tr>
+                        <th>DISCIPLINE</th>
+                        <th>NOTES /20</th>
+                        <th>COEF.</th>
+                        <th>(NXC)</th>
+                        <th>RANG</th>
+                        <th>COMPÉTENCES</th>
+                        <th>NOMS DES PROFESSEURS</th>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">EPS</td>
+                        <td>06,00</td>
+                        <td>02,00</td>
+                        <td class="grade-average">12,00</td>
+                        <td>66e</td>
+                        <td>NA</td>
+                        <td>TONFACK BERTRAND</td>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">INFORMATIQUE</td>
+                        <td>15,00</td>
+                        <td>02,00</td>
+                        <td class="grade-excellent">30,00</td>
+                        <td>9e</td>
+                        <td>A</td>
+                        <td>MEKUATE JUDITH</td>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">TRAVAIL MANUEL</td>
+                        <td>13,00</td>
+                        <td>02,00</td>
+                        <td class="grade-excellent">26,00</td>
+                        <td>42e</td>
+                        <td>ECA</td>
+                        <td>NOUTAMOUN FLORE</td>
+                    </tr>
+                    <tr class="total-row">
+                        <td class="subject-name">TOTAL</td>
+                        <td>06,00</td>
+                        <td>68,00</td>
+                        <td colspan="2">Moy gpe: 11,33</td>
+                        <td colspan="2">Rang: 52e Moy Gen Gpe 12,71</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- GROUPE D -->
+            <div class="grades-section">
+                <div class="group-header">GROUPE D : AUTRES MATIÈRES</div>
+                <table class="subjects-table">
+                    <tr>
+                        <th>DISCIPLINE</th>
+                        <th>NOTES /20</th>
+                        <th>COEF.</th>
+                        <th>(NXC)</th>
+                        <th>RANG</th>
+                        <th>COMPÉTENCES</th>
+                        <th>NOMS DES PROFESSEURS</th>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">ESP</td>
+                        <td>03,00</td>
+                        <td>01,00</td>
+                        <td class="grade-poor">03,00</td>
+                        <td>62e</td>
+                        <td>NA</td>
+                        <td>MBAKOP TCHUIGANG PAMELA</td>
+                    </tr>
+                    <tr>
+                        <td class="subject-name">EAD</td>
+                        <td>03,00</td>
+                        <td>01,00</td>
+                        <td class="grade-poor">03,00</td>
+                        <td>57e</td>
+                        <td>NA</td>
+                        <td>MBAKOP TCHUIGANG PAMELA</td>
+                    </tr>
+                    <tr class="total-row">
+                        <td class="subject-name">TOTAL</td>
+                        <td>02,00</td>
+                        <td>06,00</td>
+                        <td colspan="2">Moy gpe: 03,00</td>
+                        <td colspan="2">Rang: 58e Moy Gen Gpe 10,3</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="summary-section">
+                <div class="discipline-table">
+                    <h3>DISCIPLINE</h3>
+                    <div class="discipline-table-content">
+                        <div class="discipline-header">DISCIPLINE</div>
+                        
+                        <div class="discipline-subheader">
+                            <div>Retard (h)</div>
+                            <div>Abs (h)</div>
+                            <div>Blâme</div>
+                            <div>Avert.</div>
+                            <div>Cons (h)</div>
+                            <div>Excl (j)</div>
+                        </div>
+                        
+                        <div class="discipline-third-row">
+                            <div>Just</div>
+                            <div>Non Just</div>
+                            <div>Just</div>
+                            <div>Non Just</div>
+                            <div>Cond</div>
+                            <div>Trav</div>
+                            <div>Cond</div>
+                            <div>Trav</div>
+                            <div></div>
+                            <div></div>
+                        </div>
+                        
+                        <div class="discipline-data">
+                            <div>-</div>
+                            <div>-</div>
+                            <div>-</div>
+                            <div>-</div>
+                            <div>-</div>
+                            <div>-</div>
+                            <div>-</div>
+                            <div>-</div>
+                            <div>-</div>
+                            <div>-</div>
+                        </div>
+                        
+                        <div class="visa-row" style="margin-bottom: 40%;">
+                            VISA & NOMS DU PARENT
+                        </div>
+                    </div>
+                </div>
+
+                <div class="summary-stats">
+                    <h3>RÉSULTATS GÉNÉRAUX</h3>
+                    <div class="stat-item">
+                        <span>TOTAL GÉNÉRAL (TH+TH+TH):</span>
+                        <span class="stat-value">199,50</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>TOTAL COEF:</span>
+                        <span class="stat-value">30,00</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>MOY. ÉVALUATION:</span>
+                        <span class="stat-value grade-poor">6,91 / 20</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>RANG:</span>
+                        <span class="stat-value">71 e / 72</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>MOY. GEN. CLASSE:</span>
+                        <span class="stat-value">11,77 / 20</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>MOY. PREMIER:</span>
+                        <span class="stat-value">15,36 / 20</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>MOY. DERNIER:</span>
+                        <span class="stat-value">0,57 / 20</span>
+                    </div>
+                    
+                    <div style="margin-top: 20px;">
+                        <h4>Légende:</h4>
+                        <ul style="list-style: none; padding-left: 0;">
+                            <li><strong>A+ :</strong> Expert</li>
+                            <li><strong>A :</strong> Acquise</li>
+                            <li><strong>ECA :</strong> En Cours d'Acquisition</li>
+                            <li><strong>NA :</strong> Non Acquise</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="observations" style="padding-bottom: 10%; border: 2px solid #EFE9F3;">
+                <h3>APPRÉCIATIONS DU TRAVAIL ET OBSERVATIONS</h3>
+                <p><strong>NA (Non Acquise)</strong></p>
+            </div>
+
+        </div>
+    </div>
+</body>
+</html>

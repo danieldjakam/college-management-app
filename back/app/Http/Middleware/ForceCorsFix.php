@@ -32,9 +32,15 @@ class ForceCorsFix
         // Liste des origines autorisées
         $allowedOrigins = [
             'http://admin.cpb-douala.com',   // Frontend production
-            'http://admin1.cpb-douala.com',  // Backend production  
+            'http://admin1.cpb-douala.com',  // Backend production
             'http://localhost:3000',         // Frontend dev
-            'http://127.0.0.1:3000'         // Frontend dev (IP)
+            'http://127.0.0.1:3000',        // Frontend dev (IP)
+            'http://localhost:3006',         // Frontend dev (port alternatif)
+            'http://127.0.0.1:3006',        // Frontend dev (port alternatif - IP)
+            'http://localhost:3001',         // Frontend dev (autre port)
+            'http://127.0.0.1:3001',        // Frontend dev (autre port - IP)
+            'http://localhost:3007',         // Frontend dev (autre port)
+            'http://127.0.0.1:3007'         // Frontend dev (autre port - IP)
         ];
 
         if (in_array($origin, $allowedOrigins)) {

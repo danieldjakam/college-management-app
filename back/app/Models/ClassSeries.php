@@ -33,11 +33,13 @@ class ClassSeries extends Model
     }
 
     /**
-     * Relation avec les étudiants
+     * Relation avec les étudiants (triés par ordre alphabétique)
      */
     public function students()
     {
-        return $this->hasMany(Student::class, 'class_series_id');
+        return $this->hasMany(Student::class, 'class_series_id')
+                    ->orderByRaw('COALESCE(last_name, name) ASC')
+                    ->orderByRaw('COALESCE(first_name, subname) ASC');
     }
 
     /**

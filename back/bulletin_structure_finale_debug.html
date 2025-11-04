@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Bulletin APC - 1er Cycle</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Times New Roman', serif;
+            font-size: 9pt;
+            color: #000;
+        }
+
+        .page {
+            width: 210mm;
+            padding: 8mm 8mm 8mm 8mm;
+        }
+
+        table { border-collapse: collapse; width: 100%; }
+
+        /* En-tête CPBD */
+        .header-table { margin-bottom: 6px; }
+        .header-table td {
+            background: #EFE9F3;
+            padding: 3px 4px;
+            font-size: 7pt;
+            vertical-align: middle;
+            line-height: 1.2;
+        }
+
+        .header-left { text-align: left; width: 37%; }
+        .header-center { text-align: center; width: 26%; }
+        .header-right { text-align: right; width: 37%; }
+
+        .logo {
+            width: 45px;
+            height: 45px;
+            border: 2px solid #a855f7;
+            border-radius: 50%;
+            background: white;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12pt;
+            font-weight: bold;
+            color: #a855f7;
+        }
+
+        .title {
+            text-align: center;
+            font-size: 13pt;
+            font-weight: bold;
+            background: #EFE9F3;
+            padding: 5px;
+            margin: 5px 0;
+        }
+
+        .year { text-align: center; font-size: 9pt; margin-bottom: 6px; }
+
+        /* Tableau infos élève */
+        .student-table { margin-bottom: 6px; }
+        .student-table td {
+            border: 1px solid #000;
+            padding: 3px 4px;
+            font-size: 8pt;
+            vertical-align: middle;
+            line-height: 1.3;
+        }
+
+        .photo-cell {
+            width: 75px;
+            text-align: center;
+            background: #f5f5f5;
+        }
+
+        .photo-box {
+            width: 70px;
+            height: 80px;
+            border: 1px dashed #999;
+            margin: 2px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 7pt;
+            color: #666;
+        }
+
+        /* Tableau des notes */
+        .grades-table { margin-bottom: 6px; }
+        .grades-table th, .grades-table td {
+            border: 1px solid #000;
+            padding: 2px;
+            font-size: 7pt;
+            text-align: center;
+            vertical-align: middle;
+            line-height: 1.2;
+        }
+
+        .grades-table th { background: #EFE9F3; font-weight: bold; font-size: 7pt; }
+
+        .subject-col { text-align: left; width: 12%; font-size: 7pt; }
+        .competence-col { text-align: left; width: 20%; font-size: 6.5pt; line-height: 1.2; }
+        .note-col { width: 5%; }
+        .avg-col { width: 5%; font-weight: bold; }
+        .coef-col { width: 4%; }
+        .total-col { width: 6%; }
+        .cote-col { width: 5%; font-weight: bold; }
+        .minmax-col { width: 10%; font-size: 6.5pt; }
+        .app-col { width: 15%; font-size: 6.5pt; }
+
+        .teacher-name { font-size: 6pt; font-style: italic; color: #555; }
+
+        .total-row td {
+            font-weight: bold;
+            font-size: 8pt;
+            background: #f9f9f9;
+        }
+
+        /* Tableau Discipline/Travail/Profil (9 colonnes) */
+        .bottom-table { margin-bottom: 6px; }
+        .bottom-table td {
+            border: 1px solid #000;
+            padding: 3px;
+            font-size: 7pt;
+            vertical-align: middle;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .section-header {
+            background: #EFE9F3;
+            font-weight: bold;
+            text-align: center;
+            font-size: 7pt;
+        }
+
+        .disc-label { width: 8%; text-align: left; font-size: 6.5pt; }
+        .disc-data { width: 3%; }
+        .travail-label { width: 8%; text-align: left; font-size: 6.5pt; }
+        .travail-data { width: 4%; }
+        .app-col1 { width: 7%; font-size: 6.5pt; }
+        .app-col2 { width: 5%; font-size: 6.5pt; }
+        .profil-label { width: 8%; font-size: 6.5pt; }
+        .profil-data { width: 10%; }
+
+        /* Tableau Appréciations détaillées */
+        .final-table { margin-bottom: 5px; }
+        .final-table td {
+            border: 1px solid #000;
+            padding: 4px 5px;
+            font-size: 7.5pt;
+            vertical-align: top;
+            line-height: 1.3;
+        }
+
+        .app-header {
+            background: #EFE9F3;
+            font-weight: bold;
+            text-align: center;
+            font-size: 7.5pt;
+        }
+
+        .app-box {
+            min-height: 45px;
+            font-size: 7.5pt;
+        }
+
+        .signature-cell {
+            text-align: center;
+            height: 35px;
+            vertical-align: bottom;
+            font-weight: bold;
+            font-size: 7pt;
+        }
+
+        /* Couleurs cotes */
+        .cote-a-plus { color: #27ae60; }
+        .cote-a { color: #2ecc71; }
+        .cote-b-plus { color: #3498db; }
+        .cote-b { color: #5dade2; }
+        .cote-c-plus { color: #f39c12; }
+        .cote-c { color: #e67e22; }
+        .cote-d { color: #e74c3c; }
+
+        @media print {
+            .page { margin: 0; padding: 5mm; }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <!-- En-tête CPBD -->
+    <table class="header-table">
+        <tr>
+            <td class="header-left">
+                <b>MINISTÈRE DES ENSEIGNEMENTS SECONDAIRES</b><br>
+                <b>COLLÈGE POLYVALENT BILINGUE DE DOUALA</b><br>
+                B.P.: 4100 Douala Tél.: 233 43 25 47<br>
+                E-mail: info@cpbdyassa.com<br>
+                <b>YASSA</b>
+            </td>
+            <td class="header-center">
+                <div class="logo">CPBD</div>
+            </td>
+            <td class="header-right">
+                <b>MINISTRY OF SECONDARY EDUCATION</b><br>
+                <b>BILINGUAL COMPREHENSIVE COLLEGE DLA</b><br>
+                P.O. Box: 4100 Douala Phone: 233 43 25 47<br>
+                E-mail: info@cpbdyassa.com<br>
+                <b>YASSA</b>
+            </td>
+        </tr>
+    </table>
+
+    <div class="title">BULLETIN SCOLAIRE DU PREMIER TRIMESTRE</div>
+    <div class="year">Année scolaire : 2024/2025</div>
+
+    <!-- Tableau informations élève -->
+    <table class="student-table">
+        <tr>
+            <td rowspan="3" class="photo-cell">
+                <div class="photo-box">Photo de l'élève</div>
+            </td>
+            <td colspan="4"><b>Nom et Prénoms de l'élève :</b> NGONO MARIE CLAIRE</td>
+        </tr>
+        <tr>
+            <td colspan="2"><b>Classe :</b> 6<sup>ème</sup> A</td>
+            <td colspan="2"><b>Effectif :</b> 72</td>
+        </tr>
+        <tr>
+            <td><b>Date et lieu de naissance :</b> 15/03/2013 à DOUALA</td>
+            <td><b>Genre :</b> Féminin</td>
+            <td colspan="2"><b>Redoublant :</b> Oui ☐  Non ☐</td>
+        </tr>
+        <tr>
+            <td><b>Identifiant Unique :</b> 24A0856FR</td>
+            <td colspan="2"><b>Professeur principal :</b> M. TCHAMENI MATHIEU</td>
+            <td colspan="2"></td>
+        </tr>
+        <tr>
+            <td colspan="5"><b>Noms et contacts des Parents / Tuteurs :</b> Mme NGONO Sylvie - Tél: +237 677 123 456</td>
+        </tr>
+    </table>
+
+    <!-- Tableau des notes -->
+    <table class="grades-table">
+        <thead>
+            <tr>
+                <th class="subject-col">MATIÈRES ET NOM DE L'ENSEIGNANT</th>
+                <th class="competence-col">COMPÉTENCES ÉVALUÉES</th>
+                <th class="note-col">N/20</th>
+                <th class="avg-col">M/20</th>
+                <th class="coef-col">Coef</th>
+                <th class="total-col">M x coef</th>
+                <th class="cote-col">COTE</th>
+                <th class="minmax-col">[Min – Max]</th>
+                <th class="app-col">Appréciations et Visa</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td class="subject-col" rowspan="2"><b>FRANÇAIS</b><br><span class="teacher-name">M. TCHAMENI MATHIEU</span></td><td class="competence-col">Produire à l'écrit, un texte descriptif et, à l'oral, un commentaire de l'image.</td><td class="note-col">14.50</td><td class="avg-col" rowspan="2">14.75</td><td class="coef-col" rowspan="2">4</td><td class="total-col" rowspan="2">59.00</td><td class="cote-col cote-b" rowspan="2"><b>B</b></td><td class="minmax-col" rowspan="2">[8,5 - 18,5]</td><td class="app-col" rowspan="2"></td></tr><tr><td class="competence-col">Produce in writing a descriptive text and orally a commentary on the image.</td><td class="note-col">15.00</td></tr><tr><td class="subject-col" rowspan="2"><b>ANGLAIS</b><br><span class="teacher-name">Mme FONG SARA</span></td><td class="competence-col">Utiliser les ressources linguistiques appropriées pour écouter, parler, lire et écrire sur l'intégration nationale.</td><td class="note-col">13.00</td><td class="avg-col" rowspan="2">13.50</td><td class="coef-col" rowspan="2">3</td><td class="total-col" rowspan="2">40.50</td><td class="cote-col cote-c-plus" rowspan="2"><b>C+</b></td><td class="minmax-col" rowspan="2">[6,0 - 17,0]</td><td class="app-col" rowspan="2"></td></tr><tr><td class="competence-col">Use appropriate language resources to listen, speak, read and write about national integration.</td><td class="note-col">14.00</td></tr><tr><td class="subject-col" rowspan="2"><b>MATHÉMATIQUES</b><br><span class="teacher-name">M. KAMGA PIERRE</span></td><td class="competence-col">Résoudre des situations problèmes relatives à l'arithmétique et aux nombres réels.</td><td class="note-col">16.50</td><td class="avg-col" rowspan="2">16.75</td><td class="coef-col" rowspan="2">4</td><td class="total-col" rowspan="2">67.00</td><td class="cote-col cote-a" rowspan="2"><b>A</b></td><td class="minmax-col" rowspan="2">[4,0 - 19,0]</td><td class="app-col" rowspan="2"></td></tr><tr><td class="competence-col">Solve problem situations relating to arithmetic and real numbers.</td><td class="note-col">17.00</td></tr><tr><td class="subject-col" rowspan="2"><b>HISTOIRE</b><br><span class="teacher-name">M. ABENA MARTIN</span></td><td class="competence-col">Lutter contre la domination étrangère</td><td class="note-col">15.00</td><td class="avg-col" rowspan="2">14.75</td><td class="coef-col" rowspan="2">2</td><td class="total-col" rowspan="2">29.50</td><td class="cote-col cote-b" rowspan="2"><b>B</b></td><td class="minmax-col" rowspan="2">[7,5 - 17,5]</td><td class="app-col" rowspan="2"></td></tr><tr><td class="competence-col">Fight against foreign domination</td><td class="note-col">14.50</td></tr><tr><td class="subject-col" rowspan="2"><b>GÉOGRAPHIE</b><br><span class="teacher-name">M. ABENA MARTIN</span></td><td class="competence-col">Gérer durablement l'environnement</td><td class="note-col">13.00</td><td class="avg-col" rowspan="2">13.25</td><td class="coef-col" rowspan="2">2</td><td class="total-col" rowspan="2">26.50</td><td class="cote-col cote-c-plus" rowspan="2"><b>C+</b></td><td class="minmax-col" rowspan="2">[6,0 - 16,0]</td><td class="app-col" rowspan="2"></td></tr><tr><td class="competence-col">Manage the environment sustainably</td><td class="note-col">13.50</td></tr><tr><td class="subject-col" rowspan="2"><b>SVTEEHB</b><br><span class="teacher-name">Mme OUMAR FATIMA</span></td><td class="competence-col">Résoudre les situations-problèmes relatives à la récurrence des anomalies.</td><td class="note-col">14.00</td><td class="avg-col" rowspan="2">14.50</td><td class="coef-col" rowspan="2">2</td><td class="total-col" rowspan="2">29.00</td><td class="cote-col cote-b" rowspan="2"><b>B</b></td><td class="minmax-col" rowspan="2">[5,0 - 18,0]</td><td class="app-col" rowspan="2"></td></tr><tr><td class="competence-col">Solve problem situations related to the recurrence of anomalies.</td><td class="note-col">15.00</td></tr><tr><td class="subject-col" rowspan="2"><b>PCT</b><br><span class="teacher-name">M. BELLO HASSAN</span></td><td class="competence-col">Résoudre des situations-problèmes se rapportant aux transformations chimiques.</td><td class="note-col">12.50</td><td class="avg-col" rowspan="2">12.75</td><td class="coef-col" rowspan="2">2</td><td class="total-col" rowspan="2">25.50</td><td class="cote-col cote-c-plus" rowspan="2"><b>C+</b></td><td class="minmax-col" rowspan="2">[4,5 - 16,5]</td><td class="app-col" rowspan="2"></td></tr><tr><td class="competence-col">Solve problem situations relating to chemical transformations.</td><td class="note-col">13.00</td></tr><tr><td class="subject-col" rowspan="2"><b>INFORMATIQUE</b><br><span class="teacher-name">Mme MEKUATE JUDITH</span></td><td class="competence-col">Décrire l'architecture d'un microordinateur.</td><td class="note-col">16.00</td><td class="avg-col" rowspan="2">15.75</td><td class="coef-col" rowspan="2">2</td><td class="total-col" rowspan="2">31.50</td><td class="cote-col cote-b-plus" rowspan="2"><b>B+</b></td><td class="minmax-col" rowspan="2">[8,0 - 18,5]</td><td class="app-col" rowspan="2"></td></tr><tr><td class="competence-col">Describe the architecture of a microcomputer.</td><td class="note-col">15.50</td></tr><tr><td class="subject-col" rowspan="2"><b>CULTURES NATIONALES</b><br><span class="teacher-name">Mme NDONDOCK</span></td><td class="competence-col">Produire un discours sur un mets traditionnel.</td><td class="note-col">14.00</td><td class="avg-col" rowspan="2">14.25</td><td class="coef-col" rowspan="2">1</td><td class="total-col" rowspan="2">14.25</td><td class="cote-col cote-b" rowspan="2"><b>B</b></td><td class="minmax-col" rowspan="2">[9,0 - 17,0]</td><td class="app-col" rowspan="2"></td></tr><tr><td class="competence-col">Produce a speech on a traditional dish.</td><td class="note-col">14.50</td></tr><tr><td class="subject-col" rowspan="2"><b>ÉDUCATION CITOYENNETÉ</b><br><span class="teacher-name">M. OWONO MVENG</span></td><td class="competence-col">Eduquer les masses et s'impliquer dans le processus électoral</td><td class="note-col">13.50</td><td class="avg-col" rowspan="2">13.75</td><td class="coef-col" rowspan="2">2</td><td class="total-col" rowspan="2">27.50</td><td class="cote-col cote-c-plus" rowspan="2"><b>C+</b></td><td class="minmax-col" rowspan="2">[7,0 - 16,5]</td><td class="app-col" rowspan="2"></td></tr><tr><td class="competence-col">Educate the masses and get involved in the electoral process</td><td class="note-col">14.00</td></tr><tr><td class="subject-col" rowspan="2"><b>EPS</b><br><span class="teacher-name">M. TONFACK BERTRAND</span></td><td class="competence-col">Réaliser une course de vitesse.</td><td class="note-col">15.00</td><td class="avg-col" rowspan="2">15.50</td><td class="coef-col" rowspan="2">2</td><td class="total-col" rowspan="2">31.00</td><td class="cote-col cote-b-plus" rowspan="2"><b>B+</b></td><td class="minmax-col" rowspan="2">[10,0 - 18,0]</td><td class="app-col" rowspan="2"></td></tr><tr><td class="competence-col">Perform a speed race.</td><td class="note-col">16.00</td></tr><tr><td class="subject-col" rowspan="2"><b>TRAVAIL MANUEL</b><br><span class="teacher-name">Mme NOUTAMOUN FLORE</span></td><td class="competence-col">Modeler et mouler un pot en argile.</td><td class="note-col">14.00</td><td class="avg-col" rowspan="2">13.75</td><td class="coef-col" rowspan="2">1</td><td class="total-col" rowspan="2">13.75</td><td class="cote-col cote-c-plus" rowspan="2"><b>C+</b></td><td class="minmax-col" rowspan="2">[8,5 - 16,0]</td><td class="app-col" rowspan="2"></td></tr><tr><td class="competence-col">Model and mold a clay pot.</td><td class="note-col">13.50</td></tr><tr><td class="subject-col" rowspan="2"><b>ÉDUCATION ARTISTIQUE</b><br><span class="teacher-name">Mme SOH DIANE</span></td><td class="competence-col">Nommer des artistes camerounais et reproduire une œuvre d'art</td><td class="note-col">15.00</td><td class="avg-col" rowspan="2">15.25</td><td class="coef-col" rowspan="2">1</td><td class="total-col" rowspan="2">15.25</td><td class="cote-col cote-b-plus" rowspan="2"><b>B+</b></td><td class="minmax-col" rowspan="2">[9,0 - 17,5]</td><td class="app-col" rowspan="2"></td></tr><tr><td class="competence-col">Name Cameroonian artists and reproduce a work of art</td><td class="note-col">15.50</td></tr>
+
+            <!-- TOTAL/MOYENNE intégré -->
+            <tr class="total-row">
+                <td colspan="4" style="text-align: right;"><b>TOTAL</b></td>
+                <td>28</td>
+                <td>410.25</td>
+                <td colspan="3" style="text-align: center;"><b>MOYENNE : 14.65</b></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Tableau Discipline/Travail/Profil (9 colonnes selon le dessin) -->
+    <table class="bottom-table">
+        <!-- Ligne d'en-tête -->
+        <tr>
+            <td colspan="4" class="section-header"><b>DISCIPLINE</b></td>
+            <td colspan="2" class="section-header"><b>TRAVAIL DE L'ÉLÈVE</b></td>
+            <td colspan="2" class="section-header"><b>APPRECIATIONS</b></td>
+            <td colspan="2" class="section-header"><b>PROFIL CLASSE</b></td>
+        </tr>
+
+        <!-- Ligne 1 -->
+        <tr>
+            <td class="disc-label">Abs. non. J. (h)</td>
+            <td class="disc-data"></td>
+            <td class="disc-label">Avertissement de conduite</td>
+            <td class="disc-data"></td>
+            <td class="travail-label">TOTAL GENERAL</td>
+            <td class="travail-data">410.25</td>
+            <td colspan="2" class="section-header">APPRECIATIONS</td>
+            <td class="profil-label">MOYENNE GENERALE</td>
+            <td class="profil-data">14.65</td>
+        </tr>
+
+        <!-- Ligne 2 -->
+        <tr>
+            <td class="disc-label">Abs just. (h)</td>
+            <td class="disc-data">2</td>
+            <td class="disc-label">Blâme de conduite</td>
+            <td class="disc-data"></td>
+            <td class="travail-label">COEF</td>
+            <td class="travail-data">28</td>
+            <td class="app-col1">CTBA<br>CBA</td>
+            <td class="app-col2"></td>
+            <td class="profil-label">[Min – Max]</td>
+            <td class="profil-data">[3,25 - 16,85]</td>
+        </tr>
+
+        <!-- Ligne 3 -->
+        <tr>
+            <td class="disc-label">Retards (nb fois)</td>
+            <td class="disc-data">1</td>
+            <td class="disc-label">Exclusions (jours)</td>
+            <td class="disc-data"></td>
+            <td class="travail-label">MOYENNE TRIM</td>
+            <td class="travail-data">14.65</td>
+            <td class="app-col1">CA</td>
+            <td class="app-col2"></td>
+            <td class="profil-label">Nombre de moyennes</td>
+            <td class="profil-data">58</td>
+        </tr>
+
+        <!-- Ligne 4 -->
+        <tr>
+            <td colspan="6"></td>
+            <td class="app-col1">CMA</td>
+            <td class="app-col2"></td>
+            <td class="profil-label">Taux de réussite</td>
+            <td class="profil-data">94,4%</td>
+        </tr>
+    </table>
+
+    <!-- Tableau Appréciations détaillées -->
+    <table class="final-table">
+        <tr>
+            <td colspan="3" class="app-header"><b>Appréciation du travail de l'élève (points forts et points à améliorer)</b></td>
+        </tr>
+        <tr>
+            <td colspan="3" class="app-box">Points forts: Excellente maîtrise des matières scientifiques. Points à améliorer: Renforcer l'expression écrite.</td>
+        </tr>
+        <tr>
+            <td class="signature-cell">Visa du parent / Tuteur</td>
+            <td class="signature-cell">Nom et visa du professeur principal</td>
+            <td class="signature-cell">Le Chef d'établissement</td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>

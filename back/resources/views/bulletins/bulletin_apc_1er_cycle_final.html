@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Bulletin APC - 1er Cycle</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Times New Roman', serif;
+            font-size: 9pt;
+            color: #000;
+        }
+
+        .page {
+            width: 210mm;
+            padding: 5mm;
+        }
+
+        /* En-tête CPBD */
+        table { border-collapse: collapse; width: 100%; }
+
+        .header-table { margin-bottom: 6px; }
+        .header-table td {
+            background: #EFE9F3;
+            padding: 3px 4px;
+            font-size: 5.5pt;
+            vertical-align: middle;
+        }
+
+        .header-left { text-align: left; width: 37%; }
+        .header-center { text-align: center; width: 26%; }
+        .header-right { text-align: right; width: 37%; }
+
+        .logo {
+            width: 45px;
+            height: 45px;
+            border: 2px solid #a855f7;
+            border-radius: 50%;
+            background: white;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12pt;
+            font-weight: bold;
+            color: #a855f7;
+        }
+
+        .title {
+            text-align: center;
+            font-size: 12pt;
+            font-weight: bold;
+            background: #EFE9F3;
+            padding: 5px;
+            margin: 5px 0;
+        }
+
+        .year { text-align: center; font-size: 8pt; margin-bottom: 6px; }
+
+        /* Tableau infos élève */
+        .student-table { margin-bottom: 6px; }
+        .student-table td {
+            border: 1px solid #000;
+            padding: 2px 4px;
+            font-size: 7pt;
+            vertical-align: middle;
+        }
+
+        .photo-cell {
+            width: 75px;
+            text-align: center;
+            background: #f5f5f5;
+        }
+
+        .photo-box {
+            width: 65px;
+            height: 80px;
+            border: 1px dashed #999;
+            margin: 2px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5.5pt;
+            color: #666;
+        }
+
+        /* Tableau des notes (AVEC TOTAL/MOYENNE À LA FIN) */
+        .grades-table { margin-bottom: 6px; }
+        .grades-table th, .grades-table td {
+            border: 1px solid #000;
+            padding: 2px;
+            font-size: 6pt;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .grades-table th { background: #EFE9F3; font-weight: bold; font-size: 5.5pt; }
+
+        .subject-col { text-align: left; width: 14%; font-size: 5.5pt; }
+        .competence-col { text-align: left; width: 26%; font-size: 5pt; line-height: 1.1; }
+        .note-col { width: 4.5%; }
+        .avg-col { width: 5%; font-weight: bold; }
+        .coef-col { width: 4%; }
+        .total-col { width: 6%; }
+        .cote-col { width: 4.5%; font-weight: bold; }
+        .minmax-col { width: 8%; font-size: 5pt; }
+        .app-col { width: 14%; font-size: 5pt; }
+
+        .teacher-name { font-size: 5pt; font-style: italic; color: #555; }
+
+        /* Ligne TOTAL/MOYENNE dans le tableau de notes */
+        .total-row td {
+            font-weight: bold;
+            font-size: 6.5pt;
+            background: #f9f9f9;
+        }
+
+        .total-row .label-cell {
+            text-align: right;
+            padding-right: 8px;
+        }
+
+        /* Tableau Discipline/Travail/Profil (10 colonnes) */
+        .bottom-table { margin-bottom: 6px; }
+        .bottom-table td {
+            border: 1px solid #000;
+            padding: 2px;
+            font-size: 6pt;
+            vertical-align: top;
+            text-align: center;
+        }
+
+        .section-header {
+            background: #EFE9F3;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .app-cell {
+            font-size: 5.5pt;
+            text-align: left;
+            padding: 4px;
+        }
+
+        /* Tableau Appréciations et Signatures */
+        .final-table { margin-bottom: 5px; }
+        .final-table td {
+            border: 1px solid #000;
+            padding: 3px 5px;
+            font-size: 6.5pt;
+            vertical-align: top;
+        }
+
+        .app-header {
+            background: #EFE9F3;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .app-box {
+            min-height: 45px;
+            font-size: 6pt;
+        }
+
+        .signature-cell {
+            text-align: center;
+            height: 35px;
+            vertical-align: bottom;
+            font-weight: bold;
+        }
+
+        /* Couleurs cotes */
+        .cote-a-plus { color: #27ae60; }
+        .cote-a { color: #2ecc71; }
+        .cote-b-plus { color: #3498db; }
+        .cote-b { color: #5dade2; }
+        .cote-c-plus { color: #f39c12; }
+        .cote-c { color: #e67e22; }
+        .cote-d { color: #e74c3c; }
+
+        @media print {
+            .page { margin: 0; padding: 5mm; }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <!-- En-tête CPBD -->
+    <table class="header-table">
+        <tr>
+            <td class="header-left">
+                <b>MINISTÈRE DES ENSEIGNEMENTS SECONDAIRES</b><br>
+                <b>COLLÈGE POLYVALENT BILINGUE DE DOUALA</b><br>
+                B.P.: 4100 Douala Tél.: 233 43 25 47<br>
+                E-mail: info@cpbdyassa.com<br>
+                <b>YASSA</b>
+            </td>
+            <td class="header-center">
+                <div class="logo">CPBD</div>
+            </td>
+            <td class="header-right">
+                <b>MINISTRY OF SECONDARY EDUCATION</b><br>
+                <b>BILINGUAL COMPREHENSIVE COLLEGE DLA</b><br>
+                P.O. Box: 4100 Douala Phone: 233 43 25 47<br>
+                E-mail: info@cpbdyassa.com<br>
+                <b>YASSA</b>
+            </td>
+        </tr>
+    </table>
+
+    <div class="title">BULLETIN SCOLAIRE DU PREMIER TRIMESTRE</div>
+    <div class="year">Année scolaire : {{school_year}}</div>
+
+    <!-- Tableau informations élève -->
+    <table class="student-table">
+        <tr>
+            <td rowspan="3" class="photo-cell">
+                <div class="photo-box">Photo de l'élève</div>
+            </td>
+            <td colspan="4"><b>Nom et Prénoms de l'élève :</b> {{student_name}}</td>
+        </tr>
+        <tr>
+            <td colspan="2"><b>Classe :</b> {{class_level}}<sup>ème</sup> {{class_section}}</td>
+            <td colspan="2"><b>Effectif :</b> {{class_size}}</td>
+        </tr>
+        <tr>
+            <td><b>Date et lieu de naissance :</b> {{birth_date}} à {{birth_place}}</td>
+            <td><b>Genre :</b> {{gender}}</td>
+            <td colspan="2"><b>Redoublant :</b> Oui ☐  Non ☐</td>
+        </tr>
+        <tr>
+            <td><b>Identifiant Unique :</b> {{unique_id}}</td>
+            <td colspan="2"><b>Professeur principal :</b> {{main_teacher}}</td>
+            <td colspan="2"></td>
+        </tr>
+        <tr>
+            <td colspan="5"><b>Noms et contacts des Parents / Tuteurs :</b> {{parent_info}}</td>
+        </tr>
+    </table>
+
+    <!-- Tableau des notes AVEC TOTAL/MOYENNE À LA FIN -->
+    <table class="grades-table">
+        <thead>
+            <tr>
+                <th class="subject-col">MATIÈRES ET NOM DE L'ENSEIGNANT</th>
+                <th class="competence-col">COMPÉTENCES ÉVALUÉES</th>
+                <th class="note-col">N/20</th>
+                <th class="avg-col">M/20</th>
+                <th class="coef-col">Coef</th>
+                <th class="total-col">M x coef</th>
+                <th class="cote-col">COTE</th>
+                <th class="minmax-col">[Min – Max]</th>
+                <th class="app-col">Appréciations et Visa</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{subjects_html}}
+
+            <!-- TOTAL/MOYENNE à la fin du tableau (pas séparé) -->
+            <tr class="total-row">
+                <td colspan="3" class="label-cell"><b>TOTAL</b></td>
+                <td colspan="2">{{total_general}}</td>
+                <td></td>
+                <td colspan="3" style="text-align: center;"><b>MOYENNE : {{general_average}}</b></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Tableau Discipline / Travail de l'élève / Profil de la classe (6 colonnes uniquement) -->
+    <table class="bottom-table">
+        <tr>
+            <td colspan="2" class="section-header"><b>Discipline</b></td>
+            <td colspan="2" class="section-header"><b>Travail de l'élève</b></td>
+            <td colspan="2" class="section-header"><b>Profil de la classe</b></td>
+        </tr>
+        <tr>
+            <td>Abs. non. J. (h)</td>
+            <td>{{abs_non_just}}</td>
+            <td>Avertissement de conduite</td>
+            <td>{{warning}}</td>
+            <td>TOTAL GENERAL</td>
+            <td>{{total_general}}</td>
+        </tr>
+        <tr>
+            <td>Abs just. (h)</td>
+            <td>{{abs_just}}</td>
+            <td>Blâme de conduite</td>
+            <td>{{blame}}</td>
+            <td>COEF</td>
+            <td>{{total_coef}}</td>
+        </tr>
+        <tr>
+            <td colspan="2"></td>
+            <td colspan="2"></td>
+            <td>CTBA</td>
+            <td>{{stat_ctba}}</td>
+        </tr>
+        <tr>
+            <td colspan="2"></td>
+            <td colspan="2"></td>
+            <td>CBA</td>
+            <td>{{stat_cba}}</td>
+        </tr>
+        <tr>
+            <td>Retards (nombre de fois)</td>
+            <td>{{delays}}</td>
+            <td>Exclusions (jours)</td>
+            <td>{{exclusions}}</td>
+            <td>MOYENNE TRIM</td>
+            <td>{{general_average}}</td>
+        </tr>
+        <tr>
+            <td colspan="2"></td>
+            <td colspan="2"></td>
+            <td>CA</td>
+            <td>{{stat_ca}}</td>
+        </tr>
+        <tr>
+            <td>Consignes (heures)</td>
+            <td>{{consignes}}</td>
+            <td>Exclusion définitive</td>
+            <td>{{def_exclusion}}</td>
+            <td>COTE</td>
+            <td><b>{{student_cote}}</b></td>
+        </tr>
+        <tr>
+            <td colspan="2"></td>
+            <td colspan="2"></td>
+            <td>CMA</td>
+            <td>{{stat_cma}}</td>
+        </tr>
+        <tr>
+            <td colspan="2"></td>
+            <td colspan="2"></td>
+            <td>CNA</td>
+            <td>{{stat_cna}}</td>
+        </tr>
+        <tr>
+            <td colspan="2"></td>
+            <td colspan="2"></td>
+            <td>Moyenne Générale</td>
+            <td>{{general_average}}</td>
+        </tr>
+        <tr>
+            <td colspan="2"></td>
+            <td colspan="2"></td>
+            <td>[Min – Max]</td>
+            <td>{{class_min_max}}</td>
+        </tr>
+        <tr>
+            <td colspan="2"></td>
+            <td colspan="2"></td>
+            <td>Nombre de moyennes</td>
+            <td>{{nb_averages}}</td>
+        </tr>
+        <tr>
+            <td colspan="2"></td>
+            <td colspan="2"></td>
+            <td>Taux de réussite</td>
+            <td><b>{{success_rate}}%</b></td>
+        </tr>
+    </table>
+
+    <!-- Tableau Appréciations détaillées et Signatures -->
+    <table class="final-table">
+        <tr>
+            <td colspan="3" class="app-header"><b>Appréciation du travail de l'élève (points forts et points à améliorer)</b></td>
+        </tr>
+        <tr>
+            <td colspan="3" class="app-box">{{detailed_appreciation}}</td>
+        </tr>
+        <tr>
+            <td class="signature-cell">Visa du parent / Tuteur</td>
+            <td class="signature-cell">Nom et visa du professeur principal</td>
+            <td class="signature-cell">Le Chef d'établissement</td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>

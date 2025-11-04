@@ -505,10 +505,16 @@ class BulletinService
 
         // Construire les lignes HTML pour le template
         $bulletinData['subjects_rows'] = $this->buildSubjectRowsHTML($bulletinData['subjects'], 'sequence');
-        $bulletinData['first_average'] = 20; // TODO: Calculer vraiment
-        $bulletinData['last_average'] = 5;   // TODO: Calculer vraiment
+
+        // Calculate real class statistics using class_series_id
+        $classStats = $this->calculateClassStatistics($sequence->id, $student->class_series_id, 'sequence');
+        $bulletinData['first_average'] = $classStats['first_average'];
+        $bulletinData['last_average'] = $classStats['last_average'];
+        $bulletinData['class_average'] = $classStats['class_average'];
+        $bulletinData['class_size'] = $classStats['class_size'];
+
         $bulletinData['appreciation'] = $this->getAppreciationBySection($bulletinData['average'], $sectionType);
-        
+
         return $bulletinData;
     }
     
@@ -623,6 +629,7 @@ class BulletinService
 
                 $bulletinData['subjects'][] = [
                     'name' => $seriesSubject->subject->name,
+                    'subject_id' => $seriesSubject->id, // ID du ClassSeriesSubject pour les calculs Min-Max
                     'ds' => $dsAverage,
                     'composition' => $compositionGrade,
                     'score' => $trimesterGrade, // Pour compatibilité avec le template
@@ -712,8 +719,58 @@ class BulletinService
      */
     protected function getStudentRank($sequenceId, $studentId)
     {
-        // TODO: Implement ranking logic based on overall sequence average
-        return 1; // Placeholder
+        // Get student's class_series_id
+        $student = Student::find($studentId);
+        if (!$student || !$student->class_series_id) {
+            return 1;
+        }
+
+        // Get all students in the same class series
+        $students = Student::where('class_series_id', $student->class_series_id)->get();
+
+        // Calculate average for each student
+        $averages = [];
+
+        foreach ($students as $classmate) {
+            $grades = Grade::where('student_id', $classmate->id)
+                ->where('sequence_id', $sequenceId)
+                ->with('classSeriesSubject')
+                ->get();
+
+            if ($grades->isEmpty()) {
+                continue;
+            }
+
+            $totalPoints = 0;
+            $totalCoef = 0;
+
+            foreach ($grades as $grade) {
+                $totalPoints += $grade->score * $grade->coefficient;
+                $totalCoef += $grade->coefficient;
+            }
+
+            if ($totalCoef > 0) {
+                $averages[$classmate->id] = $totalPoints / $totalCoef;
+            }
+        }
+
+        if (empty($averages) || !isset($averages[$studentId])) {
+            return 1;
+        }
+
+        // Sort by average descending
+        arsort($averages);
+
+        // Find student's position
+        $rank = 1;
+        foreach ($averages as $sid => $avg) {
+            if ($sid == $studentId) {
+                return $rank;
+            }
+            $rank++;
+        }
+
+        return 1;
     }
     
     /**
@@ -805,8 +862,18 @@ class BulletinService
      */
     public function renderBulletinTemplate($templateType, $data, $forPdf = false)
     {
-        // RETOUR AU SYSTÈME ORIGINAL avec templates
-        $templateFile = $forPdf ? 'cpbd_bulletin_pdf.html' : 'cpbd_bulletin.html';
+        // Detect section type and cycle type
+        $sectionType = $this->determineSectionType($data['student']);
+        $cycleType = $this->determineCycleType($data['student']);
+
+        // Use APC template for 1er cycle francophone trimester bulletins
+        if ($cycleType === 'premier' && $sectionType === 'francophone' && $templateType === 'trimester') {
+            $templateFile = 'bulletin_apc_structure_finale.html';
+        } else {
+            // Default templates
+            $templateFile = $forPdf ? 'cpbd_bulletin_pdf.html' : 'cpbd_bulletin.html';
+        }
+
         $templatePath = resource_path('views/bulletins/' . $templateFile);
 
         if (!file_exists($templatePath)) {
@@ -818,6 +885,11 @@ class BulletinService
         // Detect section type for language adaptation
         $sectionType = $this->determineSectionType($data['student']);
         $data['section_type'] = $sectionType;
+
+        // Use APC data preparation for APC template
+        if ($templateFile === 'bulletin_apc_structure_finale.html') {
+            return $this->prepareAPCBulletinHTML($html, $data);
+        }
 
         // Prepare the template data
         $templateData = $this->prepareTemplateData($data, $templateType);
@@ -903,9 +975,9 @@ class BulletinService
             'evaluation_average' => number_format($data['average'] ?? 0, 2),
             'average_class' => $this->getAverageClass($data['average'] ?? 0),
             'student_rank' => ($data['rank'] ?? 1) . ($sectionType === 'anglophone' ? '' : 'e'),
-            'class_average' => '11,77', // TODO: Calculate real class average
-            'first_average' => '15,36', // TODO: Calculate real first average
-            'last_average' => '0,57', // TODO: Calculate real last average
+            'class_average' => number_format($data['class_average'] ?? 0, 2, ',', ''),
+            'first_average' => number_format($data['first_average'] ?? 0, 2, ',', ''),
+            'last_average' => number_format($data['last_average'] ?? 0, 2, ',', ''),
             'general_appreciation' => $this->getGeneralAppreciationBySection($data['average'] ?? 0, $sectionType),
             'logo_base64' => $logoBase64,
             'current_date' => now()->format('d/m/Y'),
@@ -1470,6 +1542,10 @@ class BulletinService
      */
     protected function getClassSize($student)
     {
+        // Use class_series_id (specific section like "6ème A") instead of school_class_id (all "6ème")
+        if ($student->class_series_id) {
+            return Student::where('class_series_id', $student->class_series_id)->count();
+        }
         if ($student->schoolClass) {
             return $student->schoolClass->students()->count();
         }
@@ -1513,5 +1589,499 @@ class BulletinService
         }
         
         return $html;
+    }
+
+    /**
+     * Prepare APC Bulletin HTML with dynamic data
+     */
+    protected function prepareAPCBulletinHTML($html, $data)
+    {
+        $student = $data['student'];
+        $trimester = $data['trimester'];
+
+        // Get class level and section
+        $classLevel = '6'; // Default
+        $classSection = 'A'; // Default
+        if ($student->schoolClass) {
+            // Extract level from class name (e.g., "6ème A" -> "6")
+            preg_match('/(\d+)/', $student->schoolClass->name, $matches);
+            if (!empty($matches[1])) {
+                $classLevel = $matches[1];
+            }
+            // Extract section (last letter of class name)
+            preg_match('/([A-Z])$/', $student->schoolClass->name, $sectionMatches);
+            if (!empty($sectionMatches[1])) {
+                $classSection = $sectionMatches[1];
+            }
+        }
+
+        // Get main teacher - Find a teacher teaching this class
+        $mainTeacher = 'N/A';
+        if ($student->classSeries) {
+            $classSeriesSubject = \App\Models\ClassSeriesSubject::where('class_series_id', $student->class_series_id)
+                ->with('teachers')
+                ->first();
+            if ($classSeriesSubject && $classSeriesSubject->teachers && $classSeriesSubject->teachers->isNotEmpty()) {
+                $mainTeacher = $classSeriesSubject->teachers->first()->full_name;
+            }
+        }
+
+        // Get parent info
+        $parentInfo = 'N/A';
+        if ($student->parent_name) {
+            $parentInfo = $student->parent_name;
+            if ($student->parent_phone) {
+                $parentInfo .= ' - Tél: ' . $student->parent_phone;
+            }
+        }
+
+        // Student information
+        $replacements = [
+            'student_name' => strtoupper($student->last_name . ' ' . $student->first_name),
+            'birth_date' => $student->birth_date ? $student->birth_date->format('d/m/Y') : 'N/A',
+            'birth_place' => $student->birth_place ?? 'N/A',
+            'gender' => $student->gender === 'M' ? 'Masculin' : 'Féminin',
+            'unique_id' => $student->matricule ?? $student->student_number ?? 'N/A',
+            'class_level' => $classLevel,
+            'class_section' => $classSection,
+            'class_size' => $student->schoolClass ? $student->schoolClass->students()->count() : 0,
+            'main_teacher' => $mainTeacher,
+            'parent_info' => $parentInfo,
+            'school_year' => date('Y') . '/' . (date('Y') + 1),
+        ];
+
+        // Generate subjects HTML
+        $subjectsHTML = '';
+        $totalGeneral = 0;
+        $totalCoef = 0;
+
+        foreach ($data['subjects'] as $subject) {
+            $coef = $subject['coefficient'] ?? 1;
+            $subjectId = $subject['subject_id'] ?? null;
+
+            // Calculate DS = (Seq1 + Seq2) / 2
+            // Note: $subject['score'] already contains the DS average calculated by the system
+            $dsNote = $subject['score'] ?? 0; // This is already (Seq1 + Seq2) / 2
+
+            // Get Composition grade
+            $compositionNote = $subject['composition'] ?? 0;
+
+            // Calculate M/20 = (DS + Composition) / 2
+            $moyenne = 0;
+            if ($dsNote !== null && $compositionNote !== null) {
+                $moyenne = ($dsNote + $compositionNote) / 2;
+            } elseif ($dsNote !== null) {
+                $moyenne = $dsNote;
+            } elseif ($compositionNote !== null) {
+                $moyenne = $compositionNote;
+            }
+
+            // Calculate total = M/20 × Coef
+            $total = $moyenne * $coef;
+            $totalGeneral += $total;
+            $totalCoef += $coef;
+
+            // Get cote based on M/20
+            $cote = $this->getCote($moyenne);
+            $coteClass = $this->getCoteClass($cote);
+
+            // Calculate [Min - Max] for this subject
+            $minMax = $this->getAPCSubjectMinMax($trimester->id, $student->class_series_id, $subjectId);
+
+            // Generate HTML for this subject (2 rows: French competence + English translation)
+            // Row 1: DS note
+            $subjectsHTML .= '<tr>';
+            $subjectsHTML .= '<td class="subject-col" rowspan="2"><b>' . htmlspecialchars($subject['name']) . '</b><br><span class="teacher-name">' . htmlspecialchars($subject['teacher'] ?? 'N/A') . '</span></td>';
+            $subjectsHTML .= '<td class="competence-col">Compétence en français</td>';
+            $subjectsHTML .= '<td class="note-col">' . number_format($dsNote, 2) . '</td>';
+            $subjectsHTML .= '<td class="avg-col" rowspan="2">' . number_format($moyenne, 2) . '</td>';
+            $subjectsHTML .= '<td class="coef-col" rowspan="2">' . $coef . '</td>';
+            $subjectsHTML .= '<td class="total-col" rowspan="2">' . number_format($total, 2) . '</td>';
+            $subjectsHTML .= '<td class="cote-col ' . $coteClass . '" rowspan="2"><b>' . $cote . '</b></td>';
+            $subjectsHTML .= '<td class="minmax-col" rowspan="2">' . $minMax . '</td>';
+            $subjectsHTML .= '<td class="app-col" rowspan="2"></td>';
+            $subjectsHTML .= '</tr>';
+
+            // Row 2: Composition note
+            $subjectsHTML .= '<tr>';
+            $subjectsHTML .= '<td class="competence-col">Competence in English</td>';
+            $subjectsHTML .= '<td class="note-col">' . number_format($compositionNote, 2) . '</td>';
+            $subjectsHTML .= '</tr>';
+        }
+
+        $replacements['subjects_html'] = $subjectsHTML;
+
+        // Calculate general statistics
+        $generalAverage = $totalCoef > 0 ? $totalGeneral / $totalCoef : 0;
+        $replacements['total_general'] = number_format($totalGeneral, 2);
+        $replacements['total_coef'] = $totalCoef;
+        $replacements['general_average'] = number_format($generalAverage, 2);
+        $replacements['student_cote'] = $this->getCote($generalAverage);
+
+        // Additional data
+        $replacements['abs_non_just'] = '0';
+        $replacements['abs_just'] = '0';
+        $replacements['delays'] = '0';
+        $replacements['class_min_max'] = $this->getClassMinMax($trimester->id, $student->class_series_id);
+        $replacements['nb_averages'] = $this->getNumberOfAverages($trimester->id, $student->class_series_id);
+        $replacements['success_rate'] = $this->getSuccessRate($trimester->id, $student->class_series_id);
+        $replacements['detailed_appreciation'] = $this->getDetailedAppreciation($generalAverage);
+
+        // Replace all placeholders
+        foreach ($replacements as $key => $value) {
+            $html = str_replace('{{' . $key . '}}', $value, $html);
+        }
+
+        // Remove any remaining placeholders
+        $html = preg_replace('/\{\{.*?\}\}/', '', $html);
+
+        return $html;
+    }
+
+    /**
+     * Get cote (grade letter) based on average - APC Grading System
+     */
+    private function getCote($avg)
+    {
+        // Niveau 4
+        if ($avg >= 18 && $avg <= 20) return 'A+'; // 18 ≤ m ≤ 20
+        if ($avg >= 16 && $avg < 18) return 'A';   // 16 ≤ m < 18
+
+        // Niveau 3
+        if ($avg >= 15 && $avg < 16) return 'B+';  // 15 ≤ m < 16
+        if ($avg >= 14 && $avg < 15) return 'B';   // 14 ≤ m < 15
+
+        // Niveau 2
+        if ($avg >= 12 && $avg < 14) return 'C+';  // 12 ≤ m < 14
+        if ($avg >= 10 && $avg < 12) return 'C';   // 10 ≤ m < 12
+
+        // Niveau 1
+        return 'D'; // m < 10
+    }
+
+    /**
+     * Get appreciation based on cote - APC System
+     */
+    private function getAppreciationByCote($cote)
+    {
+        $appreciations = [
+            'A+' => 'Compétences très bien acquises (CTBA)',
+            'A'  => 'Compétences très bien acquises (CTBA)',
+            'B+' => 'Compétences bien acquises (CBA)',
+            'B'  => 'Compétences bien acquises (CBA)',
+            'C+' => 'Compétences acquises (CA)',
+            'C'  => 'Compétences moyennement acquises (CMA)',
+            'D'  => 'Compétences non acquises (CNA)'
+        ];
+
+        return $appreciations[$cote] ?? 'N/A';
+    }
+
+    /**
+     * Get CSS class for cote color
+     */
+    private function getCoteClass($cote)
+    {
+        return 'cote-' . strtolower(str_replace('+', '-plus', $cote));
+    }
+
+    /**
+     * Get class min-max average range for PROFIL CLASSE
+     * Returns [minimum general average, maximum general average] of the class
+     */
+    private function getClassMinMax($trimesterId, $classSeriesId)
+    {
+        // Get all students in the same class series
+        $students = Student::where('class_series_id', $classSeriesId)->pluck('id');
+
+        if ($students->isEmpty()) {
+            return '[N/A]';
+        }
+
+        $averages = [];
+
+        foreach ($students as $studentId) {
+            // Calculate trimester average for each student
+            $subjects = ClassSeriesSubject::where('class_series_id', $classSeriesId)->get();
+
+            $totalPoints = 0;
+            $totalCoef = 0;
+
+            foreach ($subjects as $subject) {
+                $dsNote = $this->calculateDSAverage($trimesterId, $studentId, $subject->id);
+                $compositionNote = $this->getCompositionGrade($trimesterId, $studentId, $subject->id);
+
+                if ($dsNote !== null && $compositionNote !== null) {
+                    $moyenne = ($dsNote + $compositionNote) / 2;
+                    $totalPoints += $moyenne * $subject->coefficient;
+                    $totalCoef += $subject->coefficient;
+                }
+            }
+
+            if ($totalCoef > 0) {
+                $averages[] = $totalPoints / $totalCoef;
+            }
+        }
+
+        if (empty($averages)) {
+            return '[N/A]';
+        }
+
+        $min = min($averages);
+        $max = max($averages);
+
+        return '[' . number_format($min, 2) . ' - ' . number_format($max, 2) . ']';
+    }
+
+    /**
+     * Get subject min-max for a specific subject
+     * Returns [minimum average, maximum average] for this subject across all students in the class
+     */
+    private function getAPCSubjectMinMax($trimesterId, $classSeriesId, $subjectId)
+    {
+        if (!$subjectId) {
+            return '[N/A]';
+        }
+
+        // Get all students in the same class series
+        $students = Student::where('class_series_id', $classSeriesId)->pluck('id');
+
+        if ($students->isEmpty()) {
+            return '[N/A]';
+        }
+
+        $subjectAverages = [];
+
+        foreach ($students as $studentId) {
+            // Calculate subject average: (DS + Composition) / 2
+            $dsNote = $this->calculateDSAverage($trimesterId, $studentId, $subjectId);
+            $compositionNote = $this->getCompositionGrade($trimesterId, $studentId, $subjectId);
+
+            if ($dsNote !== null && $compositionNote !== null) {
+                $moyenne = ($dsNote + $compositionNote) / 2;
+                $subjectAverages[] = $moyenne;
+            }
+        }
+
+        if (empty($subjectAverages)) {
+            return '[N/A]';
+        }
+
+        $min = min($subjectAverages);
+        $max = max($subjectAverages);
+
+        return '[' . number_format($min, 2) . ' - ' . number_format($max, 2) . ']';
+    }
+
+    /**
+     * Get number of students with average >= 10
+     */
+    private function getNumberOfAverages($trimesterId, $classSeriesId)
+    {
+        // Get all students in the same class series
+        $students = Student::where('class_series_id', $classSeriesId)->pluck('id');
+
+        if ($students->isEmpty()) {
+            return '0';
+        }
+
+        $passCount = 0;
+
+        foreach ($students as $studentId) {
+            // Calculate trimester average for each student
+            $subjects = ClassSeriesSubject::where('class_series_id', $classSeriesId)->get();
+
+            $totalPoints = 0;
+            $totalCoef = 0;
+
+            foreach ($subjects as $subject) {
+                $dsNote = $this->calculateDSAverage($trimesterId, $studentId, $subject->id);
+                $compositionNote = $this->getCompositionGrade($trimesterId, $studentId, $subject->id);
+
+                if ($dsNote !== null && $compositionNote !== null) {
+                    $moyenne = ($dsNote + $compositionNote) / 2;
+                    $totalPoints += $moyenne * $subject->coefficient;
+                    $totalCoef += $subject->coefficient;
+                }
+            }
+
+            if ($totalCoef > 0) {
+                $generalAverage = $totalPoints / $totalCoef;
+                if ($generalAverage >= 10) {
+                    $passCount++;
+                }
+            }
+        }
+
+        return (string)$passCount;
+    }
+
+    /**
+     * Get success rate (percentage of students with average >= 10)
+     */
+    private function getSuccessRate($trimesterId, $classSeriesId)
+    {
+        // Get all students in the same class series
+        $students = Student::where('class_series_id', $classSeriesId)->pluck('id');
+
+        if ($students->isEmpty()) {
+            return '0,0';
+        }
+
+        $totalStudents = 0;
+        $passCount = 0;
+
+        foreach ($students as $studentId) {
+            // Calculate trimester average for each student
+            $subjects = ClassSeriesSubject::where('class_series_id', $classSeriesId)->get();
+
+            $totalPoints = 0;
+            $totalCoef = 0;
+
+            foreach ($subjects as $subject) {
+                $dsNote = $this->calculateDSAverage($trimesterId, $studentId, $subject->id);
+                $compositionNote = $this->getCompositionGrade($trimesterId, $studentId, $subject->id);
+
+                if ($dsNote !== null && $compositionNote !== null) {
+                    $moyenne = ($dsNote + $compositionNote) / 2;
+                    $totalPoints += $moyenne * $subject->coefficient;
+                    $totalCoef += $subject->coefficient;
+                }
+            }
+
+            if ($totalCoef > 0) {
+                $totalStudents++;
+                $generalAverage = $totalPoints / $totalCoef;
+                if ($generalAverage >= 10) {
+                    $passCount++;
+                }
+            }
+        }
+
+        if ($totalStudents === 0) {
+            return '0,0';
+        }
+
+        $successRate = ($passCount / $totalStudents) * 100;
+        return number_format($successRate, 1, ',', '');
+    }
+
+    /**
+     * Get detailed appreciation based on average
+     */
+    private function getDetailedAppreciation($avg)
+    {
+        if ($avg >= 16) {
+            return 'Points forts: Excellente maîtrise des matières. Points à améliorer: Maintenir cet excellent niveau.';
+        } elseif ($avg >= 14) {
+            return 'Points forts: Très bonne maîtrise des matières. Points à améliorer: Viser l\'excellence.';
+        } elseif ($avg >= 12) {
+            return 'Points forts: Bonne compréhension générale. Points à améliorer: Renforcer les acquis.';
+        } elseif ($avg >= 10) {
+            return 'Points forts: Compréhension satisfaisante. Points à améliorer: Travailler plus régulièrement.';
+        } else {
+            return 'Points forts: Des efforts remarqués. Points à améliorer: Redoubler d\'efforts et demander de l\'aide.';
+        }
+    }
+
+    /**
+     * Determine cycle type based on student's class
+     */
+    protected function determineCycleType($student)
+    {
+        if (!$student || !$student->schoolClass) {
+            return 'premier'; // Par défaut
+        }
+
+        $className = strtolower($student->schoolClass->name);
+
+        // 🎓 DEUXIÈME CYCLE: Classes du lycée
+        $deuxiemeCycleClasses = [
+            'seconde', '2nde', 'première', '1ère', '1ere', 'terminale', 'tle',
+            'seconde a', 'seconde c', 'seconde d',
+            'première a', 'première c', 'première d', 'première a4',
+            '1ère a', '1ère c', '1ère d', '1ere a', '1ere c', '1ere d',
+            'terminale a', 'terminale c', 'terminale d'
+        ];
+
+        foreach ($deuxiemeCycleClasses as $cycleClass) {
+            if (strpos($className, $cycleClass) !== false) {
+                return 'deuxieme';
+            }
+        }
+
+        // 📚 PREMIER CYCLE: Classes du collège (par défaut)
+        return 'premier';
+    }
+
+    /**
+     * Calculate class statistics (first, last, average) for a sequence or trimester
+     * Uses class_series_id to get students in the specific section (e.g., "6ème A")
+     */
+    protected function calculateClassStatistics($evaluationId, $classSeriesId, $type = 'sequence')
+    {
+        // Get all students in the same class series (specific section)
+        $students = Student::where('class_series_id', $classSeriesId)->get();
+
+        if ($students->isEmpty()) {
+            return [
+                'first_average' => 0,
+                'last_average' => 0,
+                'class_average' => 0,
+                'class_size' => 0
+            ];
+        }
+
+        // Calculate average for each student
+        $averages = [];
+
+        foreach ($students as $student) {
+            if ($type === 'sequence') {
+                // For sequence: get all grades for this sequence
+                $grades = Grade::where('student_id', $student->id)
+                    ->where('sequence_id', $evaluationId)
+                    ->with('classSeriesSubject')
+                    ->get();
+            } else {
+                // For trimester: calculate trimester average
+                // TODO: Implement trimester logic if needed
+                continue;
+            }
+
+            if ($grades->isEmpty()) {
+                continue;
+            }
+
+            $totalPoints = 0;
+            $totalCoef = 0;
+
+            foreach ($grades as $grade) {
+                $totalPoints += $grade->score * $grade->coefficient;
+                $totalCoef += $grade->coefficient;
+            }
+
+            if ($totalCoef > 0) {
+                $averages[] = $totalPoints / $totalCoef;
+            }
+        }
+
+        if (empty($averages)) {
+            return [
+                'first_average' => 0,
+                'last_average' => 0,
+                'class_average' => 0,
+                'class_size' => $students->count()
+            ];
+        }
+
+        // Sort averages to get first and last
+        sort($averages);
+
+        return [
+            'first_average' => end($averages), // Highest average
+            'last_average' => reset($averages), // Lowest average
+            'class_average' => array_sum($averages) / count($averages),
+            'class_size' => $students->count()
+        ];
     }
 }

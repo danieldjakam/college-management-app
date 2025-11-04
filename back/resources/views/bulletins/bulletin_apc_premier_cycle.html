@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulletin Scolaire APC - Premier Cycle</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 11pt;
+            line-height: 1.4;
+            color: #000;
+            background: white;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 15mm;
+            margin: 0 auto;
+            background: white;
+        }
+
+        /* En-tête */
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+
+        .header-table td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .header-table .country-name {
+            font-weight: bold;
+            font-size: 9pt;
+        }
+
+        .header-table .motto {
+            font-style: italic;
+            font-size: 8pt;
+        }
+
+        .header-table .ministry {
+            font-size: 8pt;
+        }
+
+        .header-table .delegation {
+            font-weight: bold;
+            font-size: 9pt;
+        }
+
+        .header-table .school-name {
+            font-size: 10pt;
+        }
+
+        .logo-cell {
+            font-size: 9pt;
+            color: #666;
+        }
+
+        .separator {
+            text-align: center;
+            font-size: 8pt;
+        }
+
+        /* Titre du bulletin */
+        .bulletin-title {
+            text-align: center;
+            font-size: 16pt;
+            font-weight: bold;
+            margin: 15px 0 10px 0;
+        }
+
+        .school-year {
+            text-align: center;
+            font-size: 12pt;
+            margin-bottom: 15px;
+        }
+
+        /* Informations élève */
+        .student-info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+
+        .student-info-table td {
+            border: 1px solid #000;
+            padding: 6px;
+            font-size: 10pt;
+        }
+
+        .photo-cell {
+            width: 80px;
+            text-align: center;
+            font-size: 9pt;
+            color: #666;
+        }
+
+        /* Tableau des notes */
+        .grades-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+
+        .grades-table th,
+        .grades-table td {
+            border: 1px solid #000;
+            padding: 5px;
+            font-size: 9pt;
+            text-align: center;
+        }
+
+        .grades-table th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+
+        .grades-table .subject-cell {
+            text-align: left;
+            width: 18%;
+        }
+
+        .grades-table .competence-cell {
+            text-align: left;
+            width: 35%;
+            font-size: 8pt;
+        }
+
+        .grades-table .note-cell {
+            width: 5%;
+        }
+
+        .grades-table .avg-cell {
+            width: 5%;
+        }
+
+        .grades-table .coef-cell {
+            width: 4%;
+        }
+
+        .grades-table .total-cell {
+            width: 6%;
+        }
+
+        .grades-table .cote-cell {
+            width: 5%;
+        }
+
+        .grades-table .minmax-cell {
+            width: 8%;
+        }
+
+        .grades-table .appreciation-cell {
+            width: 14%;
+            font-size: 8pt;
+        }
+
+        .total-row {
+            background-color: #e8e8e8;
+            font-weight: bold;
+        }
+
+        /* Section discipline et résultats */
+        .bottom-section {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .bottom-section td {
+            border: 1px solid #000;
+            padding: 5px;
+            font-size: 9pt;
+            vertical-align: top;
+        }
+
+        .discipline-header,
+        .profile-header,
+        .appreciation-header {
+            font-weight: bold;
+            text-align: center;
+            background-color: #f0f0f0;
+        }
+
+        .appreciation-box {
+            min-height: 80px;
+            font-size: 9pt;
+        }
+
+        /* Signatures */
+        .signature-section {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .signature-section td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: center;
+            font-size: 9pt;
+            height: 60px;
+            vertical-align: bottom;
+        }
+
+        /* Grille de notation */
+        .grading-grid {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            page-break-inside: avoid;
+        }
+
+        .grading-grid th,
+        .grading-grid td {
+            border: 1px solid #000;
+            padding: 6px;
+            font-size: 9pt;
+            text-align: center;
+        }
+
+        .grading-grid th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+
+        .grading-description {
+            font-size: 9pt;
+            text-align: justify;
+            margin: 8px 0;
+            line-height: 1.3;
+        }
+
+        .grading-title {
+            font-weight: bold;
+            font-size: 11pt;
+            margin: 15px 0 8px 0;
+        }
+
+        /* Styles pour l'impression */
+        @media print {
+            .page {
+                margin: 0;
+                border: none;
+                width: 100%;
+            }
+
+            body {
+                margin: 0;
+                padding: 0;
+            }
+        }
+
+        /* Couleurs pour les cotes */
+        .cote-a-plus { color: #27ae60; font-weight: bold; }
+        .cote-a { color: #2ecc71; font-weight: bold; }
+        .cote-b-plus { color: #3498db; font-weight: bold; }
+        .cote-b { color: #5dade2; font-weight: bold; }
+        .cote-c-plus { color: #f39c12; font-weight: bold; }
+        .cote-c { color: #e67e22; }
+        .cote-d { color: #e74c3c; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <!-- PAGE 1: GRILLE DE NOTATION -->
+    <div class="page">
+        <!-- En-tête -->
+        <table class="header-table">
+            <tr>
+                <td style="width: 30%;">
+                    <div class="country-name">RÉPUBLIQUE DU CAMEROUN</div>
+                    <div class="motto">Paix – Travail – Patrie</div>
+                </td>
+                <td style="width: 40%;">
+                    <div class="logo-cell">Logo et immatriculation de l'établissement</div>
+                    <div class="logo-cell">{{school_logo_text}}</div>
+                </td>
+                <td style="width: 30%;">
+                    <div class="country-name">REPUBLIC OF CAMEROON</div>
+                    <div class="motto">Peace – Work – Fatherland</div>
+                </td>
+            </tr>
+            <tr>
+                <td class="separator">*************</td>
+                <td></td>
+                <td class="separator">*************</td>
+            </tr>
+            <tr>
+                <td class="ministry">MINISTÈRE DES ENSEIGNEMENTS SECONDAIRES</td>
+                <td></td>
+                <td class="ministry">MINISTRY OF SECONDARY EDUCATION</td>
+            </tr>
+            <tr>
+                <td class="separator">*************</td>
+                <td></td>
+                <td class="separator">*************</td>
+            </tr>
+            <tr>
+                <td class="delegation">{{regional_delegation_fr}}</td>
+                <td></td>
+                <td class="delegation">{{regional_delegation_en}}</td>
+            </tr>
+            <tr>
+                <td class="separator">*************</td>
+                <td></td>
+                <td class="separator">*************</td>
+            </tr>
+            <tr>
+                <td class="ministry">{{divisional_delegation_fr}}</td>
+                <td></td>
+                <td class="ministry">{{divisional_delegation_en}}</td>
+            </tr>
+            <tr>
+                <td class="separator">*************</td>
+                <td></td>
+                <td class="separator">*************</td>
+            </tr>
+            <tr>
+                <td class="school-name">{{school_name_fr}}</td>
+                <td></td>
+                <td class="school-name">{{school_name_en}}</td>
+            </tr>
+        </table>
+
+        <div class="bulletin-title">BULLETIN DE NOTES</div>
+
+        <div class="school-year">Année Scolaire : {{school_year}}</div>
+
+        <div class="school-year">Classe : <b style="font-size: 28pt;">{{class_level}}<sup>ème</sup></b></div>
+
+        <!-- Informations de l'élève -->
+        <table class="student-info-table">
+            <tr>
+                <td colspan="2"><b>Nom et Prénoms de l'élève :</b> {{student_name}}</td>
+            </tr>
+            <tr>
+                <td><b>Date et lieu de naissance :</b> {{birth_date}} à {{birth_place}}</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td><b>Genre :</b> {{gender}}</td>
+                <td><b>Identifiant Unique :</b> {{unique_id}}</td>
+                <td><b>Redoublant :</b> Oui ☐  Non ☐</td>
+            </tr>
+            <tr>
+                <td colspan="2"><b>Noms et contacts des Parents/Tuteurs :</b> {{parent_info}}</td>
+            </tr>
+        </table>
+
+        <!-- GRILLE DE NOTATION (Français) -->
+        <div class="grading-title">GRILLE DE NOTATION</div>
+        <table class="grading-grid">
+            <tr>
+                <th>NIVEAU DE RENDEMENT</th>
+                <th>NOTE/20</th>
+                <th>COTE</th>
+                <th>NOTE EN POURCENTAGE (%)</th>
+                <th>APPRECIATION</th>
+            </tr>
+            <tr>
+                <td>Niveau 4</td>
+                <td>18 – 20</td>
+                <td>A+</td>
+                <td>De 90% à 100%</td>
+                <td>Compétences très bien acquises (CTBA)</td>
+            </tr>
+            <tr>
+                <td></td>
+                <td>16 – 18</td>
+                <td>A</td>
+                <td>De 80 à 89%</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>Niveau 3</td>
+                <td>15 – 16</td>
+                <td>B+</td>
+                <td>De 75 à 79%</td>
+                <td>Compétences bien acquises (CBA)</td>
+            </tr>
+            <tr>
+                <td></td>
+                <td>14 – 15</td>
+                <td>B</td>
+                <td>De 70 à 74%</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>Niveau 2</td>
+                <td>12 – 14</td>
+                <td>C+</td>
+                <td>De 60 à 69%</td>
+                <td>Compétences acquises (CA)</td>
+            </tr>
+            <tr>
+                <td></td>
+                <td>10 – 12</td>
+                <td>C</td>
+                <td>De 50 à 59%</td>
+                <td>Compétences moyennement acquises (CMA)</td>
+            </tr>
+            <tr>
+                <td>Niveau 1</td>
+                <td>&lt; 10</td>
+                <td>D</td>
+                <td>&lt; 50%</td>
+                <td>Compétences non acquises (CNA)</td>
+            </tr>
+        </table>
+
+        <div class="grading-description">
+            <b><u>DESCRIPTION DES NIVEAUX DE RENDEMENT DE L'ÉLÈVE</u></b>
+        </div>
+        <div class="grading-description">
+            Le niveau de rendement est déterminé par les résultats obtenus après l'évaluation des apprentissages.
+        </div>
+        <div class="grading-description">
+            <b>Le niveau 1</b> indique un rendement non satisfaisant. L'élève est en dessous de la moyenne. Il a besoin d'un accompagnement particulier pour les compétences non acquises (tutorat, devoirs supplémentaires…).
+        </div>
+        <div class="grading-description">
+            <b>Le niveau 2</b>, bien qu'il indique une réussite, la <b>cote C</b> correspond à un niveau de rendement qui ne donne pas entièrement satisfaction. L'élève démontre avec <b>une efficacité limitée</b> l'habileté à mobiliser des ressources pour développer la compétence. Un rendement à ce niveau exige que l'élève s'améliore considérablement pour combler des insuffisances spécifiques dans ses apprentissages (accompagnement par des travaux supplémentaires). Par ailleurs, la <b>cote C+</b> correspond à un niveau de rendement assez satisfaisant. À ce stade, l'élève démontre avec <b>une certaine efficacité l'habileté</b> à mobiliser des ressources pour développer la compétence.
+        </div>
+        <div class="grading-description">
+            <b>Le niveau 3</b> indique un rendement satisfaisant. L'élève démontre avec <b>efficacité</b> l'habileté à mobiliser des ressources pour développer la compétence. Un rendement à ce niveau montre que l'élève mène bien ses apprentissages.
+        </div>
+        <div class="grading-description">
+            <b>Le niveau 4</b> signifie que le rendement de l'élève est très élevé. L'élève démontre avec <b>beaucoup d'efficacité</b> l'habileté à mobiliser des ressources pour développer la compétence. Ce niveau montre que l'élève a mené avec brio ses apprentissages.
+        </div>
+
+        <!-- PERFORMANCE GRID (English) -->
+        <div class="grading-title">PERFORMANCE GRID</div>
+        <table class="grading-grid">
+            <tr>
+                <th>LEVEL OF PERFORMANCE</th>
+                <th>MARK/20</th>
+                <th>GRADE</th>
+                <th>MARK IN PERCENTAGE (%)</th>
+                <th>REMARKS</th>
+            </tr>
+            <tr>
+                <td>Level 4</td>
+                <td>18 – 20</td>
+                <td>A+</td>
+                <td>From 90% to 100%</td>
+                <td>Competences Very Well Acquired (CVWA)</td>
+            </tr>
+            <tr>
+                <td></td>
+                <td>16 – 18</td>
+                <td>A</td>
+                <td>From 80 to 89%</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>Level 3</td>
+                <td>15 – 16</td>
+                <td>B+</td>
+                <td>From 75 to 79%</td>
+                <td>Competences Well Acquired (CWA)</td>
+            </tr>
+            <tr>
+                <td></td>
+                <td>14 – 15</td>
+                <td>B</td>
+                <td>From 70 to 74%</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>Level 2</td>
+                <td>12 – 14</td>
+                <td>C+</td>
+                <td>From 60 to 69%</td>
+                <td>Competences Acquired (CA)</td>
+            </tr>
+            <tr>
+                <td></td>
+                <td>10 – 12</td>
+                <td>C</td>
+                <td>From 50 to 59%</td>
+                <td>Competences Averagely Acquired (CAA)</td>
+            </tr>
+            <tr>
+                <td>Level 1</td>
+                <td>&lt; 10</td>
+                <td>D</td>
+                <td>&lt; 50%</td>
+                <td>Competences Not Acquired (CNA)</td>
+            </tr>
+        </table>
+
+        <div class="grading-description">
+            <b><u>DESCRIPTION OF STUDENT PERFORMANCE LEVELS</u></b>
+        </div>
+        <div class="grading-description">
+            The level of performance is determined by the score obtained in the summative assessment.
+        </div>
+        <div class="grading-description">
+            <b>Level 1</b> indicates unsatisfactory performance. The student performance is below average and will require assistance where competences were not acquired (mentoring, extra homework).
+        </div>
+        <div class="grading-description">
+            <b>Level 2</b>, while indicating success, C means performance that is not entirely satisfactory. The student demonstrates, <b>with limited effectiveness</b>, the ability to mobilise resources to develop the competence. C+ means the performance is fairly satisfactory. The student demonstrates, <b>with certain effectiveness</b>, the ability to mobilise resources to develop the competence.
+        </div>
+        <div class="grading-description">
+            <b>Level 3</b> shows satisfactory performance. The student demonstrates, <b>with effectiveness</b>, the ability to mobilise resources to develop the competence.
+        </div>
+        <div class="grading-description">
+            <b>Level 4</b> means that the student's performance is very high. The student demonstrates, <b>with a great deal of effectiveness</b>, the ability to mobilise resources to develop the competence.
+        </div>
+    </div>
+
+    <!-- PAGE 2: BULLETIN SCOLAIRE -->
+    <div class="page" style="page-break-before: always;">
+        <!-- En-tête (répété) -->
+        <table class="header-table">
+            <tr>
+                <td style="width: 30%;">
+                    <div class="country-name">RÉPUBLIQUE DU CAMEROUN</div>
+                    <div class="motto">Paix – Travail – Patrie</div>
+                </td>
+                <td style="width: 40%;">
+                    <div class="logo-cell">Logo et immatriculation de l'établissement</div>
+                    <div class="logo-cell">{{school_logo_text}}</div>
+                </td>
+                <td style="width: 30%;">
+                    <div class="country-name">REPUBLIC OF CAMEROON</div>
+                    <div class="motto">Peace – Work – Fatherland</div>
+                </td>
+            </tr>
+        </table>
+
+        <div class="bulletin-title">BULLETIN SCOLAIRE DU PREMIER TRIMESTRE</div>
+        <div class="school-year">Année scolaire : {{school_year}}</div>
+
+        <!-- Informations élève (condensé) -->
+        <table class="student-info-table">
+            <tr>
+                <td rowspan="3" class="photo-cell">Photo de l'élève</td>
+                <td><b>Classe :</b> {{class_level}}<sup>ème</sup> {{class_section}}</td>
+            </tr>
+            <tr>
+                <td><b>Date et lieu de naissance :</b> {{birth_date}} à {{birth_place}}</td>
+                <td><b>Genre :</b> {{gender}}</td>
+                <td><b>Effectif :</b> {{class_size}}</td>
+            </tr>
+            <tr>
+                <td><b>Identifiant Unique :</b> {{unique_id}}</td>
+                <td><b>Redoublant :</b> Oui ☐  Non ☐</td>
+                <td><b>Professeur principal :</b> {{main_teacher}}</td>
+            </tr>
+            <tr>
+                <td colspan="4"><b>Noms et contacts des Parents/Tuteurs :</b> {{parent_info}}</td>
+            </tr>
+        </table>
+
+        <!-- Tableau des notes -->
+        <table class="grades-table">
+            <thead>
+                <tr>
+                    <th class="subject-cell">MATIÈRES ET NOM DE L'ENSEIGNANT</th>
+                    <th class="competence-cell">COMPÉTENCES ÉVALUÉES</th>
+                    <th class="note-cell">N/20</th>
+                    <th class="avg-cell">M/20</th>
+                    <th class="coef-cell">Coef</th>
+                    <th class="total-cell">M x coef</th>
+                    <th class="cote-cell">COTE</th>
+                    <th class="minmax-cell">[Min – Max]</th>
+                    <th class="appreciation-cell">Appréciations et Visa</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each subjects}}
+                <tr>
+                    <td class="subject-cell">
+                        <b>{{subject_name}}</b><br>
+                        <span style="font-size: 8pt;">{{teacher_name}}</span>
+                    </td>
+                    <td class="competence-cell">{{competence_1}}</td>
+                    <td class="note-cell">{{note_1}}</td>
+                    <td class="avg-cell" rowspan="{{competence_count}}">{{average}}</td>
+                    <td class="coef-cell" rowspan="{{competence_count}}">{{coef}}</td>
+                    <td class="total-cell" rowspan="{{competence_count}}">{{total}}</td>
+                    <td class="cote-cell" rowspan="{{competence_count}}">{{cote}}</td>
+                    <td class="minmax-cell" rowspan="{{competence_count}}">{{min_max}}</td>
+                    <td class="appreciation-cell" rowspan="{{competence_count}}">{{appreciation}}</td>
+                </tr>
+                {{#if competence_2}}
+                <tr>
+                    <td class="subject-cell"></td>
+                    <td class="competence-cell">{{competence_2}}</td>
+                    <td class="note-cell">{{note_2}}</td>
+                </tr>
+                {{/if}}
+                {{#if competence_3}}
+                <tr>
+                    <td class="subject-cell"></td>
+                    <td class="competence-cell">{{competence_3}}</td>
+                    <td class="note-cell">{{note_3}}</td>
+                </tr>
+                {{/if}}
+                {{#if competence_4}}
+                <tr>
+                    <td class="subject-cell"></td>
+                    <td class="competence-cell">{{competence_4}}</td>
+                    <td class="note-cell">{{note_4}}</td>
+                </tr>
+                {{/if}}
+                {{/each}}
+
+                <!-- Ligne de total -->
+                <tr class="total-row">
+                    <td colspan="3" style="text-align: right;"><b>TOTAL</b></td>
+                    <td colspan="2"><b>MOYENNE : {{general_average}}</b></td>
+                    <td colspan="4"></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Section Discipline, Profil et Appréciations -->
+        <table class="bottom-section">
+            <tr>
+                <td class="discipline-header" colspan="2"><b>Discipline</b></td>
+                <td class="discipline-header" colspan="2"><b>Travail de l'élève</b></td>
+                <td class="profile-header" colspan="2"><b>Profil de la classe</b></td>
+            </tr>
+            <tr>
+                <td>Abs. non. J. (h)</td>
+                <td>{{abs_non_just}}</td>
+                <td>Avertissement de conduite</td>
+                <td>{{warning}}</td>
+                <td>TOTAL GENERAL</td>
+                <td>{{total_general}}</td>
+            </tr>
+            <tr>
+                <td>Abs just. (h)</td>
+                <td>{{abs_just}}</td>
+                <td>Blâme de conduite</td>
+                <td>{{blame}}</td>
+                <td>COEF</td>
+                <td>{{total_coef}}</td>
+            </tr>
+            <tr>
+                <td rowspan="4" class="appreciation-header" colspan="2"><b>APPRECIATIONS</b></td>
+                <td rowspan="4" class="appreciation-box">{{appreciation_text}}</td>
+                <td>CTBA</td>
+                <td>{{stat_ctba}}</td>
+                <td>Moyenne. Générale.</td>
+                <td>{{general_average}}</td>
+            </tr>
+            <tr>
+                <td>CBA</td>
+                <td>{{stat_cba}}</td>
+                <td>[Min – Max]</td>
+                <td>{{class_min_max}}</td>
+            </tr>
+            <tr>
+                <td>Retards (nombre de fois)</td>
+                <td>{{delays}}</td>
+                <td>Exclusions (jours)</td>
+                <td>{{exclusions}}</td>
+                <td>MOYENNE TRIM</td>
+                <td>{{trimester_avg}}</td>
+            </tr>
+            <tr>
+                <td>CA</td>
+                <td>{{stat_ca}}</td>
+                <td>Nombre de moyennes</td>
+                <td>{{nb_averages}}</td>
+            </tr>
+            <tr>
+                <td>Consignes (heures)</td>
+                <td>{{consignes}}</td>
+                <td>Exclusion définitive</td>
+                <td>{{def_exclusion}}</td>
+                <td>COTE</td>
+                <td>{{student_cote}}</td>
+            </tr>
+            <tr>
+                <td colspan="2"></td>
+                <td colspan="2"></td>
+                <td>CMA</td>
+                <td>{{stat_cma}}</td>
+            </tr>
+            <tr>
+                <td colspan="2"></td>
+                <td colspan="2"></td>
+                <td>CNA</td>
+                <td>{{stat_cna}}</td>
+            </tr>
+            <tr>
+                <td colspan="2"></td>
+                <td colspan="2"></td>
+                <td>Taux de réussite</td>
+                <td>{{success_rate}}%</td>
+            </tr>
+        </table>
+
+        <!-- Signatures -->
+        <table class="signature-section">
+            <tr>
+                <td><b>Visa du parent / Tuteur</b></td>
+                <td><b>Nom et visa du professeur principal</b></td>
+                <td><b>Le Chef d'établissement</b></td>
+            </tr>
+        </table>
+    </div>
+</body>
+</html>

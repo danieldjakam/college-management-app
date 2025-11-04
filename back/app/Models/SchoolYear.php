@@ -25,11 +25,13 @@ class SchoolYear extends Model
     ];
 
     /**
-     * Relation avec les élèves
+     * Relation avec les élèves (triés par ordre alphabétique)
      */
     public function students()
     {
-        return $this->hasMany(Student::class);
+        return $this->hasMany(Student::class)
+                    ->orderByRaw('COALESCE(last_name, name) ASC')
+                    ->orderByRaw('COALESCE(first_name, subname) ASC');
     }
 
     /**
