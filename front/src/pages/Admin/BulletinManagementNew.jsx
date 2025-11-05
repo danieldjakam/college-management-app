@@ -194,10 +194,15 @@ function BulletinManagementNew() {
               period_type: periodType,
               period_identifier: periodId
             });
-            
-            // Actualiser les données
+
+            // Actualiser les données immédiatement
             await fetchStudentsData();
-            
+
+            // Actualiser à nouveau après un délai pour être sûr que le bulletin est généré
+            setTimeout(() => {
+              fetchStudentsData();
+            }, 1500);
+
             setSuccess('Bulletin généré automatiquement. Vous pouvez maintenant le télécharger.');
             return;
             
@@ -268,14 +273,14 @@ function BulletinManagementNew() {
         });
         
         setSuccess('Bulletin régénéré avec succès');
-        
+
         // Force reload data to get new bulletin IDs
         await fetchStudentsData();
-        
+
         // Additional delay to ensure data is updated
         setTimeout(() => {
           fetchStudentsData();
-        }, 1000);
+        }, 1500);
         
       } catch (error) {
         console.error('Error during regeneration:', error);

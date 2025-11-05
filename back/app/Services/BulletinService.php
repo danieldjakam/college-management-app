@@ -796,9 +796,45 @@ class BulletinService
      */
     protected function getTrimesterSubjectMinMax($trimesterNumber, $seriesSubjectId)
     {
-        // Pour l'instant, on retourne un placeholder
-        // TODO: Calculer le vrai min/max pour les trimestres
-        return 'N/A';
+        // Get trimester ID
+        $trimester = Trimester::where('number', $trimesterNumber)->first();
+        if (!$trimester) {
+            return '[N/A]';
+        }
+
+        // Get all students in the same class series
+        $seriesSubject = ClassSeriesSubject::find($seriesSubjectId);
+        if (!$seriesSubject) {
+            return '[N/A]';
+        }
+
+        $students = Student::where('class_series_id', $seriesSubject->class_series_id)->pluck('id');
+
+        if ($students->isEmpty()) {
+            return '[N/A]';
+        }
+
+        $subjectAverages = [];
+
+        foreach ($students as $studentId) {
+            // Calculate M/20 (Moyenne finale du trimestre) for each student
+            // This uses the same logic as the bulletin: (DS + Composition) / 2
+            // If composition not entered, it uses 0: (DS + 0) / 2 = DS / 2
+            $moyenne = $this->calculateTrimesterGrade($trimester->id, $studentId, $seriesSubjectId, 'premier');
+
+            if ($moyenne !== null) {
+                $subjectAverages[] = $moyenne;
+            }
+        }
+
+        if (empty($subjectAverages)) {
+            return '[N/A]';
+        }
+
+        $min = min($subjectAverages);
+        $max = max($subjectAverages);
+
+        return '[' . number_format($min, 2) . ' - ' . number_format($max, 2) . ']';
     }
     
     /**
@@ -1660,8 +1696,8 @@ class BulletinService
             $subjectId = $subject['subject_id'] ?? null;
 
             // Calculate DS = (Seq1 + Seq2) / 2
-            // Note: $subject['score'] already contains the DS average calculated by the system
-            $dsNote = $subject['score'] ?? 0; // This is already (Seq1 + Seq2) / 2
+            // Use $subject['ds'] which contains the DS average (not $subject['score'] which is the final trimester grade)
+            $dsNote = $subject['ds'] ?? 0; // This is (Seq1 + Seq2) / 2
 
             // Get Composition grade
             $compositionNote = $subject['composition'] ?? 0;
@@ -1808,11 +1844,11 @@ class BulletinService
             $totalCoef = 0;
 
             foreach ($subjects as $subject) {
-                $dsNote = $this->calculateDSAverage($trimesterId, $studentId, $subject->id);
-                $compositionNote = $this->getCompositionGrade($trimesterId, $studentId, $subject->id);
+                // Calculate M/20 (Moyenne finale du trimestre) for this subject
+                // This uses: (DS + Composition) / 2, or (DS + 0) / 2 if composition not entered
+                $moyenne = $this->calculateTrimesterGrade($trimesterId, $studentId, $subject->id, 'premier');
 
-                if ($dsNote !== null && $compositionNote !== null) {
-                    $moyenne = ($dsNote + $compositionNote) / 2;
+                if ($moyenne !== null) {
                     $totalPoints += $moyenne * $subject->coefficient;
                     $totalCoef += $subject->coefficient;
                 }
@@ -1853,12 +1889,11 @@ class BulletinService
         $subjectAverages = [];
 
         foreach ($students as $studentId) {
-            // Calculate subject average: (DS + Composition) / 2
-            $dsNote = $this->calculateDSAverage($trimesterId, $studentId, $subjectId);
-            $compositionNote = $this->getCompositionGrade($trimesterId, $studentId, $subjectId);
+            // Calculate M/20 (Moyenne finale du trimestre) for this subject
+            // This uses: (DS + Composition) / 2, or (DS + 0) / 2 if composition not entered
+            $moyenne = $this->calculateTrimesterGrade($trimesterId, $studentId, $subjectId, 'premier');
 
-            if ($dsNote !== null && $compositionNote !== null) {
-                $moyenne = ($dsNote + $compositionNote) / 2;
+            if ($moyenne !== null) {
                 $subjectAverages[] = $moyenne;
             }
         }
@@ -1895,11 +1930,10 @@ class BulletinService
             $totalCoef = 0;
 
             foreach ($subjects as $subject) {
-                $dsNote = $this->calculateDSAverage($trimesterId, $studentId, $subject->id);
-                $compositionNote = $this->getCompositionGrade($trimesterId, $studentId, $subject->id);
+                // Use calculateTrimesterGrade to get M/20 (handles composition = 0 correctly)
+                $moyenne = $this->calculateTrimesterGrade($trimesterId, $studentId, $subject->id, 'premier');
 
-                if ($dsNote !== null && $compositionNote !== null) {
-                    $moyenne = ($dsNote + $compositionNote) / 2;
+                if ($moyenne !== null) {
                     $totalPoints += $moyenne * $subject->coefficient;
                     $totalCoef += $subject->coefficient;
                 }
@@ -1939,11 +1973,10 @@ class BulletinService
             $totalCoef = 0;
 
             foreach ($subjects as $subject) {
-                $dsNote = $this->calculateDSAverage($trimesterId, $studentId, $subject->id);
-                $compositionNote = $this->getCompositionGrade($trimesterId, $studentId, $subject->id);
+                // Use calculateTrimesterGrade to get M/20 (handles composition = 0 correctly)
+                $moyenne = $this->calculateTrimesterGrade($trimesterId, $studentId, $subject->id, 'premier');
 
-                if ($dsNote !== null && $compositionNote !== null) {
-                    $moyenne = ($dsNote + $compositionNote) / 2;
+                if ($moyenne !== null) {
                     $totalPoints += $moyenne * $subject->coefficient;
                     $totalCoef += $subject->coefficient;
                 }

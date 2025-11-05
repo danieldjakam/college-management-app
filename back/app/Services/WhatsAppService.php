@@ -1655,6 +1655,120 @@ class WhatsAppService
     }
 
     /**
+     * Envoyer le récapitulatif complet des affectations à un enseignant
+     */
+    public function sendTeacherAssignmentsSummary($teacher, $schoolYearId = null)
+    {
+        if (!$this->isWhatsAppConfigured()) {
+            return false;
+        }
+
+        // Vérifier que l'enseignant a un numéro de téléphone
+        if (!$teacher || !$teacher->phone_number) {
+            Log::info('Enseignant sans numéro de téléphone pour notification récapitulatif WhatsApp', [
+                'teacher_id' => $teacher ? $teacher->id : null
+            ]);
+            return false;
+        }
+
+        // Si pas d'année scolaire spécifiée, prendre l'année courante
+        if (!$schoolYearId) {
+            $schoolYear = \App\Models\SchoolYear::where('is_current', true)->first();
+            $schoolYearId = $schoolYear ? $schoolYear->id : null;
+        }
+
+        if (!$schoolYearId) {
+            Log::error('Aucune année scolaire trouvée pour récapitulatif enseignant');
+            return false;
+        }
+
+        // Récupérer toutes les affectations de l'enseignant
+        $assignments = \App\Models\TeacherAssignment::where('teacher_id', $teacher->id)
+            ->where('school_year_id', $schoolYearId)
+            ->where('is_active', true)
+            ->with([
+                'classSeriesSubject.subject',
+                'classSeriesSubject.classSeries.schoolClass.level',
+                'schoolYear'
+            ])
+            ->get();
+
+        if ($assignments->isEmpty()) {
+            Log::info('Aucune affectation trouvée pour cet enseignant', [
+                'teacher_id' => $teacher->id,
+                'school_year_id' => $schoolYearId
+            ]);
+            return false;
+        }
+
+        // Formater le message récapitulatif
+        $message = $this->formatTeacherAssignmentsSummaryMessage($teacher, $assignments);
+
+        // Envoyer le message
+        $result = $this->sendMessage($teacher->phone_number, $message);
+
+        if ($result) {
+            Log::info('Récapitulatif des affectations enseignant envoyé avec succès', [
+                'teacher_id' => $teacher->id,
+                'phone' => $teacher->phone_number,
+                'assignments_count' => $assignments->count()
+            ]);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Formater le message récapitulatif des affectations d'un enseignant
+     */
+    protected function formatTeacherAssignmentsSummaryMessage($teacher, $assignments)
+    {
+        $schoolName = SchoolSetting::getSettings()->school_name ?? 'COLLÈGE POLYVALENT BILINGUE DE DOUALA';
+        $schoolYear = $assignments->first()->schoolYear;
+
+        $message = "🎓 *RÉCAPITULATIF DES AFFECTATIONS - {$schoolName}*\n\n" .
+                   "👩‍🏫 *Chère/Cher {$teacher->first_name} {$teacher->last_name},*\n\n" .
+                   "Voici la liste complète de vos affectations pour l'année en cours :\n\n";
+
+        // Lister toutes les affectations
+        foreach ($assignments as $index => $assignment) {
+            $subject = $assignment->classSeriesSubject->subject;
+            $classSeries = $assignment->classSeriesSubject->classSeries;
+            $level = $classSeries->schoolClass->level ?? null;
+
+            $message .= "📚 *Affectation " . ($index + 1) . "*\n" .
+                       "   • *Matière :* {$subject->name}\n" .
+                       "   • *Classe :* {$classSeries->name}\n";
+
+            if ($level) {
+                $message .= "   • *Niveau :* {$level->name}\n";
+            }
+
+            $message .= "\n";
+        }
+
+        // Total
+        $message .= "📊 *Total :* " . $assignments->count() . " affectation" . ($assignments->count() > 1 ? 's' : '') . "\n\n";
+
+        // S'assurer que l'enseignant a un compte utilisateur et récupérer les credentials
+        $credentials = $this->ensureTeacherHasUserAccount($teacher);
+
+        // Ajouter les informations de connexion
+        if ($credentials) {
+            $message .= "🔐 *INFORMATIONS DE CONNEXION*\n\n" .
+                       "🌐 *Lien :* http://admin.cpb-douala.com\n" .
+                       "👤 *Nom d'utilisateur :* {$credentials['username']}\n" .
+                       "🔑 *Mot de passe :* {$credentials['password']}\n\n";
+        }
+
+        $message .= "📖 Vous pouvez consulter toutes vos classes et élèves sur votre tableau de bord enseignant.\n\n" .
+                   "📞 Pour toute question, contactez l'administration.\n\n" .
+                   "📱 Notification automatique du système de gestion scolaire.";
+
+        return $message;
+    }
+
+    /**
      * Récupérer la dernière erreur WhatsApp des logs
      */
     private function getRecentWhatsAppError()

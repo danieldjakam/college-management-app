@@ -417,4 +417,131 @@ class TeacherAssignmentController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Envoyer le récapitulatif complet des affectations à un enseignant par WhatsApp
+     * POST /api/teacher-assignments/send-summary/{teacher}
+     */
+    public function sendAssignmentsSummary(Teacher $teacher, Request $request)
+    {
+        try {
+            $schoolYearId = $request->school_year_id ?? SchoolYear::where('is_current', true)->first()?->id;
+
+            // Vérifier que l'enseignant a un numéro de téléphone
+            if (!$teacher->phone_number) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "L'enseignant {$teacher->first_name} {$teacher->last_name} n'a pas de numéro de téléphone enregistré"
+                ], 422);
+            }
+
+            // Envoyer le récapitulatif via WhatsApp
+            $whatsAppService = app(WhatsAppService::class);
+            $result = $whatsAppService->sendTeacherAssignmentsSummary($teacher, $schoolYearId);
+
+            if (!$result) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Échec de l\'envoi du récapitulatif WhatsApp. Vérifiez la configuration WhatsApp et les logs.'
+                ], 500);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "Récapitulatif envoyé avec succès à {$teacher->first_name} {$teacher->last_name} au {$teacher->phone_number}"
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur envoi récapitulatif WhatsApp', [
+                'teacher_id' => $teacher->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'envoi du récapitulatif',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Envoyer le récapitulatif à un enseignant par numéro de téléphone
+     * POST /api/teacher-assignments/send-summary-by-phone
+     */
+    public function sendAssignmentsSummaryByPhone(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'phone_number' => 'required|string',
+                'school_year_id' => 'nullable|exists:school_years,id'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Données invalides',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Chercher l'enseignant par numéro de téléphone
+            $phoneNumber = $request->phone_number;
+
+            // Nettoyer le numéro (enlever espaces, tirets, etc.)
+            $cleanedPhone = preg_replace('/[^0-9+]/', '', $phoneNumber);
+
+            $teacher = Teacher::where(function($query) use ($cleanedPhone, $phoneNumber) {
+                $query->where('phone_number', $phoneNumber)
+                      ->orWhere('phone_number', $cleanedPhone)
+                      ->orWhere('phone_number', 'LIKE', '%' . substr($cleanedPhone, -9) . '%');
+            })->first();
+
+            if (!$teacher) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Aucun enseignant trouvé avec le numéro {$phoneNumber}"
+                ], 404);
+            }
+
+            $schoolYearId = $request->school_year_id ?? SchoolYear::where('is_current', true)->first()?->id;
+
+            // Envoyer le récapitulatif via WhatsApp
+            $whatsAppService = app(WhatsAppService::class);
+            $result = $whatsAppService->sendTeacherAssignmentsSummary($teacher, $schoolYearId);
+
+            if (!$result) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Échec de l\'envoi du récapitulatif WhatsApp. Vérifiez la configuration WhatsApp et les logs.'
+                ], 500);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "Récapitulatif envoyé avec succès à {$teacher->first_name} {$teacher->last_name} au {$teacher->phone_number}",
+                'data' => [
+                    'teacher' => [
+                        'id' => $teacher->id,
+                        'name' => "{$teacher->first_name} {$teacher->last_name}",
+                        'phone' => $teacher->phone_number
+                    ]
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur envoi récapitulatif WhatsApp par téléphone', [
+                'phone' => $request->phone_number ?? 'N/A',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'envoi du récapitulatif',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
