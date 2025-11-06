@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../utils/constants.dart';
 import '../widgets/app_drawer.dart';
+import 'competences_screen.dart';
 
 class ClassesScreen extends StatefulWidget {
   const ClassesScreen({super.key});
@@ -211,6 +212,30 @@ class _ClassesScreenState extends State<ClassesScreen> {
                     : null,
               );
             },
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CompetencesScreen(
+                      classSeriesId: classInfo.id,
+                      className: classInfo.name,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.assignment),
+              label: const Text('Gérer les compétences'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
           ),
         ],
       ),

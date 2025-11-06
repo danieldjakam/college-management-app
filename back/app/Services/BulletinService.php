@@ -1587,7 +1587,45 @@ class BulletinService
         }
         return 72; // Default value
     }
-    
+
+    /**
+     * Get competences for a subject in a given trimester
+     * Returns array with competence_1 and competence_2
+     */
+    protected function getSubjectCompetences($classSeriesId, $subjectId, $trimesterId)
+    {
+        // Find the class_series_subject_id
+        $classSeriesSubject = \App\Models\ClassSeriesSubject::where('class_series_id', $classSeriesId)
+            ->whereHas('subject', function($query) use ($subjectId) {
+                $query->where('id', $subjectId);
+            })
+            ->first();
+
+        if (!$classSeriesSubject) {
+            return [
+                'competence_1' => '',
+                'competence_2' => ''
+            ];
+        }
+
+        // Get the competences from the database
+        $competence = \App\Models\SubjectCompetence::where('class_series_subject_id', $classSeriesSubject->id)
+            ->where('trimester_id', $trimesterId)
+            ->first();
+
+        if (!$competence) {
+            return [
+                'competence_1' => '',
+                'competence_2' => ''
+            ];
+        }
+
+        return [
+            'competence_1' => $competence->competence_1 ?? '',
+            'competence_2' => $competence->competence_2 ?? ''
+        ];
+    }
+
     /**
      * Build HTML rows for subjects in templates
      */
@@ -1674,8 +1712,8 @@ class BulletinService
         // Student information
         $replacements = [
             'student_name' => strtoupper($student->last_name . ' ' . $student->first_name),
-            'birth_date' => $student->birth_date ? $student->birth_date->format('d/m/Y') : 'N/A',
-            'birth_place' => $student->birth_place ?? 'N/A',
+            'birth_date' => $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : ($student->birthday ?? 'N/A'),
+            'birth_place' => $student->place_of_birth ?? ($student->birthday_place ?? 'N/A'),
             'gender' => $student->gender === 'M' ? 'Masculin' : 'Féminin',
             'unique_id' => $student->matricule ?? $student->student_number ?? 'N/A',
             'class_level' => $classLevel,
@@ -1724,23 +1762,36 @@ class BulletinService
             // Calculate [Min - Max] for this subject
             $minMax = $this->getAPCSubjectMinMax($trimester->id, $student->class_series_id, $subjectId);
 
-            // Generate HTML for this subject (2 rows: French competence + English translation)
-            // Row 1: DS note
+            // Get competences for this subject
+            $competences = $this->getSubjectCompetences($student->class_series_id, $subjectId, $trimester->id);
+
+            // Generate HTML for this subject (2 rows: competence_1 + competence_2)
+            // Row 1: DS note + Competence 1
             $subjectsHTML .= '<tr>';
             $subjectsHTML .= '<td class="subject-col" rowspan="2"><b>' . htmlspecialchars($subject['name']) . '</b><br><span class="teacher-name">' . htmlspecialchars($subject['teacher'] ?? 'N/A') . '</span></td>';
-            $subjectsHTML .= '<td class="competence-col">Compétence en français</td>';
+            $subjectsHTML .= '<td class="competence-col">' . htmlspecialchars($competences['competence_1'] ?: 'Compétence 1') . '</td>';
             $subjectsHTML .= '<td class="note-col">' . number_format($dsNote, 2) . '</td>';
             $subjectsHTML .= '<td class="avg-col" rowspan="2">' . number_format($moyenne, 2) . '</td>';
             $subjectsHTML .= '<td class="coef-col" rowspan="2">' . $coef . '</td>';
             $subjectsHTML .= '<td class="total-col" rowspan="2">' . number_format($total, 2) . '</td>';
             $subjectsHTML .= '<td class="cote-col ' . $coteClass . '" rowspan="2"><b>' . $cote . '</b></td>';
             $subjectsHTML .= '<td class="minmax-col" rowspan="2">' . $minMax . '</td>';
-            $subjectsHTML .= '<td class="app-col" rowspan="2"></td>';
+
+            // Appréciation selon la moyenne M/20
+            $appreciation = '';
+            if ($moyenne >= 10) {
+                $appreciation = 'Acquise';
+            } elseif ($moyenne >= 5) {
+                $appreciation = 'En cours d\'acquisition';
+            } else {
+                $appreciation = 'Non Acquise';
+            }
+            $subjectsHTML .= '<td class="app-col" rowspan="2">' . $appreciation . '</td>';
             $subjectsHTML .= '</tr>';
 
-            // Row 2: Composition note
+            // Row 2: Composition note + Competence 2
             $subjectsHTML .= '<tr>';
-            $subjectsHTML .= '<td class="competence-col">Competence in English</td>';
+            $subjectsHTML .= '<td class="competence-col">' . htmlspecialchars($competences['competence_2'] ?: 'Compétence 2') . '</td>';
             $subjectsHTML .= '<td class="note-col">' . number_format($compositionNote, 2) . '</td>';
             $subjectsHTML .= '</tr>';
         }
@@ -1767,6 +1818,28 @@ class BulletinService
         foreach ($replacements as $key => $value) {
             $html = str_replace('{{' . $key . '}}', $value, $html);
         }
+
+        // Replace Blade public_path() directive with base64 encoded image for DomPDF
+        $html = preg_replace_callback('/src=["\']?\{\{\s*public_path\([\'"](.+?)[\'"]\)\s*\}\}["\']?/', function($matches) {
+            $imagePath = public_path($matches[1]);
+            if (file_exists($imagePath)) {
+                $imageData = base64_encode(file_get_contents($imagePath));
+                $imageType = pathinfo($imagePath, PATHINFO_EXTENSION);
+                return 'src="data:image/' . $imageType . ';base64,' . $imageData . '"';
+            }
+            return 'src=""';
+        }, $html);
+
+        // Replace background-image with base64 encoded image for DomPDF
+        $html = preg_replace_callback('/background-image:\s*\{\{\s*public_path\([\'"](.+?)[\'"]\)\s*\}\}/', function($matches) {
+            $imagePath = public_path($matches[1]);
+            if (file_exists($imagePath)) {
+                $imageData = base64_encode(file_get_contents($imagePath));
+                $imageType = pathinfo($imagePath, PATHINFO_EXTENSION);
+                return 'background-image: url(data:image/' . $imageType . ';base64,' . $imageData . ')';
+            }
+            return 'background-image: none';
+        }, $html);
 
         // Remove any remaining placeholders
         $html = preg_replace('/\{\{.*?\}\}/', '', $html);

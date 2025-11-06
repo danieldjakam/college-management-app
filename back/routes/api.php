@@ -57,6 +57,7 @@ use App\Http\Controllers\MobileAttendanceController;
 use App\Http\Controllers\BulletinController;
 use App\Http\Controllers\MarkSheetController;
 use App\Http\Controllers\BusController;
+use App\Http\Controllers\CompetenceController;
 
 
 // Routes d'authentification
@@ -757,6 +758,19 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/{mainTeacher}', [MainTeacherController::class, 'update'])->middleware(['role:admin,principal,secretaire']);
         Route::delete('/{mainTeacher}', [MainTeacherController::class, 'destroy'])->middleware(['role:admin,principal,secretaire']);
         Route::post('/{mainTeacher}/toggle-status', [MainTeacherController::class, 'toggleStatus'])->middleware(['role:admin,principal,secretaire']);
+    });
+
+    // Routes pour les compétences évaluées
+    Route::prefix('subject-competences')->group(function () {
+        // Routes pour les enseignants
+        Route::get('/', [CompetenceController::class, 'index'])->middleware(['role:teacher']);
+        Route::get('/class/{classSeriesId}/subjects', [CompetenceController::class, 'getTeacherSubjectsInClass'])->middleware(['role:teacher']);
+        Route::get('/{classSeriesId}/{classSeriesSubjectId}/{trimesterId}', [CompetenceController::class, 'show'])->middleware(['role:teacher']);
+        Route::post('/', [CompetenceController::class, 'store'])->middleware(['role:teacher']);
+        Route::delete('/{id}', [CompetenceController::class, 'destroy'])->middleware(['role:teacher']);
+
+        // Route système pour récupérer les compétences lors de la génération des bulletins
+        Route::get('/for-bulletin/{classSeriesSubjectId}/{trimesterId}', [CompetenceController::class, 'getForBulletin']);
     });
 
     // Routes pour les besoins

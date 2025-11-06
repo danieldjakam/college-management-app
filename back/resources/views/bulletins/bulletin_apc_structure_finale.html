@@ -15,6 +15,24 @@
         .page {
             width: 210mm;
             padding: 8mm 8mm 8mm 8mm;
+            position: relative;
+        }
+
+        /* Filigrane en arrière-plan */
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 35%;
+            opacity: 0.08;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
         }
 
         table { border-collapse: collapse; width: 100%; }
@@ -46,6 +64,14 @@
             font-size: 12pt;
             font-weight: bold;
             color: #a855f7;
+            overflow: hidden;
+        }
+
+        .logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 2px;
         }
 
         .title {
@@ -191,6 +217,10 @@
 </head>
 <body>
 <div class="page">
+    <!-- Logo en filigrane -->
+    <img src="{{ public_path('assets/images/logo.png') }}" alt="Filigrane" class="watermark">
+
+    <div class="content-wrapper">
     <!-- En-tête CPBD -->
     <table class="header-table">
         <tr>
@@ -347,6 +377,7 @@
             <td class="signature-cell">Le Chef d'établissement</td>
         </tr>
     </table>
+    </div><!-- fin content-wrapper -->
 </div>
 </body>
 </html>
