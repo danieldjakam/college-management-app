@@ -33,6 +33,7 @@ function BulletinManagementNew() {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewContent, setPreviewContent] = useState('');
   const [previewStudent, setPreviewStudent] = useState(null);
+  const [previewBulletinInfo, setPreviewBulletinInfo] = useState(null); // Pour le téléchargement PDF
 
   useEffect(() => {
     fetchHierarchicalStructure();
@@ -244,7 +245,7 @@ function BulletinManagementNew() {
         type: type,
         period_identifier: periodIdentifier
       });
-      
+
       // secureApi returns parsed JSON directly
       if (response && response.success && response.html) {
         setPreviewContent(response.html);
@@ -252,9 +253,66 @@ function BulletinManagementNew() {
         setPreviewContent('<p>Contenu non disponible</p>');
       }
       setPreviewStudent({ id: studentId, name: studentName });
+      // Stocker les infos pour le téléchargement PDF
+      setPreviewBulletinInfo({
+        student_id: studentId,
+        type: type,
+        period_identifier: periodIdentifier
+      });
       setShowPreviewModal(true);
     } catch (error) {
       setError('Erreur lors de la prévisualisation');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!previewBulletinInfo) {
+      setError('Informations du bulletin manquantes');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+
+      // Créer un lien temporaire pour déclencher le téléchargement
+      const response = await fetch(`${host}/api/bulletins/download-direct`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authService.getToken()}`
+        },
+        body: JSON.stringify(previewBulletinInfo)
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors du téléchargement');
+      }
+
+      // Obtenir le blob du PDF
+      const blob = await response.blob();
+
+      // Créer un nom de fichier approprié
+      const filename = `bulletin_${previewBulletinInfo.type}_${previewBulletinInfo.period_identifier}_student_${previewBulletinInfo.student_id}.pdf`;
+
+      // Créer un lien temporaire et déclencher le téléchargement
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setSuccess('Bulletin téléchargé avec succès !');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      setError('Erreur lors du téléchargement du PDF');
     } finally {
       setLoading(false);
     }
@@ -352,6 +410,98 @@ function BulletinManagementNew() {
     }
   };
 
+  const handleGenerateAllBulletins = async () => {
+    if (!selectedSeries || !selectedClass) {
+      setError('Veuillez sélectionner une classe et une série');
+      return;
+    }
+
+    if (!window.confirm('Générer tous les bulletins manquants pour cette classe ? Cela ne régénérera pas les bulletins déjà existants.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+      setSuccess('🔄 Génération en cours... Cela peut prendre plusieurs minutes selon le nombre d\'étudiants. Veuillez patienter...');
+
+      // Déterminer la période actuelle
+      const currentPeriod = academicTimeline?.current_sequence || academicTimeline?.current_trimester;
+      if (!currentPeriod) {
+        throw new Error('Aucune période académique active trouvée');
+      }
+
+      console.log('🚀 Génération avec class_id:', selectedClass);
+
+      const startTime = Date.now();
+      const response = await secureApi.post('/bulletins/batch-generate', {
+        class_id: parseInt(selectedClass), // selectedClass est déjà l'ID de school_class
+        bulletin_type: currentPeriod.type === 'sequence' ? 'sequence' : 'trimester',
+        period_identifier: `${currentPeriod.type === 'sequence' ? 'seq' : 'trim'}${currentPeriod.number}`,
+        force: false // Ne pas régénérer les bulletins existants
+      }, { timeout: 600000 }); // 10 minutes pour la génération en lot
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      setSuccess(`✅ Génération terminée en ${duration}s : ${response.generated_count} bulletin(s) générés, ${response.error_count} erreur(s)`);
+
+      // Actualiser les données
+      await fetchStudentsData();
+
+    } catch (error) {
+      console.error('Erreur génération groupée:', error);
+      setError(error.message || 'Erreur lors de la génération groupée');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegenerateAllBulletins = async () => {
+    if (!selectedSeries || !selectedClass) {
+      setError('Veuillez sélectionner une classe et une série');
+      return;
+    }
+
+    if (!window.confirm('⚠️ ATTENTION : Régénérer TOUS les bulletins de cette classe ? Cela supprimera et recréera tous les bulletins existants avec les données actuelles (compétences, notes, etc.).')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+      setSuccess('🔄 Régénération en cours... Suppression et recréation de tous les bulletins. Cela peut prendre plusieurs minutes. Veuillez patienter...');
+
+      // Déterminer la période actuelle
+      const currentPeriod = academicTimeline?.current_sequence || academicTimeline?.current_trimester;
+      if (!currentPeriod) {
+        throw new Error('Aucune période académique active trouvée');
+      }
+
+      console.log('🔄 Régénération avec class_id:', selectedClass);
+
+      const startTime = Date.now();
+      const response = await secureApi.post('/bulletins/batch-generate', {
+        class_id: parseInt(selectedClass), // selectedClass est déjà l'ID de school_class
+        bulletin_type: currentPeriod.type === 'sequence' ? 'sequence' : 'trimester',
+        period_identifier: `${currentPeriod.type === 'sequence' ? 'seq' : 'trim'}${currentPeriod.number}`,
+        force: true // Forcer la régénération de tous les bulletins
+      }, { timeout: 600000 }); // 10 minutes pour la régénération en lot
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      setSuccess(`✅ Régénération terminée en ${duration}s : ${response.generated_count} bulletin(s) régénérés, ${response.error_count} erreur(s)`);
+
+      // Actualiser les données avec un délai pour permettre la génération complète
+      setTimeout(async () => {
+        await fetchStudentsData();
+      }, 1500);
+
+    } catch (error) {
+      console.error('Erreur régénération groupée:', error);
+      setError(error.message || 'Erreur lors de la régénération groupée');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDownloadAllBulletins = async () => {
     if (!selectedSeries) {
       setError('Veuillez sélectionner une série');
@@ -364,7 +514,7 @@ function BulletinManagementNew() {
 
     try {
       setLoading(true);
-      
+
       const token = authService.getToken();
       const response = await fetch(`${host}/api/bulletins/download-all`, {
         method: 'POST',
@@ -387,7 +537,7 @@ function BulletinManagementNew() {
 
       const blob = await response.blob();
       const fileName = `bulletins_${new Date().toISOString().slice(0,10)}.zip`;
-      
+
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -396,7 +546,7 @@ function BulletinManagementNew() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
+
       setSuccess(`Archive téléchargée: ${fileName}`);
     } catch (error) {
       console.error('Erreur téléchargement groupé:', error);
@@ -737,22 +887,59 @@ function BulletinManagementNew() {
             </ButtonGroup>
           </Col>
           <Col md={4} className="text-end">
-            <Button 
-              variant="success" 
-              onClick={handleDownloadAllBulletins}
-              disabled={loading || !selectedSeries}
-              className="d-flex align-items-center justify-content-center"
-            >
-              <Download className="me-2" size={16} />
-              {loading ? (
-                <>
-                  <Spinner size="sm" className="me-2" />
-                  Téléchargement...
-                </>
-              ) : (
-                'Télécharger Tous les Bulletins'
-              )}
-            </Button>
+            <div className="d-flex gap-2 justify-content-end flex-wrap">
+              <Button
+                variant="primary"
+                onClick={handleGenerateAllBulletins}
+                disabled={loading || !selectedSeries}
+                size="sm"
+                className="d-flex align-items-center"
+              >
+                <CardText className="me-1" size={14} />
+                {loading ? (
+                  <>
+                    <Spinner size="sm" className="me-1" />
+                    Génération...
+                  </>
+                ) : (
+                  'Générer Tous'
+                )}
+              </Button>
+              <Button
+                variant="warning"
+                onClick={handleRegenerateAllBulletins}
+                disabled={loading || !selectedSeries}
+                size="sm"
+                className="d-flex align-items-center"
+              >
+                <ArrowClockwise className="me-1" size={14} />
+                {loading ? (
+                  <>
+                    <Spinner size="sm" className="me-1" />
+                    Régénération...
+                  </>
+                ) : (
+                  'Régénérer Tous'
+                )}
+              </Button>
+              <Button
+                variant="success"
+                onClick={handleDownloadAllBulletins}
+                disabled={loading || !selectedSeries}
+                size="sm"
+                className="d-flex align-items-center"
+              >
+                <Download className="me-1" size={14} />
+                {loading ? (
+                  <>
+                    <Spinner size="sm" className="me-1" />
+                    Téléchargement...
+                  </>
+                ) : (
+                  'Télécharger Tous'
+                )}
+              </Button>
+            </div>
           </Col>
         </Row>
       )}
@@ -1054,6 +1241,14 @@ function BulletinManagementNew() {
           )}
         </Modal.Body>
         <Modal.Footer>
+          <Button
+            variant="primary"
+            onClick={handleDownloadPdf}
+            disabled={loading || !previewBulletinInfo}
+          >
+            <Download className="me-2" />
+            Télécharger PDF
+          </Button>
           <Button variant="secondary" onClick={() => setShowPreviewModal(false)}>
             Fermer
           </Button>

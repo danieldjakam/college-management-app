@@ -83,6 +83,7 @@ import EvaluationCreate from "./pages/Teacher/EvaluationCreate";
 import GradeEntry from "./pages/Teacher/GradeEntry";
 import SequenceSubjects from "./pages/Teacher/SequenceSubjects";
 import SubjectStudents from "./pages/Teacher/SubjectStudents";
+import Competences from "./pages/Teacher/Competences";
 
 // Departments
 import DepartmentManagement from "./pages/Departments/DepartmentManagement";
@@ -1018,6 +1019,15 @@ const AppContent = () => {
                 element={
                   <TeacherRoute>
                     <GradeEntry />
+                  </TeacherRoute>
+                }
+              />
+
+              <Route
+                path="/teacher/competences"
+                element={
+                  <TeacherRoute>
+                    <Competences />
                   </TeacherRoute>
                 }
               />

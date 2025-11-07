@@ -35,10 +35,16 @@ class SecureApiService {
         }
 
         try {
+            // Support pour timeout personnalisé
+            const timeout = options.timeout || 120000; // Default: 2 minutes
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
             const response = await fetch(fullUrl, {
                 ...options,
-                headers
-            });
+                headers,
+                signal: controller.signal
+            }).finally(() => clearTimeout(timeoutId));
 
             // Gestion des erreurs HTTP
             if (!response.ok) {
@@ -92,6 +98,10 @@ class SecureApiService {
             }
 
         } catch (error) {
+            if (error.name === 'AbortError') {
+                logger.apiError(error, 'Timeout');
+                throw new Error('La requête a pris trop de temps. Veuillez réessayer.');
+            }
             if (error.name === 'TypeError' && error.message.includes('fetch')) {
                 logger.apiError(error, 'Connexion');
                 throw new Error('Impossible de se connecter au serveur. Vérifiez votre connexion.');
@@ -99,6 +109,14 @@ class SecureApiService {
             logger.apiError(error);
             throw error;
         }
+    }
+
+    // Méthode spéciale pour les requêtes longues (génération de bulletins, etc.)
+    async makeLongRequest(endpoint, options = {}) {
+        return await this.makeRequest(endpoint, {
+            ...options,
+            timeout: 600000 // 10 minutes pour les opérations longues
+        });
     }
 
     // Méthodes GET
@@ -109,7 +127,7 @@ class SecureApiService {
         });
     }
 
-    // Méthodes POST
+    // Méthodes POST (avec support pour timeout personnalisé)
     async post(endpoint, data = null, options = {}) {
         return await this.makeRequest(endpoint, {
             method: 'POST',

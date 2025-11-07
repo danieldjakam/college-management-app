@@ -442,7 +442,7 @@ class BulletinService
             'student_birth_date' => $student->birth_date ? $student->birth_date->format('d/m/Y') : 'N/A',
             'student_matricule' => $student->matricule ?? 'N/A',
             'class_name' => $student->schoolClass->name ?? 'N/A',
-            'class_size' => $student->schoolClass->students()->count() ?? 0,
+            'class_size' => $student->classSeries ? $student->classSeries->students()->count() : 57,
             'sequence_number' => $sequenceNumber,
             'school_year' => date('Y') . '/' . (date('Y') + 1),
             'subjects_rows' => ''
@@ -450,12 +450,16 @@ class BulletinService
         
         $totalPoints = 0;
         $totalCoefficient = 0;
-        
+        $allCoefficients = 0; // 🔧 FIX: Compter TOUS les coefficients pour affichage
+
         foreach ($subjects as $seriesSubject) {
             $grade = Grade::where('student_id', $studentId)
                          ->where('sequence_id', $sequence->id)
                          ->where('class_series_subject_id', $seriesSubject->id)
                          ->first();
+
+            // 🔧 FIX: Toujours compter le coefficient, même sans note
+            $allCoefficients += (float)$seriesSubject->coefficient;
 
             // Vérifier si absent
             $scoreOn20 = null;
@@ -487,7 +491,8 @@ class BulletinService
                 'competence' => $this->getCompetence($scoreOn20, 'premier', $sectionType),
                 'min_max' => $this->getSubjectMinMax($sequence->id, $seriesSubject->id),
                 'appreciation' => $this->getAppreciationBySection($scoreOn20, $sectionType),
-                'section_type' => $sectionType
+                'section_type' => $sectionType,
+                'class_size' => $bulletinData['class_size'] ?? 57 // Pour le rang par défaut
             ];
 
             // CORRECTION: Inclure uniquement les matières avec notes dans le calcul (exclure absents et nulls)
@@ -496,10 +501,11 @@ class BulletinService
                 $totalCoefficient += (float)$seriesSubject->coefficient;
             }
         }
-        
-        $bulletinData['average'] = $totalCoefficient > 0 ? $totalPoints / $totalCoefficient : 0;
+
+        // 🔧 FIX: Compter TOUTES les matières dans le calcul (absences = 0)
+        $bulletinData['average'] = $allCoefficients > 0 ? $totalPoints / $allCoefficients : 0;
         $bulletinData['total_points'] = $totalPoints;
-        $bulletinData['total_coefficient'] = $totalCoefficient;
+        $bulletinData['total_coefficient'] = $allCoefficients; // 🔧 FIX: Utiliser ALL coefficients
         $bulletinData['rank'] = $this->getStudentRank($sequence->id, $studentId);
         $bulletinData['mention'] = $this->getMentionBySection($bulletinData['average'], $sectionType);
 
@@ -560,7 +566,7 @@ class BulletinService
             'student_birth_date' => $student->birth_date ? $student->birth_date->format('d/m/Y') : 'N/A',
             'student_matricule' => $student->matricule ?? 'N/A',
             'class_name' => $student->schoolClass->name ?? 'N/A',
-            'class_size' => $student->schoolClass->students()->count() ?? 0,
+            'class_size' => $student->classSeries ? $student->classSeries->students()->count() : 57,
             'trimester_number' => $trimesterNumber,
             'school_year' => date('Y') . '/' . (date('Y') + 1),
             'subjects_rows' => ''
@@ -568,8 +574,12 @@ class BulletinService
         
         $totalPoints = 0;
         $totalCoefficient = 0;
-        
+        $allCoefficients = 0; // 🔧 FIX: Compter TOUS les coefficients pour affichage
+
         foreach ($subjects as $seriesSubject) {
+            // 🔧 FIX: Toujours compter le coefficient, même sans note
+            $allCoefficients += (float)$seriesSubject->coefficient;
+
             \Log::info("🔍 Processing subject: {$seriesSubject->subject->name} (id={$seriesSubject->id}) for student {$studentId}, trimester={$trimesterNumber}, cycle={$cycleType}");
 
             if ($cycleType === 'deuxieme') {
@@ -606,7 +616,8 @@ class BulletinService
                     'min_max' => $this->getTrimesterSubjectMinMax($trimesterNumber, $seriesSubject->id),
                     'appreciation' => $this->getAppreciationBySection($trimesterGrade, $sectionType),
                     'cycle_type' => 'deuxieme',
-                    'section_type' => $sectionType
+                    'section_type' => $sectionType,
+                    'class_size' => $bulletinData['class_size'] ?? 57 // Pour le rang par défaut
                 ];
 
             } else {
@@ -641,7 +652,8 @@ class BulletinService
                     'teacher' => $teacherName,
                     'min_max' => $this->getTrimesterSubjectMinMax($trimesterNumber, $seriesSubject->id),
                     'appreciation' => $this->getAppreciation($trimesterGrade),
-                    'cycle_type' => 'premier'
+                    'cycle_type' => 'premier',
+                    'class_size' => $bulletinData['class_size'] ?? 57 // Pour le rang par défaut
                 ];
             }
 
@@ -651,10 +663,11 @@ class BulletinService
                 $totalCoefficient += (float)$seriesSubject->coefficient;
             }
         }
-        
-        $bulletinData['average'] = $totalCoefficient > 0 ? $totalPoints / $totalCoefficient : 0;
+
+        // 🔧 FIX: Compter TOUTES les matières dans le calcul (absences = 0)
+        $bulletinData['average'] = $allCoefficients > 0 ? $totalPoints / $allCoefficients : 0;
         $bulletinData['total_points'] = $totalPoints;
-        $bulletinData['total_coefficient'] = $totalCoefficient;
+        $bulletinData['total_coefficient'] = $allCoefficients; // 🔧 FIX: Utiliser ALL coefficients
         $bulletinData['rank'] = $this->getTrimesterRank($trimesterNumber, $studentId);
         $bulletinData['mention'] = $this->getMentionBySection($bulletinData['average'], $sectionType);
         $bulletinData['section_type'] = $sectionType;
@@ -716,6 +729,7 @@ class BulletinService
     
     /**
      * Get student rank in sequence
+     * 🔧 FIX: Compter TOUTES les matières (absences = 0) pour cohérence avec le calcul de moyenne
      */
     protected function getStudentRank($sequenceId, $studentId)
     {
@@ -728,29 +742,34 @@ class BulletinService
         // Get all students in the same class series
         $students = Student::where('class_series_id', $student->class_series_id)->get();
 
+        // Get ALL subjects for this class series
+        $allSubjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();
+        $totalAllCoef = $allSubjects->sum('coefficient');
+
         // Calculate average for each student
         $averages = [];
 
         foreach ($students as $classmate) {
-            $grades = Grade::where('student_id', $classmate->id)
-                ->where('sequence_id', $sequenceId)
-                ->with('classSeriesSubject')
-                ->get();
-
-            if ($grades->isEmpty()) {
-                continue;
-            }
-
             $totalPoints = 0;
-            $totalCoef = 0;
 
-            foreach ($grades as $grade) {
-                $totalPoints += $grade->score * $grade->coefficient;
-                $totalCoef += $grade->coefficient;
+            // 🔧 Pour chaque matière, chercher la note ou compter 0
+            foreach ($allSubjects as $subject) {
+                $grade = Grade::where('student_id', $classmate->id)
+                    ->where('sequence_id', $sequenceId)
+                    ->where('class_series_subject_id', $subject->id)
+                    ->whereNotNull('score')
+                    ->where('is_absent', false)
+                    ->first();
+
+                if ($grade) {
+                    $totalPoints += $grade->score * $subject->coefficient;
+                }
+                // Sinon: 0 * coefficient = 0 (pas besoin d'ajouter)
             }
 
-            if ($totalCoef > 0) {
-                $averages[$classmate->id] = $totalPoints / $totalCoef;
+            // 🔧 Utiliser TOUS les coefficients dans le calcul
+            if ($totalAllCoef > 0) {
+                $averages[$classmate->id] = $totalPoints / $totalAllCoef;
             }
         }
 
@@ -793,25 +812,26 @@ class BulletinService
     
     /**
      * Get subject min/max scores for trimester ranking
+     * 🔧 FIX: Retourne [0.00 - 0.00] au lieu de [N/A] si aucune note
      */
     protected function getTrimesterSubjectMinMax($trimesterNumber, $seriesSubjectId)
     {
         // Get trimester ID
         $trimester = Trimester::where('number', $trimesterNumber)->first();
         if (!$trimester) {
-            return '[N/A]';
+            return '[0.00 - 0.00]';
         }
 
         // Get all students in the same class series
         $seriesSubject = ClassSeriesSubject::find($seriesSubjectId);
         if (!$seriesSubject) {
-            return '[N/A]';
+            return '[0.00 - 0.00]';
         }
 
         $students = Student::where('class_series_id', $seriesSubject->class_series_id)->pluck('id');
 
         if ($students->isEmpty()) {
-            return '[N/A]';
+            return '[0.00 - 0.00]';
         }
 
         $subjectAverages = [];
@@ -827,8 +847,9 @@ class BulletinService
             }
         }
 
+        // 🔧 FIX: Si aucune note trouvée, retourner [0.00 - 0.00] au lieu de [N/A]
         if (empty($subjectAverages)) {
-            return '[N/A]';
+            return '[0.00 - 0.00]';
         }
 
         $min = min($subjectAverages);
@@ -1305,24 +1326,31 @@ class BulletinService
         }
         
         $html .= '</tr>';
-        
+
         $totalCoef = 0;
+        $totalCoefWithGrades = 0; // Coef pour moyenne (seulement matières avec notes)
         $totalPoints = 0;
         $groupAverage = 0;
-        
+
+        // Récupérer l'effectif de la classe pour le rang par défaut
+        $classSize = count($subjects) > 0 && isset($subjects[0]['class_size']) ? $subjects[0]['class_size'] : 57;
+
         foreach ($subjects as $subject) {
             // Pour DEUXIÈME CYCLE, utiliser 'average', sinon 'score'
             $grade = ($cycleType === 'deuxieme') ? ($subject['average'] ?? null) : ($subject['score'] ?? null);
             $coef = $subject['coefficient'] ?? 1;
 
-            // CORRECTION: Si pas de note, ne pas compter dans le total
-            $weightedGrade = ($grade !== null) ? (float)$grade * (float)$coef : null;
+            // 🔧 FIX BUG #2: TOUJOURS ajouter le coefficient au total, même sans note
+            $totalCoef += (float)$coef;
+
+            // Calcul weighted grade seulement si note présente
+            $weightedGrade = ($grade !== null && $grade !== 'ABS') ? (float)$grade * (float)$coef : null;
             $gradeClass = $this->getGradeClass($grade);
             $competence = $subject['competence'] ?? $this->getCompetence($grade, $cycleType);
 
-            // CORRECTION: Ne compter que les matières avec notes
-            if ($grade !== null && $weightedGrade !== null) {
-                $totalCoef += (float)$coef;
+            // Compter points et coef UNIQUEMENT pour matières avec notes (pour calcul moyenne)
+            if ($grade !== null && $grade !== 'ABS' && $weightedGrade !== null) {
+                $totalCoefWithGrades += (float)$coef;
                 $totalPoints += (float)$weightedGrade;
             }
 
@@ -1347,7 +1375,8 @@ class BulletinService
                     // CORRECTION: Afficher "-" si NXC est null (élève absent)
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($nxc !== null ? number_format($nxc, 2) : '-') . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($nxc !== null ? number_format($nxc, 2) : '-') . '</td>'; // TOTAL = NXC
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? '1') . '</td>';
+                    // 🔧 FIX BUG #1: Si pas de rang, afficher dernier rang au lieu de 1er
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">' . $competence . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
                 } else {
@@ -1364,7 +1393,8 @@ class BulletinService
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($coef, 2) . '</td>';
                     // CORRECTION: Afficher "-" si weightedGrade est null (élève absent)
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($weightedGrade !== null ? number_format($weightedGrade, 2) : '-') . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? '1') . 'e</td>';
+                    // 🔧 FIX BUG #1: Si pas de rang, afficher dernier rang au lieu de 1er
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $competence . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
                 }
@@ -1376,15 +1406,17 @@ class BulletinService
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $displayGrade . '</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($coef, 2) . '</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($weightedGrade !== null ? number_format($weightedGrade, 2) : '-') . '</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? '1') . 'e</td>';
+                // 🔧 FIX BUG #1: Si pas de rang, afficher dernier rang au lieu de 1er
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $competence . '</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
             }
 
             $html .= '</tr>';
         }
-        
-        $groupAverage = $totalCoef > 0 ? $totalPoints / $totalCoef : 0;
+
+        // Calcul moyenne du groupe basé sur coefficient des matières avec notes
+        $groupAverage = $totalCoefWithGrades > 0 ? $totalPoints / $totalCoefWithGrades : 0;
         
         // Total row avec alignement
         $html .= '<tr class="total-row" style="background: #f0f0f0; font-weight: bold;">';
@@ -1591,25 +1623,14 @@ class BulletinService
     /**
      * Get competences for a subject in a given trimester
      * Returns array with competence_1 and competence_2
+     *
+     * @param int $classSeriesSubjectId - L'ID du ClassSeriesSubject (pas l'ID du Subject)
+     * @param int $trimesterId - L'ID du trimestre
      */
-    protected function getSubjectCompetences($classSeriesId, $subjectId, $trimesterId)
+    protected function getSubjectCompetences($classSeriesSubjectId, $trimesterId)
     {
-        // Find the class_series_subject_id
-        $classSeriesSubject = \App\Models\ClassSeriesSubject::where('class_series_id', $classSeriesId)
-            ->whereHas('subject', function($query) use ($subjectId) {
-                $query->where('id', $subjectId);
-            })
-            ->first();
-
-        if (!$classSeriesSubject) {
-            return [
-                'competence_1' => '',
-                'competence_2' => ''
-            ];
-        }
-
-        // Get the competences from the database
-        $competence = \App\Models\SubjectCompetence::where('class_series_subject_id', $classSeriesSubject->id)
+        // Get the competences from the database using class_series_subject_id directly
+        $competence = \App\Models\SubjectCompetence::where('class_series_subject_id', $classSeriesSubjectId)
             ->where('trimester_id', $trimesterId)
             ->first();
 
@@ -1718,7 +1739,7 @@ class BulletinService
             'unique_id' => $student->matricule ?? $student->student_number ?? 'N/A',
             'class_level' => $classLevel,
             'class_section' => $classSection,
-            'class_size' => $student->schoolClass ? $student->schoolClass->students()->count() : 0,
+            'class_size' => $student->classSeries ? \App\Models\Student::where('class_series_id', $student->class_series_id)->count() : 0,
             'main_teacher' => $mainTeacher,
             'parent_info' => $parentInfo,
             'school_year' => date('Y') . '/' . (date('Y') + 1),
@@ -1762,8 +1783,8 @@ class BulletinService
             // Calculate [Min - Max] for this subject
             $minMax = $this->getAPCSubjectMinMax($trimester->id, $student->class_series_id, $subjectId);
 
-            // Get competences for this subject
-            $competences = $this->getSubjectCompetences($student->class_series_id, $subjectId, $trimester->id);
+            // Get competences for this subject (using class_series_subject_id)
+            $competences = $this->getSubjectCompetences($subjectId, $trimester->id);
 
             // Generate HTML for this subject (2 rows: competence_1 + competence_2)
             // Row 1: DS note + Competence 1
@@ -1777,12 +1798,15 @@ class BulletinService
             $subjectsHTML .= '<td class="cote-col ' . $coteClass . '" rowspan="2"><b>' . $cote . '</b></td>';
             $subjectsHTML .= '<td class="minmax-col" rowspan="2">' . $minMax . '</td>';
 
-            // Appréciation selon la moyenne M/20
+            // 🔧 FIX: Appréciation selon la moyenne M/20 (règle APC correcte)
+            // 0-9.99: Non Acquise, 10-11.99: En Cours d'Acquisition, 12-13.99: Acquise, 14-20: Expert
             $appreciation = '';
-            if ($moyenne >= 10) {
+            if ($moyenne >= 14) {
+                $appreciation = 'Expert';
+            } elseif ($moyenne >= 12) {
                 $appreciation = 'Acquise';
-            } elseif ($moyenne >= 5) {
-                $appreciation = 'En cours d\'acquisition';
+            } elseif ($moyenne >= 10) {
+                $appreciation = 'En Cours d\'Acquisition';
             } else {
                 $appreciation = 'Non Acquise';
             }
@@ -1897,6 +1921,7 @@ class BulletinService
     /**
      * Get class min-max average range for PROFIL CLASSE
      * Returns [minimum general average, maximum general average] of the class
+     * 🔧 FIX: Retourne [0.00 - 0.00] au lieu de [N/A] si aucune note
      */
     private function getClassMinMax($trimesterId, $classSeriesId)
     {
@@ -1904,7 +1929,7 @@ class BulletinService
         $students = Student::where('class_series_id', $classSeriesId)->pluck('id');
 
         if ($students->isEmpty()) {
-            return '[N/A]';
+            return '[0.00 - 0.00]';
         }
 
         $averages = [];
@@ -1932,8 +1957,9 @@ class BulletinService
             }
         }
 
+        // 🔧 FIX: Si aucune note trouvée, retourner [0.00 - 0.00] au lieu de [N/A]
         if (empty($averages)) {
-            return '[N/A]';
+            return '[0.00 - 0.00]';
         }
 
         $min = min($averages);
@@ -1945,18 +1971,19 @@ class BulletinService
     /**
      * Get subject min-max for a specific subject
      * Returns [minimum average, maximum average] for this subject across all students in the class
+     * 🔧 FIX: Retourne [0.00 - 0.00] au lieu de [N/A] si aucune note
      */
     private function getAPCSubjectMinMax($trimesterId, $classSeriesId, $subjectId)
     {
         if (!$subjectId) {
-            return '[N/A]';
+            return '[0.00 - 0.00]';
         }
 
         // Get all students in the same class series
         $students = Student::where('class_series_id', $classSeriesId)->pluck('id');
 
         if ($students->isEmpty()) {
-            return '[N/A]';
+            return '[0.00 - 0.00]';
         }
 
         $subjectAverages = [];
@@ -1971,8 +1998,9 @@ class BulletinService
             }
         }
 
+        // 🔧 FIX: Si aucune note trouvée, retourner [0.00 - 0.00] au lieu de [N/A]
         if (empty($subjectAverages)) {
-            return '[N/A]';
+            return '[0.00 - 0.00]';
         }
 
         $min = min($subjectAverages);
@@ -2123,6 +2151,7 @@ class BulletinService
     /**
      * Calculate class statistics (first, last, average) for a sequence or trimester
      * Uses class_series_id to get students in the specific section (e.g., "6ème A")
+     * 🔧 FIX: Compter TOUTES les matières (absences = 0) pour cohérence
      */
     protected function calculateClassStatistics($evaluationId, $classSeriesId, $type = 'sequence')
     {
@@ -2138,36 +2167,40 @@ class BulletinService
             ];
         }
 
+        // Get ALL subjects for this class series
+        $allSubjects = ClassSeriesSubject::where('class_series_id', $classSeriesId)->get();
+        $totalAllCoef = $allSubjects->sum('coefficient');
+
         // Calculate average for each student
         $averages = [];
 
         foreach ($students as $student) {
+            $totalPoints = 0;
+
             if ($type === 'sequence') {
-                // For sequence: get all grades for this sequence
-                $grades = Grade::where('student_id', $student->id)
-                    ->where('sequence_id', $evaluationId)
-                    ->with('classSeriesSubject')
-                    ->get();
+                // 🔧 Pour chaque matière, chercher la note ou compter 0
+                foreach ($allSubjects as $subject) {
+                    $grade = Grade::where('student_id', $student->id)
+                        ->where('sequence_id', $evaluationId)
+                        ->where('class_series_subject_id', $subject->id)
+                        ->whereNotNull('score')
+                        ->where('is_absent', false)
+                        ->first();
+
+                    if ($grade) {
+                        $totalPoints += $grade->score * $subject->coefficient;
+                    }
+                    // Sinon: 0 * coefficient = 0
+                }
             } else {
                 // For trimester: calculate trimester average
                 // TODO: Implement trimester logic if needed
                 continue;
             }
 
-            if ($grades->isEmpty()) {
-                continue;
-            }
-
-            $totalPoints = 0;
-            $totalCoef = 0;
-
-            foreach ($grades as $grade) {
-                $totalPoints += $grade->score * $grade->coefficient;
-                $totalCoef += $grade->coefficient;
-            }
-
-            if ($totalCoef > 0) {
-                $averages[] = $totalPoints / $totalCoef;
+            // 🔧 Utiliser TOUS les coefficients dans le calcul
+            if ($totalAllCoef > 0) {
+                $averages[] = $totalPoints / $totalAllCoef;
             }
         }
 

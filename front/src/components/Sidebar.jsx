@@ -548,6 +548,11 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               href: "/teacher/dashboard",
               icon: <PeopleFill />,
             },
+            {
+              name: "Compétences Évaluées",
+              href: "/teacher/competences",
+              icon: <JournalBookmarkFill />,
+            },
           ],
         },
         {

@@ -1296,7 +1296,11 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
     // Prévisualisation des bulletins
     Route::post('/preview', [BulletinController::class, 'previewBulletin'])
         ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
-    
+
+    // Téléchargement direct de bulletin PDF (génère à la volée)
+    Route::post('/download-direct', [BulletinController::class, 'downloadDirect'])
+        ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
+
     // Forcer la régénération (Admin uniquement)
     Route::post('/force-regenerate', [BulletinController::class, 'forceRegenerate'])
         ->middleware(['role:admin']);

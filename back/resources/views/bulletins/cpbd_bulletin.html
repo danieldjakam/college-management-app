@@ -326,10 +326,30 @@
         .legend-item {
             white-space: nowrap;
         }
+
+        /* Filigrane en arrière-plan - AGRANDI */
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 55%;
+            opacity: 0.08;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
+        }
     </style>
 </head>
 <body>
-    <div class="bulletin-container">
+    <!-- Logo en filigrane AGRANDI -->
+    <img src="{{logo_base64}}" alt="Filigrane" class="watermark">
+
+    <div class="bulletin-container content-wrapper">
         <div class="header">
             <div class="school-info">
                 <div class="school-left">

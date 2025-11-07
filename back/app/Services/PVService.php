@@ -247,6 +247,12 @@ class PVService
         $totalCoef = 0;
         $grades = [];
 
+        // 🔧 FIX: Calculer d'abord le total de TOUS les coefficients
+        $allCoefficients = 0;
+        foreach ($seriesSubjects as $seriesSubject) {
+            $allCoefficients += (float)$seriesSubject->coefficient;
+        }
+
         foreach ($seriesSubjects as $seriesSubject) {
             // Chercher la note pour cette matière dans cette période
             $grade = Grade::where('student_id', $student->id)
@@ -262,12 +268,13 @@ class PVService
                 $totalPoints += (float)$scoreOn20 * (float)$seriesSubject->coefficient;
                 $totalCoef += (float)$seriesSubject->coefficient;
             } else {
-                $grades[$seriesSubject->id] = null; // Absent ou pas de note
+                $grades[$seriesSubject->id] = null; // Absent ou pas de note (= 0)
+                // 🔧 FIX: Les matières sans notes comptent comme 0 (0 * coef = 0)
             }
         }
 
-        // Si aucune note, retourner quand même l'élève avec moyenne 0
-        $average = $totalCoef > 0 ? round($totalPoints / $totalCoef, 2) : 0;
+        // 🔧 FIX: Compter TOUTES les matières (absence = 0)
+        $average = $allCoefficients > 0 ? round($totalPoints / $allCoefficients, 2) : 0;
 
         return [
             'student' => $student,
@@ -289,6 +296,12 @@ class PVService
         $totalCoef = 0;
         $grades = [];
 
+        // 🔧 FIX: Calculer d'abord le total de TOUS les coefficients
+        $allCoefficients = 0;
+        foreach ($seriesSubjects as $seriesSubject) {
+            $allCoefficients += (float)$seriesSubject->coefficient;
+        }
+
         foreach ($seriesSubjects as $seriesSubject) {
             $grade = Grade::where('student_id', $student->id)
                 ->where('evaluation_id', $evaluation->id)
@@ -301,12 +314,13 @@ class PVService
                 $totalPoints += (float)$scoreOn20 * (float)$seriesSubject->coefficient;
                 $totalCoef += (float)$seriesSubject->coefficient;
             } else {
-                $grades[$seriesSubject->id] = null; // Absent ou pas de note
+                $grades[$seriesSubject->id] = null; // Absent ou pas de note (= 0)
+                // 🔧 FIX: Les matières sans notes comptent comme 0 (0 * coef = 0)
             }
         }
 
-        // Si aucune note, retourner quand même l'élève avec moyenne 0
-        $average = $totalCoef > 0 ? round($totalPoints / $totalCoef, 2) : 0;
+        // 🔧 FIX: Compter TOUTES les matières (absence = 0)
+        $average = $allCoefficients > 0 ? round($totalPoints / $allCoefficients, 2) : 0;
 
         return [
             'student' => $student,

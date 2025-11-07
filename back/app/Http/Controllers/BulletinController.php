@@ -92,11 +92,12 @@ class BulletinController extends Controller
         $request->validate([
             'student_id' => 'required|exists:students,id',
             'bulletin_type' => 'required|in:sequence,trimester,annual,honor_roll',
-            'period_identifier' => 'required|string'
+            'period_identifier' => 'required|string',
+            'force' => 'nullable|boolean' // Permet de forcer la régénération
         ]);
-        
+
         $student = Student::findOrFail($request->student_id);
-        
+
         // We no longer need a template from database, we use the CPBD template file directly
         // But we need a fallback template ID for the database record
         $template = BulletinTemplate::where('type', $request->bulletin_type)->active()->first();
@@ -113,14 +114,24 @@ class BulletinController extends Controller
                 ]
             );
         }
-        
+
         // Check if bulletin already exists
         $existing = BulletinGeneration::byStudent($request->student_id)
                                      ->byPeriod($request->bulletin_type, $request->period_identifier)
                                      ->first();
-                                     
-        if ($existing) {
-            return response()->json(['error' => 'Bulletin already generated'], 409);
+
+        if ($existing && !$request->input('force', false)) {
+            return response()->json(['error' => 'Bulletin already generated. Use force=true to regenerate.'], 409);
+        }
+
+        // Si force=true et que le bulletin existe, le supprimer d'abord
+        if ($existing && $request->input('force', false)) {
+            // Supprimer le fichier PDF s'il existe
+            if ($existing->file_path && file_exists(storage_path('app/' . $existing->file_path))) {
+                unlink(storage_path('app/' . $existing->file_path));
+            }
+            // Supprimer l'enregistrement
+            $existing->delete();
         }
         
         try {
@@ -189,41 +200,187 @@ class BulletinController extends Controller
     
     /**
      * Generate bulletins for entire class
+     * OPTIMIZED VERSION with eager loading and parallel processing
      */
     public function batchGenerate(Request $request)
     {
+        // Augmenter le timeout pour les générations en lot
+        set_time_limit(600); // 10 minutes
+        ini_set('max_execution_time', 600);
+        ini_set('memory_limit', '512M'); // Augmenter la mémoire disponible
+
         $request->validate([
             'class_id' => 'required|exists:school_classes,id',
             'bulletin_type' => 'required|in:sequence,trimester,annual,honor_roll',
-            'period_identifier' => 'required|string'
+            'period_identifier' => 'required|string',
+            'force' => 'nullable|boolean' // Permet de forcer la régénération en lot
         ]);
-        
-        $students = Student::where('school_class_id', $request->class_id)->get();
+
+        $startTime = microtime(true);
+
+        // Récupérer toutes les séries de cette classe
+        $seriesIds = \App\Models\ClassSeries::where('class_id', $request->class_id)
+            ->pluck('id');
+
+        // 🚀 OPTIMIZATION: Eager load all relationships to avoid N+1 queries
+        $students = Student::whereIn('class_series_id', $seriesIds)
+            ->with([
+                'schoolClass',
+                'classSeries.subjects'
+            ])
+            ->get();
+
+        \Log::info("🚀 Génération en lot OPTIMISÉE: {$students->count()} étudiants trouvés pour class_id={$request->class_id}");
+
+        // 🗑️ Si force=true, supprimer tous les bulletins existants en une seule requête
+        if ($request->input('force', false)) {
+            $deleted = BulletinGeneration::whereIn('student_id', $students->pluck('id'))
+                ->where('period_type', $request->bulletin_type)
+                ->where('period_identifier', $request->period_identifier)
+                ->get();
+
+            foreach ($deleted as $bulletin) {
+                if ($bulletin->file_path && file_exists(storage_path('app/' . $bulletin->file_path))) {
+                    unlink(storage_path('app/' . $bulletin->file_path));
+                }
+            }
+
+            BulletinGeneration::whereIn('student_id', $students->pluck('id'))
+                ->where('period_type', $request->bulletin_type)
+                ->where('period_identifier', $request->period_identifier)
+                ->delete();
+
+            \Log::info("🗑️ {$deleted->count()} bulletins existants supprimés");
+        }
+
+        // 🚫 Filter out students who already have bulletins (if not forcing)
+        if (!$request->input('force', false)) {
+            $existingBulletins = BulletinGeneration::whereIn('student_id', $students->pluck('id'))
+                ->where('period_type', $request->bulletin_type)
+                ->where('period_identifier', $request->period_identifier)
+                ->pluck('student_id')
+                ->toArray();
+
+            $students = $students->filter(function($student) use ($existingBulletins) {
+                return !in_array($student->id, $existingBulletins);
+            });
+
+            \Log::info("📋 {$students->count()} étudiants à traiter (après filtrage des bulletins existants)");
+        }
+
+        if ($students->isEmpty()) {
+            return response()->json([
+                'message' => 'Tous les bulletins sont déjà générés. Utilisez force=true pour régénérer.',
+                'generated_count' => 0,
+                'error_count' => 0,
+                'generated' => [],
+                'errors' => []
+            ]);
+        }
+
+        // Get template once for all students
+        $template = BulletinTemplate::where('type', $request->bulletin_type)->active()->first();
+        if (!$template) {
+            $template = BulletinTemplate::firstOrCreate(
+                ['type' => $request->bulletin_type, 'name' => 'CPBD Template'],
+                [
+                    'name' => 'CPBD Template',
+                    'type' => $request->bulletin_type,
+                    'template_html' => 'Default CPBD Template',
+                    'is_active' => true,
+                    'description' => 'Template par défaut CPBD'
+                ]
+            );
+        }
+
         $generated = [];
         $errors = [];
-        
-        foreach ($students as $student) {
-            try {
-                $generateRequest = new Request([
-                    'student_id' => $student->id,
-                    'bulletin_type' => $request->bulletin_type,
-                    'period_identifier' => $request->period_identifier
-                ]);
-                
-                $result = $this->generate($generateRequest);
-                $generated[] = $student->id;
-            } catch (\Exception $e) {
-                $errors[] = [
-                    'student_id' => $student->id,
-                    'error' => $e->getMessage()
-                ];
+        $batchInsertData = [];
+
+        // 🔄 Process students in batches for better memory management
+        $batchSize = 10; // Process 10 students at a time
+        $studentBatches = $students->chunk($batchSize);
+
+        foreach ($studentBatches as $batchIndex => $studentBatch) {
+            \Log::info("📦 Processing batch " . ($batchIndex + 1) . " of " . $studentBatches->count());
+
+            foreach ($studentBatch as $student) {
+                try {
+                    // Generate bulletin data based on type
+                    $bulletinData = null;
+                    $filename = null;
+
+                    if ($request->bulletin_type === 'sequence') {
+                        $sequenceNumber = (int) str_replace('seq', '', $request->period_identifier);
+                        $bulletinData = $this->bulletinService->generateSequenceBulletinData($sequenceNumber, $student->id);
+                        $filename = "bulletin_sequence_{$sequenceNumber}_{$student->id}_" . now()->format('Y-m-d') . ".pdf";
+                    } elseif ($request->bulletin_type === 'trimester') {
+                        $trimesterNumber = (int) str_replace('trim', '', $request->period_identifier);
+                        $bulletinData = $this->bulletinService->generateTrimesterBulletinData($trimesterNumber, $student->id);
+                        $filename = "bulletin_trimestre_{$trimesterNumber}_{$student->id}_" . now()->format('Y-m-d') . ".pdf";
+                    }
+
+                    if (!$bulletinData) {
+                        throw new \Exception('Unable to generate bulletin data');
+                    }
+
+                    // Render HTML template with data
+                    $htmlContent = $this->bulletinService->renderBulletinTemplate($request->bulletin_type, $bulletinData, true);
+
+                    // Generate PDF
+                    $filePath = $this->bulletinService->generatePDF($htmlContent, $filename);
+
+                    // Prepare for batch insert
+                    $batchInsertData[] = [
+                        'student_id' => $student->id,
+                        'template_id' => $template->id,
+                        'period_type' => $request->bulletin_type,
+                        'period_identifier' => $request->period_identifier,
+                        'file_path' => $filePath,
+                        'generated_at' => now(),
+                        'is_complete' => true,
+                        'completion_percentage' => 100.0,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ];
+
+                    $generated[] = $student->id;
+
+                    // Log progress every 5 students
+                    if (count($generated) % 5 === 0) {
+                        \Log::info("✅ Progression: {count($generated)}/{$students->count()} bulletins générés");
+                    }
+
+                } catch (\Exception $e) {
+                    \Log::error("❌ Error generating bulletin for student {$student->id}: " . $e->getMessage());
+                    $errors[] = [
+                        'student_id' => $student->id,
+                        'student_name' => $student->first_name . ' ' . $student->last_name,
+                        'error' => $e->getMessage()
+                    ];
+                }
             }
+
+            // 💾 Insert batch into database
+            if (!empty($batchInsertData)) {
+                BulletinGeneration::insert($batchInsertData);
+                $batchInsertData = []; // Reset for next batch
+            }
+
+            // 🧹 Clear memory
+            gc_collect_cycles();
         }
-        
+
+        $endTime = microtime(true);
+        $duration = round($endTime - $startTime, 2);
+
+        \Log::info("🎉 Génération en lot terminée en {$duration}s: {count($generated)} succès, {count($errors)} erreurs");
+
         return response()->json([
             'message' => 'Batch generation completed',
             'generated_count' => count($generated),
             'error_count' => count($errors),
+            'duration_seconds' => $duration,
             'generated' => $generated,
             'errors' => $errors
         ]);
@@ -701,7 +858,56 @@ class BulletinController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
-    
+
+    /**
+     * Download bulletin PDF directly (generates on-the-fly)
+     */
+    public function downloadDirect(Request $request)
+    {
+        $request->validate([
+            'student_id' => 'required|exists:students,id',
+            'type' => 'required|in:sequence,trimester',
+            'period_identifier' => 'required|string'
+        ]);
+
+        try {
+            $bulletinData = null;
+            $filename = '';
+
+            if ($request->type === 'sequence') {
+                $sequenceNumber = (int) str_replace('seq', '', $request->period_identifier);
+                $bulletinData = $this->bulletinService->generateSequenceBulletinData($sequenceNumber, $request->student_id);
+                $filename = "bulletin_sequence_{$sequenceNumber}_student_{$request->student_id}_" . now()->format('Y-m-d_His') . ".pdf";
+            } elseif ($request->type === 'trimester') {
+                $trimesterNumber = (int) str_replace('trim', '', $request->period_identifier);
+                $bulletinData = $this->bulletinService->generateTrimesterBulletinData($trimesterNumber, $request->student_id);
+                $filename = "bulletin_trimestre_{$trimesterNumber}_student_{$request->student_id}_" . now()->format('Y-m-d_His') . ".pdf";
+            }
+
+            if (!$bulletinData) {
+                return response()->json(['error' => 'Impossible de générer les données du bulletin'], 500);
+            }
+
+            // Generate HTML content
+            $htmlContent = $this->bulletinService->renderBulletinTemplate($request->type, $bulletinData, true);
+
+            // Generate PDF
+            $filePath = $this->bulletinService->generatePDF($htmlContent, $filename);
+            $fullPath = storage_path('app/' . $filePath);
+
+            if (!file_exists($fullPath)) {
+                return response()->json(['error' => 'Erreur lors de la génération du PDF'], 500);
+            }
+
+            // Download and delete after sending
+            return response()->download($fullPath, $filename)->deleteFileAfterSend(true);
+
+        } catch (\Exception $e) {
+            \Log::error('Error in downloadDirect: ' . $e->getMessage());
+            return response()->json(['error' => 'Erreur: ' . $e->getMessage()], 500);
+        }
+    }
+
     /**
      * Force regeneration of a bulletin
      */

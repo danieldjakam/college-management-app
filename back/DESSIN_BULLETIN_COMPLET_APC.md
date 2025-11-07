@@ -108,7 +108,7 @@
 
 ```
 ┌──────────────┬──────┬──────────────┬──────┬──────────────┬──────────────┬────────────────────────────┬──────────────┬──────────────┐
-│       DISCIPLINE                          │           TRAVAIL DE L'ÉLÈVE (avec APPRECIATIONS)        │      PROFIL CLASSE          │
+│       DISCIPLINE                          │           TRAVAIL DE L'ÉLÈVE                             │      PROFIL CLASSE          │
 │       (4 colonnes)                        │                    (3 colonnes)                          │       (2 colonnes)          │
 ├──────────────┬──────┬──────────────┬──────┼──────────────┬──────────────┬────────────────────────────┼──────────────┼──────────────┤
 │ Abs. non.    │      │ Avertissement│      │ TOTAL        │              │      APPRECIATIONS         │  MOYENNE     │              │

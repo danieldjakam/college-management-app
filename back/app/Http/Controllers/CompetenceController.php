@@ -6,6 +6,7 @@ use App\Models\SubjectCompetence;
 use App\Models\Teacher;
 use App\Models\ClassSeries;
 use App\Models\ClassSeriesSubject;
+use App\Models\TeacherAssignment;
 use App\Models\Trimester;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -48,14 +49,11 @@ class CompetenceController extends Controller
             ->with(['classSeries', 'classSeriesSubject.subject', 'trimester'])
             ->first();
 
-        if (!$competence) {
-            return response()->json([
-                'message' => 'Aucune compétence définie pour ce trimestre',
-                'competence' => null
-            ]);
-        }
-
-        return response()->json($competence);
+        return response()->json([
+            'success' => true,
+            'data' => $competence,
+            'message' => $competence ? 'Compétences récupérées' : 'Aucune compétence définie pour ce trimestre'
+        ]);
     }
 
     /**
@@ -69,13 +67,29 @@ class CompetenceController extends Controller
             return response()->json(['error' => 'Enseignant non trouvé'], 404);
         }
 
-        // Récupérer toutes les matières enseignées par ce prof dans cette classe
-        $subjects = ClassSeriesSubject::where('class_series_id', $classSeriesId)
-            ->where('teacher_id', $teacher->id)
-            ->with('subject')
+        // Récupérer toutes les matières enseignées par ce prof dans cette classe via les affectations
+        $assignments = \App\Models\TeacherAssignment::where('teacher_id', $teacher->id)
+            ->whereHas('classSeriesSubject', function($query) use ($classSeriesId) {
+                $query->where('class_series_id', $classSeriesId);
+            })
+            ->with(['classSeriesSubject.subject'])
             ->get();
 
-        return response()->json($subjects);
+        // Transformer pour retourner les class_series_subjects avec leurs sujets
+        $subjects = $assignments->map(function($assignment) {
+            return [
+                'id' => $assignment->classSeriesSubject->id,
+                'class_series_id' => $assignment->classSeriesSubject->class_series_id,
+                'subject_id' => $assignment->classSeriesSubject->subject_id,
+                'coefficient' => $assignment->classSeriesSubject->coefficient,
+                'subject' => $assignment->classSeriesSubject->subject
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $subjects
+        ]);
     }
 
     /**
@@ -98,12 +112,12 @@ class CompetenceController extends Controller
         ]);
 
         // Vérifier que l'enseignant enseigne bien cette matière dans cette classe
-        $classSeriesSubject = ClassSeriesSubject::where('id', $validated['class_series_subject_id'])
-            ->where('class_series_id', $validated['class_series_id'])
-            ->where('teacher_id', $teacher->id)
-            ->first();
+        $hasAssignment = TeacherAssignment::where('teacher_id', $teacher->id)
+            ->where('class_series_subject_id', $validated['class_series_subject_id'])
+            ->where('is_active', true)
+            ->exists();
 
-        if (!$classSeriesSubject) {
+        if (!$hasAssignment) {
             return response()->json([
                 'error' => 'Vous n\'enseignez pas cette matière dans cette classe'
             ], 403);

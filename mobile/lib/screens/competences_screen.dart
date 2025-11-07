@@ -41,11 +41,11 @@ class _CompetencesScreenState extends State<CompetencesScreen> {
     try {
       // Charger les matières de l'enseignant dans cette classe
       final subjectsResponse = await _apiService.get(
-        'subject-competences/class/${widget.classSeriesId}/subjects',
+        '/subject-competences/class/${widget.classSeriesId}/subjects',
       );
 
       // Charger les trimestres
-      final trimestersResponse = await _apiService.get('trimesters');
+      final trimestersResponse = await _apiService.get('/trimesters');
 
       if (subjectsResponse['success'] == true) {
         setState(() {
@@ -201,7 +201,7 @@ class _SubjectCompetenceCardState extends State<_SubjectCompetenceCard> {
 
     try {
       final response = await _apiService.get(
-        'subject-competences/${widget.classSeriesId}/${widget.subject['id']}/${widget.trimester['id']}',
+        '/subject-competences/${widget.classSeriesId}/${widget.subject['id']}/${widget.trimester['id']}',
       );
 
       if (response['data'] != null) {
@@ -219,7 +219,7 @@ class _SubjectCompetenceCardState extends State<_SubjectCompetenceCard> {
     setState(() => _isSaving = true);
 
     try {
-      await _apiService.post('subject-competences', {
+      await _apiService.post('/subject-competences', {
         'class_series_id': widget.classSeriesId,
         'class_series_subject_id': widget.subject['id'],
         'trimester_id': widget.trimester['id'],
