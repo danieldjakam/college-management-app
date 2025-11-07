@@ -84,17 +84,19 @@ class BulletinService
             }
         }
         
-        \Log::info("🔍 Found {$foundSequenceNotes} sequence notes out of 2 required");
-        
-        // RÈGLE ACADÉMIQUE: DS n'existe que si les DEUX séquences ont des notes
-        // Si seulement une séquence a une note, pas de DS calculé
-        if ($foundSequenceNotes < 2) {
-            \Log::info("🔍 DS NOT CALCULATED: Need 2 notes, found {$foundSequenceNotes}");
-            return null;
+        \Log::info("🔍 Found {$foundSequenceNotes} sequence notes out of 2");
+
+        // RÈGLE ACADÉMIQUE PROGRESSIVE avec 0.00 par défaut:
+        // - Les séquences non saisies comptent comme 0.00
+        // - DS = (Seq1 + Seq2) / 2 où Seq manquante = 0.00
+
+        // Compléter avec des 0.00 pour les séquences manquantes
+        while ($grades->count() < 2) {
+            $grades->push(0.00);
         }
-        
+
         $dsAverage = $grades->average();
-        \Log::info("🔍 DS CALCULATED: {$dsAverage}");
+        \Log::info("🔍 DS CALCULATED: {$dsAverage} = ({$grades[0]} + {$grades[1]}) / 2");
         return $dsAverage;
     }
     
@@ -120,21 +122,24 @@ class BulletinService
         $dsAverage = $this->calculateDSAverage($trimester, $studentId, $subjectId);
         $compositionGrade = $this->getCompositionGrade($trimester, $studentId, $subjectId);
 
-        // NOUVELLE RÈGLE : Si composition pas saisie, compter 0 dans le calcul
-        // DS + Composition (ou 0 si pas saisie) / 2
+        // RÈGLE ACADÉMIQUE PROGRESSIVE avec 0.00 par défaut:
+        // - DS et Composition non saisies comptent comme 0.00
+        // - M/20 = (DS + Composition) / 2 où valeur manquante = 0.00
 
+        // Si DS existe (même si = 0 car séquences = 0)
         if ($dsAverage !== null) {
-            // Composition = note saisie ou 0 si pas saisie
-            $finalCompositionGrade = $compositionGrade !== null ? $compositionGrade : 0;
+            // Composition = note saisie ou 0.00 si pas saisie
+            $finalCompositionGrade = ($compositionGrade !== null && $compositionGrade !== 'ABS') ? $compositionGrade : 0.00;
+            \Log::info("🔍 M/20 = ({$dsAverage} + {$finalCompositionGrade}) / 2");
             return ($dsAverage + $finalCompositionGrade) / 2;
         }
 
-        // Si seulement composition disponible (cas rare)
-        if ($compositionGrade !== null && $dsAverage === null) {
-            return $compositionGrade; // Utiliser composition seulement
+        // Si seulement composition disponible (cas rare où DS impossible à calculer)
+        if ($compositionGrade !== null && $compositionGrade !== 'ABS' && $dsAverage === null) {
+            return $compositionGrade;
         }
 
-        return null; // Pas de données du tout
+        return null; // Vraiment aucune donnée (pas même une séquence)
     }
 
     /**
@@ -191,7 +196,9 @@ class BulletinService
                 $foundSequenceNotes++;
                 \Log::info("🎓 Sequence {$sequence->number} note: {$sequenceNote}");
             } else {
-                \Log::info("🎓 No grade found for sequence {$sequence->number}");
+                // Séquence manquante = 0.00
+                $sequenceGrades[] = 0.00;
+                \Log::info("🎓 No grade found for sequence {$sequence->number}, using 0.00");
             }
         }
 
@@ -199,24 +206,19 @@ class BulletinService
         $compositionGrade = $this->getCompositionGrade($trimester, $studentId, $subjectId);
         \Log::info("🎓 Composition grade: " . ($compositionGrade ?? 'null'));
 
-        // CORRECTION: Ne compter que les vraies notes (exclure 'ABS' et null)
-        $hasCompositionNote = ($compositionGrade !== null && $compositionGrade !== 'ABS');
-        $totalNotes = $foundSequenceNotes + ($hasCompositionNote ? 1 : 0);
+        // RÈGLE ACADÉMIQUE PROGRESSIVE avec 0.00 par défaut:
+        // - Toutes les notes manquantes (Seq1, Seq2, Composition) comptent comme 0.00
+        // - M/20 = (Seq1 + Seq2 + Composition) / 3
 
-        if ($totalNotes < 2) {
-            \Log::info("🎓 Insufficient data: only {$totalNotes} notes found, need at least 2");
-            return null;
-        }
+        // Composition manquante ou ABS = 0.00
+        $finalCompositionGrade = ($compositionGrade !== null && $compositionGrade !== 'ABS') ? $compositionGrade : 0.00;
 
-        // Calcul de la moyenne: (Seq1 + Seq2 + Compo) / 3
-        // CORRECTION: Exclure 'ABS' du calcul
+        // Calcul de la moyenne: (Seq1 + Seq2 + Compo) / 3 avec valeurs manquantes = 0.00
         $allGrades = $sequenceGrades;
-        if ($hasCompositionNote) {
-            $allGrades[] = $compositionGrade;
-        }
+        $allGrades[] = $finalCompositionGrade;
 
-        $average = array_sum($allGrades) / count($allGrades);
-        \Log::info("🎓 DEUXIÈME CYCLE average calculated: {$average} from " . count($allGrades) . " notes");
+        $average = array_sum($allGrades) / 3;
+        \Log::info("🎓 DEUXIÈME CYCLE M/20 = ({$sequenceGrades[0]} + {$sequenceGrades[1]} + {$finalCompositionGrade}) / 3 = {$average}");
 
         return $average;
     }
@@ -762,7 +764,7 @@ class BulletinService
                     ->first();
 
                 if ($grade) {
-                    $totalPoints += $grade->score * $subject->coefficient;
+                    $totalPoints += (float)$grade->score * (float)$subject->coefficient;
                 }
                 // Sinon: 0 * coefficient = 0 (pas besoin d'ajouter)
             }
@@ -842,8 +844,9 @@ class BulletinService
             // If composition not entered, it uses 0: (DS + 0) / 2 = DS / 2
             $moyenne = $this->calculateTrimesterGrade($trimester->id, $studentId, $seriesSubjectId, 'premier');
 
-            if ($moyenne !== null) {
-                $subjectAverages[] = $moyenne;
+            // Only include numeric values (exclude null and 'ABS')
+            if ($moyenne !== null && is_numeric($moyenne)) {
+                $subjectAverages[] = (float)$moyenne;
             }
         }
 
@@ -855,7 +858,7 @@ class BulletinService
         $min = min($subjectAverages);
         $max = max($subjectAverages);
 
-        return '[' . number_format($min, 2) . ' - ' . number_format($max, 2) . ']';
+        return '[' . number_format((float)$min, 2) . ' - ' . number_format((float)$max, 2) . ']';
     }
     
     /**
@@ -1027,15 +1030,15 @@ class BulletinService
             // Maintenir la compatibilité avec les anciens templates
             'evaluation_number' => $sequence ? $sequence->number : ($trimester ? $trimester->number : '1'),
             'school_year' => date('Y') . '/' . (date('Y') + 1),
-            'total_general' => number_format($data['total_points'] ?? 0, 2),
-            'total_coef' => number_format($data['total_coefficient'] ?? 0, 2),
-            'evaluation_average' => number_format($data['average'] ?? 0, 2),
-            'average_class' => $this->getAverageClass($data['average'] ?? 0),
+            'total_general' => number_format((float)($data['total_points'] ?? 0), 2),
+            'total_coef' => number_format((float)($data['total_coefficient'] ?? 0), 2),
+            'evaluation_average' => number_format((float)($data['average'] ?? 0), 2),
+            'average_class' => $this->getAverageClass((float)($data['average'] ?? 0)),
             'student_rank' => ($data['rank'] ?? 1) . ($sectionType === 'anglophone' ? '' : 'e'),
-            'class_average' => number_format($data['class_average'] ?? 0, 2, ',', ''),
-            'first_average' => number_format($data['first_average'] ?? 0, 2, ',', ''),
-            'last_average' => number_format($data['last_average'] ?? 0, 2, ',', ''),
-            'general_appreciation' => $this->getGeneralAppreciationBySection($data['average'] ?? 0, $sectionType),
+            'class_average' => number_format((float)($data['class_average'] ?? 0), 2, ',', ''),
+            'first_average' => number_format((float)($data['first_average'] ?? 0), 2, ',', ''),
+            'last_average' => number_format((float)($data['last_average'] ?? 0), 2, ',', ''),
+            'general_appreciation' => $this->getGeneralAppreciationBySection((float)($data['average'] ?? 0), $sectionType),
             'logo_base64' => $logoBase64,
             'current_date' => now()->format('d/m/Y'),
             'section_type' => $sectionType,
@@ -1367,14 +1370,14 @@ class BulletinService
 
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
                     // CORRECTION: Afficher "/" pour les absents (ABS) au lieu de "-"
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq1 === 'ABS' ? '/' : (is_numeric($seq1) && $seq1 > 0 ? number_format($seq1, 2) : '-')) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq2 === 'ABS' ? '/' : (is_numeric($seq2) && $seq2 > 0 ? number_format($seq2, 2) : '-')) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) && $compo1 > 0 ? number_format($compo1, 2) : '-')) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . (is_numeric($average) && $average > 0 ? number_format($average, 2) : '-') . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($coef, 2) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq1 === 'ABS' ? '/' : (is_numeric($seq1) && $seq1 > 0 ? number_format((float)$seq1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq2 === 'ABS' ? '/' : (is_numeric($seq2) && $seq2 > 0 ? number_format((float)$seq2, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) && $compo1 > 0 ? number_format((float)$compo1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . (is_numeric($average) && $average > 0 ? number_format((float)$average, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$coef, 2) . '</td>';
                     // CORRECTION: Afficher "-" si NXC est null (élève absent)
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($nxc !== null ? number_format($nxc, 2) : '-') . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($nxc !== null ? number_format($nxc, 2) : '-') . '</td>'; // TOTAL = NXC
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($nxc !== null ? number_format((float)$nxc, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($nxc !== null ? number_format((float)$nxc, 2) : '-') . '</td>'; // TOTAL = NXC
                     // 🔧 FIX BUG #1: Si pas de rang, afficher dernier rang au lieu de 1er
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">' . $competence . '</td>';
@@ -1387,12 +1390,12 @@ class BulletinService
 
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
                     // CORRECTION: Afficher "/" pour les absents (ABS) au lieu de "-"
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($ds1 === 'ABS' ? '/' : (is_numeric($ds1) && $ds1 > 0 ? number_format($ds1, 2) : '-')) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) && $compo1 > 0 ? number_format($compo1, 2) : '-')) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . (is_numeric($average) && $average > 0 ? number_format($average, 2) : '-') . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($coef, 2) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($ds1 === 'ABS' ? '/' : (is_numeric($ds1) && $ds1 > 0 ? number_format((float)$ds1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) && $compo1 > 0 ? number_format((float)$compo1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . (is_numeric($average) && $average > 0 ? number_format((float)$average, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$coef, 2) . '</td>';
                     // CORRECTION: Afficher "-" si weightedGrade est null (élève absent)
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($weightedGrade !== null ? number_format($weightedGrade, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($weightedGrade !== null ? number_format((float)$weightedGrade, 2) : '-') . '</td>';
                     // 🔧 FIX BUG #1: Si pas de rang, afficher dernier rang au lieu de 1er
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $competence . '</td>';
@@ -1402,10 +1405,10 @@ class BulletinService
                 // Pour bulletin séquence avec alignement
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
                 // CORRECTION: Afficher "/" pour absent (ABS), "-" si null, ou la note
-                $displayGrade = ($grade === 'ABS') ? '/' : ((is_numeric($grade) && $grade > 0) ? number_format($grade, 2) : '-');
+                $displayGrade = ($grade === 'ABS') ? '/' : ((is_numeric($grade) && $grade > 0) ? number_format((float)$grade, 2) : '-');
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $displayGrade . '</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($coef, 2) . '</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($weightedGrade !== null ? number_format($weightedGrade, 2) : '-') . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$coef, 2) . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($weightedGrade !== null ? number_format((float)$weightedGrade, 2) : '-') . '</td>';
                 // 🔧 FIX BUG #1: Si pas de rang, afficher dernier rang au lieu de 1er
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $competence . '</td>';
@@ -1428,30 +1431,30 @@ class BulletinService
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Sequence 1
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Sequence 2
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Compo1
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($groupAverage, 2) . '</td>'; // Moy./20
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalCoef, 2) . '</td>'; // COEF
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalPoints, 2) . '</td>'; // (NXC)
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalPoints, 2) . '</td>'; // TOTAL
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$groupAverage, 2) . '</td>'; // Moy./20
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalCoef, 2) . '</td>'; // COEF
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // (NXC)
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // TOTAL
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // RANG
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10px;">' . strtoupper(explode(' :', $groupName)[0]) . '</td>'; // COMPÉTENCES
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10px;">Moy Gpe: ' . number_format($groupAverage, 2) . '</td>'; // PROFESSEURS
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10px;">Moy Gpe: ' . number_format((float)$groupAverage, 2) . '</td>'; // PROFESSEURS
             } else {
                 // 📚 PREMIER CYCLE: 9 colonnes - ligne de total
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // DS1
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Compo1
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($groupAverage, 2) . '</td>'; // Moy
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalCoef, 2) . '</td>'; // COEF
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalPoints, 2) . '</td>'; // (NXC)
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$groupAverage, 2) . '</td>'; // Moy
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalCoef, 2) . '</td>'; // COEF
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // (NXC)
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // RANG
-                $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy gpe: ' . number_format($groupAverage, 2) . ' ' . strtoupper(explode(' :', $groupName)[0]) . '</td>'; // COMPÉTENCES + PROFESSEURS
+                $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy gpe: ' . number_format((float)$groupAverage, 2) . ' ' . strtoupper(explode(' :', $groupName)[0]) . '</td>'; // COMPÉTENCES + PROFESSEURS
             }
         } else {
             $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>';
-            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalPoints, 2) . '</td>';
-            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format($totalCoef, 2) . '</td>';
-            $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy gpe: ' . number_format($groupAverage, 2) . '</td>';
-            $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy Gen Gpe: ' . number_format($groupAverage, 2) . '</td>';
+            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>';
+            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalCoef, 2) . '</td>';
+            $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy gpe: ' . number_format((float)$groupAverage, 2) . '</td>';
+            $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy Gen Gpe: ' . number_format((float)$groupAverage, 2) . '</td>';
         }
         
         $html .= '</tr>';
@@ -1751,15 +1754,15 @@ class BulletinService
         $totalCoef = 0;
 
         foreach ($data['subjects'] as $subject) {
-            $coef = $subject['coefficient'] ?? 1;
+            $coef = (float)($subject['coefficient'] ?? 1);
             $subjectId = $subject['subject_id'] ?? null;
 
             // Calculate DS = (Seq1 + Seq2) / 2
             // Use $subject['ds'] which contains the DS average (not $subject['score'] which is the final trimester grade)
-            $dsNote = $subject['ds'] ?? 0; // This is (Seq1 + Seq2) / 2
+            $dsNote = is_numeric($subject['ds'] ?? 0) ? (float)$subject['ds'] : 0; // This is (Seq1 + Seq2) / 2
 
             // Get Composition grade
-            $compositionNote = $subject['composition'] ?? 0;
+            $compositionNote = is_numeric($subject['composition'] ?? 0) ? (float)$subject['composition'] : 0;
 
             // Calculate M/20 = (DS + Composition) / 2
             $moyenne = 0;
@@ -1791,10 +1794,10 @@ class BulletinService
             $subjectsHTML .= '<tr>';
             $subjectsHTML .= '<td class="subject-col" rowspan="2"><b>' . htmlspecialchars($subject['name']) . '</b><br><span class="teacher-name">' . htmlspecialchars($subject['teacher'] ?? 'N/A') . '</span></td>';
             $subjectsHTML .= '<td class="competence-col">' . htmlspecialchars($competences['competence_1'] ?: 'Compétence 1') . '</td>';
-            $subjectsHTML .= '<td class="note-col">' . number_format($dsNote, 2) . '</td>';
-            $subjectsHTML .= '<td class="avg-col" rowspan="2">' . number_format($moyenne, 2) . '</td>';
-            $subjectsHTML .= '<td class="coef-col" rowspan="2">' . $coef . '</td>';
-            $subjectsHTML .= '<td class="total-col" rowspan="2">' . number_format($total, 2) . '</td>';
+            $subjectsHTML .= '<td class="note-col">' . number_format((float)$dsNote, 2) . '</td>';
+            $subjectsHTML .= '<td class="avg-col" rowspan="2">' . number_format((float)$moyenne, 2) . '</td>';
+            $subjectsHTML .= '<td class="coef-col" rowspan="2">' . number_format((float)$coef, 2) . '</td>';
+            $subjectsHTML .= '<td class="total-col" rowspan="2">' . number_format((float)$total, 2) . '</td>';
             $subjectsHTML .= '<td class="cote-col ' . $coteClass . '" rowspan="2"><b>' . $cote . '</b></td>';
             $subjectsHTML .= '<td class="minmax-col" rowspan="2">' . $minMax . '</td>';
 
@@ -1816,7 +1819,7 @@ class BulletinService
             // Row 2: Composition note + Competence 2
             $subjectsHTML .= '<tr>';
             $subjectsHTML .= '<td class="competence-col">' . htmlspecialchars($competences['competence_2'] ?: 'Compétence 2') . '</td>';
-            $subjectsHTML .= '<td class="note-col">' . number_format($compositionNote, 2) . '</td>';
+            $subjectsHTML .= '<td class="note-col">' . number_format((float)$compositionNote, 2) . '</td>';
             $subjectsHTML .= '</tr>';
         }
 
@@ -1824,9 +1827,9 @@ class BulletinService
 
         // Calculate general statistics
         $generalAverage = $totalCoef > 0 ? $totalGeneral / $totalCoef : 0;
-        $replacements['total_general'] = number_format($totalGeneral, 2);
+        $replacements['total_general'] = number_format((float)$totalGeneral, 2);
         $replacements['total_coef'] = $totalCoef;
-        $replacements['general_average'] = number_format($generalAverage, 2);
+        $replacements['general_average'] = number_format((float)$generalAverage, 2);
         $replacements['student_cote'] = $this->getCote($generalAverage);
 
         // Additional data
@@ -1946,9 +1949,10 @@ class BulletinService
                 // This uses: (DS + Composition) / 2, or (DS + 0) / 2 if composition not entered
                 $moyenne = $this->calculateTrimesterGrade($trimesterId, $studentId, $subject->id, 'premier');
 
-                if ($moyenne !== null) {
-                    $totalPoints += $moyenne * $subject->coefficient;
-                    $totalCoef += $subject->coefficient;
+                // Only include numeric values (exclude null and 'ABS')
+                if ($moyenne !== null && is_numeric($moyenne)) {
+                    $totalPoints += (float)$moyenne * (float)$subject->coefficient;
+                    $totalCoef += (float)$subject->coefficient;
                 }
             }
 
@@ -1965,7 +1969,7 @@ class BulletinService
         $min = min($averages);
         $max = max($averages);
 
-        return '[' . number_format($min, 2) . ' - ' . number_format($max, 2) . ']';
+        return '[' . number_format((float)$min, 2) . ' - ' . number_format((float)$max, 2) . ']';
     }
 
     /**
@@ -1993,8 +1997,9 @@ class BulletinService
             // This uses: (DS + Composition) / 2, or (DS + 0) / 2 if composition not entered
             $moyenne = $this->calculateTrimesterGrade($trimesterId, $studentId, $subjectId, 'premier');
 
-            if ($moyenne !== null) {
-                $subjectAverages[] = $moyenne;
+            // Only include numeric values (exclude null and 'ABS')
+            if ($moyenne !== null && is_numeric($moyenne)) {
+                $subjectAverages[] = (float)$moyenne;
             }
         }
 
@@ -2006,7 +2011,7 @@ class BulletinService
         $min = min($subjectAverages);
         $max = max($subjectAverages);
 
-        return '[' . number_format($min, 2) . ' - ' . number_format($max, 2) . ']';
+        return '[' . number_format((float)$min, 2) . ' - ' . number_format((float)$max, 2) . ']';
     }
 
     /**
@@ -2034,9 +2039,10 @@ class BulletinService
                 // Use calculateTrimesterGrade to get M/20 (handles composition = 0 correctly)
                 $moyenne = $this->calculateTrimesterGrade($trimesterId, $studentId, $subject->id, 'premier');
 
-                if ($moyenne !== null) {
-                    $totalPoints += $moyenne * $subject->coefficient;
-                    $totalCoef += $subject->coefficient;
+                // Only include numeric values (exclude null and 'ABS')
+                if ($moyenne !== null && is_numeric($moyenne)) {
+                    $totalPoints += (float)$moyenne * (float)$subject->coefficient;
+                    $totalCoef += (float)$subject->coefficient;
                 }
             }
 
@@ -2077,9 +2083,10 @@ class BulletinService
                 // Use calculateTrimesterGrade to get M/20 (handles composition = 0 correctly)
                 $moyenne = $this->calculateTrimesterGrade($trimesterId, $studentId, $subject->id, 'premier');
 
-                if ($moyenne !== null) {
-                    $totalPoints += $moyenne * $subject->coefficient;
-                    $totalCoef += $subject->coefficient;
+                // Only include numeric values (exclude null and 'ABS')
+                if ($moyenne !== null && is_numeric($moyenne)) {
+                    $totalPoints += (float)$moyenne * (float)$subject->coefficient;
+                    $totalCoef += (float)$subject->coefficient;
                 }
             }
 
@@ -2097,7 +2104,7 @@ class BulletinService
         }
 
         $successRate = ($passCount / $totalStudents) * 100;
-        return number_format($successRate, 1, ',', '');
+        return number_format((float)$successRate, 1, ',', '');
     }
 
     /**
@@ -2188,7 +2195,7 @@ class BulletinService
                         ->first();
 
                     if ($grade) {
-                        $totalPoints += $grade->score * $subject->coefficient;
+                        $totalPoints += (float)$grade->score * (float)$subject->coefficient;
                     }
                     // Sinon: 0 * coefficient = 0
                 }

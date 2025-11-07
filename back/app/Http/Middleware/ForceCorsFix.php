@@ -11,7 +11,7 @@ class ForceCorsFix
     {
         // Gérer les requêtes OPTIONS en premier
         if ($request->isMethod('OPTIONS')) {
-            $response = response('', 200);
+            $response = response()->json([], 200);
         } else {
             // Process the request
             try {
@@ -27,14 +27,12 @@ class ForceCorsFix
         }
 
         // Toujours ajouter les en-têtes CORS
-        $origin = $request->header('Origin') ?: $request->header('HTTP_ORIGIN');
+        $origin = $request->header('Origin');
 
         // Liste des origines autorisées
         $allowedOrigins = [
             'http://admin.cpb-douala.com',   // Frontend production
             'http://admin1.cpb-douala.com',  // Backend production
-            'https://admin.cpb-douala.com',  // Frontend production (HTTPS)
-            'https://admin1.cpb-douala.com', // Backend production (HTTPS)
             'http://localhost:3000',         // Frontend dev
             'http://127.0.0.1:3000',        // Frontend dev (IP)
             'http://localhost:3006',         // Frontend dev (port alternatif)
@@ -45,20 +43,11 @@ class ForceCorsFix
             'http://127.0.0.1:3007'         // Frontend dev (autre port - IP)
         ];
 
-        if ($origin && in_array($origin, $allowedOrigins)) {
+        if (in_array($origin, $allowedOrigins)) {
             $response->headers->set('Access-Control-Allow-Origin', $origin);
             $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
             $response->headers->set('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, X-Token-Auth, Authorization, Accept');
             $response->headers->set('Access-Control-Allow-Credentials', 'true');
-        } else {
-            // Si aucune origine valide n'est trouvée, on peut essayer une approche plus permissive pour production
-            // Mais seulement si on est en production et que l'origine vient d'un domaine connu
-            if ($origin && (str_contains($origin, 'admin.cpb-douala.com') || str_contains($origin, 'admin1.cpb-douala.com'))) {
-                $response->headers->set('Access-Control-Allow-Origin', $origin);
-                $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-                $response->headers->set('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, X-Token-Auth, Authorization, Accept');
-                $response->headers->set('Access-Control-Allow-Credentials', 'true');
-            }
         }
 
         return $response;
