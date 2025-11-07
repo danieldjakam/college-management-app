@@ -1418,8 +1418,10 @@ class BulletinService
             $html .= '</tr>';
         }
 
-        // Calcul moyenne du groupe basé sur coefficient des matières avec notes
-        $groupAverage = $totalCoefWithGrades > 0 ? $totalPoints / $totalCoefWithGrades : 0;
+        // Calcul moyenne du groupe basé sur coefficient TOTAL (incluant matières sans notes)
+        // CORRECTION BUG: Utiliser $totalCoef au lieu de $totalCoefWithGrades
+        // Moyenne = Total Points / Total Coef (avec matières non saisies = 0 points)
+        $groupAverage = $totalCoef > 0 ? $totalPoints / $totalCoef : 0;
         
         // Total row avec alignement
         $html .= '<tr class="total-row" style="background: #f0f0f0; font-weight: bold;">';
