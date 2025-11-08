@@ -443,7 +443,7 @@ class BulletinService
             'student_id' => $student->id,
             'student_birth_date' => $student->birth_date ? $student->birth_date->format('d/m/Y') : 'N/A',
             'student_matricule' => $student->matricule ?? 'N/A',
-            'class_name' => $student->schoolClass->name ?? 'N/A',
+            'class_name' => $student->classSeries->name ?? $student->schoolClass->name ?? 'N/A',
             'class_size' => $student->classSeries ? $student->classSeries->students()->count() : 57,
             'sequence_number' => $sequenceNumber,
             'school_year' => date('Y') . '/' . (date('Y') + 1),
@@ -567,7 +567,7 @@ class BulletinService
             'student_id' => $student->id,
             'student_birth_date' => $student->birth_date ? $student->birth_date->format('d/m/Y') : 'N/A',
             'student_matricule' => $student->matricule ?? 'N/A',
-            'class_name' => $student->schoolClass->name ?? 'N/A',
+            'class_name' => $student->classSeries->name ?? $student->schoolClass->name ?? 'N/A',
             'class_size' => $student->classSeries ? $student->classSeries->students()->count() : 57,
             'trimester_number' => $trimesterNumber,
             'school_year' => date('Y') . '/' . (date('Y') + 1),
@@ -1021,7 +1021,7 @@ class BulletinService
             'student_name' => strtoupper($student->last_name . ' ' . $student->first_name),
             'birth_date' => $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : '',
             'birth_place' => $student->place_of_birth ?? 'EMANA',
-            'class_name' => $student->schoolClass->name ?? ($sectionType === 'anglophone' ? 'FORM 2A' : 'SIXIÈME A'),
+            'class_name' => $student->classSeries->name ?? $student->schoolClass->name ?? ($sectionType === 'anglophone' ? 'FORM 2A' : 'SIXIÈME A'),
             'main_teacher' => $sectionType === 'anglophone' ? 'MR. TCHAMENI MATHIEU' : 'TCHAMENI MATHIEU', // TODO: Get from database
             'class_size' => $this->getClassSize($student),
             'student_number' => $student->student_number ?? '24A856',
@@ -1214,29 +1214,44 @@ class BulletinService
      */
     protected function groupSubjectsByType($subjects)
     {
-        // For now, group all subjects into literary, scientific, and practical groups
-        // This is a simplified version - you might want to add proper subject categorization
+        // Utiliser les groupes de la base de données
         $groups = [
             'GROUPE A : MATIÈRES LITTÉRAIRES' => [],
             'GROUPE B : MATIÈRES SCIENTIFIQUES' => [],
             'GROUPE C : MATIÈRES PRATIQUES' => [],
             'GROUPE D : AUTRES MATIÈRES' => []
         ];
-        
+
         foreach ($subjects as $subject) {
-            $subjectName = strtolower($subject['name']);
-            
-            if (in_array($subjectName, ['anglais', 'français', 'histoire', 'géographie', 'expression écrite', 'expression orale', 'étude de texte', 'orthographe', 'langues et cultures nationales'])) {
-                $groups['GROUPE A : MATIÈRES LITTÉRAIRES'][] = $subject;
-            } elseif (in_array($subjectName, ['mathématiques', 'sciences physiques', 'svt', 'sciences naturelles'])) {
-                $groups['GROUPE B : MATIÈRES SCIENTIFIQUES'][] = $subject;
-            } elseif (in_array($subjectName, ['eps', 'informatique', 'travail manuel', 'arts plastiques'])) {
-                $groups['GROUPE C : MATIÈRES PRATIQUES'][] = $subject;
+            // Récupérer le groupe depuis la base de données via le subject_id
+            $subjectModel = \App\Models\Subject::find($subject['subject_id'] ?? null);
+
+            if ($subjectModel && $subjectModel->group) {
+                $groupKey = match($subjectModel->group) {
+                    'A' => 'GROUPE A : MATIÈRES LITTÉRAIRES',
+                    'B' => 'GROUPE B : MATIÈRES SCIENTIFIQUES',
+                    'C' => 'GROUPE C : MATIÈRES PRATIQUES',
+                    'D' => 'GROUPE D : AUTRES MATIÈRES',
+                    default => 'GROUPE D : AUTRES MATIÈRES'
+                };
+
+                $groups[$groupKey][] = $subject;
             } else {
-                $groups['GROUPE D : AUTRES MATIÈRES'][] = $subject;
+                // Si pas de groupe défini, utiliser le système de fallback (ancien système)
+                $subjectName = strtolower($subject['name']);
+
+                if (in_array($subjectName, ['anglais', 'français', 'histoire', 'géographie', 'expression écrite', 'expression orale', 'étude de texte', 'orthographe', 'langues et cultures nationales', 'langue et culture nationale'])) {
+                    $groups['GROUPE A : MATIÈRES LITTÉRAIRES'][] = $subject;
+                } elseif (in_array($subjectName, ['mathématiques', 'sciences physiques', 'svt', 'sciences naturelles', 'sciences', 'physique'])) {
+                    $groups['GROUPE B : MATIÈRES SCIENTIFIQUES'][] = $subject;
+                } elseif (in_array($subjectName, ['eps', 'informatique', 'travail manuel', 'arts plastiques', 'education physique et sportive', 'éducation artistique'])) {
+                    $groups['GROUPE C : MATIÈRES PRATIQUES'][] = $subject;
+                } else {
+                    $groups['GROUPE D : AUTRES MATIÈRES'][] = $subject;
+                }
             }
         }
-        
+
         // Remove empty groups
         return array_filter($groups, function($subjects) {
             return !empty($subjects);
@@ -1572,19 +1587,17 @@ class BulletinService
     protected function getGeneralAppreciationBySection($average, $sectionType = 'francophone')
     {
         if ($sectionType === 'anglophone') {
-            if ($average >= 16) return 'Excellent (Very Good)';
-            if ($average >= 14) return 'Very Good';
-            if ($average >= 12) return 'Good';
-            if ($average >= 10) return 'Average (Pass)';
-            return 'Beginning (Fail)';
+            if ($average >= 16) return 'A+ : Expert';
+            if ($average >= 14) return 'A : Acquired';
+            if ($average >= 10) return 'ECA : In Progress';
+            return 'NA : Not Acquired';
         }
 
-        // Francophone (original)
-        if ($average >= 16) return 'Excellent (Très Bien)';
-        if ($average >= 14) return 'Très Bien';
-        if ($average >= 12) return 'Bien';
-        if ($average >= 10) return 'Assez Bien (Passable)';
-        return 'Non Acquise (NA)';
+        // Francophone - Système de compétences
+        if ($average >= 16) return 'A+ : Expert';
+        if ($average >= 14) return 'A : Acquise';
+        if ($average >= 10) return 'ECA : En Cours d\'Acquisition';
+        return 'NA : Non Acquise';
     }
     
     /**
@@ -1603,11 +1616,10 @@ class BulletinService
      */
     protected function getGeneralAppreciation($average)
     {
-        if ($average >= 16) return 'Excellent (Très Bien)';
-        if ($average >= 14) return 'Très Bien';
-        if ($average >= 12) return 'Bien';
-        if ($average >= 10) return 'Assez Bien (Passable)';
-        return 'Non Acquise (NA)';
+        if ($average >= 16) return 'A+ : Expert';
+        if ($average >= 14) return 'A : Acquise';
+        if ($average >= 10) return 'ECA : En Cours d\'Acquisition';
+        return 'NA : Non Acquise';
     }
     
     /**

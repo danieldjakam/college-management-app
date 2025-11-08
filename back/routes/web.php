@@ -30,6 +30,14 @@ Route::get('/login', function (\Illuminate\Http\Request $request) {
             'error' => 'Unauthorized'
         ], 401);
     }
-    
+
     return redirect('/'); // Pour les requêtes web normales
 })->name('login');
+
+// ============================================
+// ADMIN ROUTES - Gestion des groupes de matières
+// ============================================
+Route::middleware(['auth:api', 'role:admin,principal,directeur_etudes'])->group(function () {
+    Route::get('/admin/subject-groups', [App\Http\Controllers\Admin\SubjectGroupsViewController::class, 'index'])
+        ->name('admin.subject-groups');
+});

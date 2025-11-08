@@ -23,6 +23,7 @@ import {
     BusFront,
     Ticket,
     Cart3,
+    LayersFill,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -91,6 +92,11 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               name: "Matières",
               href: "/subjects",
               icon: <JournalBookmarkFill />,
+            },
+            {
+              name: "Groupes de Matières",
+              href: "/admin/subject-groups",
+              icon: <LayersFill />,
             },
             {
               name: "Configuration Série-Matières",
@@ -166,6 +172,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Étudiants", href: "/students", icon: <PeopleFill /> },
             { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
             { name: "Matières", href: "/subjects", icon: <JournalBookmarkFill /> },
+            { name: "Groupes de Matières", href: "/admin/subject-groups", icon: <LayersFill /> },
             { name: "Configuration Série-Matières", href: "/series-subject-configuration", icon: <JournalBookmarkFill /> },
             { name: "Enseignants", href: "/teachers", icon: <PeopleFill /> },
             { name: "Affectations & Prof. Principaux", href: "/teacher-assignments", icon: <PeopleFill /> },
@@ -455,6 +462,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Enseignants", href: "/teachers", icon: <PeopleFill /> },
             { name: "Affectations", href: "/teacher-assignments", icon: <Award /> },
             { name: "Classes", href: "/school-classes", icon: <HouseHeartFill /> },
+            { name: "Groupes de Matières", href: "/admin/subject-groups", icon: <LayersFill /> },
           ],
         },
         {

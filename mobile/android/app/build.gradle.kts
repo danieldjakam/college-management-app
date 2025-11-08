@@ -28,6 +28,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Nom de base de l'APK
+        setProperty("archivesBaseName", "cpbd_en")
     }
 
     buildTypes {

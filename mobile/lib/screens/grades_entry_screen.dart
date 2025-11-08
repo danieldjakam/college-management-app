@@ -97,6 +97,10 @@ class _GradesEntryScreenState extends State<GradesEntryScreen> {
           _students = studentsList
               .map((json) => Student.fromJson(json))
               .toList();
+
+          // Tri alphabétique par nom complet (NOM Prénom)
+          _students.sort((a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
+
           _grades = gradesMap;
 
           // Initialiser les controllers pour chaque élève

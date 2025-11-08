@@ -64,6 +64,10 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
           _students = studentsList
               .map((json) => Student.fromJson(json))
               .toList();
+
+          // Tri alphabétique par nom complet (NOM Prénom)
+          _students.sort((a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
+
           _filteredStudents = _students;
           _isLoading = false;
         });

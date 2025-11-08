@@ -13,12 +13,38 @@ class Subject extends Model
         'name',
         'code',
         'description',
+        'group',
+        'section_id',
         'is_active'
     ];
 
     protected $casts = [
-        'is_active' => 'boolean'
+        'is_active' => 'boolean',
+        'section_id' => 'integer'
     ];
+
+    /**
+     * Obtenir le nom complet du groupe
+     */
+    public function getGroupNameAttribute()
+    {
+        $groups = [
+            'A' => 'MATIÈRES LITTÉRAIRES',
+            'B' => 'MATIÈRES SCIENTIFIQUES',
+            'C' => 'MATIÈRES PRATIQUES',
+            'D' => 'AUTRES MATIÈRES'
+        ];
+
+        return isset($this->group) ? $groups[$this->group] : null;
+    }
+
+    /**
+     * Relation avec la section
+     */
+    public function section()
+    {
+        return $this->belongsTo(Section::class);
+    }
 
     /**
      * Relation avec les séries de classe (matières enseignées)

@@ -1524,3 +1524,20 @@ Route::prefix('class-fees-sheet')->middleware('auth:api')->group(function () {
     Route::get('/{classSeriesId}/download', [App\Http\Controllers\ClassSchoolFeesSheetController::class, 'downloadClassFeesPDF'])
         ->middleware(['role:admin,accountant,comptable_superieur,principal,secretaire']);
 });
+
+// ============================================
+// SUBJECT GROUPS - Gestion des groupes de matières
+// ============================================
+Route::prefix('subject-groups')->group(function () {
+    // Get all subjects with their groups
+    Route::get('/', [App\Http\Controllers\Api\SubjectGroupController::class, 'index'])
+        ->middleware(['role:admin,principal,directeur_etudes']);
+
+    // Update a single subject's group
+    Route::put('/{id}', [App\Http\Controllers\Api\SubjectGroupController::class, 'updateGroup'])
+        ->middleware(['role:admin,principal,directeur_etudes']);
+
+    // Bulk update subject groups
+    Route::post('/bulk-update', [App\Http\Controllers\Api\SubjectGroupController::class, 'bulkUpdate'])
+        ->middleware(['role:admin,principal,directeur_etudes']);
+});

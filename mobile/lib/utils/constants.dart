@@ -5,10 +5,9 @@ class ApiConstants {
   // Local Android Emulator: 'http://10.0.2.2:8001/api'
   // Local (MacOS/PC direct): 'http://192.168.x.x:8001/api' (votre IP locale)
 
-  // ⚠️ MODE LOCAL ACTIVÉ - DÉVELOPPEMENT UNIQUEMENT
-  // Pour iOS Simulator, utilisez 127.0.0.1
-  // Pour émulateur Android, utilisez 10.0.2.2 au lieu de 127.0.0.1
-  static const String baseUrl = 'http://127.0.0.1:8001/api';
+  // ✅ MODE PRODUCTION ACTIVÉ
+  // Backend production CPB Douala
+  static const String baseUrl = 'http://admin1.cpb-douala.com/api';
 
   // Endpoints
   static const String loginEndpoint = '/auth/login';
