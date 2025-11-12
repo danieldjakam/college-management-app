@@ -443,7 +443,7 @@ class PVService
         foreach ($studentsResults as $result) {
             $student = $result['student'];
             $rank = $result['rank'];
-            $average = number_format($result['average'], 2);
+            $average = number_format((float)$result['average'], 2);
 
             // Classes CSS pour le rang et le statut
             $rankClass = '';
@@ -465,7 +465,7 @@ class PVService
             // Notes par matière
             foreach ($seriesSubjects as $seriesSubject) {
                 $grade = $result['grades'][$seriesSubject->id] ?? null;
-                $displayGrade = $grade !== null ? number_format($grade, 2) : '/';
+                $displayGrade = $grade !== null ? number_format((float)$grade, 2) : '/';
                 $studentsRows .= "<td>{$displayGrade}</td>";
             }
 
@@ -502,9 +502,9 @@ class PVService
             '{{passed_count}}' => $statistics['passed_count'],
             '{{failed_count}}' => $statistics['failed_count'],
             '{{success_rate}}' => $statistics['success_rate'],
-            '{{class_average}}' => number_format($statistics['class_average'], 2),
-            '{{highest_average}}' => number_format($statistics['highest_average'], 2),
-            '{{lowest_average}}' => number_format($statistics['lowest_average'], 2),
+            '{{class_average}}' => number_format((float)$statistics['class_average'], 2),
+            '{{highest_average}}' => number_format((float)$statistics['highest_average'], 2),
+            '{{lowest_average}}' => number_format((float)$statistics['lowest_average'], 2),
             '{{mention_excellent}}' => $statistics['mention_excellent'],
             '{{mention_bien}}' => $statistics['mention_bien'],
             '{{mention_assez_bien}}' => $statistics['mention_assez_bien'],
