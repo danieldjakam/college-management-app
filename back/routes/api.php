@@ -1529,6 +1529,14 @@ Route::prefix('class-fees-sheet')->middleware('auth:api')->group(function () {
 // SUBJECT GROUPS - Gestion des groupes de matières
 // ============================================
 Route::prefix('subject-groups')->group(function () {
+    // Get all subject groups (A, B, C, D)
+    Route::get('/groups', [App\Http\Controllers\Api\SubjectGroupController::class, 'getAllGroups'])
+        ->middleware(['role:admin,principal,directeur_etudes']);
+
+    // Update a subject group name
+    Route::put('/groups/{id}', [App\Http\Controllers\Api\SubjectGroupController::class, 'updateGroupName'])
+        ->middleware(['role:admin,principal,directeur_etudes']);
+
     // Get all subjects with their groups
     Route::get('/', [App\Http\Controllers\Api\SubjectGroupController::class, 'index'])
         ->middleware(['role:admin,principal,directeur_etudes']);

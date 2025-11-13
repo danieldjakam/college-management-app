@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Subject;
+use App\Models\SubjectGroup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -11,11 +12,78 @@ use Illuminate\Support\Facades\Validator;
 class SubjectGroupController extends Controller
 {
     /**
+     * Get all subject groups
+     */
+    public function getAllGroups()
+    {
+        try {
+            $groups = SubjectGroup::active()->ordered()->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $groups
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching subject groups: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des groupes',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update a subject group
+     */
+    public function updateGroupName(Request $request, $id)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'header' => 'nullable|string|max:255',
+                'header_en' => 'nullable|string|max:255',
+                'name' => 'required|string|max:255',
+                'name_en' => 'nullable|string|max:255',
+                'description' => 'nullable|string'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Données invalides',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $group = SubjectGroup::findOrFail($id);
+            $group->update($request->only(['header', 'header_en', 'name', 'name_en', 'description']));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Groupe mis à jour avec succès',
+                'data' => $group
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error updating subject group: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour du groupe',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Get all subjects with their groups
      */
     public function index()
     {
         try {
+            // Récupérer les groupes depuis la base de données
+            $subjectGroups = SubjectGroup::active()->ordered()->get();
+
             $subjects = Subject::select('id', 'name', 'code', 'group')
                 ->orderBy('group')
                 ->orderBy('name')
@@ -31,25 +99,18 @@ class SubjectGroupController extends Controller
                 });
 
             // Grouper par groupe
-            $grouped = [
-                'A' => $subjects->where('group', 'A')->values(),
-                'B' => $subjects->where('group', 'B')->values(),
-                'C' => $subjects->where('group', 'C')->values(),
-                'D' => $subjects->where('group', 'D')->values(),
-                'uncategorized' => $subjects->whereNull('group')->values()
-            ];
+            $grouped = [];
+            foreach ($subjectGroups as $group) {
+                $grouped[$group->code] = $subjects->where('group', $group->code)->values();
+            }
+            $grouped['uncategorized'] = $subjects->whereNull('group')->values();
 
             return response()->json([
                 'success' => true,
                 'data' => [
                     'subjects' => $subjects,
                     'grouped' => $grouped,
-                    'groups' => [
-                        ['code' => 'A', 'name' => 'MATIÈRES LITTÉRAIRES'],
-                        ['code' => 'B', 'name' => 'MATIÈRES SCIENTIFIQUES'],
-                        ['code' => 'C', 'name' => 'MATIÈRES PRATIQUES'],
-                        ['code' => 'D', 'name' => 'AUTRES MATIÈRES'],
-                    ]
+                    'groups' => $subjectGroups
                 ]
             ]);
         } catch (\Exception $e) {
