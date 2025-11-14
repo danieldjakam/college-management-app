@@ -1153,13 +1153,23 @@ class ReportsController extends Controller
 
         // 1. Vérifier les bourses RÉELLES : seulement si has_scholarship_enabled=true
         if ($student->has_scholarship_enabled) {
-            $classScholarships = DB::table('class_scholarships')
-                ->where('school_class_id', $student->classSeries->class_id)
-                ->where('is_active', true)
-                ->get();
+            // CORRECTION: Vérifier que classSeries existe et charger si nécessaire
+            if (!$student->relationLoaded('classSeries')) {
+                $student->load('classSeries.schoolClass');
+            }
 
-            foreach ($classScholarships as $scholarship) {
-                $totalScholarships += $scholarship->amount;
+            if (!$student->classSeries || !$student->classSeries->class_id) {
+                // Pas de classe, pas de bourse
+                $totalScholarships = 0;
+            } else {
+                $classScholarships = DB::table('class_scholarships')
+                    ->where('school_class_id', $student->classSeries->class_id)
+                    ->where('is_active', true)
+                    ->get();
+
+                foreach ($classScholarships as $scholarship) {
+                    $totalScholarships += $scholarship->amount;
+                }
             }
         }
 
@@ -1376,7 +1386,8 @@ class ReportsController extends Controller
                 'payments' => function ($query) use ($workingYear, $startDate, $endDate) {
                     $query->where('school_year_id', $workingYear->id)
                         ->whereBetween('payment_date', [$startDate, $endDate]);
-                }
+                },
+                'payments.paymentDetails.paymentTranche' // CORRECTION: Charger les payment_details
             ])
                 ->where('school_year_id', $workingYear->id)
                 ->where('is_active', true)
@@ -3949,9 +3960,47 @@ class ReportsController extends Controller
             }
 
             // Adapter la structure des données pour generateRecoveryStatusPdfHtml
+            // Mapper recovery_rate -> pourcentage_recouv et ajouter les champs manquants
+            $classes = array_map(function($classData, $index) {
+                return [
+                    'numero' => $index + 1,
+                    'class_name' => $classData['class_name'] ?? ($classData['series_name'] ?? 'N/A'),
+                    'eff_ancien' => 0, // Non disponible dans getRecoveryStatus
+                    'eff_nouveau' => 0, // Non disponible dans getRecoveryStatus
+                    'eff_total' => $classData['total_students'] ?? 0,
+                    'demissionnaires' => 0, // Non disponible dans getRecoveryStatus
+                    'eff_reel' => $classData['total_students'] ?? 0,
+                    'inscription_percu' => 0, // Non disponible dans getRecoveryStatus
+                    'perception_demission' => 0, // Non disponible dans getRecoveryStatus
+                    'perte_demission' => 0, // Non disponible dans getRecoveryStatus
+                    'recette_attendue' => ($classData['collected_amount'] ?? 0) + ($classData['remaining_amount'] ?? 0),
+                    'realisation' => $classData['collected_amount'] ?? 0,
+                    'bourse' => 0, // Non disponible dans getRecoveryStatus
+                    'rabais' => 0, // Non disponible dans getRecoveryStatus
+                    'reste_a_recouvrer' => $classData['remaining_amount'] ?? 0,
+                    'pourcentage_recouv' => $classData['recovery_rate'] ?? 0 // MAPPING KEY
+                ];
+            }, $reportData['data']['recovery_data'], array_keys($reportData['data']['recovery_data']));
+
             $adaptedData = [
-                'classes' => $reportData['data']['recovery_data'],
-                'summary' => $reportData['data']['summary'],
+                'classes' => $classes,
+                'summary' => [
+                    'total_classes' => count($reportData['data']['recovery_data']),
+                    'total_ancien' => 0,
+                    'total_nouveau' => 0,
+                    'total_students' => array_sum(array_column($reportData['data']['recovery_data'], 'total_students')),
+                    'total_demissionnaires' => 0,
+                    'total_eff_reel' => array_sum(array_column($reportData['data']['recovery_data'], 'total_students')),
+                    'total_inscription_percu' => 0,
+                    'total_perception_demission' => 0,
+                    'total_perte_demission' => 0,
+                    'total_expected' => $reportData['data']['summary']['total_amount'] ?? 0,
+                    'total_collected' => $reportData['data']['summary']['collected_amount'] ?? 0,
+                    'total_bourse' => 0,
+                    'total_rabais' => 0,
+                    'total_remaining' => $reportData['data']['summary']['remaining_amount'] ?? 0,
+                    'recovery_percentage' => $reportData['data']['summary']['global_recovery_rate'] ?? 0
+                ],
                 'school_year' => $reportData['data']['school_year']
             ];
 
