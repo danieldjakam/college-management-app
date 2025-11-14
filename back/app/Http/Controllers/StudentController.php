@@ -2079,145 +2079,99 @@ class StudentController extends Controller
     private function handlePaymentAdjustmentOnTransfer($student, $oldSeries, $newSeries)
     {
         try {
-            // Récupérer le dernier paiement pending de l'élève pour cette année scolaire
-            $pendingPayment = Payment::where('student_id', $student->id)
+            // CORRECTION: Récupérer TOUS les paiements de l'élève pour cette année scolaire
+            $allPayments = Payment::where('student_id', $student->id)
                 ->where('school_year_id', $student->school_year_id)
-                ->where('status', 'pending')
-                ->orderBy('created_at', 'desc')
-                ->first();
+                ->where('is_rame_physical', false)
+                ->orderBy('payment_date', 'asc')
+                ->get();
 
-            if (!$pendingPayment) {
-                \Log::info('No pending payment found for transfer', [
+            if ($allPayments->isEmpty()) {
+                \Log::info('No payments found for transfer', [
                     'student_id' => $student->id
                 ]);
                 return;
             }
 
-            $totalPaid = $pendingPayment->total_amount;
+            // Calculer le total payé (somme de TOUS les paiements)
+            $totalPaid = $allPayments->sum('total_amount');
 
-            // Récupérer la tranche "Inscription" (order = 1)
-            $inscriptionTranche = PaymentTranche::where('order', 1)->active()->first();
-            if (!$inscriptionTranche) {
-                \Log::warning('Inscription tranche not found');
+            // Récupérer TOUTES les tranches de paiement pour la nouvelle classe (dans l'ordre)
+            $allTranches = PaymentTranche::active()
+                ->ordered()
+                ->get();
+
+            if ($allTranches->isEmpty()) {
+                \Log::warning('No payment tranches found');
                 return;
             }
 
-            // Calculer le montant d'inscription pour la nouvelle classe
-            $newInscriptionAmount = $inscriptionTranche->getAmountForStudent($student, $student->is_new, false, false, false);
+            \Log::info('Transfer payment recalculation started', [
+                'student_id' => $student->id,
+                'total_paid' => $totalPaid,
+                'payments_count' => $allPayments->count(),
+                'from_class' => $oldSeries ? $oldSeries->name : 'N/A',
+                'to_class' => $newSeries->name
+            ]);
 
-            if ($newInscriptionAmount <= 0) {
-                \Log::warning('Invalid inscription amount for new class', [
-                    'student_id' => $student->id,
-                    'new_class' => $newSeries->name
-                ]);
-                return;
+            // ÉTAPE 1: Calculer la nouvelle répartition séquentielle
+            $newAllocation = [];
+            $remainingAmount = $totalPaid;
+
+            foreach ($allTranches as $tranche) {
+                if ($remainingAmount <= 0) break;
+
+                // Calculer le montant requis pour cette tranche dans la NOUVELLE classe
+                $requiredAmount = $tranche->getAmountForStudent($student, $student->is_new, false, false, false);
+
+                if ($requiredAmount <= 0) continue;
+
+                // Allouer autant que possible à cette tranche
+                $allocatedAmount = min($remainingAmount, $requiredAmount);
+
+                $newAllocation[] = [
+                    'tranche_id' => $tranche->id,
+                    'tranche_name' => $tranche->name,
+                    'required_amount' => $requiredAmount,
+                    'allocated_amount' => $allocatedAmount,
+                    'is_fully_paid' => $allocatedAmount >= $requiredAmount
+                ];
+
+                $remainingAmount -= $allocatedAmount;
             }
 
-            // Si le montant payé est supérieur au nouveau montant d'inscription
-            if ($totalPaid > $newInscriptionAmount) {
-                $remainingAmount = $totalPaid - $newInscriptionAmount;
+            // ÉTAPE 2: Supprimer TOUS les anciens payment_details
+            $paymentIds = $allPayments->pluck('id');
+            PaymentDetail::whereIn('payment_id', $paymentIds)->delete();
 
-                \Log::info('Transfer payment adjustment', [
-                    'student_id' => $student->id,
-                    'total_paid' => $totalPaid,
-                    'new_inscription' => $newInscriptionAmount,
-                    'remaining' => $remainingAmount,
-                    'from_class' => $oldSeries ? $oldSeries->name : 'N/A',
-                    'to_class' => $newSeries->name
-                ]);
+            \Log::info('Deleted old payment details', [
+                'payment_ids' => $paymentIds->toArray()
+            ]);
 
-                // Supprimer les anciens détails de paiement s'ils existent
-                PaymentDetail::where('payment_id', $pendingPayment->id)->delete();
+            // ÉTAPE 3: Redistribuer les nouveaux payment_details sur les paiements existants
+            $this->redistributePaymentDetails($allPayments, $newAllocation);
 
-                // 1. Créer le détail pour l'inscription (nouvelle classe)
-                PaymentDetail::create([
-                    'payment_id' => $pendingPayment->id,
-                    'payment_tranche_id' => $inscriptionTranche->id,
-                    'amount_allocated' => $newInscriptionAmount,
-                    'previous_amount' => 0,
-                    'new_total_amount' => $newInscriptionAmount,
-                    'is_fully_paid' => true,
-                    'required_amount_at_time' => $newInscriptionAmount,
-                    'was_reduced' => false
-                ]);
+            // ÉTAPE 4: Ajouter une note explicative à chaque paiement
+            $transferNote = sprintf(
+                'Recalculé suite au transfert de %s vers %s le %s',
+                $oldSeries ? $oldSeries->name : 'Aucune série',
+                $newSeries->name,
+                now()->format('d/m/Y H:i')
+            );
 
-                // 2. Si reste > 0, affecter à la 1ère tranche
-                if ($remainingAmount > 0) {
-                    $firstTranche = PaymentTranche::where('order', 2)->active()->first(); // 1ère tranche = order 2
-
-                    if ($firstTranche) {
-                        $firstTrancheAmount = $firstTranche->getAmountForStudent($student, $student->is_new, false, false, false);
-
-                        $isFullyPaid = $remainingAmount >= $firstTrancheAmount;
-
-                        PaymentDetail::create([
-                            'payment_id' => $pendingPayment->id,
-                            'payment_tranche_id' => $firstTranche->id,
-                            'amount_allocated' => $remainingAmount,
-                            'previous_amount' => 0,
-                            'new_total_amount' => $remainingAmount,
-                            'is_fully_paid' => $isFullyPaid,
-                            'required_amount_at_time' => $firstTrancheAmount,
-                            'was_reduced' => false
-                        ]);
-
-                        \Log::info('Applied remaining amount to first tranche', [
-                            'student_id' => $student->id,
-                            'tranche' => $firstTranche->name,
-                            'amount' => $remainingAmount,
-                            'is_fully_paid' => $isFullyPaid
-                        ]);
-                    }
-                }
-
-                // 3. Mettre à jour le paiement et le valider
-                $pendingPayment->update([
-                    'status' => 'validated',
-                    'validation_date' => now(),
-                    'status_updated_by' => Auth::id(),
-                    'status_updated_at' => now(),
-                    'notes' => sprintf(
-                        'Transfert de %s vers %s - Inscription: %s FCFA, Reste affecté à 1ère tranche: %s FCFA',
-                        $oldSeries ? $oldSeries->name : 'N/A',
-                        $newSeries->name,
-                        number_format($newInscriptionAmount, 0, ',', ' '),
-                        number_format($remainingAmount, 0, ',', ' ')
-                    )
-                ]);
-
-                \Log::info('Payment adjusted and validated after transfer', [
-                    'student_id' => $student->id,
-                    'payment_id' => $pendingPayment->id,
-                    'receipt' => $pendingPayment->receipt_number
-                ]);
-            } else {
-                // Si le montant est égal ou inférieur, juste valider pour l'inscription
-                PaymentDetail::where('payment_id', $pendingPayment->id)->delete();
-
-                PaymentDetail::create([
-                    'payment_id' => $pendingPayment->id,
-                    'payment_tranche_id' => $inscriptionTranche->id,
-                    'amount_allocated' => $totalPaid,
-                    'previous_amount' => 0,
-                    'new_total_amount' => $totalPaid,
-                    'is_fully_paid' => $totalPaid >= $newInscriptionAmount,
-                    'required_amount_at_time' => $newInscriptionAmount,
-                    'was_reduced' => false
-                ]);
-
-                $pendingPayment->update([
-                    'status' => 'validated',
-                    'validation_date' => now(),
-                    'status_updated_by' => Auth::id(),
-                    'status_updated_at' => now(),
-                    'notes' => sprintf(
-                        'Transfert de %s vers %s - Montant affecté à l\'inscription: %s FCFA',
-                        $oldSeries ? $oldSeries->name : 'N/A',
-                        $newSeries->name,
-                        number_format($totalPaid, 0, ',', ' ')
-                    )
+            foreach ($allPayments as $payment) {
+                $existingNotes = $payment->notes ? $payment->notes . "\n" : '';
+                $payment->update([
+                    'notes' => $existingNotes . $transferNote
                 ]);
             }
+
+            \Log::info('Payment adjustment completed successfully', [
+                'student_id' => $student->id,
+                'total_paid' => $totalPaid,
+                'new_allocation' => $newAllocation,
+                'remaining_unallocated' => $remainingAmount
+            ]);
 
         } catch (\Exception $e) {
             \Log::error('Error adjusting payment on transfer', [
@@ -2227,6 +2181,69 @@ class StudentController extends Controller
             ]);
             // Ne pas faire échouer le transfert à cause d'un problème de paiement
             // L'admin pourra corriger manuellement
+        }
+    }
+
+    /**
+     * Redistribuer les payment_details sur les paiements existants
+     * Stratégie: Créer des payment_details proportionnels aux montants payés
+     */
+    private function redistributePaymentDetails($payments, $newAllocation)
+    {
+        if (empty($newAllocation)) {
+            return;
+        }
+
+        // Stratégie simple: Répartir séquentiellement sur les paiements dans l'ordre chronologique
+        $allocationIndex = 0;
+        $currentTranche = $newAllocation[$allocationIndex];
+        $remainingInCurrentTranche = $currentTranche['allocated_amount'];
+
+        foreach ($payments as $payment) {
+            $paymentAmount = $payment->total_amount;
+            $remainingInPayment = $paymentAmount;
+
+            // Créer les payment_details pour ce paiement
+            while ($remainingInPayment > 0 && $allocationIndex < count($newAllocation)) {
+                $currentTranche = $newAllocation[$allocationIndex];
+
+                if ($remainingInCurrentTranche <= 0) {
+                    // Passer à la tranche suivante
+                    $allocationIndex++;
+                    if ($allocationIndex >= count($newAllocation)) {
+                        break;
+                    }
+                    $currentTranche = $newAllocation[$allocationIndex];
+                    $remainingInCurrentTranche = $currentTranche['allocated_amount'];
+                }
+
+                // Montant à allouer pour cette tranche dans ce paiement
+                $amountToAllocate = min($remainingInPayment, $remainingInCurrentTranche);
+
+                if ($amountToAllocate > 0) {
+                    PaymentDetail::create([
+                        'payment_id' => $payment->id,
+                        'payment_tranche_id' => $currentTranche['tranche_id'],
+                        'amount_allocated' => $amountToAllocate,
+                        'previous_amount' => 0,
+                        'new_total_amount' => $amountToAllocate,
+                        'is_fully_paid' => $currentTranche['is_fully_paid'] && ($amountToAllocate == $remainingInCurrentTranche),
+                        'required_amount_at_time' => $currentTranche['required_amount'],
+                        'was_reduced' => false
+                    ]);
+
+                    $remainingInPayment -= $amountToAllocate;
+                    $remainingInCurrentTranche -= $amountToAllocate;
+
+                    \Log::info('Created payment detail', [
+                        'payment_id' => $payment->id,
+                        'tranche' => $currentTranche['tranche_name'],
+                        'amount' => $amountToAllocate,
+                        'remaining_in_payment' => $remainingInPayment,
+                        'remaining_in_tranche' => $remainingInCurrentTranche
+                    ]);
+                }
+            }
         }
     }
 
