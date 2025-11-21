@@ -327,19 +327,30 @@
             white-space: nowrap;
         }
 
-        /* Filigrane en arrière-plan - AGRANDI */
+        /* Filigrane en arrière-plan - AGRANDI - RESPONSIVE */
+        body {
+            position: relative;
+            min-height: 100vh;
+        }
+
         .watermark {
-            position: absolute;
+            position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 55%;
+            width: 50vw;              /* 50% de la largeur de la fenêtre */
+            height: 50vh;             /* 50% de la hauteur de la fenêtre */
+            max-width: 600px;         /* Limite maximale */
+            max-height: 600px;
+            min-width: 300px;         /* Limite minimale */
+            min-height: 300px;
             opacity: 0.08;
             z-index: 0;
             pointer-events: none;
+            object-fit: contain;      /* Préserve les proportions du logo */
         }
 
-        .content-wrapper {
+        .bulletin-container {
             position: relative;
             z-index: 1;
         }
@@ -349,7 +360,7 @@
     <!-- Logo en filigrane AGRANDI -->
     <img src="{{logo_base64}}" alt="Filigrane" class="watermark">
 
-    <div class="bulletin-container content-wrapper">
+    <div class="bulletin-container">
         <div class="header">
             <div class="school-info">
                 <div class="school-left">

@@ -33,6 +33,27 @@
         body.layout-2pages {
             /* Style 2 pages (>17 matières) */
             padding: 10px;
+            font-size: 9px;
+        }
+
+        /* Forcer le saut de page après le tableau */
+        body.layout-2pages .page-break {
+            page-break-after: always;
+            break-after: page;
+        }
+
+        /* Réduire encore la police pour le tableau en mode 2 pages */
+        body.layout-2pages .results-table {
+            font-size: 5px;
+        }
+
+        body.layout-2pages .results-table th,
+        body.layout-2pages .results-table td {
+            padding: 2px 1px;
+        }
+
+        body.layout-2pages .results-table th {
+            font-size: 5px;
         }
 
         .pv-container {
@@ -132,41 +153,9 @@
         }
 
         /* STYLE COMPACT pour 13-17 matières */
-        body.layout-compact {
-            font-size: 9px;
-        }
-
-        body.layout-compact .header {
-            padding: 5px;
-        }
-
-        body.layout-compact .school-left,
-        body.layout-compact .school-right {
-            font-size: 6px;
-        }
-
-        body.layout-compact .logo {
-            width: 45px;
-            height: 45px;
-        }
-
-        body.layout-compact .pv-title {
-            font-size: 12px;
-        }
-
-        body.layout-compact .eval-info {
-            padding: 6px 10px;
-            margin: 6px 0;
-        }
-
-        body.layout-compact .eval-info td {
-            padding: 2px 5px;
-            font-size: 8px;
-        }
-
         body.layout-compact .results-table {
             font-size: 5px;
-            margin: 8px 0;
+            margin: 10px 0;
         }
 
         body.layout-compact .results-table th,
@@ -177,55 +166,6 @@
         body.layout-compact .results-table th {
             font-size: 5px;
             padding: 3px 1px;
-        }
-
-        body.layout-compact .student-name {
-            font-size: 5px;
-            padding-left: 3px !important;
-        }
-
-        body.layout-compact .statistics {
-            margin: 12px 0;
-        }
-
-        body.layout-compact .stats-box {
-            padding: 8px;
-        }
-
-        body.layout-compact .stats-box h3 {
-            font-size: 9px;
-            padding: 5px;
-            margin: -8px -8px 6px -8px;
-        }
-
-        body.layout-compact .stat-row {
-            padding: 3px 0;
-        }
-
-        body.layout-compact .stat-label {
-            font-size: 8px;
-        }
-
-        body.layout-compact .stat-value {
-            font-size: 8px;
-        }
-
-        body.layout-compact .signature-box {
-            padding: 6px;
-        }
-
-        body.layout-compact .signature-title {
-            font-size: 8px;
-            margin-bottom: 30px;
-        }
-
-        body.layout-compact .signature-line {
-            font-size: 7px;
-        }
-
-        body.layout-compact .footer {
-            font-size: 7px;
-            padding: 6px;
         }
 
         /* En-têtes diagonaux pour mode compact */
@@ -406,7 +346,7 @@
                     <div>YASSA</div>
                 </div>
             </div>
-            <div class="pv-title">Procès-Verbal de Délibération</div>
+            <div class="pv-title">Procès-Verbal de Délibération - Page 1/2</div>
         </div>
 
         <!-- INFORMATIONS -->
@@ -454,6 +394,17 @@
                 {{students_rows}}
             </tbody>
         </table>
+
+        <!-- Saut de page pour mode 2 pages -->
+        <div class="page-break"></div>
+
+        <!-- EN-TÊTE PAGE 2 -->
+        <div class="header" style="margin-bottom: 15px;">
+            <div class="pv-title" style="font-size: 14px;">Procès-Verbal - {{class_series_name}} - Page 2/2</div>
+            <div style="font-size: 9px; margin-top: 5px;">
+                <strong>{{evaluation_type}}</strong> | Année Scolaire: {{school_year}}
+            </div>
+        </div>
 
         <!-- STATISTIQUES -->
         <div class="statistics">

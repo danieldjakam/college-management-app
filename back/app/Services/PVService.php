@@ -396,8 +396,20 @@ class PVService
      */
     private function generateHTML($classSeries, $evaluation, $seriesSubjects, $studentsResults, $statistics, $mainTeacherName)
     {
-        // Charger le template
-        $template = file_get_contents(resource_path('views/pv/pv_template.html'));
+        // Déterminer le nombre de matières
+        $subjectsCount = $seriesSubjects->count();
+
+        // Déterminer la classe CSS adaptative
+        $layoutClass = $this->getLayoutClass($subjectsCount);
+
+        // Charger le template approprié
+        if ($subjectsCount > 17) {
+            // Pour les grandes classes (>17 matières), utiliser template 2 pages
+            $template = file_get_contents(resource_path('views/pv/pv_template_2pages.html'));
+        } else {
+            // Template standard pour ≤17 matières
+            $template = file_get_contents(resource_path('views/pv/pv_template.html'));
+        }
 
         // Logo en base64 depuis les paramètres de l'école
         $logoBase64 = '';
@@ -431,10 +443,21 @@ class PVService
         // Générer les en-têtes de matières
         $subjectsHeaders = '';
         $subjectsCoefHeaders = '';
+
+        // Si mode compact (13-17 matières), utiliser en-têtes diagonaux
+        $isCompact = ($subjectsCount > 12 && $subjectsCount <= 17);
+
         foreach ($seriesSubjects as $seriesSubject) {
             $subjectName = $seriesSubject->subject->name;
             $coef = $seriesSubject->coefficient;
-            $subjectsHeaders .= "<th style=\"width: 35px;\">{$subjectName}<br/>({$coef})</th>";
+
+            if ($isCompact) {
+                // En-têtes diagonaux pour mode compact
+                $subjectsHeaders .= "<th class=\"subject-header\" style=\"width: 25px;\"><div>{$subjectName} ({$coef})</div></th>";
+            } else {
+                // En-têtes normaux
+                $subjectsHeaders .= "<th style=\"width: 35px;\">{$subjectName}<br/>({$coef})</th>";
+            }
             $subjectsCoefHeaders .= "<th>{$coef}</th>";
         }
 
@@ -510,9 +533,25 @@ class PVService
             '{{mention_assez_bien}}' => $statistics['mention_assez_bien'],
             '{{mention_passable}}' => $statistics['mention_passable'],
             '{{mention_echec}}' => $statistics['mention_echec'],
-            '{{observation}}' => $observation
+            '{{observation}}' => $observation,
+            '{{layout_class}}' => $layoutClass,
+            '{{subjects_count}}' => $subjectsCount
         ];
 
         return str_replace(array_keys($replacements), array_values($replacements), $template);
+    }
+
+    /**
+     * Déterminer la classe CSS selon le nombre de matières
+     */
+    private function getLayoutClass($subjectsCount)
+    {
+        if ($subjectsCount <= 12) {
+            return 'layout-normal'; // Format actuel
+        } elseif ($subjectsCount <= 17) {
+            return 'layout-compact'; // Police réduite + en-têtes diagonaux
+        } else {
+            return 'layout-2pages'; // 2 pages
+        }
     }
 }

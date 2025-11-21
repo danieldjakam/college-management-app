@@ -206,19 +206,28 @@ class BulletinService
         $compositionGrade = $this->getCompositionGrade($trimester, $studentId, $subjectId);
         \Log::info("🎓 Composition grade: " . ($compositionGrade ?? 'null'));
 
-        // RÈGLE ACADÉMIQUE PROGRESSIVE avec 0.00 par défaut:
-        // - Toutes les notes manquantes (Seq1, Seq2, Composition) comptent comme 0.00
-        // - M/20 = (Seq1 + Seq2 + Composition) / 3
+        // OPTION B: Si AUCUNE note (ni Seq1, ni Seq2, ni Compo) → retourner null (annulation coefficient)
+        // Si AU MOINS UNE note présente → les autres comptent comme 0.00 (pénalisation)
 
-        // Composition manquante ou ABS = 0.00
+        // Compter combien de notes sont présentes
+        $notesPresentes = 0;
+        if ($sequenceGrades[0] !== null && $sequenceGrades[0] !== 'ABS') $notesPresentes++;
+        if ($sequenceGrades[1] !== null && $sequenceGrades[1] !== 'ABS') $notesPresentes++;
+        if ($compositionGrade !== null && $compositionGrade !== 'ABS') $notesPresentes++;
+
+        // Si AUCUNE note du tout → retourner null
+        if ($notesPresentes === 0) {
+            \Log::info("🎓 DEUXIÈME CYCLE - Aucune note présente → moyenne = null (coefficient annulé)");
+            return null;
+        }
+
+        // Sinon, calculer moyenne avec notes manquantes = 0.00
+        $finalSeq1 = ($sequenceGrades[0] !== null && $sequenceGrades[0] !== 'ABS') ? $sequenceGrades[0] : 0.00;
+        $finalSeq2 = ($sequenceGrades[1] !== null && $sequenceGrades[1] !== 'ABS') ? $sequenceGrades[1] : 0.00;
         $finalCompositionGrade = ($compositionGrade !== null && $compositionGrade !== 'ABS') ? $compositionGrade : 0.00;
 
-        // Calcul de la moyenne: (Seq1 + Seq2 + Compo) / 3 avec valeurs manquantes = 0.00
-        $allGrades = $sequenceGrades;
-        $allGrades[] = $finalCompositionGrade;
-
-        $average = array_sum($allGrades) / 3;
-        \Log::info("🎓 DEUXIÈME CYCLE M/20 = ({$sequenceGrades[0]} + {$sequenceGrades[1]} + {$finalCompositionGrade}) / 3 = {$average}");
+        $average = ($finalSeq1 + $finalSeq2 + $finalCompositionGrade) / 3;
+        \Log::info("🎓 DEUXIÈME CYCLE M/20 = ({$finalSeq1} + {$finalSeq2} + {$finalCompositionGrade}) / 3 = {$average}");
 
         return $average;
     }
@@ -452,16 +461,12 @@ class BulletinService
         
         $totalPoints = 0;
         $totalCoefficient = 0;
-        $allCoefficients = 0; // 🔧 FIX: Compter TOUS les coefficients pour affichage
 
         foreach ($subjects as $seriesSubject) {
             $grade = Grade::where('student_id', $studentId)
                          ->where('sequence_id', $sequence->id)
                          ->where('class_series_subject_id', $seriesSubject->id)
                          ->first();
-
-            // 🔧 FIX: Toujours compter le coefficient, même sans note
-            $allCoefficients += (float)$seriesSubject->coefficient;
 
             // Vérifier si absent
             $scoreOn20 = null;
@@ -473,7 +478,8 @@ class BulletinService
                 }
             }
 
-            // CORRECTION: Si pas de note ou absent, weightedScore doit être null (pas 0)
+            // OPTION B: Si pas de note (null), on n'ajoute NI le coefficient NI les points
+            // Si note présente (même 0.5), on compte tout normalement
             $weightedScore = ($scoreOn20 !== null && $scoreOn20 !== 'ABS') ? (float)$scoreOn20 * (float)$seriesSubject->coefficient : null;
 
             // Get the first teacher assigned to this subject
@@ -497,17 +503,17 @@ class BulletinService
                 'class_size' => $bulletinData['class_size'] ?? 57 // Pour le rang par défaut
             ];
 
-            // CORRECTION: Inclure uniquement les matières avec notes dans le calcul (exclure absents et nulls)
+            // OPTION B: Compter UNIQUEMENT les matières avec notes (annulation du coefficient si pas de note)
             if ($scoreOn20 !== null && $scoreOn20 !== 'ABS' && $weightedScore !== null) {
                 $totalPoints += $weightedScore;
                 $totalCoefficient += (float)$seriesSubject->coefficient;
             }
         }
 
-        // 🔧 FIX: Compter TOUTES les matières dans le calcul (absences = 0)
-        $bulletinData['average'] = $allCoefficients > 0 ? $totalPoints / $allCoefficients : 0;
+        // OPTION B: Moyenne = Total Points / SEULEMENT les coefficients des matières composées
+        $bulletinData['average'] = $totalCoefficient > 0 ? $totalPoints / $totalCoefficient : 0;
         $bulletinData['total_points'] = $totalPoints;
-        $bulletinData['total_coefficient'] = $allCoefficients; // 🔧 FIX: Utiliser ALL coefficients
+        $bulletinData['total_coefficient'] = $totalCoefficient; // Uniquement les coefficients des matières avec notes
         $bulletinData['rank'] = $this->getStudentRank($sequence->id, $studentId);
         $bulletinData['mention'] = $this->getMentionBySection($bulletinData['average'], $sectionType);
 
@@ -576,12 +582,8 @@ class BulletinService
         
         $totalPoints = 0;
         $totalCoefficient = 0;
-        $allCoefficients = 0; // 🔧 FIX: Compter TOUS les coefficients pour affichage
 
         foreach ($subjects as $seriesSubject) {
-            // 🔧 FIX: Toujours compter le coefficient, même sans note
-            $allCoefficients += (float)$seriesSubject->coefficient;
-
             \Log::info("🔍 Processing subject: {$seriesSubject->subject->name} (id={$seriesSubject->id}) for student {$studentId}, trimester={$trimesterNumber}, cycle={$cycleType}");
 
             if ($cycleType === 'deuxieme') {
@@ -592,7 +594,7 @@ class BulletinService
 
                 \Log::info("🎓 DEUXIÈME CYCLE - {$seriesSubject->subject->name}: Seq1={$sequenceGrades[0]}, Seq2={$sequenceGrades[1]}, Compo={$compositionGrade}, Avg={$trimesterGrade}");
 
-                // CORRECTION: Si pas de note, weightedScore doit être null (pas 0) pour ne pas compter dans le total
+                // OPTION B: Si pas de note, on n'ajoute NI le coefficient NI les points
                 $weightedScore = $trimesterGrade !== null ? (float)$trimesterGrade * (float)$seriesSubject->coefficient : null;
 
                 // Get the first teacher assigned to this subject
@@ -631,7 +633,7 @@ class BulletinService
                 $trimesterGrade = $this->calculateTrimesterGrade($trimesterNumber, $studentId, $seriesSubject->id, 'premier');
                 \Log::info("🔍 Final Trimester Grade for {$seriesSubject->subject->name}: " . ($trimesterGrade ?? 'null'));
 
-                // CORRECTION: Si pas de note, weightedScore doit être null (pas 0) pour ne pas compter dans le total
+                // OPTION B: Si pas de note, on n'ajoute NI le coefficient NI les points
                 $weightedScore = $trimesterGrade !== null ? (float)$trimesterGrade * (float)$seriesSubject->coefficient : null;
 
                 // Get the first teacher assigned to this subject
@@ -659,17 +661,17 @@ class BulletinService
                 ];
             }
 
-            // CORRECTION: Inclure uniquement les matières avec des notes dans le calcul du total
+            // OPTION B: Compter UNIQUEMENT les matières avec notes (annulation du coefficient si pas de note)
             if ($trimesterGrade !== null && $weightedScore !== null) {
                 $totalPoints += $weightedScore;
                 $totalCoefficient += (float)$seriesSubject->coefficient;
             }
         }
 
-        // 🔧 FIX: Compter TOUTES les matières dans le calcul (absences = 0)
-        $bulletinData['average'] = $allCoefficients > 0 ? $totalPoints / $allCoefficients : 0;
+        // OPTION B: Moyenne = Total Points / SEULEMENT les coefficients des matières composées
+        $bulletinData['average'] = $totalCoefficient > 0 ? $totalPoints / $totalCoefficient : 0;
         $bulletinData['total_points'] = $totalPoints;
-        $bulletinData['total_coefficient'] = $allCoefficients; // 🔧 FIX: Utiliser ALL coefficients
+        $bulletinData['total_coefficient'] = $totalCoefficient; // Uniquement les coefficients des matières avec notes
         $bulletinData['rank'] = $this->getTrimesterRank($trimesterNumber, $studentId);
         $bulletinData['mention'] = $this->getMentionBySection($bulletinData['average'], $sectionType);
         $bulletinData['section_type'] = $sectionType;
@@ -746,15 +748,15 @@ class BulletinService
 
         // Get ALL subjects for this class series
         $allSubjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();
-        $totalAllCoef = $allSubjects->sum('coefficient');
 
         // Calculate average for each student
         $averages = [];
 
         foreach ($students as $classmate) {
             $totalPoints = 0;
+            $totalCoef = 0; // OPTION B: Compter seulement les coefficients des matières avec notes
 
-            // 🔧 Pour chaque matière, chercher la note ou compter 0
+            // Pour chaque matière, chercher la note
             foreach ($allSubjects as $subject) {
                 $grade = Grade::where('student_id', $classmate->id)
                     ->where('sequence_id', $sequenceId)
@@ -765,13 +767,13 @@ class BulletinService
 
                 if ($grade) {
                     $totalPoints += (float)$grade->score * (float)$subject->coefficient;
+                    $totalCoef += (float)$subject->coefficient; // OPTION B: Ajouter coefficient seulement si note présente
                 }
-                // Sinon: 0 * coefficient = 0 (pas besoin d'ajouter)
             }
 
-            // 🔧 Utiliser TOUS les coefficients dans le calcul
-            if ($totalAllCoef > 0) {
-                $averages[$classmate->id] = $totalPoints / $totalAllCoef;
+            // OPTION B: Utiliser SEULEMENT les coefficients des matières composées
+            if ($totalCoef > 0) {
+                $averages[$classmate->id] = $totalPoints / $totalCoef;
             }
         }
 
@@ -954,6 +956,16 @@ class BulletinService
         // Prepare the template data
         $templateData = $this->prepareTemplateData($data, $templateType);
 
+        // Debug: Log logo_base64 info
+        if (isset($templateData['logo_base64'])) {
+            \Log::info("✓ logo_base64 présent dans templateData", [
+                'size' => strlen($templateData['logo_base64']),
+                'starts_with' => substr($templateData['logo_base64'], 0, 50)
+            ]);
+        } else {
+            \Log::error("✗ logo_base64 ABSENT de templateData !");
+        }
+
         // Replace simple placeholders
         foreach ($templateData as $key => $value) {
             if (is_string($value) || is_numeric($value)) {
@@ -963,6 +975,13 @@ class BulletinService
 
         // Handle subject groups (more complex replacement)
         $html = $this->replaceBulletinSubjectGroups($html, $data, $forPdf);
+
+        // Debug: Vérifier si logo_base64 est bien remplacé
+        if (strpos($html, '{{logo_base64}}') !== false) {
+            \Log::error("⚠️ Le placeholder {{logo_base64}} n'a PAS été remplacé dans le bulletin CPBD !");
+        } else {
+            \Log::info("✓ Le placeholder {{logo_base64}} a été remplacé avec succès dans le bulletin CPBD");
+        }
 
         return $html;
     }
@@ -1007,11 +1026,33 @@ class BulletinService
         // Get school settings and logo
         $schoolSettings = \App\Models\SchoolSetting::first();
         $logoBase64 = '';
-        if ($schoolSettings && $schoolSettings->school_logo && file_exists(storage_path('app/public/' . $schoolSettings->school_logo))) {
+
+        if ($schoolSettings && $schoolSettings->school_logo) {
             $logoPath = storage_path('app/public/' . $schoolSettings->school_logo);
-            $logoData = base64_encode(file_get_contents($logoPath));
-            $logoMime = pathinfo($logoPath, PATHINFO_EXTENSION);
-            $logoBase64 = "data:image/{$logoMime};base64,{$logoData}";
+
+            if (file_exists($logoPath)) {
+                $logoData = base64_encode(file_get_contents($logoPath));
+                $logoMime = pathinfo($logoPath, PATHINFO_EXTENSION);
+                $logoBase64 = "data:image/{$logoMime};base64,{$logoData}";
+                \Log::info("✓ Logo converti en base64 avec succès", ['path' => $logoPath, 'size' => strlen($logoBase64)]);
+            } else {
+                \Log::warning("⚠️ Logo non trouvé au chemin: {$logoPath}");
+            }
+        } else {
+            \Log::warning("⚠️ SchoolSettings ou school_logo non configuré");
+        }
+
+        // Fallback sur le logo public si pas de logo configuré
+        if (empty($logoBase64)) {
+            $publicLogoPath = public_path('assets/logo.png');
+            if (file_exists($publicLogoPath)) {
+                $logoData = base64_encode(file_get_contents($publicLogoPath));
+                $logoMime = pathinfo($publicLogoPath, PATHINFO_EXTENSION);
+                $logoBase64 = "data:image/{$logoMime};base64,{$logoData}";
+                \Log::info("✓ Logo public utilisé en fallback", ['path' => $publicLogoPath]);
+            } else {
+                \Log::error("✗ Aucun logo disponible (ni BDD ni public)");
+            }
         }
         
         // Language-specific labels
@@ -1860,6 +1901,13 @@ class BulletinService
             $html = str_replace('{{' . $key . '}}', $value, $html);
         }
 
+        // Debug: Vérifier si logo_base64 est bien remplacé
+        if (strpos($html, '{{logo_base64}}') !== false) {
+            \Log::error("⚠️ Le placeholder {{logo_base64}} n'a PAS été remplacé !");
+        } else {
+            \Log::info("✓ Le placeholder {{logo_base64}} a été remplacé avec succès");
+        }
+
         // Replace Blade public_path() directive with base64 encoded image for DomPDF
         $html = preg_replace_callback('/src=["\']?\{\{\s*public_path\([\'"](.+?)[\'"]\)\s*\}\}["\']?/', function($matches) {
             $imagePath = public_path($matches[1]);
@@ -2190,16 +2238,16 @@ class BulletinService
 
         // Get ALL subjects for this class series
         $allSubjects = ClassSeriesSubject::where('class_series_id', $classSeriesId)->get();
-        $totalAllCoef = $allSubjects->sum('coefficient');
 
         // Calculate average for each student
         $averages = [];
 
         foreach ($students as $student) {
             $totalPoints = 0;
+            $totalCoef = 0; // OPTION B: Compter seulement les coefficients des matières avec notes
 
             if ($type === 'sequence') {
-                // 🔧 Pour chaque matière, chercher la note ou compter 0
+                // Pour chaque matière, chercher la note
                 foreach ($allSubjects as $subject) {
                     $grade = Grade::where('student_id', $student->id)
                         ->where('sequence_id', $evaluationId)
@@ -2210,8 +2258,8 @@ class BulletinService
 
                     if ($grade) {
                         $totalPoints += (float)$grade->score * (float)$subject->coefficient;
+                        $totalCoef += (float)$subject->coefficient; // OPTION B: Ajouter coefficient seulement si note présente
                     }
-                    // Sinon: 0 * coefficient = 0
                 }
             } else {
                 // For trimester: calculate trimester average
@@ -2219,9 +2267,9 @@ class BulletinService
                 continue;
             }
 
-            // 🔧 Utiliser TOUS les coefficients dans le calcul
-            if ($totalAllCoef > 0) {
-                $averages[] = $totalPoints / $totalAllCoef;
+            // OPTION B: Utiliser SEULEMENT les coefficients des matières composées
+            if ($totalCoef > 0) {
+                $averages[] = $totalPoints / $totalCoef;
             }
         }
 
