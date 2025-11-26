@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Container, Row, Col, Card, Nav } from 'react-bootstrap';
-import { GearFill, Building, Award, Calendar, FileEarmarkText, GeoAlt } from 'react-bootstrap-icons';
+import { GearFill, Building, Award, Calendar, FileEarmarkText, GeoAlt, Grid3x3GapFill } from 'react-bootstrap-icons';
 import SchoolSettings from './Settings/SchoolSettings';
 import ClassScholarships from './Settings/ClassScholarships';
 import GeolocationZoneSettingsV2 from './Settings/GeolocationZoneSettingsV2';
 import GeolocationQuickAccess from '../components/GeolocationQuickAccess';
+import SubjectGroupsManagement from './Admin/SubjectGroupsManagement';
 
 function Settings() {
     const [activeTab, setActiveTab] = useState('school-settings');
@@ -21,6 +22,12 @@ function Settings() {
             title: 'Bourses par Classe',
             icon: <Award size={16} className="me-2" />,
             component: <ClassScholarships />
+        },
+        {
+            key: 'subject-groups',
+            title: 'Groupes de Matières',
+            icon: <Grid3x3GapFill size={16} className="me-2" />,
+            component: <SubjectGroupsManagement />
         },
         {
             key: 'geolocation-zones',

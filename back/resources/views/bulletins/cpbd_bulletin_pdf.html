@@ -352,27 +352,23 @@
 
         /* Filigrane en arrière-plan - AGRANDI - Compatible DomPDF */
         .watermark {
-            position: fixed;
-            top: 50%;
+            position: absolute;
+            top: 150px;
             left: 50%;
-            width: 400px;
-            height: 400px;
-            margin-left: -200px;
-            margin-top: -200px;
-            opacity: 0.08;
-            z-index: -1;
+            width: 500px;
+            height: 500px;
+            margin-left: -250px;
+            opacity: 0.25;
+            z-index: 0;
         }
 
         .bulletin-container {
             position: relative;
-            z-index: 1;
+            z-index: 10;
         }
     </style>
 </head>
 <body>
-    <!-- Logo en filigrane AGRANDI -->
-    <img src="{{logo_base64}}" alt="Filigrane" class="watermark">
-
     <div class="bulletin-container">
         <div class="header">
             <div class="school-info">

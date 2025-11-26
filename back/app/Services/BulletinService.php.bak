@@ -25,13 +25,13 @@ class BulletinService
      */
     public function calculateDSAverage($trimester, $studentId, $subjectId)
     {
-        // \Log::info("🔍 DEBUG DS: trimester={$trimester}, student={$studentId}, subject={$subjectId}");
+        \Log::info("🔍 DEBUG DS: trimester={$trimester}, student={$studentId}, subject={$subjectId}");
         
         $sequences = $this->getSequencesForTrimester($trimester);
-        // \Log::info("🔍 Sequences found: " . $sequences->pluck('number')->join(','));
+        \Log::info("🔍 Sequences found: " . $sequences->pluck('number')->join(','));
         
         if ($sequences->count() != 2) {
-            // \Log::info("🔍 PROBLÈME: Expected 2 sequences, found " . $sequences->count());
+            \Log::info("🔍 PROBLÈME: Expected 2 sequences, found " . $sequences->count());
             return null;
         }
         
@@ -39,7 +39,7 @@ class BulletinService
         $foundSequenceNotes = 0;
         
         foreach ($sequences as $sequence) {
-            // \Log::info("🔍 Checking sequence {$sequence->number} (id={$sequence->id})");
+            \Log::info("🔍 Checking sequence {$sequence->number} (id={$sequence->id})");
             $sequenceNote = null;
             
             // 🔧 FIX: Ajouter trimester dans la requête comme TrimesterController
@@ -50,7 +50,7 @@ class BulletinService
                          ->whereNotNull('score')
                          ->first();
             
-            // \Log::info("🔍 Direct grade found: " . ($grade ? "score={$grade->score}" : "none"));
+            \Log::info("🔍 Direct grade found: " . ($grade ? "score={$grade->score}" : "none"));
             
             // Si pas de note directe, chercher via les évaluations de la séquence
             if (!$grade) {
@@ -58,7 +58,7 @@ class BulletinService
                                         ->where('class_series_subject_id', $subjectId)
                                         ->get();
                 
-                // \Log::info("🔍 Evaluations for sequence: " . $evaluations->count());
+                \Log::info("🔍 Evaluations for sequence: " . $evaluations->count());
                 
                 foreach ($evaluations as $evaluation) {
                     $grade = Grade::where('student_id', $studentId)
@@ -68,7 +68,7 @@ class BulletinService
                                  ->first();
                     
                     if ($grade) {
-                        // \Log::info("🔍 Grade found via evaluation {$evaluation->id}: score={$grade->score}");
+                        \Log::info("🔍 Grade found via evaluation {$evaluation->id}: score={$grade->score}");
                         break; // Prendre la première note trouvée pour cette séquence
                     }
                 }
@@ -78,13 +78,13 @@ class BulletinService
                 $sequenceNote = $grade->getScoreOn20();
                 $grades->push($sequenceNote);
                 $foundSequenceNotes++;
-                // \Log::info("🔍 Sequence {$sequence->number} note: {$sequenceNote}");
+                \Log::info("🔍 Sequence {$sequence->number} note: {$sequenceNote}");
             } else {
-                // \Log::info("🔍 No grade found for sequence {$sequence->number}");
+                \Log::info("🔍 No grade found for sequence {$sequence->number}");
             }
         }
         
-        // \Log::info("🔍 Found {$foundSequenceNotes} sequence notes out of 2");
+        \Log::info("🔍 Found {$foundSequenceNotes} sequence notes out of 2");
 
         // RÈGLE ACADÉMIQUE PROGRESSIVE avec 0.00 par défaut:
         // - Les séquences non saisies comptent comme 0.00
@@ -96,7 +96,7 @@ class BulletinService
         }
 
         $dsAverage = $grades->average();
-        // \Log::info("🔍 DS CALCULATED: {$dsAverage} = ({$grades[0]} + {$grades[1]}) / 2");
+        \Log::info("🔍 DS CALCULATED: {$dsAverage} = ({$grades[0]} + {$grades[1]}) / 2");
         return $dsAverage;
     }
     
@@ -130,7 +130,7 @@ class BulletinService
         if ($dsAverage !== null) {
             // Composition = note saisie ou 0.00 si pas saisie
             $finalCompositionGrade = ($compositionGrade !== null && $compositionGrade !== 'ABS') ? $compositionGrade : 0.00;
-            // \Log::info("🔍 M/20 = ({$dsAverage} + {$finalCompositionGrade}) / 2");
+            \Log::info("🔍 M/20 = ({$dsAverage} + {$finalCompositionGrade}) / 2");
             return ($dsAverage + $finalCompositionGrade) / 2;
         }
 
@@ -584,7 +584,7 @@ class BulletinService
         $totalCoefficient = 0;
 
         foreach ($subjects as $seriesSubject) {
-            // \Log::info("🔍 Processing subject: {$seriesSubject->subject->name} (id={$seriesSubject->id}) for student {$studentId}, trimester={$trimesterNumber}, cycle={$cycleType}");
+            \Log::info("🔍 Processing subject: {$seriesSubject->subject->name} (id={$seriesSubject->id}) for student {$studentId}, trimester={$trimesterNumber}, cycle={$cycleType}");
 
             if ($cycleType === 'deuxieme') {
                 // DEUXIÈME CYCLE: Récupérer les notes individuelles
@@ -627,11 +627,11 @@ class BulletinService
             } else {
                 // PREMIER CYCLE: Logique existante
                 $dsAverage = $this->calculateDSAverage($trimesterNumber, $studentId, $seriesSubject->id);
-                // \Log::info("🔍 DS Average for {$seriesSubject->subject->name}: " . ($dsAverage ?? 'null'));
+                \Log::info("🔍 DS Average for {$seriesSubject->subject->name}: " . ($dsAverage ?? 'null'));
                 $compositionGrade = $this->getCompositionGrade($trimesterNumber, $studentId, $seriesSubject->id);
-                // \Log::info("🔍 Composition Grade for {$seriesSubject->subject->name}: " . ($compositionGrade ?? 'null'));
+                \Log::info("🔍 Composition Grade for {$seriesSubject->subject->name}: " . ($compositionGrade ?? 'null'));
                 $trimesterGrade = $this->calculateTrimesterGrade($trimesterNumber, $studentId, $seriesSubject->id, 'premier');
-                // \Log::info("🔍 Final Trimester Grade for {$seriesSubject->subject->name}: " . ($trimesterGrade ?? 'null'));
+                \Log::info("🔍 Final Trimester Grade for {$seriesSubject->subject->name}: " . ($trimesterGrade ?? 'null'));
 
                 // OPTION B: Si pas de note, on n'ajoute NI le coefficient NI les points
                 $weightedScore = $trimesterGrade !== null ? (float)$trimesterGrade * (float)$seriesSubject->coefficient : null;
@@ -867,7 +867,7 @@ class BulletinService
      * Generate PDF from HTML template
      */
     public function generatePDF($htmlContent, $filename)
-    {
+    {        
         $options = new Options();
         $options->set('defaultFont', 'Times-Roman');
         $options->set('isHtml5ParserEnabled', true);
@@ -876,77 +876,25 @@ class BulletinService
         $options->set('isFontSubsettingEnabled', true);
         $options->set('dpi', 120);
         $options->set('debugKeepTemp', false);
-
+        
         $dompdf = new Dompdf($options);
         $dompdf->loadHtml($htmlContent);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
-
-        // Ajouter le watermark via le canvas DomPDF
-        $canvas = $dompdf->getCanvas();
-        $logoPath = $this->getLogoPath();
-
-        if ($logoPath && file_exists($logoPath)) {
-            // Dimensions A4 en points (72 DPI)
-            $pageWidth = $canvas->get_width();
-            $pageHeight = $canvas->get_height();
-
-            // Centre du logo - plus grand et mieux centré
-            $logoWidth = 400;
-            $logoHeight = 400;
-            $x = ($pageWidth - $logoWidth) / 2;
-            $y = ($pageHeight - $logoHeight) / 2;  // Parfaitement centré
-
-            // Ajouter l'image avec opacité augmentée
-            $canvas->set_opacity(0.15);  // 15% au lieu de 8% - plus visible
-            $canvas->image($logoPath, $x, $y, $logoWidth, $logoHeight);
-            $canvas->set_opacity(1.0);
-
-            \Log::info("✅ Watermark ajouté au PDF via canvas", [
-                'logo' => $logoPath,
-                'position' => "{$x}, {$y}",
-                'size' => "{$logoWidth}x{$logoHeight}"
-            ]);
-        } else {
-            \Log::warning("⚠️ Logo non trouvé pour watermark", ['path' => $logoPath]);
-        }
-
+        
         $pdfContent = $dompdf->output();
         $filePath = 'public/bulletins/' . $filename;
         $fullPath = storage_path('app/' . $filePath);
-
+        
         // Ensure directory exists
         $directory = dirname($fullPath);
         if (!file_exists($directory)) {
             mkdir($directory, 0755, true);
         }
-
+        
         file_put_contents($fullPath, $pdfContent);
-
+        
         return $filePath;
-    }
-
-    /**
-     * Get logo file path for watermark
-     */
-    protected function getLogoPath()
-    {
-        // Try database logo first
-        $schoolSettings = \App\Models\SchoolSetting::first();
-        if ($schoolSettings && $schoolSettings->school_logo) {
-            $logoPath = storage_path('app/public/' . $schoolSettings->school_logo);
-            if (file_exists($logoPath)) {
-                return $logoPath;
-            }
-        }
-
-        // Fallback to public logo
-        $publicLogoPath = public_path('assets/logo.png');
-        if (file_exists($publicLogoPath)) {
-            return $publicLogoPath;
-        }
-
-        return null;
     }
     
     /**
@@ -1073,7 +1021,7 @@ class BulletinService
         }
 
         // DEBUG: Log pour tracer le problème
-        // \Log::info("DEBUG prepareTemplateData: templateType=$templateType, sectionType=$sectionType, trimester=" . ($trimester ? $trimester->number : 'null') . ", sequence=" . ($sequence ? $sequence->number : 'null'));
+        \Log::info("DEBUG prepareTemplateData: templateType=$templateType, sectionType=$sectionType, trimester=" . ($trimester ? $trimester->number : 'null') . ", sequence=" . ($sequence ? $sequence->number : 'null'));
         
         // Get school settings and logo
         $schoolSettings = \App\Models\SchoolSetting::first();

@@ -1275,6 +1275,7 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
     
     // Téléchargement de bulletins
     Route::get('/download/{bulletinId}', [BulletinController::class, 'download'])
+        ->name('bulletins.download')
         ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
     
     // Visualisation des bulletins générés automatiquement (Admin)
@@ -1529,12 +1530,20 @@ Route::prefix('class-fees-sheet')->middleware('auth:api')->group(function () {
 // SUBJECT GROUPS - Gestion des groupes de matières
 // ============================================
 Route::prefix('subject-groups')->group(function () {
-    // Get all subject groups (A, B, C, D)
+    // Get all subject groups
     Route::get('/groups', [App\Http\Controllers\Api\SubjectGroupController::class, 'getAllGroups'])
         ->middleware(['role:admin,principal,directeur_etudes']);
 
-    // Update a subject group name
+    // Create a new subject group
+    Route::post('/groups', [App\Http\Controllers\Api\SubjectGroupController::class, 'createGroup'])
+        ->middleware(['role:admin,principal,directeur_etudes']);
+
+    // Update a subject group (name, code, colors, etc.)
     Route::put('/groups/{id}', [App\Http\Controllers\Api\SubjectGroupController::class, 'updateGroupName'])
+        ->middleware(['role:admin,principal,directeur_etudes']);
+
+    // Delete a subject group
+    Route::delete('/groups/{id}', [App\Http\Controllers\Api\SubjectGroupController::class, 'deleteGroup'])
         ->middleware(['role:admin,principal,directeur_etudes']);
 
     // Get all subjects with their groups

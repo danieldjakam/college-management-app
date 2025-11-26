@@ -416,40 +416,44 @@ function BulletinManagementNew() {
       return;
     }
 
-    if (!window.confirm('Générer tous les bulletins manquants pour cette classe ? Cela ne régénérera pas les bulletins déjà existants.')) {
+    // Déterminer la période actuelle
+    const currentPeriod = academicTimeline?.current_sequence || academicTimeline?.current_trimester;
+    if (!currentPeriod) {
+      setError('Aucune période académique active trouvée');
+      return;
+    }
+
+    const bulletinType = currentPeriod.type === 'sequence' ? 'sequence' : 'trimester';
+    const periodIdentifier = `${currentPeriod.type === 'sequence' ? 'seq' : 'trim'}${currentPeriod.number}`;
+
+    if (!window.confirm(`Générer tous les bulletins manquants pour ${currentPeriod.name} ?\n\nUtilise la génération rapide par lots.`)) {
       return;
     }
 
     try {
       setLoading(true);
       setError('');
-      setSuccess('🔄 Génération en cours... Cela peut prendre plusieurs minutes selon le nombre d\'étudiants. Veuillez patienter...');
-
-      // Déterminer la période actuelle
-      const currentPeriod = academicTimeline?.current_sequence || academicTimeline?.current_trimester;
-      if (!currentPeriod) {
-        throw new Error('Aucune période académique active trouvée');
-      }
-
-      console.log('🚀 Génération avec class_id:', selectedClass);
+      setSuccess(`🚀 Génération par lots en cours... Veuillez patienter.`);
 
       const startTime = Date.now();
+
+      // Utiliser la génération par LOT côté serveur (plus rapide)
       const response = await secureApi.post('/bulletins/batch-generate', {
-        class_id: parseInt(selectedClass), // selectedClass est déjà l'ID de school_class
-        bulletin_type: currentPeriod.type === 'sequence' ? 'sequence' : 'trimester',
-        period_identifier: `${currentPeriod.type === 'sequence' ? 'seq' : 'trim'}${currentPeriod.number}`,
-        force: false // Ne pas régénérer les bulletins existants
-      }, { timeout: 600000 }); // 10 minutes pour la génération en lot
+        class_id: parseInt(selectedClass),
+        bulletin_type: bulletinType,
+        period_identifier: periodIdentifier,
+        force: false
+      }, { timeout: 300000 }); // 5 minutes max
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-      setSuccess(`✅ Génération terminée en ${duration}s : ${response.generated_count} bulletin(s) générés, ${response.error_count} erreur(s)`);
+      setSuccess(`✅ Terminé en ${duration}s : ${response.generated_count} bulletin(s) générés, ${response.error_count} erreur(s)`);
 
       // Actualiser les données
-      await fetchStudentsData();
+      setTimeout(() => fetchStudentsData(), 1000);
 
     } catch (error) {
-      console.error('Erreur génération groupée:', error);
-      setError(error.message || 'Erreur lors de la génération groupée');
+      console.error('Erreur génération:', error);
+      setError(error.message || 'Erreur lors de la génération. Essayez de rafraîchir la page.');
     } finally {
       setLoading(false);
     }
@@ -461,42 +465,44 @@ function BulletinManagementNew() {
       return;
     }
 
-    if (!window.confirm('⚠️ ATTENTION : Régénérer TOUS les bulletins de cette classe ? Cela supprimera et recréera tous les bulletins existants avec les données actuelles (compétences, notes, etc.).')) {
+    // Déterminer la période actuelle
+    const currentPeriod = academicTimeline?.current_sequence || academicTimeline?.current_trimester;
+    if (!currentPeriod) {
+      setError('Aucune période académique active trouvée');
+      return;
+    }
+
+    const bulletinType = currentPeriod.type === 'sequence' ? 'sequence' : 'trimester';
+    const periodIdentifier = `${currentPeriod.type === 'sequence' ? 'seq' : 'trim'}${currentPeriod.number}`;
+
+    if (!window.confirm(`⚠️ ATTENTION : Régénérer TOUS les bulletins pour ${currentPeriod.name} ?\n\nCela remplacera les bulletins existants.\nUtilise la génération rapide par lots.`)) {
       return;
     }
 
     try {
       setLoading(true);
       setError('');
-      setSuccess('🔄 Régénération en cours... Suppression et recréation de tous les bulletins. Cela peut prendre plusieurs minutes. Veuillez patienter...');
-
-      // Déterminer la période actuelle
-      const currentPeriod = academicTimeline?.current_sequence || academicTimeline?.current_trimester;
-      if (!currentPeriod) {
-        throw new Error('Aucune période académique active trouvée');
-      }
-
-      console.log('🔄 Régénération avec class_id:', selectedClass);
+      setSuccess(`🔄 Régénération par lots en cours... Veuillez patienter.`);
 
       const startTime = Date.now();
+
+      // Utiliser la génération par LOT avec force=true
       const response = await secureApi.post('/bulletins/batch-generate', {
-        class_id: parseInt(selectedClass), // selectedClass est déjà l'ID de school_class
-        bulletin_type: currentPeriod.type === 'sequence' ? 'sequence' : 'trimester',
-        period_identifier: `${currentPeriod.type === 'sequence' ? 'seq' : 'trim'}${currentPeriod.number}`,
-        force: true // Forcer la régénération de tous les bulletins
-      }, { timeout: 600000 }); // 10 minutes pour la régénération en lot
+        class_id: parseInt(selectedClass),
+        bulletin_type: bulletinType,
+        period_identifier: periodIdentifier,
+        force: true // Forcer la régénération
+      }, { timeout: 300000 }); // 5 minutes max
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-      setSuccess(`✅ Régénération terminée en ${duration}s : ${response.generated_count} bulletin(s) régénérés, ${response.error_count} erreur(s)`);
+      setSuccess(`✅ Terminé en ${duration}s : ${response.generated_count} bulletin(s) régénérés, ${response.error_count} erreur(s)`);
 
-      // Actualiser les données avec un délai pour permettre la génération complète
-      setTimeout(async () => {
-        await fetchStudentsData();
-      }, 1500);
+      // Actualiser les données
+      setTimeout(() => fetchStudentsData(), 1500);
 
     } catch (error) {
-      console.error('Erreur régénération groupée:', error);
-      setError(error.message || 'Erreur lors de la régénération groupée');
+      console.error('Erreur régénération:', error);
+      setError(error.message || 'Erreur lors de la régénération. Essayez de rafraîchir la page.');
     } finally {
       setLoading(false);
     }

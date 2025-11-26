@@ -21,17 +21,40 @@ export default function SubjectGroups() {
   const [success, setSuccess] = useState(false);
   const [changes, setChanges] = useState([]);
   const [draggedSubject, setDraggedSubject] = useState(null);
-
-  const groups = [
-    { code: 'A', name: 'MATIÈRES LITTÉRAIRES', color: '#3b82f6', bgColor: '#eff6ff', description: 'Langues, Histoire, Géographie, etc.' },
-    { code: 'B', name: 'MATIÈRES SCIENTIFIQUES', color: '#10b981', bgColor: '#f0fdf4', description: 'Mathématiques, Physique, SVT, etc.' },
-    { code: 'C', name: 'MATIÈRES PRATIQUES', color: '#f59e0b', bgColor: '#fffbeb', description: 'EPS, Informatique, Arts, etc.' },
-    { code: 'D', name: 'AUTRES MATIÈRES', color: '#8b5cf6', bgColor: '#f5f3ff', description: 'ECM, Éducation Civique, etc.' }
-  ];
+  const [availableGroups, setAvailableGroups] = useState([]);
 
   useEffect(() => {
+    fetchGroups();
     fetchSubjects();
   }, []);
+
+  const fetchGroups = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/subject-groups/groups`, {
+        headers: authService.getHeaders()
+      });
+
+      if (response.data.success) {
+        const groups = response.data.data.map(g => ({
+          code: g.code,
+          name: g.name,
+          color: g.color || '#6b7280',
+          bgColor: g.bg_color || '#f9fafb',
+          description: g.description || ''
+        }));
+        setAvailableGroups(groups);
+      }
+    } catch (err) {
+      console.error('Erreur lors du chargement des groupes:', err);
+      // Fallback sur les groupes par défaut
+      setAvailableGroups([
+        { code: 'A', name: 'MATIÈRES LITTÉRAIRES', color: '#3b82f6', bgColor: '#eff6ff', description: 'Langues, Histoire, Géographie, etc.' },
+        { code: 'B', name: 'MATIÈRES SCIENTIFIQUES', color: '#10b981', bgColor: '#f0fdf4', description: 'Mathématiques, Physique, SVT, etc.' },
+        { code: 'C', name: 'MATIÈRES PRATIQUES', color: '#f59e0b', bgColor: '#fffbeb', description: 'EPS, Informatique, Arts, etc.' },
+        { code: 'D', name: 'AUTRES MATIÈRES', color: '#8b5cf6', bgColor: '#f5f3ff', description: 'ECM, Éducation Civique, etc.' }
+      ]);
+    }
+  };
 
   const fetchSubjects = async () => {
     try {
@@ -251,7 +274,7 @@ export default function SubjectGroups() {
 
       {/* Groupes */}
       <div className="row g-3">
-        {groups.map(group => (
+        {availableGroups.map(group => (
           <div key={group.code} className="col-md-6 col-lg-3">
             <div
               className="card h-100"
@@ -297,7 +320,7 @@ export default function SubjectGroups() {
                         Déplacer
                       </button>
                       <ul className="dropdown-menu">
-                        {groups.filter(g => g.code !== group.code).map(g => (
+                        {availableGroups.filter(g => g.code !== group.code).map(g => (
                           <li key={g.code}>
                             <button
                               className="dropdown-item"
@@ -367,7 +390,7 @@ export default function SubjectGroups() {
                           +
                         </button>
                         <ul className="dropdown-menu">
-                          {groups.map(g => (
+                          {availableGroups.map(g => (
                             <li key={g.code}>
                               <button
                                 className="dropdown-item"

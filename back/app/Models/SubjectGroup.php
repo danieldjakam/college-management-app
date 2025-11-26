@@ -16,6 +16,8 @@ class SubjectGroup extends Model
         'name',
         'name_en',
         'description',
+        'color',
+        'bg_color',
         'order',
         'is_active'
     ];

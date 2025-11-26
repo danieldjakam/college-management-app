@@ -156,7 +156,7 @@ import BulletinManagement from "./pages/Admin/BulletinManagementNew";
 import PVGeneration from "./pages/PV/PVGeneration";
 import MarkSheetGeneration from "./pages/MarkSheets/MarkSheetGeneration";
 import SubjectGroups from "./pages/Admin/SubjectGroups";
-import SubjectGroupsSettings from "./pages/Admin/SubjectGroupsSettings";
+import SubjectGroupsManagement from "./pages/Admin/SubjectGroupsManagement";
 
 // Parent Pages
 import ParentLogin from "./pages/Parent/ParentLogin";
@@ -537,7 +537,7 @@ const AppContent = () => {
                 path="/admin/subject-groups-settings"
                 element={
                   <ProtectedRoute requiredRoles={['admin', 'principal']}>
-                    <SubjectGroupsSettings />
+                    <SubjectGroupsManagement />
                   </ProtectedRoute>
                 }
               />
