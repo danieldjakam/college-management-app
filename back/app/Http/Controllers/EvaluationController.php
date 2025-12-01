@@ -28,6 +28,23 @@ class EvaluationController extends Controller
                 'teacher'
             ]);
 
+            // 🔒 FILTRAGE AUTOMATIQUE POUR LES ENSEIGNANTS
+            // Si l'utilisateur connecté est un enseignant, ne montrer que ses évaluations
+            $user = auth()->user();
+            if ($user && $user->role === 'teacher') {
+                $teacher = \App\Models\Teacher::where('user_id', $user->id)->first();
+                if ($teacher) {
+                    $query->where('teacher_id', $teacher->id);
+                } else {
+                    // Si l'enseignant n'a pas de profil dans la table teachers, retourner vide
+                    return response()->json([
+                        'success' => true,
+                        'data' => [],
+                        'message' => 'Aucun profil enseignant trouvé'
+                    ]);
+                }
+            }
+
             // Filtrer par séquence
             if ($request->has('sequence_id')) {
                 $query->where('sequence_id', $request->sequence_id);
@@ -350,9 +367,22 @@ class EvaluationController extends Controller
     public function getStats(Evaluation $evaluation)
     {
         try {
+            // 🔒 VÉRIFICATION DE SÉCURITÉ POUR LES ENSEIGNANTS
+            // Un enseignant ne peut voir que les stats de ses propres évaluations
+            $user = auth()->user();
+            if ($user && $user->role === 'teacher') {
+                $teacher = \App\Models\Teacher::where('user_id', $user->id)->first();
+                if (!$teacher || $evaluation->teacher_id !== $teacher->id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Vous n\'êtes pas autorisé à voir les statistiques de cette évaluation'
+                    ], 403);
+                }
+            }
+
             $classAverage = $evaluation->getClassAverage();
             $successRate = $evaluation->getSuccessRate();
-            
+
             $stats = [
                 'total_grades' => (int) $evaluation->grades()->count(),
                 'graded_count' => (int) $evaluation->grades()->whereNotNull('score')->count(),
@@ -384,17 +414,50 @@ class EvaluationController extends Controller
             $currentSequence = Sequence::getCurrentSequence();
             $currentTrimester = Trimester::getCurrentTrimester();
 
+            // 🔒 FILTRAGE AUTOMATIQUE POUR LES ENSEIGNANTS
+            $user = auth()->user();
+            $teacherId = null;
+
+            if ($user && $user->role === 'teacher') {
+                $teacher = \App\Models\Teacher::where('user_id', $user->id)->first();
+                if ($teacher) {
+                    $teacherId = $teacher->id;
+                } else {
+                    return response()->json([
+                        'success' => true,
+                        'data' => [
+                            'current_sequence' => $currentSequence,
+                            'current_trimester' => $currentTrimester,
+                            'evaluations_this_sequence' => 0,
+                            'evaluations_this_trimester' => 0,
+                            'total_evaluations' => 0,
+                            'evaluation_types_count' => []
+                        ]
+                    ]);
+                }
+            }
+
+            // Construire les requêtes avec filtrage si nécessaire
+            $sequenceQuery = $currentSequence ? Evaluation::where('sequence_id', $currentSequence->id) : null;
+            $trimesterQuery = $currentTrimester ? Evaluation::where('trimester_id', $currentTrimester->id) : null;
+            $totalQuery = Evaluation::query();
+            $typesQuery = Evaluation::selectRaw('type, COUNT(*) as count')->groupBy('type');
+
+            // Appliquer le filtrage enseignant si nécessaire
+            if ($teacherId) {
+                if ($sequenceQuery) $sequenceQuery->where('teacher_id', $teacherId);
+                if ($trimesterQuery) $trimesterQuery->where('teacher_id', $teacherId);
+                $totalQuery->where('teacher_id', $teacherId);
+                $typesQuery->where('teacher_id', $teacherId);
+            }
+
             $stats = [
                 'current_sequence' => $currentSequence,
                 'current_trimester' => $currentTrimester,
-                'evaluations_this_sequence' => $currentSequence ? 
-                    Evaluation::where('sequence_id', $currentSequence->id)->count() : 0,
-                'evaluations_this_trimester' => $currentTrimester ? 
-                    Evaluation::where('trimester_id', $currentTrimester->id)->count() : 0,
-                'total_evaluations' => Evaluation::count(),
-                'evaluation_types_count' => Evaluation::selectRaw('type, COUNT(*) as count')
-                    ->groupBy('type')
-                    ->pluck('count', 'type')
+                'evaluations_this_sequence' => $sequenceQuery ? $sequenceQuery->count() : 0,
+                'evaluations_this_trimester' => $trimesterQuery ? $trimesterQuery->count() : 0,
+                'total_evaluations' => $totalQuery->count(),
+                'evaluation_types_count' => $typesQuery->pluck('count', 'type')
             ];
 
             return response()->json([

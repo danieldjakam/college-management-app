@@ -17,6 +17,19 @@ class GradeController extends Controller
     public function getGradesByEvaluation(Evaluation $evaluation)
     {
         try {
+            // 🔒 VÉRIFICATION DE SÉCURITÉ POUR LES ENSEIGNANTS
+            // Un enseignant ne peut voir que les notes de ses propres évaluations
+            $user = auth()->user();
+            if ($user && $user->role === 'teacher') {
+                $teacher = \App\Models\Teacher::where('user_id', $user->id)->first();
+                if (!$teacher || $evaluation->teacher_id !== $teacher->id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Vous n\'êtes pas autorisé à voir les notes de cette évaluation'
+                    ], 403);
+                }
+            }
+
             // Récupérer tous les étudiants de la classe/matière
             $classSeriesSubject = $evaluation->classSeriesSubject;
 
@@ -109,6 +122,19 @@ class GradeController extends Controller
 
             $evaluation = Evaluation::findOrFail($request->evaluation_id);
 
+            // 🔒 VÉRIFICATION DE SÉCURITÉ POUR LES ENSEIGNANTS
+            // Un enseignant ne peut modifier que les notes de ses propres évaluations
+            $user = auth()->user();
+            if ($user && $user->role === 'teacher') {
+                $teacher = \App\Models\Teacher::where('user_id', $user->id)->first();
+                if (!$teacher || $evaluation->teacher_id !== $teacher->id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Vous n\'êtes pas autorisé à modifier les notes de cette évaluation'
+                    ], 403);
+                }
+            }
+
             // Validation de la note selon la note maximale de l'évaluation
             if ($request->score !== null && $request->score > $evaluation->max_score) {
                 return response()->json([
@@ -196,6 +222,19 @@ class GradeController extends Controller
 
             $evaluation = Evaluation::findOrFail($request->evaluation_id);
 
+            // 🔒 VÉRIFICATION DE SÉCURITÉ POUR LES ENSEIGNANTS
+            // Un enseignant ne peut modifier que les notes de ses propres évaluations
+            $user = auth()->user();
+            if ($user && $user->role === 'teacher') {
+                $teacher = \App\Models\Teacher::where('user_id', $user->id)->first();
+                if (!$teacher || $evaluation->teacher_id !== $teacher->id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Vous n\'êtes pas autorisé à modifier les notes de cette évaluation'
+                    ], 403);
+                }
+            }
+
             $savedGrades = [];
             $errors = [];
 
@@ -267,6 +306,20 @@ class GradeController extends Controller
     public function deleteGrade(Grade $grade)
     {
         try {
+            // 🔒 VÉRIFICATION DE SÉCURITÉ POUR LES ENSEIGNANTS
+            // Un enseignant ne peut supprimer que les notes de ses propres évaluations
+            $user = auth()->user();
+            if ($user && $user->role === 'teacher') {
+                $teacher = \App\Models\Teacher::where('user_id', $user->id)->first();
+                $evaluation = $grade->evaluation;
+                if (!$teacher || !$evaluation || $evaluation->teacher_id !== $teacher->id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Vous n\'êtes pas autorisé à supprimer cette note'
+                    ], 403);
+                }
+            }
+
             $grade->delete();
 
             return response()->json([
@@ -289,6 +342,19 @@ class GradeController extends Controller
     public function getEvaluationStats(Evaluation $evaluation)
     {
         try {
+            // 🔒 VÉRIFICATION DE SÉCURITÉ POUR LES ENSEIGNANTS
+            // Un enseignant ne peut voir que les stats de ses propres évaluations
+            $user = auth()->user();
+            if ($user && $user->role === 'teacher') {
+                $teacher = \App\Models\Teacher::where('user_id', $user->id)->first();
+                if (!$teacher || $evaluation->teacher_id !== $teacher->id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Vous n\'êtes pas autorisé à voir les statistiques de cette évaluation'
+                    ], 403);
+                }
+            }
+
             $grades = Grade::where('evaluation_id', $evaluation->id)
                           ->whereNotNull('score')
                           ->get();
