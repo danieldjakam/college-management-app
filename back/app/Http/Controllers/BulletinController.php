@@ -223,11 +223,19 @@ class BulletinController extends Controller
             ->pluck('id');
 
         // 🚀 OPTIMIZATION: Eager load all relationships to avoid N+1 queries
+        // Charge toutes les relations nécessaires en une seule fois pour éviter N+1
         $students = Student::whereIn('class_series_id', $seriesIds)
+            ->where('is_active', true)
             ->with([
-                'schoolClass',
-                'classSeries.subjects'
+                'schoolClass:id,name',
+                'classSeries:id,name,class_id,section_id,level_id',
+                'classSeries.subjects:id,class_series_id,subject_id,coefficient',
+                'classSeries.subjects.subject:id,name,code,group',
+                'classSeries.section:id,name',
+                'classSeries.classLevel:id,name'
             ])
+            ->select(['id', 'name', 'subname', 'class_series_id', 'is_active', 'birthday', 'sex'])
+            ->orderBy('name')
             ->get();
 
         \Log::info("🚀 Génération en lot OPTIMISÉE: {$students->count()} étudiants trouvés pour class_id={$request->class_id}");

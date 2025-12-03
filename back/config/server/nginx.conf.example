@@ -1,0 +1,265 @@
+# ============================================
+# NGINX OPTIMISÉ POUR LARAVEL + PHP-FPM
+# ============================================
+# Ce fichier contient la configuration Nginx optimisée pour
+# résoudre les problèmes de timeout 504 et améliorer les performances
+#
+# INSTALLATION:
+# 1. Sauvegarder: sudo cp /etc/nginx/sites-available/default /etc/nginx/sites-available/default.backup
+# 2. Éditer: sudo nano /etc/nginx/sites-available/cpb-laravel
+# 3. Copier cette configuration
+# 4. Activer: sudo ln -s /etc/nginx/sites-available/cpb-laravel /etc/nginx/sites-enabled/
+# 5. Tester: sudo nginx -t
+# 6. Redémarrer: sudo systemctl restart nginx
+# ============================================
+
+# Upstream PHP-FPM
+upstream php-fpm {
+    server unix:/var/run/php/php8.2-fpm.sock;
+    # Ou si TCP: server 127.0.0.1:9000;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+
+    # Nom de domaine (ajuster selon votre domaine)
+    server_name cpb-douala.cm www.cpb-douala.cm;
+
+    # Racine du projet Laravel
+    root /var/www/college-management-app/back/public;
+    index index.php index.html index.htm;
+
+    # Charset
+    charset utf-8;
+
+    # ============================================
+    # LOGS
+    # ============================================
+    access_log /var/log/nginx/cpb-access.log;
+    error_log /var/log/nginx/cpb-error.log warn;
+
+    # ============================================
+    # TIMEOUTS (CRITIQUE pour résoudre 504)
+    # ============================================
+    # Timeout de connexion client
+    client_body_timeout 300s;
+    client_header_timeout 300s;
+
+    # Timeout d'envoi au client
+    send_timeout 300s;
+
+    # Timeout pour connexion à PHP-FPM
+    fastcgi_connect_timeout 300s;
+
+    # Timeout pour lecture de la réponse PHP-FPM
+    fastcgi_send_timeout 300s;
+
+    # Timeout pour envoi de requête à PHP-FPM
+    fastcgi_read_timeout 300s;
+
+    # ============================================
+    # TAILLES DE BUFFER
+    # ============================================
+    # Taille maximale du body (uploads)
+    client_max_body_size 20M;
+
+    # Buffers pour gros headers
+    large_client_header_buffers 4 16k;
+
+    # Buffers FastCGI
+    fastcgi_buffer_size 128k;
+    fastcgi_buffers 256 16k;
+    fastcgi_busy_buffers_size 256k;
+    fastcgi_temp_file_write_size 256k;
+
+    # ============================================
+    # GZIP COMPRESSION
+    # ============================================
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss application/rss+xml font/truetype font/opentype application/vnd.ms-fontobject image/svg+xml;
+    gzip_disable "msie6";
+
+    # ============================================
+    # LARAVEL ROUTING
+    # ============================================
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    # ============================================
+    # PHP-FPM
+    # ============================================
+    location ~ \.php$ {
+        try_files $uri =404;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+
+        fastcgi_pass php-fpm;
+        fastcgi_index index.php;
+
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO $fastcgi_path_info;
+
+        # Timeouts (répéter ici pour PHP)
+        fastcgi_connect_timeout 300s;
+        fastcgi_send_timeout 300s;
+        fastcgi_read_timeout 300s;
+
+        # Buffers
+        fastcgi_buffer_size 128k;
+        fastcgi_buffers 256 16k;
+        fastcgi_busy_buffers_size 256k;
+
+        # Cache FastCGI (optionnel, pour pages statiques)
+        # fastcgi_cache_valid 200 60m;
+        # fastcgi_cache_bypass $http_pragma $http_authorization;
+    }
+
+    # ============================================
+    # CACHE STATIQUE (CSS, JS, Images)
+    # ============================================
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot)$ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # Cache pour les PDFs générés
+    location ~* \.pdf$ {
+        expires 1d;
+        add_header Cache-Control "public";
+    }
+
+    # ============================================
+    # SÉCURITÉ
+    # ============================================
+    # Bloquer l'accès aux fichiers cachés
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+
+    # Bloquer l'accès aux fichiers sensibles
+    location ~ /\.(env|git|gitignore|htaccess)$ {
+        deny all;
+    }
+
+    # Bloquer l'accès au dossier storage (sauf public)
+    location ~ ^/storage/(?!app/public) {
+        deny all;
+    }
+
+    # Headers de sécurité
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+
+    # ============================================
+    # CORS (Si nécessaire pour le frontend)
+    # ============================================
+    # Décommenter si le frontend est sur un domaine différent
+    # add_header 'Access-Control-Allow-Origin' 'https://frontend.cpb-douala.cm' always;
+    # add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+    # add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, X-Requested-With' always;
+    # add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+    # if ($request_method = 'OPTIONS') {
+    #     return 204;
+    # }
+
+    # ============================================
+    # RATE LIMITING (Protection DDoS)
+    # ============================================
+    # Définir en dehors du block server:
+    # limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+    # limit_req_zone $binary_remote_addr zone=login:10m rate=5r/m;
+
+    # location /api/ {
+    #     limit_req zone=api burst=20 nodelay;
+    # }
+
+    # location /api/auth/login {
+    #     limit_req zone=login burst=5 nodelay;
+    # }
+
+    # ============================================
+    # FAVICON
+    # ============================================
+    location = /favicon.ico {
+        access_log off;
+        log_not_found off;
+    }
+
+    location = /robots.txt {
+        access_log off;
+        log_not_found off;
+    }
+}
+
+# ============================================
+# CONFIGURATION HTTPS (SSL/TLS)
+# ============================================
+# Décommenter après installation du certificat SSL (Let's Encrypt)
+# server {
+#     listen 443 ssl http2;
+#     listen [::]:443 ssl http2;
+#
+#     server_name cpb-douala.cm www.cpb-douala.cm;
+#
+#     # Certificats SSL (Let's Encrypt)
+#     ssl_certificate /etc/letsencrypt/live/cpb-douala.cm/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/cpb-douala.cm/privkey.pem;
+#
+#     # Protocoles SSL
+#     ssl_protocols TLSv1.2 TLSv1.3;
+#     ssl_ciphers HIGH:!aNULL:!MD5;
+#     ssl_prefer_server_ciphers on;
+#
+#     # HSTS (HTTPS Strict Transport Security)
+#     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+#
+#     # Reste de la configuration identique au bloc HTTP ci-dessus
+#     root /var/www/college-management-app/back/public;
+#     # ... (copier les autres directives)
+# }
+
+# ============================================
+# REDIRECTION HTTP -> HTTPS
+# ============================================
+# server {
+#     listen 80;
+#     listen [::]:80;
+#     server_name cpb-douala.cm www.cpb-douala.cm;
+#
+#     return 301 https://$server_name$request_uri;
+# }
+
+# ============================================
+# NOTES D'APPLICATION
+# ============================================
+# Après modification:
+# 1. Tester la configuration: sudo nginx -t
+# 2. Recharger Nginx: sudo systemctl reload nginx
+# 3. Vérifier les logs: sudo tail -f /var/log/nginx/cpb-error.log
+#
+# Installer Let's Encrypt (SSL gratuit):
+# sudo apt install certbot python3-certbot-nginx
+# sudo certbot --nginx -d cpb-douala.cm -d www.cpb-douala.cm
+#
+# Renouvellement automatique:
+# sudo certbot renew --dry-run
+#
+# Monitoring des erreurs 504:
+# sudo grep "504" /var/log/nginx/cpb-access.log
+#
+# Vérifier les timeouts PHP-FPM:
+# sudo nano /etc/php/8.2/fpm/pool.d/www.conf
+# Ajouter/modifier: request_terminate_timeout = 300
+#
+# IMPORTANT: Redémarrer les deux services après modification
+# sudo systemctl restart nginx
+# sudo systemctl restart php8.2-fpm

@@ -1,0 +1,151 @@
+; ============================================
+; PHP.INI OPTIMISÉ POUR PRODUCTION
+; ============================================
+; Ce fichier contient les paramètres PHP optimisés pour résoudre
+; les problèmes de timeout 504 et améliorer les performances
+;
+; INSTALLATION:
+; 1. Localiser votre php.ini actuel: php --ini
+; 2. Copier ces paramètres dans votre php.ini
+; 3. Redémarrer PHP-FPM: sudo systemctl restart php8.2-fpm
+; ============================================
+
+[PHP]
+; ============================================
+; TEMPS D'EXÉCUTION ET TIMEOUT
+; ============================================
+; Temps maximum d'exécution d'un script (en secondes)
+; AVANT: 60 secondes → APRÈS: 300 secondes (5 minutes)
+max_execution_time = 300
+
+; Temps maximum pour parser les données POST
+max_input_time = 300
+
+; Délai d'attente par défaut pour les sockets
+default_socket_timeout = 300
+
+; ============================================
+; MÉMOIRE
+; ============================================
+; Mémoire maximale allouée par script
+; AVANT: 128M → APRÈS: 512M
+memory_limit = 512M
+
+; ============================================
+; UPLOAD DE FICHIERS
+; ============================================
+; Taille maximale pour les uploads (bulletins PDF, photos, etc.)
+upload_max_filesize = 20M
+post_max_size = 25M
+
+; Nombre maximum de fichiers uploadés simultanément
+max_file_uploads = 20
+
+; ============================================
+; OPCACHE (ACCÉLÉRATEUR PHP)
+; ============================================
+; Active OPcache pour compiler et mettre en cache le bytecode
+opcache.enable=1
+
+; Mémoire allouée à OPcache (en Mo)
+opcache.memory_consumption=256
+
+; Mémoire pour les chaînes internées
+opcache.interned_strings_buffer=16
+
+; Nombre maximum de fichiers en cache
+opcache.max_accelerated_files=20000
+
+; Vérifier les timestamps des fichiers à chaque requête
+; EN DÉVELOPPEMENT: 1 (vérifie les changements)
+; EN PRODUCTION: 0 (ne vérifie pas, plus rapide)
+opcache.validate_timestamps=0
+
+; Fréquence de vérification (si validate_timestamps=1)
+opcache.revalidate_freq=0
+
+; Optimiser les fonctions internes
+opcache.save_comments=0
+opcache.enable_file_override=1
+
+; ============================================
+; JOURNALISATION (LOGS)
+; ============================================
+; Afficher les erreurs (à désactiver en production)
+display_errors = Off
+display_startup_errors = Off
+
+; Logger les erreurs dans un fichier
+log_errors = On
+error_log = /var/log/php/error.log
+
+; Niveau de rapport d'erreurs
+; Production: E_ALL & ~E_DEPRECATED & ~E_STRICT
+error_reporting = E_ALL & ~E_DEPRECATED & ~E_STRICT
+
+; ============================================
+; SESSIONS
+; ============================================
+; Durée de vie des sessions (en secondes)
+session.gc_maxlifetime = 3600
+
+; Probabilité de nettoyage des sessions
+session.gc_probability = 1
+session.gc_divisor = 100
+
+; ============================================
+; LIMITES DE TRAITEMENT
+; ============================================
+; Nombre maximum de variables POST acceptées
+max_input_vars = 5000
+
+; Niveau d'imbrication maximum pour les tableaux
+max_input_nesting_level = 128
+
+; ============================================
+; RÉALPATH CACHE (Performance)
+; ============================================
+; Taille du cache pour les chemins résolus
+realpath_cache_size = 4096K
+
+; Durée de vie du cache (en secondes)
+realpath_cache_ttl = 600
+
+; ============================================
+; DATE ET TIMEZONE
+; ============================================
+; Timezone par défaut (ajuster selon votre localisation)
+date.timezone = Africa/Douala
+
+; ============================================
+; EXTENSIONS REQUISES
+; ============================================
+; Vérifier que ces extensions sont activées:
+; extension=mysqli
+; extension=pdo_mysql
+; extension=mbstring
+; extension=openssl
+; extension=curl
+; extension=gd
+; extension=zip
+; extension=xml
+; extension=redis (si cache Redis utilisé)
+
+; ============================================
+; NOTES D'APPLICATION
+; ============================================
+; Après modification de ce fichier:
+; 1. Vérifier la syntaxe: php -c /path/to/php.ini -v
+; 2. Redémarrer PHP-FPM: sudo systemctl restart php8.2-fpm
+; 3. Vérifier les paramètres: php -i | grep max_execution_time
+;
+; Pour Ubuntu/Debian:
+; Fichier PHP-FPM: /etc/php/8.2/fpm/php.ini
+; Fichier CLI: /etc/php/8.2/cli/php.ini
+;
+; Pour CentOS/RHEL:
+; Fichier: /etc/php.ini
+;
+; IMPORTANT: Redémarrer le service web après modification
+; Apache: sudo systemctl restart apache2
+; Nginx: sudo systemctl restart nginx

@@ -1,0 +1,245 @@
+# ============================================
+# MYSQL/MARIADB OPTIMISÉ POUR PRODUCTION
+# ============================================
+# Ce fichier contient les paramètres MySQL optimisés pour
+# améliorer les performances et résoudre les problèmes de lenteur
+#
+# INSTALLATION:
+# 1. Sauvegarder: sudo cp /etc/mysql/my.cnf /etc/mysql/my.cnf.backup
+# 2. Éditer: sudo nano /etc/mysql/my.cnf
+# 3. Copier les sections ci-dessous
+# 4. Redémarrer: sudo systemctl restart mysql
+#
+# IMPORTANT: Ajuster les valeurs selon votre RAM disponible
+# ============================================
+
+[mysqld]
+
+# ============================================
+# CONNEXIONS ET THREADS
+# ============================================
+# Nombre maximum de connexions simultanées
+# AVANT: 100-150 → APRÈS: 200
+max_connections = 200
+
+# Nombre de threads en cache
+thread_cache_size = 16
+
+# Connexions en attente
+back_log = 100
+
+# ============================================
+# INNODB (MOTEUR DE STOCKAGE)
+# ============================================
+# BUFFER POOL - Le paramètre le plus important!
+# Règle: 70-80% de la RAM disponible pour MySQL
+# Exemple: Serveur avec 8 GB RAM → 1-2 GB pour MySQL
+#
+# Ajuster selon votre RAM:
+# - 2 GB RAM → innodb_buffer_pool_size = 512M
+# - 4 GB RAM → innodb_buffer_pool_size = 1G
+# - 8 GB RAM → innodb_buffer_pool_size = 2G
+# - 16 GB RAM → innodb_buffer_pool_size = 4G
+innodb_buffer_pool_size = 1G
+
+# Nombre d'instances du buffer pool (1 par GB recommandé)
+innodb_buffer_pool_instances = 4
+
+# Taille du log buffer
+innodb_log_buffer_size = 16M
+
+# Taille des fichiers de log
+innodb_log_file_size = 256M
+
+# Flush des logs (1 = sécurisé, 2 = plus rapide)
+# Production: 1 (sécurité), Développement: 2 (performance)
+innodb_flush_log_at_trx_commit = 1
+
+# Méthode de flush des données
+innodb_flush_method = O_DIRECT
+
+# Threads d'I/O
+innodb_read_io_threads = 4
+innodb_write_io_threads = 4
+
+# Taille de fichier par table
+innodb_file_per_table = 1
+
+# ============================================
+# QUERY CACHE (MySQL 5.7 uniquement)
+# ============================================
+# Note: Query cache est obsolète dans MySQL 8.0+
+# Vérifier votre version: mysql --version
+
+# Type de cache (0=off, 1=on, 2=on demand)
+# query_cache_type = 1
+
+# Taille du cache de requêtes (128M recommandé)
+# query_cache_size = 128M
+
+# Taille minimum d'une requête à mettre en cache
+# query_cache_min_res_unit = 2K
+
+# Limite par requête
+# query_cache_limit = 2M
+
+# ============================================
+# TABLES ET JOINTURES
+# ============================================
+# Taille maximum pour les tables temporaires en mémoire
+tmp_table_size = 64M
+max_heap_table_size = 64M
+
+# Buffer pour les jointures
+join_buffer_size = 2M
+
+# Taille de tri
+sort_buffer_size = 2M
+
+# Taille de lecture
+read_buffer_size = 1M
+read_rnd_buffer_size = 2M
+
+# Taille maximale pour les jointures
+max_join_size = 1000000
+
+# ============================================
+# SLOW QUERY LOG (JOURNALISATION REQUÊTES LENTES)
+# ============================================
+# Activer le log des requêtes lentes
+slow_query_log = 1
+
+# Fichier de log
+slow_query_log_file = /var/log/mysql/slow-queries.log
+
+# Temps minimum pour considérer une requête comme lente (en secondes)
+# Toute requête > 2 secondes sera loggée
+long_query_time = 2
+
+# Logger les requêtes sans index
+log_queries_not_using_indexes = 1
+
+# Limiter le nombre de logs par minute (éviter le spam)
+log_throttle_queries_not_using_indexes = 10
+
+# ============================================
+# GENERAL QUERY LOG (Développement uniquement)
+# ============================================
+# ATTENTION: Ne pas activer en production (impact performance)
+# Utile pour débugger
+# general_log = 0
+# general_log_file = /var/log/mysql/general-query.log
+
+# ============================================
+# NETWORKING
+# ============================================
+# Taille maximale des paquets
+max_allowed_packet = 64M
+
+# Timeout de connexion
+connect_timeout = 10
+
+# Timeout d'attente
+wait_timeout = 600
+interactive_timeout = 600
+
+# Désactiver DNS reverse lookup (plus rapide)
+skip_name_resolve = 1
+
+# ============================================
+# CHARSET ET COLLATION
+# ============================================
+# Encodage par défaut (UTF-8)
+character_set_server = utf8mb4
+collation_server = utf8mb4_unicode_ci
+
+# ============================================
+# BINARY LOGGING (pour réplication/backup)
+# ============================================
+# Format des logs binaires
+binlog_format = ROW
+
+# Durée de rétention (en jours)
+expire_logs_days = 7
+
+# Taille maximale d'un fichier de log binaire
+max_binlog_size = 100M
+
+# ============================================
+# PERFORMANCE SCHEMA
+# ============================================
+# Activer Performance Schema pour monitoring avancé
+performance_schema = ON
+
+# ============================================
+# TABLE CACHE
+# ============================================
+# Nombre de tables à garder ouvertes
+table_open_cache = 4000
+table_definition_cache = 2000
+
+# ============================================
+# MyISAM (si utilisé, sinon ignorer)
+# ============================================
+# Taille du cache de clés MyISAM
+key_buffer_size = 32M
+
+# ============================================
+# [client] SECTION
+# ============================================
+[client]
+# Paramètres pour les clients MySQL
+default_character_set = utf8mb4
+port = 3306
+socket = /var/run/mysqld/mysqld.sock
+
+# ============================================
+# [mysql] SECTION
+# ============================================
+[mysql]
+# Console MySQL
+default_character_set = utf8mb4
+
+# ============================================
+# [mysqldump] SECTION
+# ============================================
+[mysqldump]
+# Paramètres pour les backups
+quick
+quote_names
+max_allowed_packet = 64M
+
+# ============================================
+# NOTES D'APPLICATION
+# ============================================
+# Localisation du fichier selon la distribution:
+#
+# Ubuntu/Debian:
+# - /etc/mysql/my.cnf
+# - /etc/mysql/mysql.conf.d/mysqld.cnf
+#
+# CentOS/RHEL:
+# - /etc/my.cnf
+# - /etc/my.cnf.d/server.cnf
+#
+# MariaDB:
+# - /etc/my.cnf.d/server.cnf
+#
+# Après modification:
+# 1. Vérifier la syntaxe: mysqld --help --verbose
+# 2. Redémarrer: sudo systemctl restart mysql
+# 3. Vérifier les paramètres:
+#    mysql -u root -p -e "SHOW VARIABLES LIKE '%buffer_pool%';"
+#    mysql -u root -p -e "SHOW VARIABLES LIKE '%query_cache%';"
+#
+# Monitorer les requêtes lentes:
+# sudo tail -f /var/log/mysql/slow-queries.log
+#
+# Analyser les slow queries:
+# sudo mysqldumpslow -s t -t 10 /var/log/mysql/slow-queries.log
+#
+# Vérifier l'utilisation du buffer pool:
+# mysql -u root -p -e "SHOW ENGINE INNODB STATUS\G" | grep "Buffer pool"
+#
+# IMPORTANT: Sauvegarder la configuration avant modification!
+# sudo cp /etc/mysql/my.cnf /etc/mysql/my.cnf.backup.$(date +%Y%m%d)

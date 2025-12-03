@@ -1,0 +1,225 @@
+# ============================================
+# REDIS CONFIGURATION FOR LARAVEL CACHE
+# ============================================
+# Ce fichier contient la configuration Redis optimisée pour
+# le cache Laravel (bulletins, sessions, requêtes)
+#
+# INSTALLATION REDIS:
+# Ubuntu/Debian: sudo apt install redis-server
+# CentOS/RHEL: sudo yum install redis
+#
+# CONFIGURATION:
+# 1. Sauvegarder: sudo cp /etc/redis/redis.conf /etc/redis/redis.conf.backup
+# 2. Éditer: sudo nano /etc/redis/redis.conf
+# 3. Copier les paramètres ci-dessous (ou les modifier)
+# 4. Redémarrer: sudo systemctl restart redis
+# ============================================
+
+# ============================================
+# RÉSEAU
+# ============================================
+# Bind à localhost seulement (sécurité)
+# Si Redis est sur un autre serveur, mettre l'IP du serveur
+bind 127.0.0.1 ::1
+
+# Port d'écoute
+port 6379
+
+# Timeout de connexion inactives (0 = désactivé)
+timeout 300
+
+# Keepalive TCP
+tcp-keepalive 300
+
+# ============================================
+# SÉCURITÉ
+# ============================================
+# Mot de passe Redis (IMPORTANT en production!)
+# Générer un mot de passe fort: openssl rand -base64 32
+# requirepass VotreMotDePasseTresSecurise123!
+
+# Désactiver les commandes dangereuses
+# rename-command FLUSHDB ""
+# rename-command FLUSHALL ""
+# rename-command KEYS ""
+# rename-command CONFIG ""
+
+# ============================================
+# MÉMOIRE
+# ============================================
+# Limite de mémoire maximale
+# Règle: 10-20% de la RAM disponible
+# Exemple: Serveur 8GB → 512M-1G pour Redis
+maxmemory 512mb
+
+# Politique d'éviction quand maxmemory est atteinte
+# Options:
+# - volatile-lru: Supprime les clés avec expire en LRU
+# - allkeys-lru: Supprime n'importe quelle clé en LRU (RECOMMANDÉ pour cache)
+# - volatile-lfu: LFU sur clés avec expire
+# - allkeys-lfu: LFU sur toutes les clés
+# - volatile-random: Suppression aléatoire (expire)
+# - allkeys-random: Suppression aléatoire (toutes)
+# - volatile-ttl: Supprime clés avec TTL le plus court
+# - noeviction: Retourne erreur si mémoire pleine
+maxmemory-policy allkeys-lru
+
+# ============================================
+# PERSISTANCE (Optionnel pour cache)
+# ============================================
+# Redis peut persister les données sur disque
+# Pour un cache pur, on peut désactiver (plus rapide)
+
+# SNAPSHOT (RDB) - Sauvegarde périodique
+# Format: save <secondes> <nombre de changements>
+# save 900 1     # Sauvegarder après 900s si 1+ clé changée
+# save 300 10    # Sauvegarder après 300s si 10+ clés changées
+# save 60 10000  # Sauvegarder après 60s si 10000+ clés changées
+
+# Désactiver la persistance (pour cache pur):
+save ""
+
+# Fichier RDB
+dbfilename dump.rdb
+
+# Répertoire des données
+dir /var/lib/redis
+
+# Compression RDB
+rdbcompression yes
+rdbchecksum yes
+
+# AOF (Append Only File) - Log des commandes
+# Plus sûr mais plus lent (désactiver pour cache)
+appendonly no
+
+# ============================================
+# LOGS
+# ============================================
+# Niveau de log: debug, verbose, notice, warning
+loglevel notice
+
+# Fichier de log
+logfile /var/log/redis/redis-server.log
+
+# ============================================
+# CLIENTS
+# ============================================
+# Nombre maximum de clients connectés
+maxclients 10000
+
+# ============================================
+# PERFORMANCE
+# ============================================
+# Nombre de bases de données
+databases 16
+
+# Slow log - Logger les commandes lentes
+slowlog-log-slower-than 10000  # 10ms
+slowlog-max-len 128
+
+# ============================================
+# ADVANCED
+# ============================================
+# Utiliser les sockets Unix (plus rapide que TCP)
+# Si activé, Laravel doit se connecter via socket
+# unixsocket /var/run/redis/redis-server.sock
+# unixsocketperm 770
+
+# Latency monitoring
+latency-monitor-threshold 100
+
+# ============================================
+# CONFIGURATION LARAVEL (.env)
+# ============================================
+# Après configuration de Redis, mettre à jour le .env Laravel:
+#
+# CACHE_DRIVER=redis
+# QUEUE_CONNECTION=redis
+# SESSION_DRIVER=redis
+#
+# REDIS_HOST=127.0.0.1
+# REDIS_PASSWORD=VotreMotDePasse (si requirepass activé)
+# REDIS_PORT=6379
+# REDIS_DB=0
+#
+# REDIS_CACHE_DB=1      # Base séparée pour le cache
+# REDIS_QUEUE_DB=2      # Base séparée pour les queues
+# REDIS_SESSION_DB=3    # Base séparée pour les sessions
+
+# ============================================
+# COMMANDES UTILES REDIS
+# ============================================
+# Se connecter: redis-cli
+# Avec mot de passe: redis-cli -a VotreMotDePasse
+#
+# Vérifier la connexion:
+# redis-cli ping   # Doit retourner "PONG"
+#
+# Statistiques:
+# redis-cli INFO
+# redis-cli INFO memory
+# redis-cli INFO stats
+#
+# Voir les clés (attention en production!):
+# redis-cli KEYS "laravel_cache:*"
+#
+# Vider le cache Laravel:
+# redis-cli FLUSHDB
+# Ou depuis Laravel: php artisan cache:clear
+#
+# Monitorer en temps réel:
+# redis-cli MONITOR
+#
+# Voir les commandes lentes:
+# redis-cli SLOWLOG GET 10
+#
+# Utilisation mémoire:
+# redis-cli INFO memory | grep used_memory_human
+#
+# Nombre de clés:
+# redis-cli DBSIZE
+#
+# ============================================
+# TESTS DE PERFORMANCE
+# ============================================
+# Benchmark Redis:
+# redis-benchmark -q -n 100000
+#
+# Test d'écriture/lecture:
+# redis-benchmark -t set,get -n 100000 -q
+#
+# ============================================
+# MONITORING
+# ============================================
+# Vérifier le statut:
+# sudo systemctl status redis
+#
+# Logs:
+# sudo tail -f /var/log/redis/redis-server.log
+#
+# Utilisation CPU/Mémoire:
+# redis-cli INFO CPU
+# redis-cli INFO MEMORY
+#
+# ============================================
+# DÉPANNAGE
+# ============================================
+# Redis ne démarre pas:
+# 1. Vérifier les logs: sudo journalctl -u redis -n 50
+# 2. Vérifier la configuration: redis-server /etc/redis/redis.conf --test-memory 1
+# 3. Permissions: sudo chown redis:redis /var/lib/redis
+#
+# Laravel ne se connecte pas:
+# 1. Tester: php artisan tinker
+#    >>> Redis::connection()->ping()
+# 2. Vérifier le port: sudo netstat -tlnp | grep 6379
+# 3. Vérifier le mot de passe dans .env
+#
+# Mémoire pleine:
+# 1. Voir les clés volumineuses: redis-cli --bigkeys
+# 2. Augmenter maxmemory
+# 3. Vider: php artisan cache:clear
+#
+# IMPORTANT: Protéger Redis avec un mot de passe en production!
+# IMPORTANT: Bind à 127.0.0.1 si Redis est sur le même serveur
