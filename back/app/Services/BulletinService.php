@@ -292,7 +292,8 @@ class BulletinService
             }
         }
 
-        \Log::info("🎓 Individual sequence grades: [" . implode(', ', array_map(fn($g) => $g ?? 'null', $sequenceGrades)) . "]");
+        // ⚡ Log réduit en DEBUG pour éviter pollution
+        // \Log::debug("Sequence grades: [" . implode(', ', array_map(fn($g) => $g ?? 'null', $sequenceGrades)) . "]");
         return $sequenceGrades;
     }
 
@@ -310,7 +311,8 @@ class BulletinService
         
         // RETOUR NULL SI AUCUNE COMPOSITION TROUVÉE
         if (!$evaluation) {
-            \Log::info("Aucune composition trouvée (type=composition) pour trimester:{$trimester}, student:{$studentId}, subject:{$subjectId}");
+            // ⚡ Réduit en DEBUG pour éviter pollution des logs (450× par génération)
+            // \Log::debug("Aucune composition trouvée pour trim:{$trimester}, student:{$studentId}, subject:{$subjectId}");
             return null;
         }
         
@@ -335,11 +337,13 @@ class BulletinService
                 return 'ABS';
             }
             $result = $grade->getScoreOn20();
-            \Log::info("Vraie composition trouvée: evaluation_id:{$evaluation->id}, grade:{$result}");
+            // ⚡ Log réduit en DEBUG (450× par génération = pollution)
+            // \Log::debug("Composition trouvée: eval:{$evaluation->id}, grade:{$result}");
             return $result;
         }
 
-        \Log::info("Aucune note de composition (evaluation_id:{$evaluation->id})");
+        // ⚡ Log réduit en DEBUG pour éviter pollution
+        // \Log::debug("Aucune note de composition (evaluation_id:{$evaluation->id})");
         return null;
     }
     

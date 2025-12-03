@@ -223,42 +223,45 @@ class BulletinController extends Controller
             ->pluck('id');
 
         // 🚀 OPTIMIZATION: Eager load all relationships to avoid N+1 queries
-        // Charge toutes les relations nécessaires en une seule fois pour éviter N+1
+        // ⚠️ LIMITE: Maximum 100 étudiants pour éviter out of memory (2GB)
         $students = Student::whereIn('class_series_id', $seriesIds)
             ->where('is_active', true)
             ->with([
                 'schoolClass:id,name',
                 'classSeries:id,name,class_id,section_id,level_id',
-                'classSeries.subjects:id,class_series_id,subject_id,coefficient',
-                'classSeries.subjects.subject:id,name,code,group',
+                // ⚠️ Éviter classSeries.subjects pour réduire mémoire
+                // 'classSeries.subjects:id,class_series_id,subject_id,coefficient',
+                // 'classSeries.subjects.subject:id,name,code,group',
                 'classSeries.section:id,name',
                 'classSeries.classLevel:id,name'
             ])
             ->select(['id', 'name', 'subname', 'class_series_id', 'is_active', 'birthday', 'sex'])
             ->orderBy('name')
+            ->limit(100)  // ⚠️ LIMITE pour éviter out of memory
             ->get();
 
         \Log::info("🚀 Génération en lot OPTIMISÉE: {$students->count()} étudiants trouvés pour class_id={$request->class_id}");
 
-        // 🗑️ Si force=true, supprimer tous les bulletins existants en une seule requête
+        // 🗑️ Si force=true, supprimer tous les bulletins existants
+        // ⚡ OPTIMISÉ: Utiliser chunk pour éviter out of memory (2GB)
         if ($request->input('force', false)) {
-            $deleted = BulletinGeneration::whereIn('student_id', $students->pluck('id'))
-                ->where('period_type', $request->bulletin_type)
-                ->where('period_identifier', $request->period_identifier)
-                ->get();
-
-            foreach ($deleted as $bulletin) {
-                if ($bulletin->file_path && file_exists(storage_path('app/' . $bulletin->file_path))) {
-                    unlink(storage_path('app/' . $bulletin->file_path));
-                }
-            }
+            $deletedCount = 0;
 
             BulletinGeneration::whereIn('student_id', $students->pluck('id'))
                 ->where('period_type', $request->bulletin_type)
                 ->where('period_identifier', $request->period_identifier)
-                ->delete();
+                ->chunk(50, function($bulletins) use (&$deletedCount) {
+                    foreach ($bulletins as $bulletin) {
+                        // Supprimer le fichier PDF si existe
+                        if ($bulletin->file_path && file_exists(storage_path('app/' . $bulletin->file_path))) {
+                            unlink(storage_path('app/' . $bulletin->file_path));
+                        }
+                        $bulletin->delete();
+                        $deletedCount++;
+                    }
+                });
 
-            \Log::info("🗑️ {$deleted->count()} bulletins existants supprimés");
+            \Log::info("🗑️ {$deletedCount} bulletins existants supprimés (chunked pour éviter out of memory)");
         }
 
         // 🚫 Filter out students who already have bulletins (if not forcing)
