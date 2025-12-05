@@ -28,14 +28,27 @@ class Subject extends Model
      */
     public function getGroupNameAttribute()
     {
-        $groups = [
-            'A' => 'MATIÈRES LITTÉRAIRES',
-            'B' => 'MATIÈRES SCIENTIFIQUES',
-            'C' => 'MATIÈRES PRATIQUES',
-            'D' => 'AUTRES MATIÈRES'
-        ];
+        if (!isset($this->group)) {
+            return null;
+        }
 
-        return isset($this->group) ? $groups[$this->group] : null;
+        // Si la relation est déjà chargée (eager loading), l'utiliser
+        if ($this->relationLoaded('subjectGroup') && $this->subjectGroup) {
+            return $this->subjectGroup->name;
+        }
+
+        // Sinon, récupérer le nom du groupe dynamiquement depuis la table subject_groups
+        $subjectGroup = \App\Models\SubjectGroup::where('code', $this->group)->first();
+
+        return $subjectGroup ? $subjectGroup->name : $this->group; // Fallback to code if group not found
+    }
+
+    /**
+     * Relation avec le groupe de matières
+     */
+    public function subjectGroup()
+    {
+        return $this->belongsTo(SubjectGroup::class, 'group', 'code');
     }
 
     /**

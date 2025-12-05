@@ -295,6 +295,8 @@ class SubjectGroupController extends Controller
     public function bulkUpdate(Request $request)
     {
         try {
+            Log::info('Bulk update request received', ['data' => $request->all()]);
+
             // Récupérer tous les codes de groupes existants
             $existingGroupCodes = SubjectGroup::pluck('code')->toArray();
             $validGroupCodes = implode(',', $existingGroupCodes);
@@ -302,9 +304,10 @@ class SubjectGroupController extends Controller
             $validator = Validator::make($request->all(), [
                 'updates' => 'required|array',
                 'updates.*.id' => 'required|exists:subjects,id',
-                'updates.*.group' => ['required', 'string', function ($attribute, $value, $fail) use ($existingGroupCodes) {
+                'updates.*.group' => ['nullable', 'string', function ($attribute, $value, $fail) use ($existingGroupCodes) {
+                    // Si la valeur est fournie (non null), elle doit être dans les groupes existants
                     if ($value !== null && !in_array($value, $existingGroupCodes)) {
-                        $fail("Le code de groupe '{$value}' n'existe pas.");
+                        $fail("Le code de groupe '{$value}' n'est pas valide. Codes autorisés: " . implode(', ', $existingGroupCodes));
                     }
                 }]
             ]);
