@@ -590,13 +590,37 @@ class PaymentController extends Controller
 
             // Si la bourse n'a jamais été appliquée, l'appliquer maintenant
             if (!$existingPayments) {
-                // Le montant de la bourse est directement le montant configuré
-                // Il s'applique à la tranche spécifiée
+                // NOUVELLE LOGIQUE: Trouver la première tranche NON PAYÉE pour appliquer la bourse
+                // au lieu de toujours utiliser payment_tranche_id qui peut pointer vers une tranche déjà payée
+
+                // 1. Calculer ce qui a été payé par tranche
+                $paidPerTranche = [];
+                $allPayments = Payment::forStudent($student->id)
+                    ->forYear($workingYear->id)
+                    ->where('is_rame_physical', false)
+                    ->with(['paymentDetails.paymentTranche'])
+                    ->get();
+
+                foreach ($allPayments as $payment) {
+                    foreach ($payment->paymentDetails as $detail) {
+                        if (!isset($paidPerTranche[$detail->payment_tranche_id])) {
+                            $paidPerTranche[$detail->payment_tranche_id] = 0;
+                        }
+                        $paidPerTranche[$detail->payment_tranche_id] += $detail->amount_allocated;
+                    }
+                }
+
+                // 2. Trouver la première tranche non complètement payée
                 foreach ($paymentTranches as $tranche) {
-                    if ($tranche->id == $scholarship->payment_tranche_id) {
+                    $paidAmount = $paidPerTranche[$tranche->id] ?? 0;
+                    $trancheAmount = $tranche->amount ?? 0;
+
+                    // Si cette tranche n'est pas encore complètement payée
+                    if ($paidAmount < $trancheAmount) {
                         $totalScholarshipAmount = $scholarship->amount;
                         $hasScholarship = true;
-                        break; // Une seule tranche peut être affectée
+                        \Log::info("Bourse appliquée sur tranche {$tranche->name} (ID: {$tranche->id}) au lieu de tranche ID {$scholarship->payment_tranche_id} (première tranche non payée)");
+                        break; // Appliquer la bourse sur la première tranche non payée trouvée
                     }
                 }
             }
