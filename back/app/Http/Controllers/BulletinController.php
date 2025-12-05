@@ -41,6 +41,7 @@ class BulletinController extends Controller
         // Check sequence bulletins selon le cycle
         $sequences = Sequence::whereIn('number', $allowedSequences)
                             ->where('is_completed', true)
+                            ->where('is_composition', false) // Exclure les compositions
                             ->get();
                             
         foreach ($sequences as $sequence) {
@@ -561,7 +562,9 @@ class BulletinController extends Controller
                     ->where('period_identifier', "seq{$seqNumber}")
                     ->first();
 
-                $sequence = \App\Models\Sequence::where('number', $seqNumber)->first();
+                $sequence = \App\Models\Sequence::where('number', $seqNumber)
+                    ->where('is_composition', false)
+                    ->first();
                 $status = $this->getSequenceStatus($seqNumber);
 
                 $studentData['bulletins']["sequence_{$seqNumber}"] = [
@@ -629,7 +632,9 @@ class BulletinController extends Controller
         $subjects = \App\Models\ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();
         if ($subjects->count() === 0) return 0;
 
-        $sequence = \App\Models\Sequence::where('number', $sequenceNumber)->first();
+        $sequence = \App\Models\Sequence::where('number', $sequenceNumber)
+            ->where('is_composition', false)
+            ->first();
         if (!$sequence) return 0;
         
         // Logique:
@@ -751,7 +756,9 @@ class BulletinController extends Controller
         // Prendre seulement une séquence par numéro pour éviter les doublons
         $sequences = collect();
         foreach ($sequenceNumbers as $number) {
-            $seq = \App\Models\Sequence::where('number', $number)->first();
+            $seq = \App\Models\Sequence::where('number', $number)
+                ->where('is_composition', false)
+                ->first();
             if ($seq) {
                 $sequences->push($seq);
             }
@@ -1160,7 +1167,9 @@ class BulletinController extends Controller
         
         // Séquences 1 et 3 (seules avec bulletins)
         foreach ([1, 3] as $seqNumber) {
-            $sequence = \App\Models\Sequence::where('number', $seqNumber)->first();
+            $sequence = \App\Models\Sequence::where('number', $seqNumber)
+                ->where('is_composition', false)
+                ->first();
             if ($sequence) {
                 $status = $this->getSequenceStatus($seqNumber);
                 $periods[] = [

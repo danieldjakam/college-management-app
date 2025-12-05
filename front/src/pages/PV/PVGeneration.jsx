@@ -148,6 +148,10 @@ const PVGeneration = () => {
 
     const getEvaluationLabel = (evaluation) => {
         if (evaluation.sequence) {
+            // Vérifier si c'est une composition
+            if (evaluation.sequence.is_composition) {
+                return `Composition ${evaluation.trimester?.number || ''} - Trimestre ${evaluation.trimester?.number || ''}`;
+            }
             return `Séquence ${evaluation.sequence.number} - Trimestre ${evaluation.trimester?.number || ''}`;
         } else {
             return `Composition - Trimestre ${evaluation.trimester?.number || ''}`;
@@ -156,6 +160,10 @@ const PVGeneration = () => {
 
     const getEvaluationBadge = (evaluation) => {
         if (evaluation.sequence) {
+            // Vérifier si c'est une composition
+            if (evaluation.sequence.is_composition) {
+                return <Badge bg="warning">Composition {evaluation.trimester?.number || ''}</Badge>;
+            }
             return <Badge bg="primary">Séquence {evaluation.sequence.number}</Badge>;
         } else {
             return <Badge bg="warning">Composition</Badge>;

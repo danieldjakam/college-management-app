@@ -435,7 +435,12 @@ class PVService
         // Type d'évaluation
         $evaluationType = '';
         if ($evaluation->sequence) {
-            $evaluationType = "Séquence {$evaluation->sequence->number} - Trimestre {$evaluation->trimester->number}";
+            // Vérifier si c'est une composition
+            if ($evaluation->sequence->is_composition) {
+                $evaluationType = "Composition {$evaluation->trimester->number} - Trimestre {$evaluation->trimester->number}";
+            } else {
+                $evaluationType = "Séquence {$evaluation->sequence->number} - Trimestre {$evaluation->trimester->number}";
+            }
         } else {
             $evaluationType = "Composition - Trimestre {$evaluation->trimester->number}";
         }

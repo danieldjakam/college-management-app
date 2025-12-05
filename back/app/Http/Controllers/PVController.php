@@ -49,7 +49,9 @@ class PVController extends Controller
             $pdf = $this->pvService->generatePVByPeriod($classSeriesId, $sequenceId, $trimesterId);
 
             // Nom du fichier
-            $fileName = 'PV_' . str_replace(' ', '_', $classSeries->name) . '_Seq' . $sequence->number . '_T' . $trimester->number . '_' . date('Y-m-d') . '.pdf';
+            $periodType = $sequence->is_composition ? 'Comp' : 'Seq';
+            $periodNumber = $sequence->is_composition ? $trimester->number : $sequence->number;
+            $fileName = 'PV_' . str_replace(' ', '_', $classSeries->name) . '_' . $periodType . $periodNumber . '_T' . $trimester->number . '_' . date('Y-m-d') . '.pdf';
 
             Log::info("✅ PV généré avec succès: {$fileName}");
 
