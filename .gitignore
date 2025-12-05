@@ -8,3 +8,6 @@
 # Fichiers APK et AAB (mobile builds)
 *.apk
 *.aab
+
+# Fichiers de base de données (exports SQL)
+*.sql
