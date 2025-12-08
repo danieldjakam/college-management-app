@@ -738,8 +738,14 @@ class BulletinService
 
         // Construire les lignes HTML pour le template
         $bulletinData['subjects_rows'] = $this->buildSubjectRowsHTML($bulletinData['subjects'], 'trimester');
-        $bulletinData['first_average'] = 20; // TODO: Calculer vraiment
-        $bulletinData['last_average'] = 5;   // TODO: Calculer vraiment
+
+        // Calculer les statistiques de classe pour le trimestre
+        $classStats = $this->calculateClassStatistics($trimester->id, $student->class_series_id, 'trimester');
+        $bulletinData['first_average'] = $classStats['first_average'];
+        $bulletinData['last_average'] = $classStats['last_average'];
+        $bulletinData['class_average'] = $classStats['class_average'];
+        $bulletinData['class_size'] = $classStats['class_size'];
+
         $bulletinData['appreciation'] = $this->getAppreciationBySection($bulletinData['average'], $sectionType);
 
         // Récupérer les données de discipline pour ce trimestre
@@ -2433,9 +2439,16 @@ class BulletinService
                     }
                 }
             } else {
-                // For trimester: calculate trimester average
-                // TODO: Implement trimester logic if needed
-                continue;
+                // For trimester: calculate trimester average (M/20 par matière)
+                foreach ($allSubjects as $subject) {
+                    // Calculer la moyenne du trimestre pour cette matière
+                    $trimesterGrade = $this->calculateTrimesterGrade($evaluationId, $student->id, $subject->id, 'premier');
+
+                    if ($trimesterGrade !== null && $trimesterGrade > 0) {
+                        $totalPoints += (float)$trimesterGrade * (float)$subject->coefficient;
+                        $totalCoef += (float)$subject->coefficient;
+                    }
+                }
             }
 
             // OPTION B: Utiliser SEULEMENT les coefficients des matières composées
