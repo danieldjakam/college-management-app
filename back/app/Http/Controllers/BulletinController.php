@@ -95,6 +95,10 @@ class BulletinController extends Controller
      */
     public function generate(Request $request)
     {
+        // Augmenter la limite de mémoire pour la génération de bulletins
+        ini_set('memory_limit', '512M');
+        ini_set('max_execution_time', '120'); // 2 minutes par bulletin
+
         $request->validate([
             'student_id' => 'required|exists:students,id',
             'bulletin_type' => 'required|in:sequence,trimester,annual,honor_roll',
@@ -176,7 +180,10 @@ class BulletinController extends Controller
                 'is_complete' => true,
                 'completion_percentage' => 100.0
             ]);
-            
+
+            // Libérer la mémoire après génération
+            gc_collect_cycles();
+
             return response()->json([
                 'message' => 'Bulletin generated successfully',
                 'bulletin' => $bulletinGeneration,
@@ -874,35 +881,120 @@ class BulletinController extends Controller
      */
     public function forceRegenerate(Request $request)
     {
+        // Augmenter la limite de mémoire pour la génération de bulletins
+        ini_set('memory_limit', '512M');
+        ini_set('max_execution_time', '120'); // 2 minutes par bulletin
+
         $request->validate([
             'student_id' => 'required|exists:students,id',
             'period_type' => 'required|in:sequence,trimester,annual,honor_roll',
             'period_identifier' => 'required|string'
         ]);
-        
+
         try {
-            // Delete existing bulletin
-            BulletinGeneration::where('student_id', $request->student_id)
-                              ->where('period_type', $request->period_type)
-                              ->where('period_identifier', $request->period_identifier)
-                              ->delete();
-            
-            // Trigger regeneration via the auto-generation service
-            $autoGenerationService = new BulletinAutoGenerationService($this->bulletinService);
-            
-            // Find a grade for this student to trigger the generation
-            $grade = Grade::where('student_id', $request->student_id)->first();
-            if ($grade) {
-                $autoGenerationService->checkAndGenerateBulletins($grade->id);
-            }
-            
-            return response()->json([
-                'message' => 'Bulletin regeneration triggered successfully'
+            // Utiliser la fonction generate() avec force=true (plus efficace)
+            $generateRequest = new \Illuminate\Http\Request([
+                'student_id' => $request->student_id,
+                'bulletin_type' => $request->period_type,
+                'period_identifier' => $request->period_identifier,
+                'force' => true
             ]);
-            
+
+            // Appeler la fonction generate() qui a déjà toutes les optimisations
+            return $this->generate($generateRequest);
+
         } catch (\Exception $e) {
+            // Libérer la mémoire en cas d'erreur
+            gc_collect_cycles();
+
             return response()->json([
                 'error' => 'Error during regeneration: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate bulletins for entire class SYNCHRONOUSLY (batch in single request)
+     * Optimized for QUEUE_CONNECTION=sync - generates all bulletins in same PHP process
+     */
+    public function batchGenerateSync(Request $request)
+    {
+        // Augmenter les limites pour génération batch
+        ini_set('memory_limit', '512M');
+        ini_set('max_execution_time', '300'); // 5 minutes max
+
+        $request->validate([
+            'series_id' => 'required|exists:class_series,id',
+            'bulletin_type' => 'required|in:sequence,trimester,annual,honor_roll',
+            'period_identifier' => 'required|string',
+            'force' => 'nullable|boolean'
+        ]);
+
+        $startTime = microtime(true);
+        $generated = 0;
+        $errors = [];
+
+        try {
+            // Récupérer tous les étudiants de la série
+            $students = Student::where('class_series_id', $request->series_id)
+                ->where('is_active', true)
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->get();
+
+            if ($students->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Aucun étudiant trouvé dans cette classe'
+                ], 404);
+            }
+
+            // Générer bulletin pour chaque étudiant
+            foreach ($students as $student) {
+                try {
+                    // Utiliser generate() avec force si demandé
+                    $generateRequest = new \Illuminate\Http\Request([
+                        'student_id' => $student->id,
+                        'bulletin_type' => $request->bulletin_type,
+                        'period_identifier' => $request->period_identifier,
+                        'force' => $request->input('force', false)
+                    ]);
+
+                    $response = $this->generate($generateRequest);
+
+                    if ($response->getStatusCode() === 200) {
+                        $generated++;
+                    } else {
+                        $errors[] = [
+                            'student' => $student->last_name . ' ' . $student->first_name,
+                            'error' => 'Échec génération (code ' . $response->getStatusCode() . ')'
+                        ];
+                    }
+
+                } catch (\Exception $e) {
+                    $errors[] = [
+                        'student' => $student->last_name . ' ' . $student->first_name,
+                        'error' => $e->getMessage()
+                    ];
+                }
+            }
+
+            $duration = round(microtime(true) - $startTime, 1);
+
+            return response()->json([
+                'success' => true,
+                'generated' => $generated,
+                'total' => $students->count(),
+                'errors' => count($errors),
+                'error_details' => array_slice($errors, 0, 5), // Première 5 erreurs
+                'duration' => $duration,
+                'message' => "✅ Génération terminée en {$duration}s : {$generated} bulletin(s) générés, " . count($errors) . " erreur(s)"
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Erreur lors de la génération batch: ' . $e->getMessage()
             ], 500);
         }
     }

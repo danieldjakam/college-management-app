@@ -1332,7 +1332,11 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
     // Forcer la régénération (Admin uniquement)
     Route::post('/force-regenerate', [BulletinController::class, 'forceRegenerate'])
         ->middleware(['role:admin']);
-    
+
+    // Génération batch synchrone (optimisée pour QUEUE_CONNECTION=sync)
+    Route::post('/batch-generate-sync', [BulletinController::class, 'batchGenerateSync'])
+        ->middleware(['role:admin']);
+
     // Téléchargement groupé de tous les bulletins
     Route::post('/download-all', [BulletinController::class, 'downloadAllBulletins'])
         ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
