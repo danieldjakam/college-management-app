@@ -2391,8 +2391,9 @@ class BulletinService
 
         // 🎓 DEUXIÈME CYCLE: Classes du lycée
         $deuxiemeCycleClasses = [
-            'seconde', '2nde', 'première', '1ère', '1ere', 'terminale', 'tle',
+            'seconde', '2nde', '2ème', '2eme', 'première', '1ère', '1ere', 'terminale', 'tle',
             'seconde a', 'seconde c', 'seconde d',
+            '2ème a', '2ème c', '2ème d', '2eme a', '2eme c', '2eme d',
             'première a', 'première c', 'première d', 'première a4',
             '1ère a', '1ère c', '1ère d', '1ere a', '1ere c', '1ere d',
             'terminale a', 'terminale c', 'terminale d', 'tle a', 'tle c', 'tle d'
