@@ -1905,8 +1905,22 @@ class BulletinService
                 $html .= '<tr>';
                 $html .= '<td style="text-align: left;">' . $subject['name'] . '<br><small>' . ($subject['teacher'] ?? 'N/A') . '</small></td>';
                 $html .= '<td>-</td><td>-</td><td>-</td>'; // C1, C2, C3 (à implémenter plus tard)
-                $html .= '<td>' . ($subject['ds'] ?? '-') . '</td>';
-                $html .= '<td>' . ($subject['composition'] ?? '-') . '</td>';
+
+                // Détecter le cycle pour afficher les bonnes colonnes
+                $cycleType = $subject['cycle_type'] ?? 'premier';
+
+                if ($cycleType === 'deuxieme') {
+                    // DEUXIÈME CYCLE: Afficher Seq1, Seq2, Compo
+                    $html .= '<td>' . ($subject['sequence1'] ?? '-') . '</td>'; // Seq1
+                    $html .= '<td>' . ($subject['sequence2'] ?? '-') . '</td>'; // Seq2
+                    $html .= '<td>' . ($subject['composition'] ?? '-') . '</td>'; // Compo
+                } else {
+                    // PREMIER CYCLE: Afficher DS, Compo
+                    $html .= '<td>' . ($subject['ds'] ?? '-') . '</td>'; // DS
+                    $html .= '<td>' . ($subject['composition'] ?? '-') . '</td>'; // Compo
+                    $html .= '<td>-</td>'; // Colonne vide pour alignement
+                }
+
                 $html .= '<td>' . ($subject['average'] ?? '-') . '</td>';
                 $html .= '<td>' . $subject['coefficient'] . '</td>';
                 $html .= '<td>' . ($subject['total'] ?? '-') . '</td>';
@@ -2381,7 +2395,7 @@ class BulletinService
             'seconde a', 'seconde c', 'seconde d',
             'première a', 'première c', 'première d', 'première a4',
             '1ère a', '1ère c', '1ère d', '1ere a', '1ere c', '1ere d',
-            'terminale a', 'terminale c', 'terminale d'
+            'terminale a', 'terminale c', 'terminale d', 'tle a', 'tle c', 'tle d'
         ];
 
         foreach ($deuxiemeCycleClasses as $cycleClass) {
