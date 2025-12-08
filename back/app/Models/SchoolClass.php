@@ -52,8 +52,8 @@ class SchoolClass extends Model
     public function students()
     {
         return $this->hasManyThrough(Student::class, ClassSeries::class, 'class_id', 'class_series_id')
-                    ->orderByRaw('COALESCE(last_name, name) ASC')
-                    ->orderByRaw('COALESCE(first_name, subname) ASC');
+                    ->orderByRaw('COALESCE(students.last_name, students.name) ASC')
+                    ->orderByRaw('COALESCE(students.first_name, students.subname) ASC');
     }
 
     /**

@@ -10,16 +10,21 @@ use App\Models\Trimester;
 use App\Models\Grade;
 use App\Services\BulletinService;
 use App\Services\BulletinAutoGenerationService;
+use App\Services\BulletinCacheService;
+use App\Jobs\GenerateBulletinBatch;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 
 class BulletinController extends Controller
 {
     protected $bulletinService;
-    
-    public function __construct(BulletinService $bulletinService)
+    protected $cacheService;
+
+    public function __construct(BulletinService $bulletinService, BulletinCacheService $cacheService)
     {
         $this->bulletinService = $bulletinService;
+        $this->cacheService = $cacheService;
     }
     
     /**
@@ -200,201 +205,75 @@ class BulletinController extends Controller
     }
     
     /**
-     * Generate bulletins for entire class
-     * OPTIMIZED VERSION with eager loading and parallel processing
+     * Get batch generation progress
+     * Returns real-time progress for bulletin generation
+     */
+    public function getBatchProgress($progressKey)
+    {
+        $progress = \Cache::get($progressKey);
+
+        if (!$progress) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aucune progression trouvée pour cette clé',
+                'progress' => null
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'progress' => $progress
+        ]);
+    }
+
+    /**
+     * Generate bulletins for entire class (ASYNCHRONOUS VERSION)
+     * Dispatches a background job and returns immediately with a progress key
      */
     public function batchGenerate(Request $request)
     {
-        // Augmenter le timeout pour les générations en lot
-        set_time_limit(600); // 10 minutes
-        ini_set('max_execution_time', 600);
-        ini_set('memory_limit', '512M'); // Augmenter la mémoire disponible
-
         $request->validate([
             'class_id' => 'required|exists:school_classes,id',
             'bulletin_type' => 'required|in:sequence,trimester,annual,honor_roll',
             'period_identifier' => 'required|string',
-            'force' => 'nullable|boolean' // Permet de forcer la régénération en lot
+            'force' => 'nullable|boolean'
         ]);
 
-        $startTime = microtime(true);
+        // Créer une clé de progression unique
+        $progressKey = "bulletin_progress_{$request->class_id}_{$request->period_identifier}_" . time();
 
-        // Récupérer toutes les séries de cette classe
-        $seriesIds = \App\Models\ClassSeries::where('class_id', $request->class_id)
-            ->pluck('id');
+        // Initialiser le cache de progression
+        Cache::put($progressKey, [
+            'current' => 0,
+            'total' => 0,
+            'percentage' => 0,
+            'status' => 'queued',
+            'message' => 'Job mis en file d\'attente...',
+            'started_at' => now()->toDateTimeString()
+        ], 900);
 
-        // 🚀 OPTIMIZATION: Eager load all relationships to avoid N+1 queries
-        // ⚠️ LIMITE: Maximum 100 étudiants pour éviter out of memory (2GB)
-        $students = Student::whereIn('class_series_id', $seriesIds)
-            ->where('is_active', true)
-            ->with([
-                'schoolClass:id,name',
-                'classSeries:id,name,class_id,section_id,level_id',
-                // ⚠️ Éviter classSeries.subjects pour réduire mémoire
-                // 'classSeries.subjects:id,class_series_id,subject_id,coefficient',
-                // 'classSeries.subjects.subject:id,name,code,group',
-                'classSeries.section:id,name',
-                'classSeries.classLevel:id,name'
-            ])
-            ->select(['id', 'name', 'subname', 'class_series_id', 'is_active', 'birthday', 'sex'])
-            ->orderBy('name')
-            ->limit(100)  // ⚠️ LIMITE pour éviter out of memory
-            ->get();
+        \Log::info("🚀 Dispatching bulletin generation job", [
+            'class_id' => $request->class_id,
+            'type' => $request->bulletin_type,
+            'period' => $request->period_identifier,
+            'progress_key' => $progressKey
+        ]);
 
-        \Log::info("🚀 Génération en lot OPTIMISÉE: {$students->count()} étudiants trouvés pour class_id={$request->class_id}");
+        // Dispatcher le job en arrière-plan avec queue prioritaire
+        GenerateBulletinBatch::dispatch(
+            $request->class_id,
+            $request->bulletin_type,
+            $request->period_identifier,
+            $request->input('force', false),
+            $progressKey
+        )->onQueue('bulletins');
 
-        // 🗑️ Si force=true, supprimer tous les bulletins existants
-        // ⚡ OPTIMISÉ: Utiliser chunk pour éviter out of memory (2GB)
-        if ($request->input('force', false)) {
-            $deletedCount = 0;
-
-            BulletinGeneration::whereIn('student_id', $students->pluck('id'))
-                ->where('period_type', $request->bulletin_type)
-                ->where('period_identifier', $request->period_identifier)
-                ->chunk(50, function($bulletins) use (&$deletedCount) {
-                    foreach ($bulletins as $bulletin) {
-                        // Supprimer le fichier PDF si existe
-                        if ($bulletin->file_path && file_exists(storage_path('app/' . $bulletin->file_path))) {
-                            unlink(storage_path('app/' . $bulletin->file_path));
-                        }
-                        $bulletin->delete();
-                        $deletedCount++;
-                    }
-                });
-
-            \Log::info("🗑️ {$deletedCount} bulletins existants supprimés (chunked pour éviter out of memory)");
-        }
-
-        // 🚫 Filter out students who already have bulletins (if not forcing)
-        if (!$request->input('force', false)) {
-            $existingBulletins = BulletinGeneration::whereIn('student_id', $students->pluck('id'))
-                ->where('period_type', $request->bulletin_type)
-                ->where('period_identifier', $request->period_identifier)
-                ->pluck('student_id')
-                ->toArray();
-
-            $students = $students->filter(function($student) use ($existingBulletins) {
-                return !in_array($student->id, $existingBulletins);
-            });
-
-            \Log::info("📋 {$students->count()} étudiants à traiter (après filtrage des bulletins existants)");
-        }
-
-        if ($students->isEmpty()) {
-            return response()->json([
-                'message' => 'Tous les bulletins sont déjà générés. Utilisez force=true pour régénérer.',
-                'generated_count' => 0,
-                'error_count' => 0,
-                'generated' => [],
-                'errors' => []
-            ]);
-        }
-
-        // Get template once for all students
-        $template = BulletinTemplate::where('type', $request->bulletin_type)->active()->first();
-        if (!$template) {
-            $template = BulletinTemplate::firstOrCreate(
-                ['type' => $request->bulletin_type, 'name' => 'CPBD Template'],
-                [
-                    'name' => 'CPBD Template',
-                    'type' => $request->bulletin_type,
-                    'template_html' => 'Default CPBD Template',
-                    'is_active' => true,
-                    'description' => 'Template par défaut CPBD'
-                ]
-            );
-        }
-
-        $generated = [];
-        $errors = [];
-        $batchInsertData = [];
-
-        // 🔄 Process students in batches for better memory management
-        $batchSize = 10; // Process 10 students at a time
-        $studentBatches = $students->chunk($batchSize);
-
-        foreach ($studentBatches as $batchIndex => $studentBatch) {
-            \Log::info("📦 Processing batch " . ($batchIndex + 1) . " of " . $studentBatches->count());
-
-            foreach ($studentBatch as $student) {
-                try {
-                    // Generate bulletin data based on type
-                    $bulletinData = null;
-                    $filename = null;
-
-                    if ($request->bulletin_type === 'sequence') {
-                        $sequenceNumber = (int) str_replace('seq', '', $request->period_identifier);
-                        $bulletinData = $this->bulletinService->generateSequenceBulletinData($sequenceNumber, $student->id);
-                        $filename = "bulletin_sequence_{$sequenceNumber}_{$student->id}_" . now()->format('Y-m-d') . ".pdf";
-                    } elseif ($request->bulletin_type === 'trimester') {
-                        $trimesterNumber = (int) str_replace('trim', '', $request->period_identifier);
-                        $bulletinData = $this->bulletinService->generateTrimesterBulletinData($trimesterNumber, $student->id);
-                        $filename = "bulletin_trimestre_{$trimesterNumber}_{$student->id}_" . now()->format('Y-m-d') . ".pdf";
-                    }
-
-                    if (!$bulletinData) {
-                        throw new \Exception('Unable to generate bulletin data');
-                    }
-
-                    // Render HTML template with data
-                    $htmlContent = $this->bulletinService->renderBulletinTemplate($request->bulletin_type, $bulletinData, true);
-
-                    // Generate PDF
-                    $filePath = $this->bulletinService->generatePDF($htmlContent, $filename);
-
-                    // Prepare for batch insert
-                    $batchInsertData[] = [
-                        'student_id' => $student->id,
-                        'template_id' => $template->id,
-                        'period_type' => $request->bulletin_type,
-                        'period_identifier' => $request->period_identifier,
-                        'file_path' => $filePath,
-                        'generated_at' => now(),
-                        'is_complete' => true,
-                        'completion_percentage' => 100.0,
-                        'created_at' => now(),
-                        'updated_at' => now()
-                    ];
-
-                    $generated[] = $student->id;
-
-                    // Log progress every 5 students
-                    if (count($generated) % 5 === 0) {
-                        \Log::info("✅ Progression: {count($generated)}/{$students->count()} bulletins générés");
-                    }
-
-                } catch (\Exception $e) {
-                    \Log::error("❌ Error generating bulletin for student {$student->id}: " . $e->getMessage());
-                    $errors[] = [
-                        'student_id' => $student->id,
-                        'student_name' => $student->first_name . ' ' . $student->last_name,
-                        'error' => $e->getMessage()
-                    ];
-                }
-            }
-
-            // 💾 Insert batch into database
-            if (!empty($batchInsertData)) {
-                BulletinGeneration::insert($batchInsertData);
-                $batchInsertData = []; // Reset for next batch
-            }
-
-            // 🧹 Clear memory
-            gc_collect_cycles();
-        }
-
-        $endTime = microtime(true);
-        $duration = round($endTime - $startTime, 2);
-
-        \Log::info("🎉 Génération en lot terminée en {$duration}s: {count($generated)} succès, {count($errors)} erreurs");
-
+        // Retourner immédiatement avec la clé de progression
         return response()->json([
-            'message' => 'Batch generation completed',
-            'generated_count' => count($generated),
-            'error_count' => count($errors),
-            'duration_seconds' => $duration,
-            'generated' => $generated,
-            'errors' => $errors
+            'success' => true,
+            'message' => 'Génération en cours. Utilisez la clé pour suivre la progression.',
+            'progress_key' => $progressKey,
+            'status' => 'queued'
         ]);
     }
     
@@ -527,6 +406,8 @@ class BulletinController extends Controller
     /**
      * Get students with bulletin completion status for a class series
      * Avec support pour navigation temporelle (voir périodes passées/futures)
+     * OPTIMIZED: Pré-charge toutes les données pour éviter les requêtes N+1
+     * CACHED: Mise en cache des résultats pour améliorer les performances
      */
     public function getStudentsBulletinStatus($seriesId, Request $request)
     {
@@ -535,89 +416,151 @@ class BulletinController extends Controller
             return response()->json(['error' => 'Series not found'], 404);
         }
 
-        $students = \App\Models\Student::where('class_series_id', $seriesId)
-            ->with(['schoolClass'])
-            ->get();
-
-
         // Paramètre pour filtrer par période spécifique (optionnel)
         $viewPeriod = $request->get('period'); // ex: 'seq1', 'trim1', 'current', 'all'
-        
-        $studentsWithStatus = [];
-        
-        foreach ($students as $student) {
-            $studentData = [
-                'id' => $student->id,
-                'first_name' => $student->first_name,
-                'last_name' => $student->last_name,
-                'matricule' => $student->matricule,
-                'bulletins' => []
-            ];
 
-            // Vérifier les bulletins de séquence (1, 2, 3 et 4)
-            foreach ([1, 2, 3, 4] as $seqNumber) {
-                $completion = $this->calculateSequenceCompletion($student->id, $seqNumber);
-                $bulletin = BulletinGeneration::where('student_id', $student->id)
-                    ->where('period_type', 'sequence')
-                    ->where('period_identifier', "seq{$seqNumber}")
-                    ->first();
+        // 🚀 CACHE: Envelopper toute la logique dans le cache
+        $result = $this->cacheService->getOrSetStudentsStatus(
+            $seriesId,
+            function () use ($seriesId, $viewPeriod, $series) {
+                // Toute la logique de calcul ici
+                $students = \App\Models\Student::where('class_series_id', $seriesId)
+                    ->with(['schoolClass'])
+                    ->get();
 
-                $sequence = \App\Models\Sequence::where('number', $seqNumber)
-                    ->where('is_composition', false)
-                    ->first();
-                $status = $this->getSequenceStatus($seqNumber);
+                // ✅ OPTIMISATION: Pré-charger toutes les données une seule fois
+                $studentIds = $students->pluck('id')->toArray();
 
-                $studentData['bulletins']["sequence_{$seqNumber}"] = [
-                    'type' => 'sequence',
-                    'identifier' => "seq{$seqNumber}",
-                    'name' => "Séquence {$seqNumber}",
-                    'completion_percentage' => $completion,
-                    'is_generated' => $bulletin ? true : false,
-                    'bulletin_id' => $bulletin ? $bulletin->id : null,
-                    'generated_at' => $bulletin ? $bulletin->generated_at : null,
-                    'status' => $status, // 'past', 'current', 'future'
-                    'can_preview' => true, // Toujours permettre la prévisualisation
-                    'is_archived' => $status === 'past'
+                // Charger toutes les sequences (6-8 requêtes max au lieu de milliers)
+                $sequences = \App\Models\Sequence::all()->keyBy('number');
+                $currentActiveSequence = $sequences->where('is_active', true)->first();
+
+                // Charger toutes les subjects pour cette classe
+                $subjects = \App\Models\ClassSeriesSubject::where('class_series_id', $seriesId)->get();
+                $subjectIds = $subjects->pluck('id')->toArray();
+
+                // Charger TOUTES les grades pour tous les étudiants en UNE SEULE requête
+                $allGrades = \App\Models\Grade::whereIn('student_id', $studentIds)
+                    ->whereIn('class_series_subject_id', $subjectIds)
+                    ->whereNotNull('score')
+                    ->select('student_id', 'sequence_id', 'trimester_id', 'class_series_subject_id', 'evaluation_id')
+                    ->get()
+                    ->groupBy('student_id');
+
+                // Charger TOUTES les evaluations de composition en UNE SEULE requête
+                $compositionEvaluations = \App\Models\Evaluation::where('type', 'composition')
+                    ->whereIn('class_series_subject_id', $subjectIds)
+                    ->get()
+                    ->groupBy(function($eval) {
+                        return $eval->trimester_id . '_' . $eval->class_series_subject_id;
+                    });
+
+                // Charger TOUS les bulletins générés en UNE SEULE requête
+                $allBulletins = BulletinGeneration::whereIn('student_id', $studentIds)
+                    ->get()
+                    ->groupBy('student_id');
+
+                $studentsWithStatus = [];
+
+                foreach ($students as $student) {
+                    $studentData = [
+                        'id' => $student->id,
+                        'first_name' => $student->first_name,
+                        'last_name' => $student->last_name,
+                        'matricule' => $student->matricule,
+                        'bulletins' => []
+                    ];
+
+                    $studentGrades = $allGrades->get($student->id, collect());
+                    $studentBulletins = $allBulletins->get($student->id, collect());
+
+                    // Vérifier les bulletins de séquence (1, 2, 3 et 4)
+                    foreach ([1, 2, 3, 4] as $seqNumber) {
+                        $completion = $this->calculateSequenceCompletionOptimized($student->id, $seqNumber, $subjects, $studentGrades, $sequences);
+
+                        $bulletin = $studentBulletins->where('period_type', 'sequence')
+                            ->where('period_identifier', "seq{$seqNumber}")
+                            ->first();
+
+                        $sequence = $sequences->get($seqNumber);
+                        $status = $this->getSequenceStatus($seqNumber);
+
+                        $studentData['bulletins']["sequence_{$seqNumber}"] = [
+                            'type' => 'sequence',
+                            'identifier' => "seq{$seqNumber}",
+                            'name' => "Séquence {$seqNumber}",
+                            'completion_percentage' => $completion,
+                            'is_generated' => $bulletin ? true : false,
+                            'bulletin_id' => $bulletin ? $bulletin->id : null,
+                            'generated_at' => $bulletin ? $bulletin->generated_at : null,
+                            'status' => $status,
+                            'can_preview' => true,
+                            'is_archived' => $status === 'past'
+                        ];
+                    }
+
+                    // Vérifier les bulletins de composition (Comp 1, Comp 2, Comp 3)
+                    foreach ([1, 2, 3] as $compNumber) {
+                        $completion = $this->calculateCompositionCompletionOptimized($student->id, $compNumber, $subjects, $studentGrades, $compositionEvaluations);
+                        $status = $this->getCompositionStatus($compNumber);
+
+                        $studentData['bulletins']["composition_{$compNumber}"] = [
+                            'type' => 'composition',
+                            'identifier' => "comp{$compNumber}",
+                            'name' => "Composition {$compNumber}",
+                            'completion_percentage' => $completion,
+                            'is_generated' => false,
+                            'bulletin_id' => null,
+                            'generated_at' => null,
+                            'status' => $status,
+                            'can_preview' => false,
+                            'is_archived' => $status === 'past'
+                        ];
+                    }
+
+                    // Vérifier les bulletins de trimestre
+                    for ($trimNumber = 1; $trimNumber <= 3; $trimNumber++) {
+                        $completion = $this->calculateTrimesterCompletionOptimized($student->id, $trimNumber, $subjects, $studentGrades, $sequences, $compositionEvaluations, $currentActiveSequence);
+
+                        $bulletin = $studentBulletins->where('period_type', 'trimester')
+                            ->where('period_identifier', "trim{$trimNumber}")
+                            ->first();
+
+                        $status = $this->getTrimesterStatus($trimNumber);
+
+                        $studentData['bulletins']["trimester_{$trimNumber}"] = [
+                            'type' => 'trimester',
+                            'identifier' => "trim{$trimNumber}",
+                            'name' => "Trimestre {$trimNumber}",
+                            'completion_percentage' => $completion,
+                            'is_generated' => $bulletin ? true : false,
+                            'bulletin_id' => $bulletin ? $bulletin->id : null,
+                            'generated_at' => $bulletin ? $bulletin->generated_at : null,
+                            'status' => $status,
+                            'can_preview' => true,
+                            'is_archived' => $status === 'past'
+                        ];
+                    }
+
+                    $studentsWithStatus[] = $studentData;
+                }
+
+                // Informations pour le sélecteur de période
+                $availablePeriods = $this->getAvailablePeriods();
+
+                return [
+                    'success' => true,
+                    'series' => $series,
+                    'students' => $studentsWithStatus,
+                    'available_periods' => $availablePeriods,
+                    'current_view_period' => $viewPeriod ?: 'current'
                 ];
-            }
+            },
+            $viewPeriod // Passer la période au cache pour créer une clé unique
+        );
 
-            // Vérifier les bulletins de trimestre
-            for ($trimNumber = 1; $trimNumber <= 3; $trimNumber++) {
-                $completion = $this->calculateTrimesterCompletion($student->id, $trimNumber);
-                $bulletin = BulletinGeneration::where('student_id', $student->id)
-                    ->where('period_type', 'trimester')
-                    ->where('period_identifier', "trim{$trimNumber}")
-                    ->first();
-
-                $status = $this->getTrimesterStatus($trimNumber);
-
-                $studentData['bulletins']["trimester_{$trimNumber}"] = [
-                    'type' => 'trimester',
-                    'identifier' => "trim{$trimNumber}",
-                    'name' => "Trimestre {$trimNumber}",
-                    'completion_percentage' => $completion,
-                    'is_generated' => $bulletin ? true : false,
-                    'bulletin_id' => $bulletin ? $bulletin->id : null,
-                    'generated_at' => $bulletin ? $bulletin->generated_at : null,
-                    'status' => $status, // 'past', 'current', 'future'
-                    'can_preview' => true, // Toujours permettre les téléchargements trimestre (affiche 0 pour données manquantes)
-                    'is_archived' => $status === 'past'
-                ];
-            }
-
-            $studentsWithStatus[] = $studentData;
-        }
-
-        // Informations pour le sélecteur de période
-        $availablePeriods = $this->getAvailablePeriods();
-
-        return response()->json([
-            'success' => true,
-            'series' => $series,
-            'students' => $studentsWithStatus,
-            'available_periods' => $availablePeriods,
-            'current_view_period' => $viewPeriod ?: 'current'
-        ]);
+        // Retourner la réponse JSON
+        return response()->json($result);
     }
 
     /**
@@ -977,31 +920,11 @@ class BulletinController extends Controller
 
         try {
             $series = \App\Models\ClassSeries::with('schoolClass')->findOrFail($request->series_id);
-            
-            // First, trigger auto-generation for all students in this series
-            $students = \App\Models\Student::where('class_series_id', $request->series_id)->get();
-            $autoGenerationService = new BulletinAutoGenerationService($this->bulletinService);
-            
-            $generatedCount = 0;
-            foreach ($students as $student) {
-                try {
-                    // Find any grade for this student to trigger generation
-                    $grade = Grade::where('student_id', $student->id)->first();
-                    if ($grade) {
-                        $autoGenerationService->checkAndGenerateBulletins($grade->id);
-                        $generatedCount++;
-                    }
-                } catch (\Exception $e) {
-                    \Log::error("Error generating bulletin for student {$student->id}: " . $e->getMessage());
-                    continue;
-                }
-            }
-            
-            // Wait only if we generated something
-            if ($generatedCount > 0) {
-                sleep(1);
-            }
-            
+
+            // OPTIMISATION : On ne génère plus automatiquement les bulletins ici
+            // L'utilisateur doit d'abord utiliser "Générer Tous" avant de télécharger
+            // Cela évite les timeouts et rend le téléchargement instantané
+
             // Get all generated bulletins for this series
             $query = BulletinGeneration::whereHas('student', function($q) use ($request) {
                 $q->where('class_series_id', $request->series_id);
@@ -1016,19 +939,25 @@ class BulletinController extends Controller
             $bulletins = $query->with('student')->get();
 
             if ($bulletins->isEmpty()) {
-                // Try to find students without bulletins for debugging
-                $studentsWithoutBulletins = \App\Models\Student::where('class_series_id', $request->series_id)
-                    ->whereDoesntHave('bulletinGenerations', function($q) {
+                $totalStudents = \App\Models\Student::where('class_series_id', $request->series_id)->count();
+                $studentsWithBulletins = \App\Models\Student::where('class_series_id', $request->series_id)
+                    ->whereHas('bulletinGenerations', function($q) use ($request) {
                         $q->where('is_complete', true);
+                        if ($request->period_type && $request->period_identifier) {
+                            $q->where('period_type', $request->period_type)
+                              ->where('period_identifier', $request->period_identifier);
+                        }
                     })->count();
-                
+
                 return response()->json([
-                    'error' => 'Aucun bulletin généré trouvé',
+                    'error' => 'Aucun bulletin trouvé pour cette période',
+                    'message' => 'Veuillez d\'abord générer les bulletins en cliquant sur "Générer Tous" avant de télécharger.',
                     'debug' => [
-                        'students_in_series' => $students->count(),
-                        'students_without_bulletins' => $studentsWithoutBulletins,
-                        'generated_count' => $generatedCount,
-                        'series_name' => $series->name
+                        'total_students' => $totalStudents,
+                        'students_with_bulletins' => $studentsWithBulletins,
+                        'series_name' => $series->name,
+                        'period_type' => $request->period_type,
+                        'period_identifier' => $request->period_identifier
                     ]
                 ], 404);
             }
@@ -1159,6 +1088,75 @@ class BulletinController extends Controller
     }
 
     /**
+     * Calculate composition completion percentage for a student
+     * Vérifie si les notes de composition sont saisies pour toutes les matières
+     */
+    private function calculateCompositionCompletionForStudent($studentId, $compositionNumber)
+    {
+        $student = \App\Models\Student::find($studentId);
+        if (!$student || !$student->class_series_id) return 0;
+
+        $subjects = \App\Models\ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();
+        if ($subjects->count() === 0) return 0;
+
+        $gradedSubjects = 0;
+
+        foreach ($subjects as $subject) {
+            // Chercher l'évaluation de composition pour ce trimestre et cette matière
+            $evaluation = \App\Models\Evaluation::where('type', 'composition')
+                ->where('trimester_id', $compositionNumber)
+                ->where('class_series_subject_id', $subject->id)
+                ->first();
+
+            if (!$evaluation) continue; // Pas d'évaluation créée pour cette matière
+
+            // Vérifier si l'étudiant a une note pour cette composition
+            $hasGrade = \App\Models\Grade::where('student_id', $studentId)
+                ->where('evaluation_id', $evaluation->id)
+                ->where('trimester_id', $compositionNumber)
+                ->whereNotNull('score')
+                ->exists();
+
+            if ($hasGrade) {
+                $gradedSubjects++;
+            }
+        }
+
+        return round(($gradedSubjects / $subjects->count()) * 100, 1);
+    }
+
+    /**
+     * Get composition status (past, current, future)
+     */
+    private function getCompositionStatus($compositionNumber)
+    {
+        $currentActiveSequence = \App\Models\Sequence::where('is_active', true)->first();
+
+        if (!$currentActiveSequence) return 'future';
+
+        // Logique: Les compositions sont généralement passées après les séquences de leur trimestre
+        // Comp 1 → après Séq 2
+        // Comp 2 → après Séq 4
+        // Comp 3 → après tout
+
+        if ($compositionNumber == 1) {
+            // Composition 1 est actuelle/passée à partir de la fin de la séquence 2
+            if ($currentActiveSequence->number >= 2) return 'current';
+            return 'future';
+        } elseif ($compositionNumber == 2) {
+            // Composition 2 est actuelle/passée à partir de la fin de la séquence 4
+            if ($currentActiveSequence->number >= 4) return 'current';
+            return 'future';
+        } elseif ($compositionNumber == 3) {
+            // Composition 3 est actuelle/passée après la séquence 4
+            if ($currentActiveSequence->number > 4) return 'current';
+            return 'future';
+        }
+
+        return 'future';
+    }
+
+    /**
      * Retourne toutes les périodes disponibles pour navigation
      */
     private function getAvailablePeriods()
@@ -1243,5 +1241,137 @@ class BulletinController extends Controller
 
         // 📚 PREMIER CYCLE: Classes du collège (par défaut)
         return 'premier';
+    }
+
+    // ✅ OPTIMIZED COMPLETION CALCULATION FUNCTIONS (No SQL queries inside loops)
+
+    /**
+     * Calculate sequence completion (OPTIMIZED) - uses pre-loaded data
+     */
+    private function calculateSequenceCompletionOptimized($studentId, $sequenceNumber, $subjects, $studentGrades, $sequences)
+    {
+        if ($subjects->count() === 0) {
+            return 0;
+        }
+
+        $sequence = $sequences->get($sequenceNumber);
+        if (!$sequence) {
+            return 0;
+        }
+
+        $gradedSubjects = 0;
+
+        foreach ($subjects as $subject) {
+            $hasGrade = $studentGrades->where('sequence_id', $sequence->id)
+                ->where('class_series_subject_id', $subject->id)
+                ->isNotEmpty();
+
+            if ($hasGrade) {
+                $gradedSubjects++;
+            }
+        }
+
+        $completion = round(($gradedSubjects / $subjects->count()) * 100, 1);
+        return $completion;
+    }
+
+    /**
+     * Calculate composition completion (OPTIMIZED) - uses pre-loaded data
+     */
+    private function calculateCompositionCompletionOptimized($studentId, $compNumber, $subjects, $studentGrades, $compositionEvaluations)
+    {
+        if ($subjects->count() === 0) {
+            return 0;
+        }
+
+        $gradedSubjects = 0;
+
+        foreach ($subjects as $subject) {
+            $evaluationKey = $compNumber . '_' . $subject->id;
+            $evaluation = $compositionEvaluations->get($evaluationKey, collect())->first();
+
+            if ($evaluation) {
+                $hasGrade = $studentGrades->where('evaluation_id', $evaluation->id)
+                    ->where('trimester_id', $compNumber)
+                    ->isNotEmpty();
+
+                if ($hasGrade) {
+                    $gradedSubjects++;
+                }
+            }
+        }
+
+        $completion = round(($gradedSubjects / $subjects->count()) * 100, 1);
+        return $completion;
+    }
+
+    /**
+     * Calculate trimester completion (OPTIMIZED) - uses pre-loaded data
+     */
+    private function calculateTrimesterCompletionOptimized($studentId, $trimesterNumber, $subjects, $studentGrades, $sequences, $compositionEvaluations, $currentActiveSequence)
+    {
+        if ($subjects->count() === 0) {
+            return 0;
+        }
+
+        $totalCompletion = 0;
+
+        foreach ($subjects as $subject) {
+            if ($trimesterNumber == 3) {
+                // Trimestre 3: Composition seule
+                $evaluationKey = 3 . '_' . $subject->id;
+                $evaluation = $compositionEvaluations->get($evaluationKey, collect())->first();
+
+                if ($evaluation) {
+                    $hasGrade = $studentGrades->where('evaluation_id', $evaluation->id)
+                        ->where('trimester_id', 3)
+                        ->isNotEmpty();
+                    $subjectCompletion = $hasGrade ? 100 : 0;
+                } else {
+                    $subjectCompletion = 0;
+                }
+            } else {
+                // Trimestre 1 ou 2: (DS + Composition) / 2
+                $sequenceNumbers = $trimesterNumber == 1 ? [1, 2] : [3, 4];
+                $gradedSequences = 0;
+                $totalSequences = 0;
+
+                foreach ($sequenceNumbers as $seqNum) {
+                    $seq = $sequences->get($seqNum);
+                    if ($seq && !$seq->is_composition) {
+                        $totalSequences++;
+                        $hasGrade = $studentGrades->where('sequence_id', $seq->id)
+                            ->where('class_series_subject_id', $subject->id)
+                            ->where('trimester_id', $trimesterNumber)
+                            ->isNotEmpty();
+
+                        if ($hasGrade) {
+                            $gradedSequences++;
+                        }
+                    }
+                }
+
+                $dsCompletion = $totalSequences > 0 ? ($gradedSequences / $totalSequences) * 100 : 0;
+
+                // Composition completion
+                $evaluationKey = $trimesterNumber . '_' . $subject->id;
+                $evaluation = $compositionEvaluations->get($evaluationKey, collect())->first();
+                $compositionCompletion = 0;
+
+                if ($evaluation) {
+                    $hasGrade = $studentGrades->where('evaluation_id', $evaluation->id)
+                        ->where('trimester_id', $trimesterNumber)
+                        ->isNotEmpty();
+                    $compositionCompletion = $hasGrade ? 100 : 0;
+                }
+
+                $subjectCompletion = ($dsCompletion + $compositionCompletion) / 2;
+            }
+
+            $totalCompletion += $subjectCompletion;
+        }
+
+        $finalCompletion = round($totalCompletion / $subjects->count(), 1);
+        return $finalCompletion;
     }
 }

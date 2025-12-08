@@ -58,6 +58,7 @@ use App\Http\Controllers\BulletinController;
 use App\Http\Controllers\MarkSheetController;
 use App\Http\Controllers\BusController;
 use App\Http\Controllers\CompetenceController;
+use App\Http\Controllers\StudentCardController;
 
 
 // Routes d'authentification
@@ -473,6 +474,28 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/reorder', [StudentController::class, 'reorder']);
         Route::post('/class-series/{seriesId}/sort-alphabetically', [StudentController::class, 'sortAlphabetically']);
         Route::post('/bulk-upload-photos', [StudentController::class, 'bulkUploadPhotos']);
+    });
+
+    // Routes pour les cartes d'identité scolaires
+    Route::prefix('student-cards')->middleware(['role:admin,principal,secretaire'])->group(function () {
+        // Générer les cartes pour une classe entière (10 par page)
+        Route::post('/class/{classId}/generate', [StudentCardController::class, 'generateClassCards']);
+
+        // Générer une carte individuelle
+        Route::post('/student/{studentId}/generate', [StudentCardController::class, 'generateSingleCard']);
+
+        // Prévisualiser la carte d'un élève
+        Route::post('/student/{studentId}/preview', [StudentCardController::class, 'previewCard']);
+
+        // Vérifier une carte via QR Code (route publique pour scan)
+        Route::get('/verify/{matricule}', [StudentCardController::class, 'verifyCard'])->withoutMiddleware(['role:admin,principal,secretaire']);
+    });
+
+    // Routes pour les paramètres de mise en page des cartes
+    Route::prefix('card-layout-settings')->middleware(['role:admin,principal,secretaire'])->group(function () {
+        Route::get('/', [App\Http\Controllers\CardLayoutSettingController::class, 'index']);
+        Route::post('/update', [App\Http\Controllers\CardLayoutSettingController::class, 'update']);
+        Route::post('/reset', [App\Http\Controllers\CardLayoutSettingController::class, 'reset']);
     });
 
     // Routes utilisateurs (pour compatibilité)
@@ -1268,11 +1291,15 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
     
     // Génération de bulletins (Admin et Teachers)
     Route::post('/generate', [BulletinController::class, 'generate'])
-        ->middleware(['role:admin,teacher']);
-    
+        ->middleware(['role:admin,principal,teacher,secretaire']);
+
     Route::post('/batch-generate', [BulletinController::class, 'batchGenerate'])
-        ->middleware(['role:admin,teacher']);
-    
+        ->middleware(['role:admin,principal,teacher,secretaire']);
+
+    // Progression de la génération en lot
+    Route::get('/batch-progress/{progressKey}', [BulletinController::class, 'getBatchProgress'])
+        ->middleware(['role:admin,principal,teacher,secretaire']);
+
     // Téléchargement de bulletins
     Route::get('/download/{bulletinId}', [BulletinController::class, 'download'])
         ->name('bulletins.download')
@@ -1530,9 +1557,9 @@ Route::prefix('class-fees-sheet')->middleware('auth:api')->group(function () {
 // SUBJECT GROUPS - Gestion des groupes de matières
 // ============================================
 Route::prefix('subject-groups')->group(function () {
-    // Get all subject groups
+    // Get all subject groups (lecture seule pour secretaire)
     Route::get('/groups', [App\Http\Controllers\Api\SubjectGroupController::class, 'getAllGroups'])
-        ->middleware(['role:admin,principal,directeur_etudes']);
+        ->middleware(['role:admin,principal,directeur_etudes,secretaire']);
 
     // Create a new subject group
     Route::post('/groups', [App\Http\Controllers\Api\SubjectGroupController::class, 'createGroup'])
@@ -1546,9 +1573,9 @@ Route::prefix('subject-groups')->group(function () {
     Route::delete('/groups/{id}', [App\Http\Controllers\Api\SubjectGroupController::class, 'deleteGroup'])
         ->middleware(['role:admin,principal,directeur_etudes']);
 
-    // Get all subjects with their groups
+    // Get all subjects with their groups (lecture seule pour secretaire)
     Route::get('/', [App\Http\Controllers\Api\SubjectGroupController::class, 'index'])
-        ->middleware(['role:admin,principal,directeur_etudes']);
+        ->middleware(['role:admin,principal,directeur_etudes,secretaire']);
 
     // Update a single subject's group
     Route::put('/{id}', [App\Http\Controllers\Api\SubjectGroupController::class, 'updateGroup'])
