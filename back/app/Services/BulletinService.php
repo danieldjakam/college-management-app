@@ -302,48 +302,63 @@ class BulletinService
      */
     public function getCompositionGrade($trimester, $studentId, $subjectId)
     {
-        // RECHERCHE CORRECTE DES COMPOSITIONS
-        // Chercher les évaluations avec type = 'composition' (pas evaluation_type)
-        $evaluation = Evaluation::where('type', 'composition')
-                               ->where('trimester_id', $trimester)
-                               ->where('class_series_subject_id', $subjectId)
-                               ->first();
-        
-        // RETOUR NULL SI AUCUNE COMPOSITION TROUVÉE
-        if (!$evaluation) {
-            // ⚡ Réduit en DEBUG pour éviter pollution des logs (450× par génération)
-            // \Log::debug("Aucune composition trouvée pour trim:{$trimester}, student:{$studentId}, subject:{$subjectId}");
+        // 🔧 FIX: Chercher la séquence de composition pour ce trimestre
+        // Dans la base de production, les compositions ont sequence_id (ex: 3, 4, 5, 6)
+        // Il faut chercher la séquence où is_composition = true
+        $compositionSequence = \App\Models\Sequence::where('is_composition', true)
+                                    ->where('trimester_id', $trimester)
+                                    ->first();
+
+        if (!$compositionSequence) {
+            \Log::warning("⚠️ Aucune séquence de composition trouvée pour trimestre {$trimester}");
             return null;
         }
-        
+
+        // 🔧 FIX: Récupérer le subject_id réel depuis class_series_subject
+        // Car il peut y avoir des doublons (ex: Histoire avec ID 28 et 29)
+        $classSeriesSubject = \App\Models\ClassSeriesSubject::find($subjectId);
+        if (!$classSeriesSubject) {
+            \Log::warning("⚠️ class_series_subject introuvable: {$subjectId}");
+            return null;
+        }
+
+        $realSubjectId = $classSeriesSubject->subject_id;
+
+        // 🔧 FIX: Chercher directement la note par sequence_id (comme PVService)
+        // Au lieu de passer par evaluations.sequence_id IS NULL
+        // On cherche par subject_id au lieu de class_series_subject_id pour gérer les doublons
         $grade = Grade::where('student_id', $studentId)
-                     ->where('evaluation_id', $evaluation->id)
+                     ->where('sequence_id', $compositionSequence->id)
                      ->where('trimester_id', $trimester)
+                     ->whereHas('classSeriesSubject', function($q) use ($realSubjectId) {
+                         $q->where('subject_id', $realSubjectId);
+                     })
                      ->whereNotNull('score')
                      ->first();
 
         // Vérifier aussi si marqué absent (même sans note)
         if (!$grade) {
             $grade = Grade::where('student_id', $studentId)
-                         ->where('evaluation_id', $evaluation->id)
+                         ->where('sequence_id', $compositionSequence->id)
                          ->where('trimester_id', $trimester)
+                         ->whereHas('classSeriesSubject', function($q) use ($realSubjectId) {
+                             $q->where('subject_id', $realSubjectId);
+                         })
                          ->where('is_absent', true)
                          ->first();
         }
 
         if ($grade) {
             if ($grade->is_absent) {
-                \Log::info("Composition: ABSENT (evaluation_id:{$evaluation->id})");
+                \Log::info("✅ Composition: ABSENT (sequence_id:{$compositionSequence->id})");
                 return 'ABS';
             }
             $result = $grade->getScoreOn20();
-            // ⚡ Log réduit en DEBUG (450× par génération = pollution)
-            // \Log::debug("Composition trouvée: eval:{$evaluation->id}, grade:{$result}");
+            \Log::info("✅ Composition trouvée: sequence_id:{$compositionSequence->id}, grade:{$result}");
             return $result;
         }
 
-        // ⚡ Log réduit en DEBUG pour éviter pollution
-        // \Log::debug("Aucune note de composition (evaluation_id:{$evaluation->id})");
+        \Log::debug("❌ Aucune note de composition (sequence_id:{$compositionSequence->id})");
         return null;
     }
     
@@ -587,6 +602,9 @@ class BulletinService
 
         $trimester = Trimester::where('number', $trimesterNumber)->first();
         if (!$trimester) return null;
+
+        // AUTO-DETECT cycle type based on student's class (Terminale, Seconde, etc.)
+        $cycleType = $this->determineCycleType($student);
 
         // Detect section type (Anglophone and Technique use DEUXIÈME CYCLE logic)
         $sectionType = $this->determineSectionType($student);
@@ -886,8 +904,58 @@ class BulletinService
      */
     protected function getTrimesterRank($trimesterNumber, $studentId)
     {
-        // TODO: Implement ranking logic based on trimester average
-        return 1; // Placeholder
+        $student = Student::find($studentId);
+        if (!$student || !$student->class_series_id) {
+            return 1;
+        }
+
+        // Get all students in the same class series
+        $students = Student::where('class_series_id', $student->class_series_id)
+            ->get();
+
+        if ($students->isEmpty()) {
+            return 1;
+        }
+
+        // Detect cycle type for correct calculation
+        $cycleType = $this->determineCycleType($student);
+
+        // Calculate average for each student
+        $averages = [];
+        foreach ($students as $s) {
+            $totalPoints = 0;
+            $totalCoef = 0;
+
+            // Get all subjects for this class
+            $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();
+
+            foreach ($subjects as $subject) {
+                $trimesterGrade = $this->calculateTrimesterGrade($trimesterNumber, $s->id, $subject->id, $cycleType);
+
+                if ($trimesterGrade !== null && $trimesterGrade > 0) {
+                    $totalPoints += (float)$trimesterGrade * (float)$subject->coefficient;
+                    $totalCoef += (float)$subject->coefficient;
+                }
+            }
+
+            if ($totalCoef > 0) {
+                $averages[$s->id] = $totalPoints / $totalCoef;
+            }
+        }
+
+        // Sort averages in descending order to get ranks
+        arsort($averages);
+
+        // Find rank of current student
+        $rank = 1;
+        foreach ($averages as $sid => $avg) {
+            if ($sid == $studentId) {
+                return $rank;
+            }
+            $rank++;
+        }
+
+        return 1; // Fallback
     }
     
     /**
@@ -895,8 +963,55 @@ class BulletinService
      */
     protected function getTrimesterSubjectRank($trimesterNumber, $studentId, $subjectId)
     {
-        // TODO: Implement subject ranking logic in trimester
-        return 1; // Placeholder
+        $student = Student::find($studentId);
+        if (!$student || !$student->class_series_id) {
+            return null; // Pas de rang si étudiant invalide
+        }
+
+        // Get trimester
+        $trimester = Trimester::where('number', $trimesterNumber)->first();
+        if (!$trimester) {
+            return null;
+        }
+
+        // Détecter le type de cycle
+        $cycleType = $this->determineCycleType($student);
+
+        // Get all students in the same class series
+        $students = Student::where('class_series_id', $student->class_series_id)->get();
+
+        if ($students->isEmpty()) {
+            return null;
+        }
+
+        // Calculate average for each student in THIS subject
+        $averages = [];
+        foreach ($students as $s) {
+            $average = $this->calculateTrimesterGrade($trimesterNumber, $s->id, $subjectId, $cycleType);
+
+            if ($average !== null && $average !== 'ABS' && is_numeric($average)) {
+                $averages[$s->id] = (float)$average;
+            }
+        }
+
+        // Si aucune note dans cette matière, pas de classement
+        if (empty($averages)) {
+            return null;
+        }
+
+        // Sort averages in descending order (best first)
+        arsort($averages);
+
+        // Find rank of current student
+        $rank = 1;
+        foreach ($averages as $sid => $avg) {
+            if ($sid == $studentId) {
+                return $rank;
+            }
+            $rank++;
+        }
+
+        return null; // Student not found in rankings
     }
     
     /**
@@ -2383,11 +2498,19 @@ class BulletinService
      */
     protected function determineCycleType($student)
     {
-        if (!$student || !$student->schoolClass) {
+        if (!$student) {
             return 'premier'; // Par défaut
         }
 
-        $className = strtolower($student->schoolClass->name);
+        // Utiliser classSeries (prioritaire) ou schoolClass en fallback
+        $className = '';
+        if (isset($student->classSeries) && $student->classSeries) {
+            $className = strtolower($student->classSeries->name);
+        } elseif (isset($student->schoolClass) && $student->schoolClass) {
+            $className = strtolower($student->schoolClass->name);
+        } else {
+            return 'premier'; // Par défaut si aucune classe
+        }
 
         // 🎓 DEUXIÈME CYCLE: Classes du lycée
         $deuxiemeCycleClasses = [
@@ -2455,9 +2578,12 @@ class BulletinService
                 }
             } else {
                 // For trimester: calculate trimester average (M/20 par matière)
+                // Détecter le cycle de l'étudiant pour utiliser la bonne formule
+                $cycleType = $this->determineCycleType($student);
+
                 foreach ($allSubjects as $subject) {
-                    // Calculer la moyenne du trimestre pour cette matière
-                    $trimesterGrade = $this->calculateTrimesterGrade($evaluationId, $student->id, $subject->id, 'premier');
+                    // Calculer la moyenne du trimestre pour cette matière avec le bon cycle
+                    $trimesterGrade = $this->calculateTrimesterGrade($evaluationId, $student->id, $subject->id, $cycleType);
 
                     if ($trimesterGrade !== null && $trimesterGrade > 0) {
                         $totalPoints += (float)$trimesterGrade * (float)$subject->coefficient;

@@ -22,3 +22,9 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Bulletins générés (PDFs volumineux)
+/storage/app/bulletins/
+/storage/app/merged_bulletins/
+/docs/bulletins/
+/docs/receipts/

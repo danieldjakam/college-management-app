@@ -38,6 +38,10 @@ function BulletinManagementNew() {
   // Téléchargement groupé par période
   const [downloadingPeriod, setDownloadingPeriod] = useState(null);
 
+  // 📦 Impression groupée (fusion PDF)
+  const [mergingPeriod, setMergingPeriod] = useState(null);
+  const [mergeProgress, setMergeProgress] = useState({ percentage: 0, message: '' });
+
   // Génération et régénération par période
   const [generatingPeriod, setGeneratingPeriod] = useState(null);
   const [regeneratingPeriod, setRegeneratingPeriod] = useState(null);
@@ -902,6 +906,93 @@ function BulletinManagementNew() {
     }
   };
 
+  // 📦 Fonction pour fusionner et télécharger les bulletins en un seul PDF
+  const handleMergeBulletins = async (period) => {
+    if (!selectedSeries) {
+      setError('Veuillez sélectionner une série');
+      return;
+    }
+
+    setMergingPeriod(period.identifier);
+    setMergeProgress({ status: 'starting', message: 'Démarrage de la fusion...', percentage: 0 });
+    setError('');
+    setSuccess('');
+
+    try {
+      const token = authService.getToken();
+
+      // Lancer la fusion
+      const response = await fetch(`${host}/api/bulletins/merge`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          class_series_id: selectedSeries,
+          period_type: period.type,
+          period_identifier: period.identifier
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Erreur ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.message || 'Erreur lors du démarrage de la fusion');
+      }
+
+      const jobId = data.job_id;
+      setSuccess(`Fusion de ${data.bulletin_count} bulletins en cours...`);
+
+      // Suivre la progression
+      const progressInterval = setInterval(async () => {
+        try {
+          const progressResponse = await fetch(`${host}/api/bulletins/merge-progress/${jobId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          if (progressResponse.ok) {
+            const progressData = await progressResponse.json();
+            setMergeProgress(progressData);
+
+            if (progressData.status === 'completed') {
+              clearInterval(progressInterval);
+              setMergingPeriod(null);
+
+              // Télécharger automatiquement
+              if (progressData.file_id) {
+                const downloadUrl = `${host}/api/bulletins/merged/${progressData.file_id}/download`;
+                window.open(downloadUrl, '_blank');
+              }
+
+              setSuccess(`✅ ${progressData.message}`);
+              setTimeout(() => setSuccess(''), 5000);
+            } else if (progressData.status === 'failed') {
+              clearInterval(progressInterval);
+              setMergingPeriod(null);
+              throw new Error(progressData.message || 'Erreur lors de la fusion');
+            }
+          }
+        } catch (error) {
+          clearInterval(progressInterval);
+          setMergingPeriod(null);
+          throw error;
+        }
+      }, 2000); // Vérifier toutes les 2 secondes
+
+    } catch (error) {
+      console.error('Erreur fusion:', error);
+      setMergingPeriod(null);
+      setMergeProgress({});
+      setError(error.message || 'Erreur lors de la fusion des bulletins');
+      setTimeout(() => setError(''), 10000);
+    }
+  };
+
   const getCompletionBadge = (bulletin) => {
     const { completion_percentage, is_generated, status, is_archived } = bulletin;
     
@@ -1286,6 +1377,67 @@ function BulletinManagementNew() {
                           <>
                             <ArrowClockwise size={28} className="mb-2" />
                             <strong>{period.label}</strong>
+                          </>
+                        )}
+                      </Button>
+                    </Col>
+                  ))}
+                </Row>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      )}
+
+      {/* Impression Groupée (PDF Fusionné) */}
+      {selectedSeries && (
+        <Row className="mb-3">
+          <Col>
+            <Card className="border-warning">
+              <Card.Header className="bg-warning text-dark d-flex align-items-center">
+                <Printer className="me-2" size={20} />
+                <h6 className="mb-0">Impression Groupée (PDF Fusionné)</h6>
+              </Card.Header>
+              <Card.Body>
+                <p className="text-muted mb-3">
+                  <strong>Pour impression directe:</strong> Fusionnez tous les bulletins d'une période en un seul fichier PDF prêt à imprimer.
+                </p>
+                <Row className="g-3">
+                  {[
+                    { type: 'sequence', identifier: 'seq1', label: 'Séquence 1', variant: 'warning' },
+                    { type: 'sequence', identifier: 'seq2', label: 'Séquence 2', variant: 'warning' },
+                    { type: 'trimester', identifier: 'trim1', label: 'Trimestre 1', variant: 'success' },
+                    { type: 'sequence', identifier: 'seq3', label: 'Séquence 3', variant: 'warning' },
+                    { type: 'sequence', identifier: 'seq4', label: 'Séquence 4', variant: 'warning' },
+                    { type: 'trimester', identifier: 'trim2', label: 'Trimestre 2', variant: 'success' },
+                    { type: 'trimester', identifier: 'trim3', label: 'Trimestre 3', variant: 'success' },
+                  ].map((period) => (
+                    <Col md={3} key={`merge-${period.identifier}`}>
+                      <Button
+                        variant={`outline-${period.variant}`}
+                        className="w-100 py-3 d-flex flex-column align-items-center justify-content-center"
+                        onClick={() => handleMergeBulletins(period)}
+                        disabled={mergingPeriod !== null || generatingPeriod !== null || regeneratingPeriod !== null}
+                        style={{ minHeight: '100px' }}
+                      >
+                        {mergingPeriod === period.identifier ? (
+                          <>
+                            <Spinner animation="border" size="sm" className="mb-2" />
+                            <small>{mergeProgress.message || 'Fusion en cours...'}</small>
+                            {mergeProgress.percentage > 0 && (
+                              <ProgressBar
+                                now={mergeProgress.percentage}
+                                className="w-100 mt-2"
+                                style={{ height: '5px' }}
+                                animated
+                              />
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <Printer size={28} className="mb-2" />
+                            <strong>{period.label}</strong>
+                            <small className="text-muted">Fusionner & Imprimer</small>
                           </>
                         )}
                       </Button>
