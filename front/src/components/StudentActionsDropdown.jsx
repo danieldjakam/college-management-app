@@ -1,6 +1,6 @@
 import React from 'react';
 import { Dropdown } from 'react-bootstrap';
-import { 
+import {
     ThreeDotsVertical,
     Printer,
     ArrowRightCircle,
@@ -8,19 +8,21 @@ import {
     Trash,
     CashCoin,
     Eye,
-    ArrowLeftRight
+    ArrowLeftRight,
+    CardChecklist
 } from 'react-bootstrap-icons';
 
-const StudentActionsDropdown = ({ 
-    student, 
-    onPrintCard, 
-    onTransfer, 
+const StudentActionsDropdown = ({
+    student,
+    onPrintCard,
+    onPreviewCard,
+    onTransfer,
     onTransferWithinClass,
-    onEdit, 
-    onDelete, 
+    onEdit,
+    onDelete,
     onViewPayments,
     onViewStudent,
-    userRole 
+    userRole
 }) => {
     return (
         <Dropdown align="end">
@@ -60,8 +62,17 @@ const StudentActionsDropdown = ({
 
                 <Dropdown.Divider />
 
+                {/* Prévisualiser carte */}
+                <Dropdown.Item
+                    onClick={() => onPreviewCard?.(student)}
+                    className="d-flex align-items-center"
+                >
+                    <CardChecklist size={16} className="me-2 text-primary" />
+                    Prévisualiser la carte
+                </Dropdown.Item>
+
                 {/* Imprimer carte */}
-                <Dropdown.Item 
+                <Dropdown.Item
                     onClick={() => onPrintCard?.(student)}
                     className="d-flex align-items-center"
                 >

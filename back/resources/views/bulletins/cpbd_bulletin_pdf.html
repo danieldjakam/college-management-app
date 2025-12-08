@@ -13,7 +13,7 @@
 
         body {
             font-family: 'Arial', sans-serif;
-            font-size: 11px;
+            font-size: 10pt;
             line-height: 1.2;
             color: #000;
             background: white;
@@ -43,7 +43,7 @@
             display: table-cell;
             width: 32%;
             vertical-align: middle;
-            font-size: 6.5px;
+            font-size: 7.5pt;
             padding: 1px;
         }
 
@@ -78,7 +78,7 @@
         }
 
         .bulletin-title {
-            font-size: 12px;
+            font-size: 13pt;
             font-weight: bold;
             margin: 2px 0 1px 0;
             text-align: center;
@@ -99,7 +99,7 @@
 
         .student-info td {
             padding: 1px 3px;
-            font-size: 8px;
+            font-size: 9pt;
             vertical-align: middle;
             line-height: 1.2;
         }
@@ -119,7 +119,7 @@
             color: black;
             padding: 3px;
             font-weight: bold;
-            font-size: 11px;
+            font-size: 11pt;
             text-transform: uppercase;
             text-align: center;
         }
@@ -127,7 +127,7 @@
         .subjects-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 9px;
+            font-size: 10pt;
         }
 
         .subjects-table th,
@@ -142,7 +142,7 @@
             background: #EFE9F3;
             color: black;
             font-weight: bold;
-            font-size: 8px;
+            font-size: 9pt;
         }
 
         .subject-name {
@@ -186,7 +186,7 @@
         .discipline-table h3, .summary-stats h3 {
             color: black;
             margin-bottom: 5px;
-            font-size: 11px;
+            font-size: 11pt;
             font-weight: bold;
         }
 
@@ -196,7 +196,7 @@
             text-align: center;
             padding: 4px;
             font-weight: bold;
-            font-size: 10px;
+            font-size: 10pt;
         }
 
         .discipline-subheader {
@@ -210,7 +210,7 @@
             display: table-cell;
             padding: 3px 1px;
             text-align: center;
-            font-size: 7.5px;
+            font-size: 8pt;
             font-weight: 600;
         }
 
@@ -225,7 +225,7 @@
             display: table-cell;
             padding: 2px 1px;
             text-align: center;
-            font-size: 7px;
+            font-size: 7.5pt;
         }
 
         .discipline-data {
@@ -238,7 +238,7 @@
             display: table-cell;
             padding: 3px 1px;
             text-align: center;
-            font-size: 9px;
+            font-size: 9pt;
             border-bottom: 1px solid #e0e0e0;
         }
 
@@ -249,7 +249,7 @@
             font-weight: bold;
             color: #333;
             border-top: 1px solid #e0e0e0;
-            font-size: 9px;
+            font-size: 9pt;
         }
 
         .stat-item {
@@ -262,7 +262,7 @@
         .stat-label {
             display: table-cell;
             width: 70%;
-            font-size: 9px;
+            font-size: 9pt;
         }
 
         .stat-value {
@@ -271,7 +271,7 @@
             font-weight: bold;
             color: #333;
             text-align: right;
-            font-size: 9px;
+            font-size: 9pt;
         }
 
         .observations {
@@ -284,18 +284,18 @@
 
         .observations h3 {
             margin-bottom: 3px;
-            font-size: 11px;
+            font-size: 11pt;
         }
 
         .observations p {
-            font-size: 10px;
+            font-size: 10pt;
         }
 
         .footer-notes {
             margin-top: 8px;
             padding: 6px;
             border: 1px solid #000;
-            font-size: 8px;
+            font-size: 8pt;
             display: table;
             width: 100%;
         }
@@ -315,7 +315,7 @@
             display: table-cell;
             width: 35%;
             text-align: right;
-            font-size: 9px;
+            font-size: 9pt;
             font-weight: bold;
             vertical-align: top;
         }
@@ -336,14 +336,14 @@
 
         .legend h4 {
             margin-bottom: 3px;
-            font-size: 9px;
+            font-size: 9pt;
         }
 
         .legend-items {
             display: flex;
             flex-wrap: wrap;
             gap: 5px;
-            font-size: 7.5px;
+            font-size: 8pt;
         }
 
         .legend-item {
@@ -456,16 +456,16 @@
                 </div>
                 
                 <div class="discipline-data">
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
-                    <div style="width: 16.66%;">-</div>
-                    <div style="width: 16.66%;">-</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_delays_justified}}</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_delays_unjustified}}</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_absences_justified}}</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_absences_unjustified}}</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_blame_conduct}}</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_blame_work}}</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_warning_conduct}}</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_warning_work}}</div>
+                    <div style="width: 16.66%;">{{discipline_detention_hours}}</div>
+                    <div style="width: 16.66%;">{{discipline_exclusion_days}}</div>
                 </div>
                 
                 <div class="visa-row">

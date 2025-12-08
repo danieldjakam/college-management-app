@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Table, Badge, Modal, Row, Col, Alert, Spinner, ProgressBar, Accordion, Form, ButtonGroup } from 'react-bootstrap';
-import { CardText, Download, Eye, Printer, ArrowClockwise, Clock, CheckCircle, ExclamationCircle, Calendar, Book } from 'react-bootstrap-icons';
+import { CardText, Download, Eye, Printer, ArrowClockwise, Clock, CheckCircle, ExclamationCircle, Calendar, Book, FileEarmarkZip } from 'react-bootstrap-icons';
 import { secureApi } from '../../utils/apiMigration';
 import { authService } from '../../services/authService';
 import { host } from '../../utils/fetch';
@@ -35,10 +35,91 @@ function BulletinManagementNew() {
   const [previewStudent, setPreviewStudent] = useState(null);
   const [previewBulletinInfo, setPreviewBulletinInfo] = useState(null); // Pour le téléchargement PDF
 
+  // Téléchargement groupé par période
+  const [downloadingPeriod, setDownloadingPeriod] = useState(null);
+
+  // Génération et régénération par période
+  const [generatingPeriod, setGeneratingPeriod] = useState(null);
+  const [regeneratingPeriod, setRegeneratingPeriod] = useState(null);
+
+  // 📊 Progression en temps réel (NOUVELLE VERSION : génération 1 par 1)
+  const [progressKey, setProgressKey] = useState(null);
+  const [progress, setProgress] = useState(null);
+  const [pollingInterval, setPollingInterval] = useState(null);
+
+  // 📊 Progression 1 par 1 (nouvelle méthode)
+  const [oneByOneProgress, setOneByOneProgress] = useState({
+    current: 0,
+    total: 0,
+    percentage: 0,
+    status: 'idle',
+    message: '',
+    errors: []
+  });
+
   useEffect(() => {
     fetchHierarchicalStructure();
     fetchAcademicTimeline();
   }, []);
+
+  // 📊 Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [pollingInterval]);
+
+  // 📊 Fonction pour récupérer la progression
+  const fetchProgress = async (key) => {
+    try {
+      const response = await secureApi.get(`/bulletins/batch-progress/${key}`);
+      if (response && response.success && response.progress) {
+        setProgress(response.progress);
+
+        // Si terminé, arrêter le polling
+        if (response.progress.status === 'completed') {
+          if (pollingInterval) {
+            clearInterval(pollingInterval);
+            setPollingInterval(null);
+          }
+          // Actualiser les données après 2 secondes
+          setTimeout(() => {
+            fetchStudentsData();
+            setProgressKey(null);
+            setProgress(null);
+          }, 2000);
+        }
+      }
+    } catch (error) {
+      console.error('Erreur récupération progression:', error);
+      // En cas d'erreur, arrêter le polling
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        setPollingInterval(null);
+      }
+    }
+  };
+
+  // 📊 Démarrer le polling de progression
+  const startProgressPolling = (key) => {
+    setProgressKey(key);
+    setProgress({
+      current: 0,
+      total: 0,
+      percentage: 0,
+      status: 'initializing',
+      message: 'Initialisation...'
+    });
+
+    // Polling toutes les 3 secondes (pour éviter surcharge)
+    const interval = setInterval(() => {
+      fetchProgress(key);
+    }, 3000);
+
+    setPollingInterval(interval);
+  };
 
   useEffect(() => {
     if (selectedSeries) {
@@ -48,32 +129,21 @@ function BulletinManagementNew() {
 
   const fetchHierarchicalStructure = async () => {
     try {
-      console.log('Fetching hierarchical structure...');
       setLoadingHierarchy(true);
       const response = await secureApi.get('/bulletins/hierarchical-structure');
-      console.log('Response received:', response);
-      
+
       // secureApi returns parsed JSON directly, not wrapped in a data property
       let sectionsData = [];
       if (response && response.success && response.data) {
         sectionsData = response.data;
-        console.log('Using response.data from success object');
       } else if (Array.isArray(response)) {
         sectionsData = response;
-        console.log('Using response as array');
       } else {
-        console.log('No valid data structure found');
         sectionsData = [];
       }
-      console.log('Setting hierarchical data:', sectionsData);
       setHierarchicalData(sectionsData);
-      
-      if (sectionsData.length > 0) {
-        console.log('First section:', sectionsData[0]);
-      }
     } catch (error) {
       console.error('Erreur structure hiérarchique:', error);
-      console.error('Error details:', error.response);
       setError(`Erreur lors du chargement de la structure: ${error.message}`);
     } finally {
       setLoadingHierarchy(false);
@@ -111,17 +181,6 @@ function BulletinManagementNew() {
         setAvailablePeriods(response.available_periods || []);
         
         // 🔍 DEBUG: Vérifier les bulletins de HASSIM ACHTA
-        const hassim = students.find(s => s.first_name === 'HASSIM' && s.last_name === 'ACHTA');
-        if (hassim) {
-          console.log('🔍 DEBUG HASSIM ACHTA bulletins received from API:');
-          console.log('  Full bulletins object:', hassim.bulletins);
-          console.log('  sequence_1:', hassim.bulletins.sequence_1);
-          console.log('  trimester_1:', hassim.bulletins.trimester_1);
-          if (hassim.bulletins.sequence_1) {
-            console.log('  sequence_1.bulletin_id:', hassim.bulletins.sequence_1.bulletin_id, '(type:', typeof hassim.bulletins.sequence_1.bulletin_id, ')');
-            console.log('  sequence_1.is_generated:', hassim.bulletins.sequence_1.is_generated);
-          }
-        }
       } else {
         setStudentsData([]);
         setAvailablePeriods([]);
@@ -165,13 +224,6 @@ function BulletinManagementNew() {
       setError(''); // Clear previous errors
       
       // 🔍 DEBUG: Afficher les paramètres reçus avec plus de détails
-      console.log('🔍 DEBUG handleDownloadBulletin called with:');
-      console.log('  bulletinId:', bulletinId, '(type:', typeof bulletinId, ')');
-      console.log('  studentName:', studentName);
-      console.log('  periodType:', periodType);  
-      console.log('  periodId:', periodId);
-      console.log('  studentId:', studentId);
-      
       // Utiliser fetch directement pour les téléchargements de fichiers
       const token = authService.getToken();
       const response = await fetch(`${host}/api/bulletins/download/${bulletinId}`, {
@@ -186,27 +238,33 @@ function BulletinManagementNew() {
         if (response.status === 404) {
           // LOGIQUE INTELLIGENTE: Auto-générer le bulletin manquant
           console.warn(`Bulletin ${bulletinId} not found, auto-generating...`);
-          setError('Bulletin manquant. Génération automatique en cours...');
-          
+
           try {
-            // Forcer la régénération automatiquement
-            await secureApi.post('/bulletins/force-regenerate', {
-              student_id: studentId || null, // Il faudra passer studentId en paramètre
-              period_type: periodType,
-              period_identifier: periodId
-            });
+            // Récupérer les détails du bulletin manquant depuis l'erreur JSON
+            const errorData = await response.json();
+            console.log('Missing bulletin details:', errorData);
 
-            // Actualiser les données immédiatement
-            await fetchStudentsData();
+            if (errorData.student_id && errorData.period_type && errorData.period_identifier) {
+              setError('Bulletin manquant. Génération automatique en cours...');
 
-            // Actualiser à nouveau après un délai pour être sûr que le bulletin est généré
-            setTimeout(() => {
-              fetchStudentsData();
-            }, 1500);
+              // Forcer la régénération automatiquement avec les bonnes données
+              await secureApi.post('/bulletins/force-regenerate', {
+                student_id: errorData.student_id,
+                period_type: errorData.period_type,
+                period_identifier: errorData.period_identifier
+              });
 
-            setSuccess('Bulletin généré automatiquement. Vous pouvez maintenant le télécharger.');
-            return;
-            
+              // Actualiser les données immédiatement
+              await fetchStudentsData();
+
+              // Actualiser à nouveau après un délai pour être sûr que le bulletin est généré
+              setTimeout(() => {
+                fetchStudentsData();
+              }, 1500);
+
+              setSuccess('Bulletin généré automatiquement. Vous pouvez maintenant le télécharger.');
+              return;
+            }
           } catch (genError) {
             console.error('Auto-generation failed:', genError);
             setError('Impossible de générer automatiquement le bulletin. Veuillez utiliser le bouton "Régénérer".');
@@ -410,101 +468,182 @@ function BulletinManagementNew() {
     }
   };
 
-  const handleGenerateAllBulletins = async () => {
+  // 🆕 NOUVELLE MÉTHODE : Génération 1 par 1 (sans queue)
+  const handleGeneratePeriodBulletins = async (period) => {
     if (!selectedSeries || !selectedClass) {
       setError('Veuillez sélectionner une classe et une série');
       return;
     }
 
-    // Déterminer la période actuelle
-    const currentPeriod = academicTimeline?.current_sequence || academicTimeline?.current_trimester;
-    if (!currentPeriod) {
-      setError('Aucune période académique active trouvée');
+    // Filtrer les étudiants qui n'ont PAS encore ce bulletin (côté frontend uniquement pour confirmer)
+    const studentsToGenerate = studentsData.filter(student => {
+      const bulletin = student.bulletins?.find(b =>
+        b.period_type === period.type &&
+        b.period_identifier === period.identifier
+      );
+      return !bulletin || !bulletin.generated;
+    });
+
+    if (studentsToGenerate.length === 0) {
+      setSuccess(`✅ Tous les bulletins pour ${period.label} sont déjà générés !`);
+      setTimeout(() => setSuccess(''), 3000);
       return;
     }
 
-    const bulletinType = currentPeriod.type === 'sequence' ? 'sequence' : 'trimester';
-    const periodIdentifier = `${currentPeriod.type === 'sequence' ? 'seq' : 'trim'}${currentPeriod.number}`;
-
-    if (!window.confirm(`Générer tous les bulletins manquants pour ${currentPeriod.name} ?\n\nUtilise la génération rapide par lots.`)) {
+    if (!window.confirm(`Générer ${studentsToGenerate.length} bulletin(s) manquant(s) pour ${period.label} ?\n\nGénération BATCH (tous en une seule fois).`)) {
       return;
     }
+
+    setGeneratingPeriod(period.identifier);
+    setError('');
+    setSuccess('');
+
+    // Afficher progression indéterminée
+    setOneByOneProgress({
+      current: 0,
+      total: studentsToGenerate.length,
+      percentage: 0,
+      status: 'processing',
+      message: `⏳ Génération de ${studentsToGenerate.length} bulletin(s) manquant(s) en cours...`,
+      errors: []
+    });
 
     try {
-      setLoading(true);
-      setError('');
-      setSuccess(`🚀 Génération par lots en cours... Veuillez patienter.`);
+      // 🚀 GÉNÉRATION BATCH SYNCHRONE (force=false pour skip bulletins existants)
+      const response = await secureApi.post('/bulletins/batch-generate-sync', {
+        series_id: selectedSeries,
+        bulletin_type: period.type,
+        period_identifier: period.identifier,
+        force: false // Ne pas écraser les bulletins existants
+      });
 
-      const startTime = Date.now();
+      const { generated, total, errors, error_details, duration, message } = response;
 
-      // Utiliser la génération par LOT côté serveur (plus rapide)
-      const response = await secureApi.post('/bulletins/batch-generate', {
-        class_id: parseInt(selectedClass),
-        bulletin_type: bulletinType,
-        period_identifier: periodIdentifier,
-        force: false
-      }, { timeout: 300000 }); // 5 minutes max
+      // Marquer comme terminé
+      setOneByOneProgress({
+        current: generated,
+        total: total,
+        percentage: 100,
+        status: errors === 0 ? 'completed' : 'completed',
+        message: message,
+        errors: error_details || []
+      });
 
-      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-      setSuccess(`✅ Terminé en ${duration}s : ${response.generated_count} bulletin(s) générés, ${response.error_count} erreur(s)`);
+      if (errors === 0) {
+        setSuccess(message);
+      } else {
+        setError(`⚠️ ${message} - Voir détails ci-dessous`);
+      }
 
-      // Actualiser les données
-      setTimeout(() => fetchStudentsData(), 1000);
+      // Recharger les données après 2 secondes
+      setTimeout(() => {
+        fetchStudentsData();
+        setOneByOneProgress({
+          current: 0,
+          total: 0,
+          percentage: 0,
+          status: 'idle',
+          message: '',
+          errors: []
+        });
+      }, 3000);
 
     } catch (error) {
-      console.error('Erreur génération:', error);
-      setError(error.message || 'Erreur lors de la génération. Essayez de rafraîchir la page.');
+      console.error('Erreur génération batch:', error);
+      setError(`❌ Erreur ${period.label}: ${error.response?.data?.error || error.message || 'Erreur lors de la génération'}`);
+      setOneByOneProgress(prev => ({
+        ...prev,
+        status: 'failed',
+        message: `❌ Erreur: ${error.response?.data?.error || error.message}`
+      }));
     } finally {
-      setLoading(false);
+      setGeneratingPeriod(null);
     }
   };
 
-  const handleRegenerateAllBulletins = async () => {
+  // 🆕 NOUVELLE MÉTHODE : Régénération 1 par 1 (sans queue)
+  const handleRegeneratePeriodBulletins = async (period) => {
     if (!selectedSeries || !selectedClass) {
       setError('Veuillez sélectionner une classe et une série');
       return;
     }
 
-    // Déterminer la période actuelle
-    const currentPeriod = academicTimeline?.current_sequence || academicTimeline?.current_trimester;
-    if (!currentPeriod) {
-      setError('Aucune période académique active trouvée');
+    // Compter les étudiants
+    const studentCount = studentsData.filter(student => student.id).length;
+
+    if (studentCount === 0) {
+      setError('Aucun étudiant trouvé dans cette classe');
       return;
     }
 
-    const bulletinType = currentPeriod.type === 'sequence' ? 'sequence' : 'trimester';
-    const periodIdentifier = `${currentPeriod.type === 'sequence' ? 'seq' : 'trim'}${currentPeriod.number}`;
-
-    if (!window.confirm(`⚠️ ATTENTION : Régénérer TOUS les bulletins pour ${currentPeriod.name} ?\n\nCela remplacera les bulletins existants.\nUtilise la génération rapide par lots.`)) {
+    if (!window.confirm(`⚠️ ATTENTION : Régénérer TOUS les ${studentCount} bulletins pour ${period.label} ?\n\nCela remplacera les bulletins existants.\nGénération BATCH (tous en une seule fois).`)) {
       return;
     }
+
+    setRegeneratingPeriod(period.identifier);
+    setError('');
+    setSuccess('');
+
+    // Afficher progression indéterminée
+    setOneByOneProgress({
+      current: 0,
+      total: studentCount,
+      percentage: 0,
+      status: 'processing',
+      message: `⏳ Génération de ${studentCount} bulletins en cours... Veuillez patienter.`,
+      errors: []
+    });
 
     try {
-      setLoading(true);
-      setError('');
-      setSuccess(`🔄 Régénération par lots en cours... Veuillez patienter.`);
+      // 🚀 GÉNÉRATION BATCH SYNCHRONE (1 seule requête!)
+      const response = await secureApi.post('/bulletins/batch-generate-sync', {
+        series_id: selectedSeries,
+        bulletin_type: period.type,
+        period_identifier: period.identifier,
+        force: true
+      });
 
-      const startTime = Date.now();
+      const { generated, total, errors, error_details, duration, message } = response;
 
-      // Utiliser la génération par LOT avec force=true
-      const response = await secureApi.post('/bulletins/batch-generate', {
-        class_id: parseInt(selectedClass),
-        bulletin_type: bulletinType,
-        period_identifier: periodIdentifier,
-        force: true // Forcer la régénération
-      }, { timeout: 300000 }); // 5 minutes max
+      // Marquer comme terminé
+      setOneByOneProgress({
+        current: generated,
+        total: total,
+        percentage: 100,
+        status: errors === 0 ? 'completed' : 'completed',
+        message: message,
+        errors: error_details || []
+      });
 
-      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-      setSuccess(`✅ Terminé en ${duration}s : ${response.generated_count} bulletin(s) régénérés, ${response.error_count} erreur(s)`);
+      if (errors === 0) {
+        setSuccess(message);
+      } else {
+        setError(`⚠️ ${message} - Voir détails ci-dessous`);
+      }
 
-      // Actualiser les données
-      setTimeout(() => fetchStudentsData(), 1500);
+      // Recharger les données après 2 secondes
+      setTimeout(() => {
+        fetchStudentsData();
+        setOneByOneProgress({
+          current: 0,
+          total: 0,
+          percentage: 0,
+          status: 'idle',
+          message: '',
+          errors: []
+        });
+      }, 3000);
 
     } catch (error) {
-      console.error('Erreur régénération:', error);
-      setError(error.message || 'Erreur lors de la régénération. Essayez de rafraîchir la page.');
+      console.error('Erreur régénération batch:', error);
+      setError(`❌ Erreur ${period.label}: ${error.response?.data?.error || error.message || 'Erreur lors de la régénération'}`);
+      setOneByOneProgress(prev => ({
+        ...prev,
+        status: 'failed',
+        message: `❌ Erreur: ${error.response?.data?.error || error.message}`
+      }));
     } finally {
-      setLoading(false);
+      setRegeneratingPeriod(null);
     }
   };
 
@@ -559,6 +698,61 @@ function BulletinManagementNew() {
       setError(error.message || 'Erreur lors du téléchargement groupé');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownloadPeriodBulletins = async (period) => {
+    if (!selectedSeries) {
+      setError('Veuillez sélectionner une série');
+      return;
+    }
+
+    setDownloadingPeriod(period.identifier);
+    setError('');
+    setSuccess('');
+
+    try {
+      const token = authService.getToken();
+      const response = await fetch(`${host}/api/bulletins/download-all`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/zip'
+        },
+        body: JSON.stringify({
+          series_id: selectedSeries,
+          period_type: period.type,
+          period_identifier: period.identifier
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Détails de l\'erreur:', errorData);
+        throw new Error(errorData.error || `Erreur ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const fileName = `bulletins_${period.identifier}_${new Date().toISOString().slice(0,10)}.zip`;
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setSuccess(`✅ Bulletins de ${period.label} téléchargés avec succès!`);
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (error) {
+      console.error('Erreur téléchargement période:', error);
+      setError(`❌ ${error.message || 'Erreur lors du téléchargement'}`);
+      setTimeout(() => setError(''), 5000);
+    } finally {
+      setDownloadingPeriod(null);
     }
   };
 
@@ -728,14 +922,11 @@ function BulletinManagementNew() {
                       <option value="">
                         {loadingHierarchy ? 'Chargement des sections...' : 'Choisir une section...'}
                       </option>
-                      {hierarchicalData.map(section => {
-                        console.log('Rendering section:', section);
-                        return (
-                          <option key={section.id} value={section.id}>
-                            {section.name}
-                          </option>
-                        );
-                      })}
+                      {hierarchicalData.map(section => (
+                        <option key={section.id} value={section.id}>
+                          {section.name}
+                        </option>
+                      ))}
                     </Form.Select>
                   </Form.Group>
                 </Col>
@@ -814,15 +1005,15 @@ function BulletinManagementNew() {
                 <Row>
                   <Col>
                     <Form.Label>Période à visualiser :</Form.Label>
-                    <Form.Select 
-                      value={selectedViewPeriod} 
+                    <Form.Select
+                      value={selectedViewPeriod}
                       onChange={(e) => setSelectedViewPeriod(e.target.value)}
                       className="mb-2"
                     >
                       {availablePeriods.map(period => (
                         <option key={period.identifier} value={period.identifier}>
-                          {period.status === 'past' && '📁 '} 
-                          {period.status === 'current' && '▶️ '} 
+                          {period.status === 'past' && '📁 '}
+                          {period.status === 'current' && '▶️ '}
                           {period.status === 'future' && '⏳ '}
                           {period.name}
                           {period.status === 'past' && ' (Archive)'}
@@ -855,36 +1046,192 @@ function BulletinManagementNew() {
         </Row>
       )}
 
+      {/* Génération Groupée par Période */}
+      {selectedSeries && (
+        <Row className="mb-3">
+          <Col>
+            <Card className="border-success">
+              <Card.Header className="bg-success text-white d-flex align-items-center">
+                <CardText className="me-2" size={20} />
+                <h6 className="mb-0">Génération des Bulletins par Période</h6>
+              </Card.Header>
+              <Card.Body>
+                <p className="text-muted mb-3">
+                  Générez tous les bulletins manquants pour une période spécifique de la série sélectionnée.
+                </p>
+                <Row className="g-3">
+                  {[
+                    { type: 'sequence', identifier: 'seq1', label: 'Séquence 1', variant: 'outline-success' },
+                    { type: 'sequence', identifier: 'seq2', label: 'Séquence 2', variant: 'outline-success' },
+                    { type: 'trimester', identifier: 'trim1', label: 'Trimestre 1', variant: 'outline-success' },
+                    { type: 'sequence', identifier: 'seq3', label: 'Séquence 3', variant: 'outline-success' },
+                    { type: 'sequence', identifier: 'seq4', label: 'Séquence 4', variant: 'outline-success' },
+                    { type: 'trimester', identifier: 'trim2', label: 'Trimestre 2', variant: 'outline-success' },
+                    { type: 'trimester', identifier: 'trim3', label: 'Trimestre 3', variant: 'outline-success' },
+                  ].map((period) => (
+                    <Col md={3} key={period.identifier}>
+                      <Button
+                        variant={period.variant}
+                        className="w-100 py-3 d-flex flex-column align-items-center justify-content-center"
+                        onClick={() => handleGeneratePeriodBulletins(period)}
+                        disabled={generatingPeriod !== null || regeneratingPeriod !== null || downloadingPeriod !== null}
+                        style={{ minHeight: '80px' }}
+                      >
+                        {generatingPeriod === period.identifier ? (
+                          <>
+                            <Spinner animation="border" size="sm" className="mb-2" />
+                            <small>Génération...</small>
+                          </>
+                        ) : (
+                          <>
+                            <CardText size={28} className="mb-2" />
+                            <strong>{period.label}</strong>
+                          </>
+                        )}
+                      </Button>
+                    </Col>
+                  ))}
+                </Row>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      )}
+
+      {/* Régénération Groupée par Période */}
+      {selectedSeries && (
+        <Row className="mb-3">
+          <Col>
+            <Card className="border-warning">
+              <Card.Header className="bg-warning text-dark d-flex align-items-center">
+                <ArrowClockwise className="me-2" size={20} />
+                <h6 className="mb-0">Régénération des Bulletins par Période</h6>
+              </Card.Header>
+              <Card.Body>
+                <p className="text-muted mb-3">
+                  ⚠️ Régénérez TOUS les bulletins d'une période (remplace les bulletins existants).
+                </p>
+                <Row className="g-3">
+                  {[
+                    { type: 'sequence', identifier: 'seq1', label: 'Séquence 1', variant: 'outline-warning' },
+                    { type: 'sequence', identifier: 'seq2', label: 'Séquence 2', variant: 'outline-warning' },
+                    { type: 'trimester', identifier: 'trim1', label: 'Trimestre 1', variant: 'outline-warning' },
+                    { type: 'sequence', identifier: 'seq3', label: 'Séquence 3', variant: 'outline-warning' },
+                    { type: 'sequence', identifier: 'seq4', label: 'Séquence 4', variant: 'outline-warning' },
+                    { type: 'trimester', identifier: 'trim2', label: 'Trimestre 2', variant: 'outline-warning' },
+                    { type: 'trimester', identifier: 'trim3', label: 'Trimestre 3', variant: 'outline-warning' },
+                  ].map((period) => (
+                    <Col md={3} key={period.identifier}>
+                      <Button
+                        variant={period.variant}
+                        className="w-100 py-3 d-flex flex-column align-items-center justify-content-center"
+                        onClick={() => handleRegeneratePeriodBulletins(period)}
+                        disabled={generatingPeriod !== null || regeneratingPeriod !== null || downloadingPeriod !== null}
+                        style={{ minHeight: '80px' }}
+                      >
+                        {regeneratingPeriod === period.identifier ? (
+                          <>
+                            <Spinner animation="border" size="sm" className="mb-2" />
+                            <small>Régénération...</small>
+                          </>
+                        ) : (
+                          <>
+                            <ArrowClockwise size={28} className="mb-2" />
+                            <strong>{period.label}</strong>
+                          </>
+                        )}
+                      </Button>
+                    </Col>
+                  ))}
+                </Row>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      )}
+
+      {/* Téléchargement Groupé par Période */}
+      {selectedSeries && (
+        <Row className="mb-3">
+          <Col>
+            <Card className="border-primary">
+              <Card.Header className="bg-primary text-white d-flex align-items-center">
+                <FileEarmarkZip className="me-2" size={20} />
+                <h6 className="mb-0">Téléchargement Groupé des Bulletins par Période</h6>
+              </Card.Header>
+              <Card.Body>
+                <p className="text-muted mb-3">
+                  Téléchargez tous les bulletins d'une période spécifique pour la série sélectionnée en un seul fichier ZIP.
+                </p>
+                <Row className="g-3">
+                  {[
+                    { type: 'sequence', identifier: 'seq1', label: 'Séquence 1', variant: 'outline-primary' },
+                    { type: 'sequence', identifier: 'seq2', label: 'Séquence 2', variant: 'outline-primary' },
+                    { type: 'trimester', identifier: 'trim1', label: 'Trimestre 1', variant: 'outline-success' },
+                    { type: 'sequence', identifier: 'seq3', label: 'Séquence 3', variant: 'outline-primary' },
+                    { type: 'sequence', identifier: 'seq4', label: 'Séquence 4', variant: 'outline-primary' },
+                    { type: 'trimester', identifier: 'trim2', label: 'Trimestre 2', variant: 'outline-success' },
+                    { type: 'trimester', identifier: 'trim3', label: 'Trimestre 3', variant: 'outline-success' },
+                  ].map((period) => (
+                    <Col md={3} key={period.identifier}>
+                      <Button
+                        variant={period.variant}
+                        className="w-100 py-3 d-flex flex-column align-items-center justify-content-center"
+                        onClick={() => handleDownloadPeriodBulletins(period)}
+                        disabled={generatingPeriod !== null || regeneratingPeriod !== null || downloadingPeriod !== null}
+                        style={{ minHeight: '80px' }}
+                      >
+                        {downloadingPeriod === period.identifier ? (
+                          <>
+                            <Spinner animation="border" size="sm" className="mb-2" />
+                            <small>Téléchargement...</small>
+                          </>
+                        ) : (
+                          <>
+                            <FileEarmarkZip size={28} className="mb-2" />
+                            <strong>{period.label}</strong>
+                          </>
+                        )}
+                      </Button>
+                    </Col>
+                  ))}
+                </Row>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      )}
+
       {/* Filtres des périodes */}
       {selectedSeries && (
         <Row className="mb-3">
-          <Col md={8}>
+          <Col>
             <ButtonGroup>
-              <Button 
+              <Button
                 variant={selectedPeriodType === 'all' ? 'primary' : 'outline-primary'}
                 onClick={() => setSelectedPeriodType('all')}
               >
                 Tous
               </Button>
-              <Button 
+              <Button
                 variant={selectedPeriodType === 'sequences' ? 'primary' : 'outline-primary'}
                 onClick={() => setSelectedPeriodType('sequences')}
               >
                 Séquences
               </Button>
-              <Button 
+              <Button
                 variant={selectedPeriodType === 'trimesters' ? 'primary' : 'outline-primary'}
                 onClick={() => setSelectedPeriodType('trimesters')}
               >
                 Trimestres
               </Button>
-              <Button 
+              <Button
                 variant={selectedPeriodType === 'generated' ? 'success' : 'outline-success'}
                 onClick={() => setSelectedPeriodType('generated')}
               >
                 Générés
               </Button>
-              <Button 
+              <Button
                 variant={selectedPeriodType === 'pending' ? 'warning' : 'outline-warning'}
                 onClick={() => setSelectedPeriodType('pending')}
               >
@@ -892,67 +1239,58 @@ function BulletinManagementNew() {
               </Button>
             </ButtonGroup>
           </Col>
-          <Col md={4} className="text-end">
-            <div className="d-flex gap-2 justify-content-end flex-wrap">
-              <Button
-                variant="primary"
-                onClick={handleGenerateAllBulletins}
-                disabled={loading || !selectedSeries}
-                size="sm"
-                className="d-flex align-items-center"
-              >
-                <CardText className="me-1" size={14} />
-                {loading ? (
-                  <>
-                    <Spinner size="sm" className="me-1" />
-                    Génération...
-                  </>
-                ) : (
-                  'Générer Tous'
-                )}
-              </Button>
-              <Button
-                variant="warning"
-                onClick={handleRegenerateAllBulletins}
-                disabled={loading || !selectedSeries}
-                size="sm"
-                className="d-flex align-items-center"
-              >
-                <ArrowClockwise className="me-1" size={14} />
-                {loading ? (
-                  <>
-                    <Spinner size="sm" className="me-1" />
-                    Régénération...
-                  </>
-                ) : (
-                  'Régénérer Tous'
-                )}
-              </Button>
-              <Button
-                variant="success"
-                onClick={handleDownloadAllBulletins}
-                disabled={loading || !selectedSeries}
-                size="sm"
-                className="d-flex align-items-center"
-              >
-                <Download className="me-1" size={14} />
-                {loading ? (
-                  <>
-                    <Spinner size="sm" className="me-1" />
-                    Téléchargement...
-                  </>
-                ) : (
-                  'Télécharger Tous'
-                )}
-              </Button>
-            </div>
-          </Col>
         </Row>
       )}
 
       {/* Messages d'alerte */}
       {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
       {success && <Alert variant="success" onClose={() => setSuccess('')} dismissible>{success}</Alert>}
+
+      {/* 📊 Barre de progression en temps réel (NOUVELLE VERSION - 1 par 1) */}
+      {oneByOneProgress.status !== 'idle' && (
+        <Alert
+          variant={oneByOneProgress.status === 'completed' ? 'success' : oneByOneProgress.status === 'failed' ? 'danger' : 'info'}
+          className="mb-3"
+        >
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <strong>
+              {oneByOneProgress.status === 'processing' && '⚙️ Génération en cours...'}
+              {oneByOneProgress.status === 'completed' && '✅ Terminé !'}
+              {oneByOneProgress.status === 'failed' && '❌ Erreur'}
+            </strong>
+            <span className="text-muted">
+              {oneByOneProgress.current}/{oneByOneProgress.total} bulletins
+            </span>
+          </div>
+          <ProgressBar
+            now={oneByOneProgress.percentage}
+            label={`${oneByOneProgress.percentage}%`}
+            variant={oneByOneProgress.status === 'completed' ? 'success' : oneByOneProgress.status === 'failed' ? 'danger' : 'primary'}
+            animated={oneByOneProgress.status === 'processing'}
+            striped={oneByOneProgress.status !== 'completed'}
+          />
+          <small className="text-muted mt-1 d-block">
+            {oneByOneProgress.message}
+          </small>
+          {oneByOneProgress.errors.length > 0 && (
+            <div className="mt-2">
+              <strong className="text-danger">Erreurs ({oneByOneProgress.errors.length}) :</strong>
+              <ul className="mb-0 mt-1" style={{ fontSize: '0.85rem' }}>
+                {oneByOneProgress.errors.slice(0, 5).map((err, idx) => (
+                  <li key={idx}>
+                    <strong>{err.student}</strong> : {err.error}
+                  </li>
+                ))}
+                {oneByOneProgress.errors.length > 5 && (
+                  <li className="text-muted">
+                    ... et {oneByOneProgress.errors.length - 5} autre(s) erreur(s)
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+        </Alert>
+      )}
 
       {/* Liste des étudiants avec statuts des bulletins */}
       {selectedSeries && (
@@ -965,7 +1303,6 @@ function BulletinManagementNew() {
                   variant="outline-primary" 
                   size="sm" 
                   onClick={() => {
-                    console.log('🔄 Force refresh des données...');
                     fetchStudentsData();
                   }}
                   disabled={loading}
@@ -990,10 +1327,13 @@ function BulletinManagementNew() {
                           <th>Matricule</th>
                           <th>Séq 1</th>
                           <th>Séq 2</th>
+                          <th>Comp 1</th>
                           <th>Trim 1</th>
                           <th>Séq 3</th>
                           <th>Séq 4</th>
+                          <th>Comp 2</th>
                           <th>Trim 2</th>
+                          <th>Comp 3</th>
                           <th>Trim 3</th>
                           <th>Actions</th>
                         </tr>
@@ -1053,6 +1393,24 @@ function BulletinManagementNew() {
                               )}
                             </td>
 
+                            {/* Composition 1 */}
+                            <td>
+                              {student.bulletins.composition_1 && (
+                                <div className="d-flex flex-column align-items-start">
+                                  {getCompletionBadge(student.bulletins.composition_1)}
+                                  {student.bulletins.composition_1.completion_percentage > 0 && (
+                                    <ProgressBar
+                                      now={student.bulletins.composition_1.completion_percentage}
+                                      size="sm"
+                                      className="mt-1 w-100"
+                                      style={{height: '4px'}}
+                                      variant="info"
+                                    />
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
                             {/* Trimestre 1 */}
                             <td>
                               {student.bulletins.trimester_1 && (
@@ -1104,6 +1462,24 @@ function BulletinManagementNew() {
                               )}
                             </td>
 
+                            {/* Composition 2 */}
+                            <td>
+                              {student.bulletins.composition_2 && (
+                                <div className="d-flex flex-column align-items-start">
+                                  {getCompletionBadge(student.bulletins.composition_2)}
+                                  {student.bulletins.composition_2.completion_percentage > 0 && (
+                                    <ProgressBar
+                                      now={student.bulletins.composition_2.completion_percentage}
+                                      size="sm"
+                                      className="mt-1 w-100"
+                                      style={{height: '4px'}}
+                                      variant="info"
+                                    />
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
                             {/* Trimestre 2 */}
                             <td>
                               {student.bulletins.trimester_2 && (
@@ -1115,6 +1491,24 @@ function BulletinManagementNew() {
                                       size="sm"
                                       className="mt-1 w-100"
                                       style={{height: '4px'}}
+                                    />
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Composition 3 */}
+                            <td>
+                              {student.bulletins.composition_3 && (
+                                <div className="d-flex flex-column align-items-start">
+                                  {getCompletionBadge(student.bulletins.composition_3)}
+                                  {student.bulletins.composition_3.completion_percentage > 0 && (
+                                    <ProgressBar
+                                      now={student.bulletins.composition_3.completion_percentage}
+                                      size="sm"
+                                      className="mt-1 w-100"
+                                      style={{height: '4px'}}
+                                      variant="info"
                                     />
                                   )}
                                 </div>

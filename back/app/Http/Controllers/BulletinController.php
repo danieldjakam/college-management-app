@@ -203,12 +203,42 @@ class BulletinController extends Controller
     public function download($bulletinId)
     {
         $bulletin = BulletinGeneration::findOrFail($bulletinId);
-        
-        if (!$bulletin->file_path || !file_exists(storage_path('app/' . $bulletin->file_path))) {
-            return response()->json(['error' => 'Bulletin file not found'], 404);
+
+        // Vérifier plusieurs emplacements possibles pour la compatibilité
+        $possiblePaths = [];
+
+        if ($bulletin->file_path) {
+            // 1. Chemin actuel (nouveau format)
+            $possiblePaths[] = storage_path('app/' . $bulletin->file_path);
+
+            // 2. Ancien format (bulletins/ sans public/)
+            if (str_starts_with($bulletin->file_path, 'public/bulletins/')) {
+                $oldPath = str_replace('public/bulletins/', 'bulletins/', $bulletin->file_path);
+                $possiblePaths[] = storage_path('app/' . $oldPath);
+            }
         }
-        
-        return response()->download(storage_path('app/' . $bulletin->file_path));
+
+        // Vérifier si un fichier existe
+        foreach ($possiblePaths as $path) {
+            if (file_exists($path)) {
+                return response()->download($path);
+            }
+        }
+
+        // Aucun fichier trouvé - retourner 404
+        \Log::warning("Bulletin PDF not found", [
+            'bulletin_id' => $bulletinId,
+            'file_path' => $bulletin->file_path,
+            'checked_paths' => $possiblePaths
+        ]);
+
+        return response()->json([
+            'error' => 'Bulletin file not found',
+            'bulletin_id' => $bulletinId,
+            'student_id' => $bulletin->student_id,
+            'period_type' => $bulletin->period_type,
+            'period_identifier' => $bulletin->period_identifier
+        ], 404);
     }
     
     /**

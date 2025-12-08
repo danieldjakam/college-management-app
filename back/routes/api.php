@@ -1589,3 +1589,29 @@ Route::prefix('subject-groups')->group(function () {
     Route::post('/bulk-update', [App\Http\Controllers\Api\SubjectGroupController::class, 'bulkUpdate'])
         ->middleware(['role:admin,principal,directeur_etudes']);
 });
+
+
+// ============================================
+// STUDENT DISCIPLINE - Gestion de la discipline
+// ============================================
+Route::prefix('discipline')->middleware('auth:api')->group(function () {
+    // Get discipline data for a student
+    Route::get('/student/{studentId}', [App\Http\Controllers\StudentDisciplineController::class, 'show'])
+        ->middleware(['role:admin,principal,secretaire,surveillant']);
+
+    // Get discipline data for all students in a class
+    Route::get('/class', [App\Http\Controllers\StudentDisciplineController::class, 'getByClass'])
+        ->middleware(['role:admin,principal,secretaire,surveillant']);
+
+    // Store or update discipline data for a student
+    Route::post('/store', [App\Http\Controllers\StudentDisciplineController::class, 'store'])
+        ->middleware(['role:admin,principal,secretaire,surveillant']);
+
+    // Bulk update discipline data
+    Route::post('/bulk-store', [App\Http\Controllers\StudentDisciplineController::class, 'bulkStore'])
+        ->middleware(['role:admin,principal,secretaire,surveillant']);
+
+    // Delete discipline record
+    Route::delete('/{id}', [App\Http\Controllers\StudentDisciplineController::class, 'destroy'])
+        ->middleware(['role:admin,principal']);
+});

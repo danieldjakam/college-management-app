@@ -83,7 +83,7 @@ const StudentPhoto = ({ student, size = 40, className = "" }) => {
 };
 
 // Composant pour les éléments sortables
-const SortableStudent = ({ student, handleEdit, handleDelete, handlePrintCard, handleTransferStudent, handleTransferWithinClass, handleViewStudent, handleViewPayments, handleStatusChange, navigate, userRole }) => {
+const SortableStudent = ({ student, handleEdit, handleDelete, handlePrintCard, handlePreviewCard, handleTransferStudent, handleTransferWithinClass, handleViewStudent, handleViewPayments, handleStatusChange, navigate, userRole }) => {
     const {
         attributes,
         listeners,
@@ -200,6 +200,7 @@ const SortableStudent = ({ student, handleEdit, handleDelete, handlePrintCard, h
                 <StudentActionsDropdown
                     student={student}
                     onPrintCard={handlePrintCard}
+                    onPreviewCard={handlePreviewCard}
                     onTransfer={handleTransferStudent}
                     onTransferWithinClass={handleTransferWithinClass}
                     onEdit={handleEdit}
@@ -559,9 +560,24 @@ const SeriesStudents = () => {
             class_series: series,
             current_class: series?.name
         };
-        
+
         setNewStudentForCard(enrichedStudent);
         setShowCardPrint(true);
+    };
+
+    const handlePreviewCard = async (student) => {
+        try {
+            // Récupérer l'année scolaire actuelle
+            const currentYear = new Date().getFullYear();
+            const academicYear = `${currentYear}-${currentYear + 1}`;
+
+            // Ouvrir la prévisualisation dans un nouvel onglet
+            await secureApiEndpoints.studentCards.previewCard(student.id, academicYear);
+        } catch (error) {
+            console.error('Erreur lors de la prévisualisation:', error);
+            setError(error.message || 'Erreur lors de la prévisualisation de la carte');
+            setTimeout(() => setError(''), 5000);
+        }
     };
 
     const handleTransferStudent = (student) => {
@@ -1532,6 +1548,7 @@ const SeriesStudents = () => {
                                                             handleEdit={handleEdit}
                                                             handleDelete={handleDelete}
                                                             handlePrintCard={handlePrintCard}
+                                                            handlePreviewCard={handlePreviewCard}
                                                             handleTransferStudent={handleTransferStudent}
                                                             handleTransferWithinClass={handleTransferWithinClass}
                                                             handleViewStudent={handleViewStudent}

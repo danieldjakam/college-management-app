@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    Plus, 
-    PencilSquare, 
-    Trash, 
-    People, 
+import {
+    Plus,
+    PencilSquare,
+    Trash,
+    People,
     CreditCard,
     ChevronDown,
     ChevronRight,
     Building,
     Eye,
-    FileText
+    FileText,
+    CardChecklist
     // BookOpen
 } from 'react-bootstrap-icons';
 import { useAuth } from '../../hooks/useAuth';
@@ -148,6 +149,54 @@ const SchoolClasses = () => {
         navigate(`/students/series/${seriesId}`);
     };
 
+    const handleGenerateCards = async (classItem) => {
+        try {
+            // Récupérer l'année scolaire actuelle
+            const currentYear = new Date().getFullYear();
+            const academicYear = `${currentYear}-${currentYear + 1}`;
+
+            Swal.fire({
+                title: 'Génération en cours...',
+                text: 'Veuillez patienter pendant la génération des cartes d\'identité.',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            const response = await secureApiEndpoints.studentCards.generateClassCards(
+                classItem.id,
+                { academic_year: academicYear }
+            );
+
+            Swal.close();
+
+            if (response.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Cartes générées !',
+                    text: 'Les cartes d\'identité ont été générées avec succès.',
+                    confirmButtonText: 'OK'
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Erreur',
+                    text: response.message || 'Erreur lors de la génération des cartes.',
+                    confirmButtonText: 'OK'
+                });
+            }
+        } catch (error) {
+            console.error('Erreur lors de la génération des cartes:', error);
+            Swal.close();
+            Swal.fire({
+                icon: 'error',
+                title: 'Erreur',
+                text: 'Une erreur est survenue lors de la génération des cartes.',
+                confirmButtonText: 'OK'
+            });
+        }
+    };
 
     const getSectionName = (sectionId) => {
         const section = sections.find(s => s.id === sectionId);
@@ -362,6 +411,16 @@ const SchoolClasses = () => {
                                                         </div>
                                                     </div>
                                                     <div className="d-flex gap-2">
+                                                        <button
+                                                            className="btn btn-sm btn-outline-success"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleGenerateCards(classItem);
+                                                            }}
+                                                            title="Générer cartes d'identité"
+                                                        >
+                                                            <CardChecklist size={14} />
+                                                        </button>
                                                         <button
                                                             className="btn btn-sm btn-outline-primary"
                                                             onClick={(e) => {

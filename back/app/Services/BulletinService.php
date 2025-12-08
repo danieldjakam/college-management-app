@@ -533,6 +533,25 @@ class BulletinService
 
         $bulletinData['appreciation'] = $this->getAppreciationBySection($bulletinData['average'], $sectionType);
 
+        // Récupérer les données de discipline pour cette séquence
+        $discipline = \App\Models\StudentDiscipline::where('student_id', $studentId)
+            ->where('sequence_id', $sequence->id)
+            ->first();
+
+        $bulletinData['discipline'] = [
+            'delays_justified' => $discipline->delays_justified ?? 0,
+            'delays_unjustified' => $discipline->delays_unjustified ?? 0,
+            'absences_justified' => $discipline->absences_justified ?? 0,
+            'absences_unjustified' => $discipline->absences_unjustified ?? 0,
+            'blame_conduct' => $discipline->blame_conduct ?? 0,
+            'blame_work' => $discipline->blame_work ?? 0,
+            'warning_conduct' => $discipline->warning_conduct ?? 0,
+            'warning_work' => $discipline->warning_work ?? 0,
+            'detention_hours' => $discipline->detention_hours ?? 0,
+            'exclusion_days' => $discipline->exclusion_days ?? 0,
+            'observations' => $discipline->observations ?? ''
+        ];
+
         return $bulletinData;
     }
     
@@ -685,10 +704,29 @@ class BulletinService
         $bulletinData['first_average'] = 20; // TODO: Calculer vraiment
         $bulletinData['last_average'] = 5;   // TODO: Calculer vraiment
         $bulletinData['appreciation'] = $this->getAppreciationBySection($bulletinData['average'], $sectionType);
-        
+
+        // Récupérer les données de discipline pour ce trimestre
+        $discipline = \App\Models\StudentDiscipline::where('student_id', $studentId)
+            ->where('trimester_id', $trimester->id)
+            ->first();
+
+        $bulletinData['discipline'] = [
+            'delays_justified' => $discipline->delays_justified ?? 0,
+            'delays_unjustified' => $discipline->delays_unjustified ?? 0,
+            'absences_justified' => $discipline->absences_justified ?? 0,
+            'absences_unjustified' => $discipline->absences_unjustified ?? 0,
+            'blame_conduct' => $discipline->blame_conduct ?? 0,
+            'blame_work' => $discipline->blame_work ?? 0,
+            'warning_conduct' => $discipline->warning_conduct ?? 0,
+            'warning_work' => $discipline->warning_work ?? 0,
+            'detention_hours' => $discipline->detention_hours ?? 0,
+            'exclusion_days' => $discipline->exclusion_days ?? 0,
+            'observations' => $discipline->observations ?? ''
+        ];
+
         return $bulletinData;
     }
-    
+
     /**
      * Get subject min/max scores for ranking
      */
@@ -1164,7 +1202,18 @@ class BulletinService
             'made_in_douala' => $labels['made_in_douala'],
             'principal_title' => $labels['principal_title'],
             'legend_title' => $labels['legend_title'],
-            'legend_items' => $labels['legend_items']
+            'legend_items' => $labels['legend_items'],
+            // Données de discipline
+            'discipline_delays_justified' => $data['discipline']['delays_justified'] ?? 0,
+            'discipline_delays_unjustified' => $data['discipline']['delays_unjustified'] ?? 0,
+            'discipline_absences_justified' => $data['discipline']['absences_justified'] ?? 0,
+            'discipline_absences_unjustified' => $data['discipline']['absences_unjustified'] ?? 0,
+            'discipline_blame_conduct' => $data['discipline']['blame_conduct'] ?? 0,
+            'discipline_blame_work' => $data['discipline']['blame_work'] ?? 0,
+            'discipline_warning_conduct' => $data['discipline']['warning_conduct'] ?? 0,
+            'discipline_warning_work' => $data['discipline']['warning_work'] ?? 0,
+            'discipline_detention_hours' => $data['discipline']['detention_hours'] ?? 0,
+            'discipline_exclusion_days' => $data['discipline']['exclusion_days'] ?? 0
         ];
     }
     
@@ -1523,8 +1572,8 @@ class BulletinService
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($nxc !== null ? number_format((float)$nxc, 2) : '-') . '</td>'; // TOTAL = NXC
                     // 🔧 FIX BUG #1: Si pas de rang, afficher dernier rang au lieu de 1er
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">' . $competence . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 11px;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10pt;">' . $competence . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10pt;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
                 } else {
                     // 📚 PREMIER CYCLE: 9 colonnes avec DS1 (moyenne cachée)
                     $ds1 = $subject['ds'] ?? null;
@@ -1581,8 +1630,8 @@ class BulletinService
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // (NXC)
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // TOTAL
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // RANG
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10px;">' . strtoupper(explode(' :', $groupName)[0]) . '</td>'; // COMPÉTENCES
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10px;">Moy Gpe: ' . number_format((float)$groupAverage, 2) . '</td>'; // PROFESSEURS
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10pt;">' . strtoupper(explode(' :', $groupName)[0]) . '</td>'; // COMPÉTENCES
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10pt;">Moy Gpe: ' . number_format((float)$groupAverage, 2) . '</td>'; // PROFESSEURS
             } else {
                 // 📚 PREMIER CYCLE: 9 colonnes - ligne de total
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>';

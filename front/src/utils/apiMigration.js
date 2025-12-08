@@ -36,7 +36,7 @@ class SecureApiService {
 
         try {
             // Support pour timeout personnalisé
-            const timeout = options.timeout || 120000; // Default: 2 minutes
+            const timeout = options.timeout || 300000; // Default: 5 minutes (pour les requêtes lourdes comme les bulletins)
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -633,6 +633,143 @@ export const secureApiEndpoints = {
         configurePayments: (id, data) => secureApi.post(`/school-classes/${id}/configure-payments`, data),
         getByLevel: (levelId) => secureApi.get(`/school-classes?level_id=${levelId}`),
         getBySection: (sectionId) => secureApi.get(`/school-classes?section_id=${sectionId}`)
+    },
+
+    // === STUDENT CARDS (Cartes d'identité scolaires) ===
+    studentCards: {
+        // Générer les cartes pour une classe entière (10 par page PDF)
+        generateClassCards: async (classId, data) => {
+            const token = authService.getToken();
+            const response = await fetch(`${secureApi.baseURL}/student-cards/class/${classId}/generate`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/pdf'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Erreur lors de la génération des cartes');
+            }
+
+            // Créer un blob pour le PDF
+            const blob = await response.blob();
+
+            // Créer un nom de fichier
+            const contentDisposition = response.headers.get('content-disposition');
+            let filename = `Cartes_Classe_${classId}_${data.academic_year}.pdf`;
+            if (contentDisposition && contentDisposition.includes('filename=')) {
+                filename = contentDisposition.split('filename=')[1].replace(/"/g, '');
+            }
+
+            // Créer et déclencher le téléchargement
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            return { success: true, filename };
+        },
+
+        // Générer une carte individuelle
+        generateSingleCard: async (studentId, data) => {
+            const token = authService.getToken();
+            const response = await fetch(`${secureApi.baseURL}/student-cards/student/${studentId}/generate`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/pdf'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Erreur lors de la génération de la carte');
+            }
+
+            // Créer un blob pour le PDF
+            const blob = await response.blob();
+
+            // Créer un nom de fichier
+            const contentDisposition = response.headers.get('content-disposition');
+            let filename = `Carte_Eleve_${studentId}.pdf`;
+            if (contentDisposition && contentDisposition.includes('filename=')) {
+                filename = contentDisposition.split('filename=')[1].replace(/"/g, '');
+            }
+
+            // Créer et déclencher le téléchargement
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            return { success: true, filename };
+        },
+
+        // Prévisualiser la carte d'un élève (ouvre dans un nouvel onglet)
+        previewCard: async (studentId, academicYear) => {
+            const token = authService.getToken();
+            const url = `${secureApi.baseURL}/student-cards/student/${studentId}/preview`;
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/html'
+                    },
+                    body: JSON.stringify({ academic_year: academicYear })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `Erreur ${response.status}`);
+                }
+
+                // Récupérer le HTML
+                let htmlContent = await response.text();
+
+                // Injecter le token dans le HTML avant de l'afficher
+                htmlContent = htmlContent.replace('</head>', `
+                    <script>
+                        window.__JWT_TOKEN__ = '${token}';
+                        window.__API_BASE_URL__ = '${secureApi.baseURL}';
+                    </script>
+                    </head>
+                `);
+
+                // Ouvrir dans un nouvel onglet
+                const newWindow = window.open('', '_blank');
+                if (newWindow) {
+                    newWindow.document.write(htmlContent);
+                    newWindow.document.close();
+                } else {
+                    throw new Error('Impossible d\'ouvrir la fenêtre de prévisualisation. Veuillez autoriser les pop-ups.');
+                }
+            } catch (error) {
+                console.error('Erreur lors de la prévisualisation:', error);
+                throw error;
+            }
+        },
+
+        // Vérifier une carte via QR Code
+        verifyCard: (matricule) => secureApi.get(`/student-cards/verify/${matricule}`)
     },
 
     // === GRADES ===
