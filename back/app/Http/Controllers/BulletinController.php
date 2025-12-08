@@ -240,7 +240,26 @@ class BulletinController extends Controller
             'period_identifier' => $bulletin->period_identifier
         ], 404);
     }
-    
+
+    /**
+     * NOTE: printAllClass() method was removed - use downloadAllBulletins() instead
+     * downloadAllBulletins() already creates a ZIP with all PDFs for a class/period
+     */
+
+    /**
+     * Helper method to prepare bulletin data
+     */
+    private function prepareBulletinData($studentId, $periodType, $periodIdentifier)
+    {
+        if ($periodType === 'sequence') {
+            $sequenceNumber = (int) str_replace('seq', '', $periodIdentifier);
+            return $this->bulletinService->generateSequenceBulletinData($sequenceNumber, $studentId);
+        } else {
+            $trimesterNumber = (int) str_replace('trim', '', $periodIdentifier);
+            return $this->bulletinService->generateTrimesterBulletinData($trimesterNumber, $studentId);
+        }
+    }
+
     /**
      * Get batch generation progress
      * Returns real-time progress for bulletin generation
@@ -964,6 +983,9 @@ class BulletinController extends Controller
         $generated = 0;
         $errors = [];
 
+        // Créer une clé de progression unique
+        $progressKey = "bulletin_progress_sync_{$request->series_id}_{$request->period_identifier}_" . time();
+
         try {
             // Récupérer tous les étudiants de la série
             $students = Student::where('class_series_id', $request->series_id)
@@ -979,8 +1001,21 @@ class BulletinController extends Controller
                 ], 404);
             }
 
+            $total = $students->count();
+
+            // Initialiser la progression dans le cache
+            \Cache::put($progressKey, [
+                'current' => 0,
+                'total' => $total,
+                'percentage' => 0,
+                'status' => 'processing',
+                'message' => 'Génération en cours...',
+                'generated' => 0,
+                'errors' => 0
+            ], 600); // 10 minutes
+
             // Générer bulletin pour chaque étudiant
-            foreach ($students as $student) {
+            foreach ($students as $index => $student) {
                 try {
                     // Utiliser generate() avec force si demandé
                     $generateRequest = new \Illuminate\Http\Request([
@@ -1007,9 +1042,33 @@ class BulletinController extends Controller
                         'error' => $e->getMessage()
                     ];
                 }
+
+                // Mettre à jour la progression dans le cache
+                $current = $index + 1;
+                $percentage = round(($current / $total) * 100);
+                \Cache::put($progressKey, [
+                    'current' => $current,
+                    'total' => $total,
+                    'percentage' => $percentage,
+                    'status' => 'processing',
+                    'message' => "Génération en cours: {$current}/{$total} bulletins",
+                    'generated' => $generated,
+                    'errors' => count($errors)
+                ], 600);
             }
 
             $duration = round(microtime(true) - $startTime, 1);
+
+            // Marquer la progression comme terminée
+            \Cache::put($progressKey, [
+                'current' => $total,
+                'total' => $total,
+                'percentage' => 100,
+                'status' => 'completed',
+                'message' => "✅ Génération terminée en {$duration}s",
+                'generated' => $generated,
+                'errors' => count($errors)
+            ], 600);
 
             return response()->json([
                 'success' => true,
@@ -1018,7 +1077,8 @@ class BulletinController extends Controller
                 'errors' => count($errors),
                 'error_details' => array_slice($errors, 0, 5), // Première 5 erreurs
                 'duration' => $duration,
-                'message' => "✅ Génération terminée en {$duration}s : {$generated} bulletin(s) générés, " . count($errors) . " erreur(s)"
+                'message' => "✅ Génération terminée en {$duration}s : {$generated} bulletin(s) générés, " . count($errors) . " erreur(s)",
+                'progress_key' => $progressKey
             ]);
 
         } catch (\Exception $e) {

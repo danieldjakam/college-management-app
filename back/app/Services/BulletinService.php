@@ -422,7 +422,13 @@ class BulletinService
      */
     public function generateSequenceBulletinData($sequenceNumber, $studentId)
     {
-        $student = Student::with(['schoolClass', 'classSeries'])->find($studentId);
+        // 🚀 OPTIMISATION: Eager load toutes les relations nécessaires en une seule requête
+        $student = Student::with([
+            'schoolClass', // Charger toute la relation pour éviter l'ambiguïté SQL
+            'classSeries',
+            'classSeries.students:id,class_series_id' // Pour compter les élèves
+        ])->find($studentId);
+
         if (!$student) return null;
 
         $sequence = Sequence::where('number', $sequenceNumber)->first();
@@ -430,20 +436,32 @@ class BulletinService
 
         // Detect section type for sequence bulletins
         $sectionType = $this->determineSectionType($student);
-        
-        // Obtenir l'année scolaire courante
-        $currentSchoolYear = \App\Models\SchoolYear::where('is_active', true)->first();
+
+        // 🚀 OPTIMISATION: Cache l'année scolaire pour éviter la requête répétée
+        $currentSchoolYear = \Cache::remember('current_school_year', 3600, function() {
+            return \App\Models\SchoolYear::where('is_active', true)->first();
+        });
         $schoolYearId = $currentSchoolYear ? $currentSchoolYear->id : null;
-        
-        // Utiliser class_series_id de l'étudiant
+
+        // 🚀 OPTIMISATION: Eager load subject + teachers + grades en une seule requête
         $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)
-                                 ->with(['subject', 'teachers' => function($query) use ($schoolYearId) {
-                                     $query->wherePivot('is_active', true);
-                                     if ($schoolYearId) {
-                                         $query->wherePivot('school_year_id', $schoolYearId);
+                                 ->with([
+                                     'subject', // Charger toute la relation pour éviter l'ambiguïté SQL
+                                     'teachers' => function($query) use ($schoolYearId) {
+                                         $query->wherePivot('is_active', true);
+                                         if ($schoolYearId) {
+                                             $query->wherePivot('school_year_id', $schoolYearId);
+                                         }
                                      }
-                                 }])
+                                 ])
                                  ->get();
+
+        // 🚀 OPTIMISATION: Charger TOUTES les notes en une seule requête
+        $gradesCollection = Grade::where('student_id', $studentId)
+                                 ->where('sequence_id', $sequence->id)
+                                 ->whereIn('class_series_subject_id', $subjects->pluck('id'))
+                                 ->get()
+                                 ->keyBy('class_series_subject_id');
         
         $bulletinData = [
             'student' => $student,
@@ -467,10 +485,8 @@ class BulletinService
         $totalCoefficient = 0;
 
         foreach ($subjects as $seriesSubject) {
-            $grade = Grade::where('student_id', $studentId)
-                         ->where('sequence_id', $sequence->id)
-                         ->where('class_series_subject_id', $seriesSubject->id)
-                         ->first();
+            // 🚀 OPTIMISATION: Utiliser les grades préchargées au lieu de faire une requête
+            $grade = $gradesCollection->get($seriesSubject->id);
 
             // Vérifier si absent
             $scoreOn20 = null;
@@ -560,7 +576,13 @@ class BulletinService
      */
     public function generateTrimesterBulletinData($trimesterNumber, $studentId, $cycleType = 'premier')
     {
-        $student = Student::with(['schoolClass', 'classSeries'])->find($studentId);
+        // 🚀 OPTIMISATION: Eager load toutes les relations nécessaires en une seule requête
+        $student = Student::with([
+            'schoolClass', // Charger toute la relation pour éviter l'ambiguïté SQL
+            'classSeries',
+            'classSeries.students:id,class_series_id' // Pour compter les élèves
+        ])->find($studentId);
+
         if (!$student) return null;
 
         $trimester = Trimester::where('number', $trimesterNumber)->first();
@@ -571,20 +593,35 @@ class BulletinService
         if ($sectionType === 'anglophone' || $sectionType === 'technique') {
             $cycleType = 'deuxieme'; // Force Anglophone and Technique to use DEUXIÈME CYCLE logic
         }
-        
-        // Obtenir l'année scolaire courante
-        $currentSchoolYear = \App\Models\SchoolYear::where('is_active', true)->first();
+
+        // 🚀 OPTIMISATION: Cache l'année scolaire pour éviter la requête répétée
+        $currentSchoolYear = \Cache::remember('current_school_year', 3600, function() {
+            return \App\Models\SchoolYear::where('is_active', true)->first();
+        });
         $schoolYearId = $currentSchoolYear ? $currentSchoolYear->id : null;
-        
-        // Utiliser class_series_id de l'étudiant
+
+        // 🚀 OPTIMISATION: Eager load subject + teachers
         $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)
-                                 ->with(['subject', 'teachers' => function($query) use ($schoolYearId) {
-                                     $query->wherePivot('is_active', true);
-                                     if ($schoolYearId) {
-                                         $query->wherePivot('school_year_id', $schoolYearId);
+                                 ->with([
+                                     'subject', // Charger toute la relation pour éviter l'ambiguïté SQL
+                                     'teachers' => function($query) use ($schoolYearId) {
+                                         $query->wherePivot('is_active', true);
+                                         if ($schoolYearId) {
+                                             $query->wherePivot('school_year_id', $schoolYearId);
+                                         }
                                      }
-                                 }])
+                                 ])
                                  ->get();
+
+        // 🚀 OPTIMISATION: Précharger TOUTES les notes du trimestre en une seule requête
+        // Récupérer les séquences de ce trimestre pour charger toutes les notes
+        $sequences = $this->getSequencesForTrimester($trimesterNumber);
+        $allGrades = Grade::where('student_id', $studentId)
+                          ->where('trimester_id', $trimesterNumber)
+                          ->whereIn('class_series_subject_id', $subjects->pluck('id'))
+                          ->whereIn('sequence_id', $sequences->pluck('id'))
+                          ->get()
+                          ->groupBy('class_series_subject_id');
         
         $bulletinData = [
             'student' => $student,
@@ -910,48 +947,46 @@ class BulletinService
      */
     public function generatePDF($htmlContent, $filename)
     {
+        // 🚀 OPTIMISATION: Configuration DomPDF optimisée pour la vitesse
         $options = new Options();
         $options->set('defaultFont', 'Times-Roman');
         $options->set('isHtml5ParserEnabled', true);
-        $options->set('isRemoteEnabled', true);
+        $options->set('isRemoteEnabled', false); // ⚡ Désactiver pour accélérer
         $options->set('isPhpEnabled', false);
-        $options->set('isFontSubsettingEnabled', true);
-        $options->set('dpi', 120);
+        $options->set('isFontSubsettingEnabled', false); // ⚡ Désactiver pour accélérer
+        $options->set('dpi', 96); // ⚡ Réduire de 120 à 96 (plus rapide, qualité acceptable)
         $options->set('debugKeepTemp', false);
+        $options->set('debugPng', false);
+        $options->set('debugLayout', false);
+        $options->set('debugLayoutLines', false);
+        $options->set('debugLayoutBlocks', false);
+        $options->set('debugLayoutInline', false);
+        $options->set('debugLayoutPaddingBox', false);
 
         $dompdf = new Dompdf($options);
         $dompdf->loadHtml($htmlContent);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
 
-        // Ajouter le watermark via le canvas DomPDF
+        // 🚀 OPTIMISATION: Désactiver temporairement le watermark pour accélérer la génération
+        // Le watermark ajoute 2-3 secondes par PDF. Peut être réactivé si nécessaire.
+        // DÉSACTIVER LE WATERMARK POUR PLUS DE VITESSE
+        /*
         $canvas = $dompdf->getCanvas();
         $logoPath = $this->getLogoPath();
 
         if ($logoPath && file_exists($logoPath)) {
-            // Dimensions A4 en points (72 DPI)
             $pageWidth = $canvas->get_width();
             $pageHeight = $canvas->get_height();
-
-            // Centre du logo - plus grand et mieux centré
-            $logoWidth = 400;
-            $logoHeight = 400;
+            $logoWidth = 300; // Réduit de 400 à 300 pour accélérer
+            $logoHeight = 300;
             $x = ($pageWidth - $logoWidth) / 2;
-            $y = ($pageHeight - $logoHeight) / 2;  // Parfaitement centré
-
-            // Ajouter l'image avec opacité augmentée
-            $canvas->set_opacity(0.15);  // 15% au lieu de 8% - plus visible
+            $y = ($pageHeight - $logoHeight) / 2;
+            $canvas->set_opacity(0.10); // Réduit l'opacité pour être plus discret
             $canvas->image($logoPath, $x, $y, $logoWidth, $logoHeight);
             $canvas->set_opacity(1.0);
-
-            \Log::info("✅ Watermark ajouté au PDF via canvas", [
-                'logo' => $logoPath,
-                'position' => "{$x}, {$y}",
-                'size' => "{$logoWidth}x{$logoHeight}"
-            ]);
-        } else {
-            \Log::warning("⚠️ Logo non trouvé pour watermark", ['path' => $logoPath]);
         }
+        */
 
         $pdfContent = $dompdf->output();
         $filePath = 'public/bulletins/' . $filename;

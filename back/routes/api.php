@@ -1337,10 +1337,14 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
     Route::post('/batch-generate-sync', [BulletinController::class, 'batchGenerateSync'])
         ->middleware(['role:admin']);
 
+    // Récupérer la progression d'une génération batch
+    Route::get('/progress/{progressKey}', [BulletinController::class, 'getBatchProgress'])
+        ->middleware(['role:admin,principal,teacher,secretaire']);
+
     // Téléchargement groupé de tous les bulletins
     Route::post('/download-all', [BulletinController::class, 'downloadAllBulletins'])
         ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
-    
+
     // Gestion des templates (Admin uniquement)
     Route::prefix('templates')->middleware(['role:admin'])->group(function () {
         Route::get('/', [BulletinController::class, 'getTemplates']);

@@ -509,30 +509,108 @@ function BulletinManagementNew() {
     });
 
     try {
-      // 🚀 GÉNÉRATION BATCH SYNCHRONE (force=false pour skip bulletins existants)
-      const response = await secureApi.post('/bulletins/batch-generate-sync', {
-        series_id: selectedSeries,
-        bulletin_type: period.type,
-        period_identifier: period.identifier,
-        force: false // Ne pas écraser les bulletins existants
+      // 🚀 GÉNÉRATION PAR LOTS (CHUNKS) AVEC TRAITEMENT PARALLÈLE
+      // Divise la génération en lots de 20 élèves
+      // Dans chaque lot, génère 3 bulletins en parallèle pour optimiser la vitesse
+      const CHUNK_SIZE = 20;
+      const PARALLEL_REQUESTS = 3; // Nombre de bulletins générés simultanément
+      const totalStudents = studentsToGenerate.length;
+      let processedCount = 0;
+      let generatedCount = 0;
+      let allErrors = [];
+
+      setOneByOneProgress({
+        current: 0,
+        total: totalStudents,
+        percentage: 0,
+        status: 'processing',
+        message: `⏳ Démarrage de la génération de ${totalStudents} bulletin(s)...\n📦 Traitement par lots de ${CHUNK_SIZE} (${PARALLEL_REQUESTS} simultanés)`,
+        errors: []
       });
 
-      const { generated, total, errors, error_details, duration, message } = response;
+      // Traiter par lots
+      for (let i = 0; i < totalStudents; i += CHUNK_SIZE) {
+        const chunkStudents = studentsToGenerate.slice(i, i + CHUNK_SIZE);
+        const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
+        const totalChunks = Math.ceil(totalStudents / CHUNK_SIZE);
+
+        // Mettre à jour la progression avant le lot
+        setOneByOneProgress(prev => ({
+          ...prev,
+          message: `⚙️ Lot ${chunkNumber}/${totalChunks} : Génération de ${chunkStudents.length} bulletin(s)...`,
+        }));
+
+        // Générer plusieurs bulletins en parallèle dans ce lot
+        for (let j = 0; j < chunkStudents.length; j += PARALLEL_REQUESTS) {
+          const parallelStudents = chunkStudents.slice(j, j + PARALLEL_REQUESTS);
+
+          // Créer un tableau de promesses pour les requêtes parallèles
+          const promises = parallelStudents.map(student =>
+            secureApi.post('/bulletins/generate', {
+              student_id: student.id,
+              bulletin_type: period.type,
+              period_identifier: period.identifier,
+              force: false
+            })
+            .then(response => ({
+              success: true,
+              student,
+              response
+            }))
+            .catch(err => ({
+              success: false,
+              student,
+              error: err
+            }))
+          );
+
+          // Attendre que toutes les requêtes parallèles se terminent
+          const results = await Promise.all(promises);
+
+          // Traiter les résultats
+          results.forEach(result => {
+            if (result.success) {
+              generatedCount++;
+            } else {
+              allErrors.push({
+                student: `${result.student.last_name} ${result.student.first_name}`,
+                error: result.error.response?.data?.error || result.error.message
+              });
+            }
+            processedCount++;
+          });
+
+          // Mettre à jour la progression après chaque lot parallèle
+          const percentage = Math.round((processedCount / totalStudents) * 100);
+          setOneByOneProgress({
+            current: processedCount,
+            total: totalStudents,
+            percentage: percentage,
+            status: 'processing',
+            message: `⚙️ Lot ${chunkNumber}/${totalChunks} : ${processedCount}/${totalStudents} bulletin(s) traités\n✅ ${generatedCount} générés | ❌ ${allErrors.length} erreurs`,
+            errors: allErrors
+          });
+        }
+
+        // Petite pause entre les lots pour éviter de surcharger le serveur
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
 
       // Marquer comme terminé
+      const finalMessage = `✅ Génération terminée : ${generatedCount}/${totalStudents} bulletin(s) générés`;
       setOneByOneProgress({
-        current: generated,
-        total: total,
+        current: totalStudents,
+        total: totalStudents,
         percentage: 100,
-        status: errors === 0 ? 'completed' : 'completed',
-        message: message,
-        errors: error_details || []
+        status: allErrors.length === 0 ? 'completed' : 'completed',
+        message: finalMessage,
+        errors: allErrors
       });
 
-      if (errors === 0) {
-        setSuccess(message);
+      if (allErrors.length === 0) {
+        setSuccess(finalMessage);
       } else {
-        setError(`⚠️ ${message} - Voir détails ci-dessous`);
+        setError(`⚠️ ${finalMessage} - ${allErrors.length} erreur(s) - Voir détails ci-dessous`);
       }
 
       // Recharger les données après 2 secondes
@@ -584,41 +662,109 @@ function BulletinManagementNew() {
     setError('');
     setSuccess('');
 
-    // Afficher progression indéterminée
-    setOneByOneProgress({
-      current: 0,
-      total: studentCount,
-      percentage: 0,
-      status: 'processing',
-      message: `⏳ Génération de ${studentCount} bulletins en cours... Veuillez patienter.`,
-      errors: []
-    });
-
     try {
-      // 🚀 GÉNÉRATION BATCH SYNCHRONE (1 seule requête!)
-      const response = await secureApi.post('/bulletins/batch-generate-sync', {
-        series_id: selectedSeries,
-        bulletin_type: period.type,
-        period_identifier: period.identifier,
-        force: true
+      // 🚀 RÉGÉNÉRATION PAR LOTS (CHUNKS) AVEC TRAITEMENT PARALLÈLE
+      // Divise la régénération en lots de 20 élèves
+      // Dans chaque lot, régénère 3 bulletins en parallèle pour optimiser la vitesse
+      const CHUNK_SIZE = 20;
+      const PARALLEL_REQUESTS = 3; // Nombre de bulletins régénérés simultanément
+      const totalStudents = studentCount;
+      let processedCount = 0;
+      let generatedCount = 0;
+      let allErrors = [];
+
+      setOneByOneProgress({
+        current: 0,
+        total: totalStudents,
+        percentage: 0,
+        status: 'processing',
+        message: `⚠️ RÉGÉNÉRATION de ${totalStudents} bulletin(s)...\n📦 Traitement par lots de ${CHUNK_SIZE} (${PARALLEL_REQUESTS} simultanés)`,
+        errors: []
       });
 
-      const { generated, total, errors, error_details, duration, message } = response;
+      // Traiter par lots
+      for (let i = 0; i < totalStudents; i += CHUNK_SIZE) {
+        const chunkStudents = studentsData.slice(i, i + CHUNK_SIZE);
+        const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
+        const totalChunks = Math.ceil(totalStudents / CHUNK_SIZE);
+
+        // Mettre à jour la progression avant le lot
+        setOneByOneProgress(prev => ({
+          ...prev,
+          message: `🔄 Lot ${chunkNumber}/${totalChunks} : Régénération de ${chunkStudents.length} bulletin(s)...`,
+        }));
+
+        // Générer plusieurs bulletins en parallèle dans ce lot
+        for (let j = 0; j < chunkStudents.length; j += PARALLEL_REQUESTS) {
+          const parallelStudents = chunkStudents.slice(j, j + PARALLEL_REQUESTS);
+
+          // Créer un tableau de promesses pour les requêtes parallèles
+          const promises = parallelStudents.map(student =>
+            secureApi.post('/bulletins/generate', {
+              student_id: student.id,
+              bulletin_type: period.type,
+              period_identifier: period.identifier,
+              force: true // FORCE pour remplacer les existants
+            })
+            .then(response => ({
+              success: true,
+              student,
+              response
+            }))
+            .catch(err => ({
+              success: false,
+              student,
+              error: err
+            }))
+          );
+
+          // Attendre que toutes les requêtes parallèles se terminent
+          const results = await Promise.all(promises);
+
+          // Traiter les résultats
+          results.forEach(result => {
+            if (result.success) {
+              generatedCount++;
+            } else {
+              allErrors.push({
+                student: `${result.student.last_name} ${result.student.first_name}`,
+                error: result.error.response?.data?.error || result.error.message
+              });
+            }
+            processedCount++;
+          });
+
+          // Mettre à jour la progression après chaque lot parallèle
+          const percentage = Math.round((processedCount / totalStudents) * 100);
+          setOneByOneProgress({
+            current: processedCount,
+            total: totalStudents,
+            percentage: percentage,
+            status: 'processing',
+            message: `🔄 Lot ${chunkNumber}/${totalChunks} : ${processedCount}/${totalStudents} bulletin(s) régénérés\n✅ ${generatedCount} générés | ❌ ${allErrors.length} erreurs`,
+            errors: allErrors
+          });
+        }
+
+        // Petite pause entre les lots
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
 
       // Marquer comme terminé
+      const finalMessage = `✅ Régénération terminée : ${generatedCount}/${totalStudents} bulletin(s) régénérés`;
       setOneByOneProgress({
-        current: generated,
-        total: total,
+        current: totalStudents,
+        total: totalStudents,
         percentage: 100,
-        status: errors === 0 ? 'completed' : 'completed',
-        message: message,
-        errors: error_details || []
+        status: allErrors.length === 0 ? 'completed' : 'completed',
+        message: finalMessage,
+        errors: allErrors
       });
 
-      if (errors === 0) {
-        setSuccess(message);
+      if (allErrors.length === 0) {
+        setSuccess(finalMessage);
       } else {
-        setError(`⚠️ ${message} - Voir détails ci-dessous`);
+        setError(`⚠️ ${finalMessage} - ${allErrors.length} erreur(s) - Voir détails ci-dessous`);
       }
 
       // Recharger les données après 2 secondes
@@ -1079,8 +1225,9 @@ function BulletinManagementNew() {
                       >
                         {generatingPeriod === period.identifier ? (
                           <>
-                            <Spinner animation="border" size="sm" className="mb-2" />
-                            <small>Génération...</small>
+                            <Spinner animation="border" className="mb-2" style={{ width: '2rem', height: '2rem' }} />
+                            <strong className="text-primary">⚙️ Génération en cours...</strong>
+                            <small className="mt-1">Ne fermez pas cette page</small>
                           </>
                         ) : (
                           <>
@@ -1131,8 +1278,9 @@ function BulletinManagementNew() {
                       >
                         {regeneratingPeriod === period.identifier ? (
                           <>
-                            <Spinner animation="border" size="sm" className="mb-2" />
-                            <small>Régénération...</small>
+                            <Spinner animation="border" className="mb-2" style={{ width: '2rem', height: '2rem' }} />
+                            <strong className="text-warning">🔄 Régénération en cours...</strong>
+                            <small className="mt-1">Ne fermez pas cette page</small>
                           </>
                         ) : (
                           <>
@@ -1249,16 +1397,26 @@ function BulletinManagementNew() {
       {/* 📊 Barre de progression en temps réel (NOUVELLE VERSION - 1 par 1) */}
       {oneByOneProgress.status !== 'idle' && (
         <Alert
-          variant={oneByOneProgress.status === 'completed' ? 'success' : oneByOneProgress.status === 'failed' ? 'danger' : 'info'}
+          variant={oneByOneProgress.status === 'completed' ? 'success' : oneByOneProgress.status === 'failed' ? 'danger' : 'warning'}
           className="mb-3"
+          style={{
+            fontSize: '1.1rem',
+            border: '2px solid',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+          }}
         >
-          <div className="d-flex justify-content-between align-items-center mb-2">
-            <strong>
-              {oneByOneProgress.status === 'processing' && '⚙️ Génération en cours...'}
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <strong style={{ fontSize: '1.2rem' }}>
+              {oneByOneProgress.status === 'processing' && (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                  ⚙️ Génération en cours...
+                </>
+              )}
               {oneByOneProgress.status === 'completed' && '✅ Terminé !'}
               {oneByOneProgress.status === 'failed' && '❌ Erreur'}
             </strong>
-            <span className="text-muted">
+            <span className="badge bg-primary" style={{ fontSize: '1rem' }}>
               {oneByOneProgress.current}/{oneByOneProgress.total} bulletins
             </span>
           </div>
@@ -1268,10 +1426,18 @@ function BulletinManagementNew() {
             variant={oneByOneProgress.status === 'completed' ? 'success' : oneByOneProgress.status === 'failed' ? 'danger' : 'primary'}
             animated={oneByOneProgress.status === 'processing'}
             striped={oneByOneProgress.status !== 'completed'}
+            style={{ height: '30px', fontSize: '1rem' }}
           />
-          <small className="text-muted mt-1 d-block">
+          <div className="mt-2" style={{ whiteSpace: 'pre-line' }}>
             {oneByOneProgress.message}
-          </small>
+          </div>
+          {oneByOneProgress.status === 'processing' && (
+            <div className="mt-2 text-center">
+              <small className="text-muted">
+                ⏳ Veuillez patienter, ne fermez pas cette page...
+              </small>
+            </div>
+          )}
           {oneByOneProgress.errors.length > 0 && (
             <div className="mt-2">
               <strong className="text-danger">Erreurs ({oneByOneProgress.errors.length}) :</strong>
