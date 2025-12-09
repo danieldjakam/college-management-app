@@ -524,6 +524,7 @@ class BulletinService
             }
 
             $bulletinData['subjects'][] = [
+                'subject_id' => $seriesSubject->subject->id, // 🔧 FIX: Ajouter subject_id pour groupSubjectsByType()
                 'name' => $seriesSubject->subject->name,
                 'teacher' => $teacherName,
                 'score' => $scoreOn20,

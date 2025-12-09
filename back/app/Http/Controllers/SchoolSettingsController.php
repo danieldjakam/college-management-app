@@ -175,12 +175,24 @@ class SchoolSettingsController extends Controller
     {
         try {
             $settings = SchoolSetting::getSettings();
-            
+
+            // Vérifier d'abord dans storage
             if ($settings->school_logo && Storage::exists('public/' . $settings->school_logo)) {
                 return response()->json([
                     'success' => true,
                     'data' => [
                         'logo_url' => Storage::url($settings->school_logo)
+                    ]
+                ]);
+            }
+
+            // Fallback: Vérifier dans public/assets/logo.png
+            $publicLogoPath = public_path('assets/logo.png');
+            if (file_exists($publicLogoPath)) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'logo_url' => asset('assets/logo.png')
                     ]
                 ]);
             }
