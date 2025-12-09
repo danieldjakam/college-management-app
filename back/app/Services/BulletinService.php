@@ -1199,8 +1199,11 @@ class BulletinService
         // Use APC template for 1er cycle francophone trimester bulletins
         if ($cycleType === 'premier' && $sectionType === 'francophone' && $templateType === 'trimester') {
             $templateFile = 'bulletin_apc_structure_finale.html';
+        } elseif ($sectionType === 'anglophone') {
+            // Use Anglophone templates
+            $templateFile = $forPdf ? 'cpbd_bulletin_anglophone_pdf.html' : 'cpbd_bulletin_anglophone.html';
         } else {
-            // Default templates
+            // Default Francophone templates
             $templateFile = $forPdf ? 'cpbd_bulletin_pdf.html' : 'cpbd_bulletin.html';
         }
 
@@ -1424,10 +1427,10 @@ class BulletinService
                 'principal_title' => 'Le Principal',
                 'legend_title' => 'Légende:',
                 'legend_items' => [
-                    'Maîtrisé (Excellent)' => 'Expert Technique',
-                    'Maîtrisé (Très Bien)' => 'Compétent',
-                    'En cours de maîtrise' => 'En Apprentissage',
-                    'Non maîtrisé' => 'À Renforcer'
+                    'A+' => 'Expert',
+                    'A' => 'Acquise',
+                    'ECA' => 'En Cours d\'Acquisition',
+                    'NA' => 'Non Acquise'
                 ]
             ];
         }
@@ -1673,25 +1676,51 @@ class BulletinService
                 }
             } else {
                 // 📚 PREMIER CYCLE: 9 colonnes avec DS1 (moyenne cachée)
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 20%;">DISCIPLINE</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">DS1</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Compo1</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Moy</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">COEF.</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">RANG</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPÉTENCES</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 20%;">NOMS DES PROFESSEURS</th>';
+                if ($sectionType === 'anglophone') {
+                    // English headers for Anglophone section
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 20%;">SUBJECT</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">CA1</th>'; // CA = Continuous Assessment
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Exam1</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Avg</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">COEF.</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">RANK</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPETENCIES</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 20%;">TEACHER NAMES</th>';
+                } else {
+                    // French headers for Francophone section
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 20%;">DISCIPLINE</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">DS1</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Compo1</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Moy</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">COEF.</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">RANG</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPÉTENCES</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 20%;">NOMS DES PROFESSEURS</th>';
+                }
             }
         } else {
             // Pour bulletin séquence : structure originale avec largeurs fixes
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 25%;">DISCIPLINE</th>';
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">NOTES /20</th>';
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">COEF.</th>';
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">(NXC)</th>';
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">RANG</th>';
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 13%;">COMPÉTENCES</th>';
-            $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 20%;">NOMS DES PROFESSEURS</th>';
+            if ($sectionType === 'anglophone') {
+                // English headers for Anglophone section
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 25%;">SUBJECT</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">MARKS /20</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">COEF.</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">(NXC)</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">RANK</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 13%;">COMPETENCIES</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 20%;">TEACHER NAMES</th>';
+            } else {
+                // French headers for Francophone section
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 25%;">DISCIPLINE</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">NOTES /20</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">COEF.</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">(NXC)</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">RANG</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 13%;">COMPÉTENCES</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 20%;">NOMS DES PROFESSEURS</th>';
+            }
         }
         
         $html .= '</tr>';
@@ -1850,13 +1879,12 @@ class BulletinService
     protected function getCompetence($grade, $cycleType = 'premier', $sectionType = 'francophone')
     {
         if ($sectionType === 'technique') {
-            // ENSEIGNEMENT TECHNIQUE: Compétences techniques spécialisées
+            // ENSEIGNEMENT TECHNIQUE: Système APC identique aux francophones
             if ($grade === null) return 'Non évaluée';
-            if ($grade >= 16) return 'Maîtrisé (Excellent)';
-            if ($grade >= 14) return 'Maîtrisé (Très Bien)';
-            if ($grade >= 12) return 'Maîtrisé (Bien)';
-            if ($grade >= 10) return 'En cours de maîtrise';
-            return 'Non maîtrisé';
+            if ($grade >= 16) return 'A+';  // Expert
+            if ($grade >= 14) return 'A';   // Acquise
+            if ($grade >= 10) return 'ECA'; // En Cours d'Acquisition
+            return 'NA'; // Non Acquise
         }
 
         if ($sectionType === 'anglophone') {

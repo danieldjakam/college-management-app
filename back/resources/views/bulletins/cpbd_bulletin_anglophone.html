@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bulletin de Notes - CPBD</title>
+    <title>Student Report Card - CPBD</title>
     <style>
         * {
             margin: 0;
@@ -13,11 +13,11 @@
 
         body {
             font-family: 'Arial', sans-serif;
-            font-size: 8.5pt;
-            line-height: 0.95;
+            font-size: 10pt;
+            line-height: 1.1;
             color: #000;
             background: white;
-            padding: 2px;
+            padding: 6px;
         }
 
         .bulletin-container {
@@ -87,8 +87,8 @@
         .student-info {
             background: #EFE9F3;
             color: black;
-            padding: 0px 3px;
-            margin-bottom: 1px;
+            padding: 4px 6px;
+            margin-bottom: 4px;
             padding-left: 10%;
         }
 
@@ -98,10 +98,10 @@
         }
 
         .student-info td {
-            padding: 0px 2px;
-            font-size: 8.5pt;
+            padding: 2px 4px;
+            font-size: 9.5pt;
             vertical-align: middle;
-            line-height: 0.95;
+            line-height: 1.15;
         }
 
         .info-label {
@@ -111,15 +111,15 @@
         }
 
         .grades-section {
-            margin-bottom: 0px;
+            margin-bottom: 4px;
         }
 
         .group-header {
             background: #EFE9F3;
             color: black;
-            padding: 0px;
+            padding: 4px;
             font-weight: bold;
-            font-size: 8pt;
+            font-size: 10pt;
             text-transform: uppercase;
             text-align: center;
         }
@@ -127,29 +127,29 @@
         .subjects-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 7.5pt;
+            font-size: 9pt;
         }
 
         .subjects-table th,
         .subjects-table td {
             border: 1px solid #000;
-            padding: 0px 1px;
+            padding: 2px 4px;
             text-align: center;
             vertical-align: middle;
-            line-height: 0.85;
+            line-height: 1.1;
         }
 
         .subjects-table th {
             background: #EFE9F3;
             color: black;
             font-weight: bold;
-            font-size: 7.5pt;
+            font-size: 9pt;
         }
 
         .subject-name {
             text-align: left !important;
             font-weight: 600;
-            padding-left: 4px !important;
+            padding-left: 6px !important;
         }
 
         .total-row {
@@ -165,14 +165,14 @@
         .summary-section {
             display: table;
             width: 100%;
-            margin-top: 0px;
+            margin-top: 4px;
         }
 
         .discipline-table, .summary-stats {
             display: table-cell;
             width: 48%;
             vertical-align: top;
-            padding: 0px;
+            padding: 2px;
         }
 
         .discipline-table {
@@ -186,8 +186,8 @@
 
         .discipline-table h3, .summary-stats h3 {
             color: black;
-            margin-bottom: 0px;
-            font-size: 8pt;
+            margin-bottom: 2px;
+            font-size: 9.5pt;
             font-weight: bold;
         }
 
@@ -195,7 +195,7 @@
             background: #EFE9F3;
             color: black;
             text-align: center;
-            padding: 0px;
+            padding: 2px;
             font-weight: bold;
             font-size: 7.5pt;
         }
@@ -256,15 +256,15 @@
         .stat-item {
             display: table;
             width: 100%;
-            padding: 0px 0;
+            padding: 2px 0;
             border-bottom: 1px solid #e0e0e0;
-            font-size: 7pt;
+            font-size: 8.5pt;
         }
 
         .stat-label {
             display: table-cell;
             width: 70%;
-            font-size: 7pt;
+            font-size: 8.5pt;
         }
 
         .stat-value {
@@ -273,34 +273,34 @@
             font-weight: bold;
             color: #333;
             text-align: right;
-            font-size: 7pt;
+            font-size: 8.5pt;
         }
 
         .observations {
             background: #f3e8ff;
-            padding: 0px;
-            margin-top: 0px;
+            padding: 4px;
+            margin-top: 4px;
             text-align: center;
             border: 1px solid #EFE9F3;
         }
 
         .observations h3 {
-            margin-bottom: 0px;
-            font-size: 7.5pt;
+            margin-bottom: 2px;
+            font-size: 9.5pt;
         }
 
         .observations p {
-            font-size: 7pt;
+            font-size: 8.5pt;
         }
 
         .footer-notes {
-            margin-top: 0px;
-            padding: 0px 2px;
+            margin-top: 4px;
+            padding: 2px 4px;
             border: 1px solid #000;
-            font-size: 6.5pt;
+            font-size: 8pt;
             display: table;
             width: 100%;
-            line-height: 0.9;
+            line-height: 1.15;
         }
 
         .notes-left {
@@ -310,7 +310,7 @@
         }
 
         .note-row {
-            margin-bottom: 0px;
+            margin-bottom: 2px;
             padding: 0px;
         }
 
@@ -318,13 +318,13 @@
             display: table-cell;
             width: 35%;
             text-align: right;
-            font-size: 6.5pt;
+            font-size: 8pt;
             font-weight: bold;
             vertical-align: top;
         }
 
         .signature-date {
-            margin-bottom: 0px;
+            margin-bottom: 2px;
         }
 
         .signature-title {
@@ -354,7 +354,7 @@
             white-space: nowrap;
         }
 
-        /* Filigrane en arrière-plan - AGRANDI - Compatible DomPDF */
+        /* Watermark - ENLARGED - DomPDF Compatible */
         .watermark {
             position: absolute;
             top: 150px;
@@ -373,7 +373,7 @@
     </style>
 </head>
 <body>
-    <!-- Logo watermark en arrière-plan (pour Deuxième Cycle) -->
+    <!-- Logo watermark background -->
     <img src="{{logo_base64}}" alt="Logo Watermark" class="watermark">
 
     <div class="bulletin-container">
@@ -401,33 +401,33 @@
                     <div>YASSA</div>
                 </div>
             </div>
-            <div class="bulletin-title">{{bulletin_title}}</div>
+            <div class="bulletin-title">STUDENT REPORT CARD</div>
         </div>
 
         <div class="student-info">
             <table>
                 <tr>
-                    <td class="info-label">{{name_label}}</td>
+                    <td class="info-label">Name and Surname:</td>
                     <td>{{student_name}}</td>
-                    <td class="info-label">{{birth_date_label}}</td>
+                    <td class="info-label">Date of birth:</td>
                     <td>{{birth_date}}</td>
-                    <td class="info-label">{{birth_place_label}}</td>
+                    <td class="info-label">Place of birth:</td>
                     <td>{{birth_place}}</td>
                 </tr>
                 <tr>
-                    <td class="info-label">{{class_label}}</td>
+                    <td class="info-label">Class:</td>
                     <td>{{class_name}}</td>
-                    <td class="info-label">{{class_size_label}}</td>
+                    <td class="info-label">Class size:</td>
                     <td>{{class_size}}</td>
-                    <td class="info-label">{{main_teacher_label}}</td>
+                    <td class="info-label">Main teacher:</td>
                     <td>{{main_teacher}}</td>
                 </tr>
                 <tr>
-                    <td class="info-label">{{student_number_label}}</td>
+                    <td class="info-label">Student number:</td>
                     <td>{{student_number}}</td>
-                    <td class="info-label">{{evaluation_label}}</td>
+                    <td class="info-label">Assessment:</td>
                     <td>N°{{evaluation_number}}</td>
-                    <td class="info-label">{{school_year_label}}</td>
+                    <td class="info-label">SCHOOL YEAR:</td>
                     <td>{{school_year}}</td>
                 </tr>
             </table>
@@ -437,94 +437,93 @@
 
         <div class="summary-section">
             <div class="discipline-table">
-                <!-- <h3>DISCIPLINE</h3> -->
-                <div class="discipline-header">{{discipline_header}}</div>
-                
+                <div class="discipline-header">DISCIPLINE</div>
+
                 <div class="discipline-subheader">
-                    <div style="width: 16.66%; border-right: 1px solid #ccc;">Retard (h)</div>
+                    <div style="width: 16.66%; border-right: 1px solid #ccc;">Lateness (h)</div>
                     <div style="width: 16.66%; border-right: 1px solid #ccc;">Abs (h)</div>
-                    <div style="width: 16.66%; border-right: 1px solid #ccc;">Blâme</div>
-                    <div style="width: 16.66%; border-right: 1px solid #ccc;">Avert.</div>
-                    <div style="width: 16.66%; border-right: 1px solid #ccc;">Cons (h)</div>
-                    <div style="width: 16.66%;">Excl (j)</div>
+                    <div style="width: 16.66%; border-right: 1px solid #ccc;">Blame</div>
+                    <div style="width: 16.66%; border-right: 1px solid #ccc;">Warn.</div>
+                    <div style="width: 16.66%; border-right: 1px solid #ccc;">Detent. (h)</div>
+                    <div style="width: 16.66%;">Excl (d)</div>
                 </div>
-                
+
                 <div class="discipline-third-row">
                     <div style="width: 8.33%; border-right: 1px solid #ddd;">Just</div>
-                    <div style="width: 8.33%; border-right: 1px solid #ddd;">Non Just</div>
+                    <div style="width: 8.33%; border-right: 1px solid #ddd;">Unjust</div>
                     <div style="width: 8.33%; border-right: 1px solid #ddd;">Just</div>
-                    <div style="width: 8.33%; border-right: 1px solid #ddd;">Non Just</div>
+                    <div style="width: 8.33%; border-right: 1px solid #ddd;">Unjust</div>
                     <div style="width: 8.33%; border-right: 1px solid #ddd;">Cond</div>
-                    <div style="width: 8.33%; border-right: 1px solid #ddd;">Trav</div>
+                    <div style="width: 8.33%; border-right: 1px solid #ddd;">Work</div>
                     <div style="width: 8.33%; border-right: 1px solid #ddd;">Cond</div>
-                    <div style="width: 8.33%; border-right: 1px solid #ddd;">Trav</div>
+                    <div style="width: 8.33%; border-right: 1px solid #ddd;">Work</div>
                     <div style="width: 16.66%;">-</div>
                     <div style="width: 16.66%;">-</div>
                 </div>
-                
+
                 <div class="discipline-data">
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_delays_justified}}</div>
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_delays_unjustified}}</div>
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_absences_justified}}</div>
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_absences_unjustified}}</div>
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_blame_conduct}}</div>
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_blame_work}}</div>
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_warning_conduct}}</div>
-                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">{{discipline_warning_work}}</div>
-                    <div style="width: 16.66%;">{{discipline_detention_hours}}</div>
-                    <div style="width: 16.66%;">{{discipline_exclusion_days}}</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
+                    <div style="width: 8.33%; border-right: 1px solid #e0e0e0;">-</div>
+                    <div style="width: 16.66%;">-</div>
+                    <div style="width: 16.66%;">-</div>
                 </div>
-                
+
                 <div class="visa-row">
-                    {{visa_parent_label}}
+                    PARENT VISA & NAME
                 </div>
             </div>
 
             <div class="summary-stats">
-                <h3>{{general_results_header}}</h3>
+                <h3>GENERAL RESULTS</h3>
                 <div class="stat-item">
-                    <div class="stat-label">{{total_general_label}}</div>
+                    <div class="stat-label">GENERAL TOTAL:</div>
                     <div class="stat-value">{{total_general}}</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">{{total_coef_label}}</div>
+                    <div class="stat-label">TOTAL COEF:</div>
                     <div class="stat-value">{{total_coef}}</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">{{evaluation_average_label}}</div>
+                    <div class="stat-label">ASSESSMENT AVG:</div>
                     <div class="stat-value {{average_class}}">{{evaluation_average}} / 20</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">{{rank_label}}</div>
+                    <div class="stat-label">RANK:</div>
                     <div class="stat-value">{{student_rank}} / {{class_size}}</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">{{class_average_label}}</div>
+                    <div class="stat-label">CLASS AVERAGE:</div>
                     <div class="stat-value">{{class_average}} / 20</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">{{first_average_label}}</div>
+                    <div class="stat-label">FIRST AVERAGE:</div>
                     <div class="stat-value">{{first_average}} / 20</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-label">{{last_average_label}}</div>
+                    <div class="stat-label">LAST AVERAGE:</div>
                     <div class="stat-value">{{last_average}} / 20</div>
                 </div>
-                
+
                 <div class="legend">
-                    <h4>{{legend_title}}</h4>
+                    <h4>Legend:</h4>
                     <div class="legend-items">
                         <span class="legend-item"><strong>A+ :</strong> Expert</span>
-                        <span class="legend-item"><strong>A :</strong> Acquise</span>
-                        <span class="legend-item"><strong>ECA :</strong> En Cours d'Acquisition</span>
-                        <span class="legend-item"><strong>NA :</strong> Non Acquise</span>
+                        <span class="legend-item"><strong>A :</strong> Mastered</span>
+                        <span class="legend-item"><strong>ECA :</strong> Developing</span>
+                        <span class="legend-item"><strong>NA :</strong> Not Acquired</span>
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="observations">
-            <h3>{{appreciation_header}}</h3>
+            <h3>WORK ASSESSMENT AND OBSERVATIONS</h3>
             <p><strong>{{general_appreciation}}</strong></p>
         </div>
 
@@ -538,8 +537,8 @@
                 </div>
             </div>
             <div class="footer-signature">
-                <div class="signature-date">{{made_in_douala}} {{current_date}}</div>
-                <div class="signature-title">{{principal_title}}</div>
+                <div class="signature-date">Done in Douala, on {{current_date}}</div>
+                <div class="signature-title">The Principal</div>
             </div>
         </div>
     </div>
