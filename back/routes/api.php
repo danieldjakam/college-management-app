@@ -1333,6 +1333,18 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
     Route::post('/force-regenerate', [BulletinController::class, 'forceRegenerate'])
         ->middleware(['role:admin']);
 
+    // ⚡ Fusion de bulletins en un seul PDF
+    Route::post('/merge', [BulletinController::class, 'mergeBulletins'])
+        ->middleware(['role:admin,principal,secretaire']);
+
+    // Progression de la fusion
+    Route::get('/merge-progress/{jobId}', [BulletinController::class, 'getMergeProgress'])
+        ->middleware(['role:admin,principal,secretaire']);
+
+    // Téléchargement du PDF fusionné
+    Route::get('/merged/{mergedId}/download', [BulletinController::class, 'downloadMergedBulletin'])
+        ->middleware(['role:admin,principal,secretaire']);
+
     // Génération batch synchrone (optimisée pour QUEUE_CONNECTION=sync)
     Route::post('/batch-generate-sync', [BulletinController::class, 'batchGenerateSync'])
         ->middleware(['role:admin']);
@@ -1353,6 +1365,22 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
         Route::delete('/{templateId}', [BulletinController::class, 'deleteTemplate']);
         Route::post('/{templateId}/toggle-status', [BulletinController::class, 'toggleTemplateStatus']);
     });
+
+    // Fusion de bulletins en PDF unique (pour impression)
+    Route::post('/merge', [BulletinController::class, 'mergeBulletins'])
+        ->middleware(['role:admin,principal,secretaire']);
+
+    Route::get('/merge-progress/{jobId}', [BulletinController::class, 'getMergeProgress'])
+        ->middleware(['role:admin,principal,secretaire']);
+
+    Route::get('/merged', [BulletinController::class, 'listMergedBulletins'])
+        ->middleware(['role:admin,principal,secretaire']);
+
+    Route::get('/merged/{mergedId}/download', [BulletinController::class, 'downloadMergedBulletin'])
+        ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
+
+    Route::delete('/merged/{mergedId}', [BulletinController::class, 'deleteMergedBulletin'])
+        ->middleware(['role:admin,principal']);
 });
 
 // Routes pour les PV (Procès-Verbaux)
