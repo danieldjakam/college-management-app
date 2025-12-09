@@ -1089,25 +1089,39 @@ class BulletinService
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
 
-        // 🚀 OPTIMISATION: Désactiver temporairement le watermark pour accélérer la génération
-        // Le watermark ajoute 2-3 secondes par PDF. Peut être réactivé si nécessaire.
-        // DÉSACTIVER LE WATERMARK POUR PLUS DE VITESSE
-        /*
+        // ✅ WATERMARK ACTIVÉ: Ajoute le logo en arrière-plan sur TOUTES les pages
+        // Le watermark ajoute ~2 secondes par PDF mais améliore la sécurité et l'esthétique
         $canvas = $dompdf->getCanvas();
         $logoPath = $this->getLogoPath();
 
         if ($logoPath && file_exists($logoPath)) {
+            // Récupérer le nombre de pages du PDF
+            $pageCount = $canvas->get_page_count();
+
             $pageWidth = $canvas->get_width();
             $pageHeight = $canvas->get_height();
-            $logoWidth = 300; // Réduit de 400 à 300 pour accélérer
-            $logoHeight = 300;
+            $logoWidth = 350; // Taille optimale pour visibilité
+            $logoHeight = 350;
             $x = ($pageWidth - $logoWidth) / 2;
             $y = ($pageHeight - $logoHeight) / 2;
-            $canvas->set_opacity(0.10); // Réduit l'opacité pour être plus discret
-            $canvas->image($logoPath, $x, $y, $logoWidth, $logoHeight);
-            $canvas->set_opacity(1.0);
+
+            // Ajouter le watermark sur chaque page
+            $canvas->page_script(function ($pageNumber) use ($canvas, $logoPath, $x, $y, $logoWidth, $logoHeight) {
+                // Cette fonction sera appelée pour chaque page
+                $canvas->set_opacity(0.15); // Opacité visible mais discrète
+                $canvas->image($logoPath, $x, $y, $logoWidth, $logoHeight);
+                $canvas->set_opacity(1.0);
+            });
+
+            \Log::info("✅ Watermark ajouté au bulletin", [
+                'logo_path' => $logoPath,
+                'size' => "{$logoWidth}x{$logoHeight}",
+                'opacity' => 0.15,
+                'pages' => $pageCount
+            ]);
+        } else {
+            \Log::warning("⚠️ Logo introuvable pour watermark", ['path' => $logoPath]);
         }
-        */
 
         $pdfContent = $dompdf->output();
         $filePath = 'public/bulletins/' . $filename;

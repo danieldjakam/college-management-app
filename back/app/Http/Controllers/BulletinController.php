@@ -206,7 +206,17 @@ class BulletinController extends Controller
      */
     public function download($bulletinId)
     {
-        $bulletin = BulletinGeneration::findOrFail($bulletinId);
+        // Vérifier si le bulletin existe en base de données
+        $bulletin = BulletinGeneration::find($bulletinId);
+
+        if (!$bulletin) {
+            \Log::warning("Bulletin record not found in database", ['bulletin_id' => $bulletinId]);
+            return response()->json([
+                'success' => false,
+                'message' => "Bulletin not found in database. Please regenerate it.",
+                'bulletin_id' => $bulletinId
+            ], 404);
+        }
 
         // Vérifier plusieurs emplacements possibles pour la compatibilité
         $possiblePaths = [];
@@ -229,12 +239,20 @@ class BulletinController extends Controller
             }
         }
 
-        // Aucun fichier trouvé - retourner 404
-        \Log::warning("Bulletin PDF not found", [
+        // Aucun fichier trouvé - retourner 404 JSON
+        \Log::warning("Bulletin PDF file not found on disk", [
             'bulletin_id' => $bulletinId,
             'file_path' => $bulletin->file_path,
             'checked_paths' => $possiblePaths
         ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => "Bulletin PDF file not found. Please regenerate it.",
+            'bulletin_id' => $bulletinId,
+            'student_id' => $bulletin->student_id,
+            'file_path' => $bulletin->file_path
+        ], 404);
 
         return response()->json([
             'error' => 'Bulletin file not found',

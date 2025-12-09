@@ -337,8 +337,11 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
     String? description,
   ) async {
     try {
+      // ✅ CORRECTION: Les compositions ne doivent PAS avoir de sequence_id
+      // Une composition est liée au TRIMESTRE, pas à une séquence
       final data = {
-        'sequence_id': _selectedSequenceId,
+        if (type != 'composition') 'sequence_id': _selectedSequenceId, // Seulement pour DS, TP, etc.
+        'trimester_id': _selectedTrimesterId, // Toujours envoyer le trimestre (compositions ET séquences)
         'series_subject_id': widget.assignment.classSeriesSubjectId,
         'teacher_id': widget.assignment.teacherId,
         'name': name,
