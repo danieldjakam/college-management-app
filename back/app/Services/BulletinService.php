@@ -584,6 +584,9 @@ class BulletinService
             'observations' => $discipline->observations ?? ''
         ];
 
+        // 🔧 FIX: Ajouter subject_groups pour le template cameroon_sequence.html
+        $bulletinData['subject_groups'] = $this->groupSubjectsByType($bulletinData['subjects']);
+
         return $bulletinData;
     }
     
