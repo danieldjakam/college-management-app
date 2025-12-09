@@ -948,7 +948,55 @@ function BulletinManagementNew() {
       const jobId = data.job_id;
       setSuccess(`Fusion de ${data.bulletin_count} bulletins en cours...`);
 
-      // Suivre la progression
+      // ⚡ Attendre 3 secondes puis vérifier si terminé (pour mode sync)
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Vérifier si le job est terminé
+      const checkResponse = await fetch(`${host}/api/bulletins/merge-progress/${jobId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json();
+
+        if (checkData.status === 'completed') {
+          // Job terminé instantanément (mode sync)
+          setMergingPeriod(null);
+          setMergeProgress({ status: 'completed', message: checkData.message, percentage: 100 });
+
+          if (checkData.file_id) {
+            // ⚡ FIX: Télécharger via fetch avec token, puis créer un Blob URL
+            const downloadUrl = `${host}/api/bulletins/merged/${checkData.file_id}/download`;
+            try {
+              const downloadResponse = await fetch(downloadUrl, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+
+              if (downloadResponse.ok) {
+                const blob = await downloadResponse.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = checkData.filename || 'bulletins_merged.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(blobUrl);
+              } else {
+                console.error('Erreur téléchargement:', await downloadResponse.text());
+              }
+            } catch (downloadError) {
+              console.error('Erreur téléchargement PDF:', downloadError);
+            }
+          }
+
+          setSuccess(`✅ ${checkData.message}`);
+          setTimeout(() => setSuccess(''), 5000);
+          return;
+        }
+      }
+
+      // Sinon continuer le polling normal (mode async)
       const progressInterval = setInterval(async () => {
         try {
           const progressResponse = await fetch(`${host}/api/bulletins/merge-progress/${jobId}`, {
@@ -963,10 +1011,30 @@ function BulletinManagementNew() {
               clearInterval(progressInterval);
               setMergingPeriod(null);
 
-              // Télécharger automatiquement
+              // Télécharger automatiquement via fetch + Blob URL (pour envoyer le token)
               if (progressData.file_id) {
                 const downloadUrl = `${host}/api/bulletins/merged/${progressData.file_id}/download`;
-                window.open(downloadUrl, '_blank');
+                try {
+                  const downloadResponse = await fetch(downloadUrl, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                  });
+
+                  if (downloadResponse.ok) {
+                    const blob = await downloadResponse.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = progressData.filename || 'bulletins_merged.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(blobUrl);
+                  } else {
+                    console.error('Erreur téléchargement:', await downloadResponse.text());
+                  }
+                } catch (downloadError) {
+                  console.error('Erreur téléchargement PDF:', downloadError);
+                }
               }
 
               setSuccess(`✅ ${progressData.message}`);

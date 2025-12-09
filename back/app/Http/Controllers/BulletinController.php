@@ -12,9 +12,13 @@ use App\Services\BulletinService;
 use App\Services\BulletinAutoGenerationService;
 use App\Services\BulletinCacheService;
 use App\Jobs\GenerateBulletinBatch;
+use App\Jobs\MergeBulletinPDFs;
+use App\Models\MergedBulletinPDF;
+use App\Models\ClassSeries;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 
 class BulletinController extends Controller
 {
@@ -842,6 +846,10 @@ class BulletinController extends Controller
      */
     public function previewBulletin(Request $request)
     {
+        // Augmenter la limite de temps et mémoire pour la prévisualisation
+        ini_set('memory_limit', '512M');
+        ini_set('max_execution_time', '120'); // 2 minutes
+
         $request->validate([
             'student_id' => 'required|exists:students,id',
             'type' => 'required|in:sequence,trimester',
@@ -881,6 +889,10 @@ class BulletinController extends Controller
      */
     public function downloadDirect(Request $request)
     {
+        // Augmenter la limite de temps et mémoire pour le téléchargement direct
+        ini_set('memory_limit', '512M');
+        ini_set('max_execution_time', '120'); // 2 minutes
+
         $request->validate([
             'student_id' => 'required|exists:students,id',
             'type' => 'required|in:sequence,trimester',
@@ -1094,6 +1106,10 @@ class BulletinController extends Controller
      */
     public function downloadAllBulletins(Request $request)
     {
+        // Augmenter la limite de temps et mémoire pour le téléchargement groupé
+        ini_set('memory_limit', '512M');
+        ini_set('max_execution_time', '300'); // 5 minutes
+
         $request->validate([
             'series_id' => 'required|exists:class_series,id',
             'period_type' => 'nullable|string',
@@ -1400,11 +1416,19 @@ class BulletinController extends Controller
      */
     protected function determineCycleType($student)
     {
-        if (!$student || !$student->schoolClass) {
+        if (!$student) {
             return 'premier'; // Par défaut
         }
 
-        $className = strtolower($student->schoolClass->name);
+        // Utiliser classSeries (prioritaire) ou schoolClass en fallback
+        $className = '';
+        if (isset($student->classSeries) && $student->classSeries) {
+            $className = strtolower($student->classSeries->name);
+        } elseif (isset($student->schoolClass) && $student->schoolClass) {
+            $className = strtolower($student->schoolClass->name);
+        } else {
+            return 'premier'; // Par défaut si aucune classe
+        }
 
         // 🎓 DEUXIÈME CYCLE: Classes du lycée
         $deuxiemeCycleClasses = [
@@ -1555,5 +1579,195 @@ class BulletinController extends Controller
 
         $finalCompletion = round($totalCompletion / $subjects->count(), 1);
         return $finalCompletion;
+    }
+
+    /**
+     * 📦 Fusionner les bulletins d'une classe en un seul PDF
+     * POST /api/bulletins/merge
+     *
+     * @param Request $request {
+     *   class_series_id: int,
+     *   period_type: 'sequence'|'trimester',
+     *   period_identifier: string (ex: 'seq1', 'trim1')
+     * }
+     */
+    public function mergeBulletins(Request $request)
+    {
+        ini_set('max_execution_time', '300');
+        ini_set('memory_limit', '512M');
+
+        $validated = $request->validate([
+            'class_series_id' => 'required|exists:class_series,id',
+            'period_type' => 'required|in:sequence,trimester',
+            'period_identifier' => 'required|string'
+        ]);
+
+        $classSeries = ClassSeries::findOrFail($validated['class_series_id']);
+
+        // Vérifier qu'il y a des bulletins à fusionner
+        $bulletinCount = BulletinGeneration::where('period_type', $validated['period_type'])
+            ->where('period_identifier', $validated['period_identifier'])
+            ->whereHas('student', function($query) use ($validated) {
+                $query->where('class_series_id', $validated['class_series_id']);
+            })
+            ->count();
+
+        if ($bulletinCount === 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aucun bulletin trouvé pour cette classe et période'
+            ], 404);
+        }
+
+        // Générer un identifiant unique pour suivre la progression
+        $jobId = uniqid('merge_', true);
+
+        // Dispatcher le job de fusion
+        MergeBulletinPDFs::dispatch(
+            $validated['class_series_id'],
+            $validated['period_type'],
+            $validated['period_identifier'],
+            $jobId
+        );
+
+        // ⚡ Si QUEUE_CONNECTION=sync, le job est déjà terminé !
+        // Récupérer le résultat du cache
+        if (config('queue.default') === 'sync') {
+            sleep(1); // Petite pause pour s'assurer que le cache est écrit
+            $progress = \Cache::get("merge_progress_{$jobId}");
+
+            if ($progress && $progress['status'] === 'completed') {
+                return response()->json([
+                    'success' => true,
+                    'message' => $progress['message'],
+                    'job_id' => $jobId,
+                    'bulletin_count' => $bulletinCount,
+                    'class_name' => $classSeries->name,
+                    'completed' => true,
+                    'file_id' => $progress['file_id'] ?? null,
+                    'filename' => $progress['filename'] ?? null,
+                    'download_url' => $progress['download_url'] ?? null
+                ]);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Fusion de $bulletinCount bulletins en cours...",
+            'job_id' => $jobId,
+            'bulletin_count' => $bulletinCount,
+            'class_name' => $classSeries->name
+        ]);
+    }
+
+    /**
+     * 📊 Vérifier la progression de la fusion
+     * GET /api/bulletins/merge-progress/{jobId}
+     */
+    public function getMergeProgress($jobId)
+    {
+        $progress = Cache::get("merge_progress_{$jobId}", [
+            'status' => 'pending',
+            'current' => 0,
+            'total' => 0,
+            'message' => 'En attente...'
+        ]);
+
+        // ⚡ WORKAROUND: Si mode sync, vérifier directement en DB si fusion récente existe
+        if (config('queue.default') === 'sync' && $progress['status'] !== 'completed') {
+            $recentMerge = MergedBulletinPDF::where('status', 'completed')
+                ->where('created_at', '>=', now()->subSeconds(60))
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if ($recentMerge) {
+                $progress = [
+                    'status' => 'completed',
+                    'message' => "✅ {$recentMerge->bulletin_count} bulletins fusionnés avec succès !",
+                    'percentage' => 100,
+                    'current' => $recentMerge->bulletin_count,
+                    'total' => $recentMerge->bulletin_count,
+                    'file_id' => $recentMerge->id,
+                    'filename' => $recentMerge->filename,
+                    'download_url' => "/api/bulletins/merged/{$recentMerge->id}/download"
+                ];
+            }
+        }
+
+        return response()->json($progress);
+    }
+
+    /**
+     * 📥 Télécharger un PDF fusionné
+     * GET /api/bulletins/merged/{mergedId}/download
+     */
+    public function downloadMergedBulletin($mergedId)
+    {
+        $merged = MergedBulletinPDF::findOrFail($mergedId);
+
+        if (!Storage::disk('public')->exists($merged->file_path)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Fichier PDF introuvable'
+            ], 404);
+        }
+
+        return Storage::disk('public')->download(
+            $merged->file_path,
+            $merged->filename,
+            [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="' . $merged->filename . '"'
+            ]
+        );
+    }
+
+    /**
+     * 📋 Lister tous les PDFs fusionnés
+     * GET /api/bulletins/merged
+     */
+    public function listMergedBulletins(Request $request)
+    {
+        $query = MergedBulletinPDF::with('classSeries')
+            ->orderBy('created_at', 'desc');
+
+        // Filtrage optionnel par classe
+        if ($request->has('class_series_id')) {
+            $query->where('class_series_id', $request->class_series_id);
+        }
+
+        // Filtrage optionnel par période
+        if ($request->has('period_type')) {
+            $query->where('period_type', $request->period_type);
+        }
+
+        $merged = $query->paginate(20);
+
+        return response()->json([
+            'success' => true,
+            'data' => $merged
+        ]);
+    }
+
+    /**
+     * 🗑️ Supprimer un PDF fusionné
+     * DELETE /api/bulletins/merged/{mergedId}
+     */
+    public function deleteMergedBulletin($mergedId)
+    {
+        $merged = MergedBulletinPDF::findOrFail($mergedId);
+
+        // Supprimer le fichier physique
+        if (Storage::exists($merged->file_path)) {
+            Storage::delete($merged->file_path);
+        }
+
+        // Supprimer l'entrée en base
+        $merged->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'PDF fusionné supprimé avec succès'
+        ]);
     }
 }

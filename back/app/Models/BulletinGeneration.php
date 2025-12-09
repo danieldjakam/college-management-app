@@ -9,6 +9,10 @@ class BulletinGeneration extends Model
 {
     use HasFactory;
 
+    protected $table = 'bulletin_generations';
+    public $incrementing = true;
+    protected $keyType = 'int';
+
     protected $fillable = [
         'student_id',
         'template_id',

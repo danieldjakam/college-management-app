@@ -23,16 +23,18 @@ class MergeBulletinPDFs implements ShouldQueue
     protected $periodType;
     protected $periodIdentifier;
     protected $progressKey;
+    protected $jobId;
 
     /**
      * Create a new job instance.
      */
-    public function __construct($classSeriesId, $periodType, $periodIdentifier)
+    public function __construct($classSeriesId, $periodType, $periodIdentifier, $jobId = null)
     {
         $this->classSeriesId = $classSeriesId;
         $this->periodType = $periodType;
         $this->periodIdentifier = $periodIdentifier;
-        $this->progressKey = "merge_pdf_{$classSeriesId}_{$periodType}_{$periodIdentifier}_" . time();
+        $this->jobId = $jobId ?? uniqid('merge_', true);
+        $this->progressKey = "merge_progress_{$this->jobId}";
     }
 
     /**
@@ -139,8 +141,8 @@ class MergeBulletinPDFs implements ShouldQueue
 
             // Générer le nom du fichier
             $filename = "bulletins_{$this->periodType}_{$this->periodIdentifier}_classe_{$this->classSeriesId}_" . now()->format('Y-m-d_His') . ".pdf";
-            $relativePath = "public/merged_bulletins/{$filename}";
-            $fullPath = storage_path('app/' . $relativePath);
+            $relativePath = "merged_bulletins/{$filename}";  // ✅ Supprimé "public/" pour éviter doublon
+            $fullPath = storage_path('app/public/' . $relativePath);
 
             // Créer le répertoire si nécessaire
             $directory = dirname($fullPath);
