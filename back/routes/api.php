@@ -59,6 +59,7 @@ use App\Http\Controllers\MarkSheetController;
 use App\Http\Controllers\BusController;
 use App\Http\Controllers\CompetenceController;
 use App\Http\Controllers\StudentCardController;
+use App\Http\Controllers\HonorRollController;
 
 
 // Routes d'authentification
@@ -1620,6 +1621,28 @@ Route::prefix('subject-groups')->group(function () {
     // Bulk update subject groups
     Route::post('/bulk-update', [App\Http\Controllers\Api\SubjectGroupController::class, 'bulkUpdate'])
         ->middleware(['role:admin,principal,directeur_etudes']);
+});
+
+
+// ============================================
+// HONOR ROLL - Tableau d'Honneur
+// ============================================
+Route::prefix('honor-rolls')->middleware('auth:api')->group(function () {
+    // Get all filters (sections, levels, classes, series, trimesters)
+    Route::get('/filters', [HonorRollController::class, 'getFilters'])
+        ->middleware(['role:admin,principal,directeur_etudes,secretaire']);
+
+    // Get eligible students for honor roll (moyenne >= 12/20)
+    Route::post('/eligible-students', [HonorRollController::class, 'getEligibleStudents'])
+        ->middleware(['role:admin,principal,directeur_etudes,secretaire']);
+
+    // Generate honor roll certificate for a student
+    Route::post('/generate-certificate', [HonorRollController::class, 'generateCertificate'])
+        ->middleware(['role:admin,principal,directeur_etudes,secretaire']);
+
+    // Download honor roll certificate
+    Route::get('/download/{filename}', [HonorRollController::class, 'downloadCertificate'])
+        ->middleware(['role:admin,principal,directeur_etudes,secretaire,parent']);
 });
 
 

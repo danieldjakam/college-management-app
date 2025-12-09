@@ -24,6 +24,7 @@ import {
     Ticket,
     Cart3,
     LayersFill,
+    TrophyFill,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -122,6 +123,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Bulletins Scolaires", href: "/admin/bulletins", icon: <CardText /> },
             { name: "Procès-Verbaux (PV)", href: "/admin/pv", icon: <FileEarmarkText /> },
             { name: "Fiches de Report de Notes", href: "/admin/mark-sheets", icon: <FileEarmarkText /> },
+            { name: "Tableau d'Honneur", href: "/admin/honor-roll", icon: <TrophyFill /> },
           ],
         },
         {
@@ -188,6 +190,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Bulletins Scolaires", href: "/admin/bulletins", icon: <CardText /> },
             { name: "Procès-Verbaux (PV)", href: "/admin/pv", icon: <FileEarmarkText /> },
             { name: "Fiches de Report de Notes", href: "/admin/mark-sheets", icon: <FileEarmarkText /> },
+            { name: "Tableau d'Honneur", href: "/admin/honor-roll", icon: <TrophyFill /> },
           ],
         },
         {
@@ -474,6 +477,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Bulletins Scolaires", href: "/admin/bulletins", icon: <CardText /> },
             { name: "Procès-Verbaux (PV)", href: "/admin/pv", icon: <FileEarmarkText /> },
             { name: "Fiches de Report de Notes", href: "/admin/mark-sheets", icon: <FileEarmarkText /> },
+            { name: "Tableau d'Honneur", href: "/admin/honor-roll", icon: <TrophyFill /> },
           ],
         },
         {

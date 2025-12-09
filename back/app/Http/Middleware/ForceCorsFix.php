@@ -31,8 +31,10 @@ class ForceCorsFix
 
         // Liste des origines autorisées
         $allowedOrigins = [
-            'http://admin.cpb-douala.com',   // Frontend production
-            'http://admin1.cpb-douala.com',  // Backend production
+            'http://admin.cpb-douala.com',   // Frontend production (HTTP)
+            'https://admin.cpb-douala.com',  // Frontend production (HTTPS)
+            'http://admin1.cpb-douala.com',  // Backend production (HTTP)
+            'https://admin1.cpb-douala.com', // Backend production (HTTPS)
             'http://localhost:3000',         // Frontend dev
             'http://127.0.0.1:3000',        // Frontend dev (IP)
             'http://localhost:3006',         // Frontend dev (port alternatif)

@@ -157,6 +157,7 @@ import PVGeneration from "./pages/PV/PVGeneration";
 import MarkSheetGeneration from "./pages/MarkSheets/MarkSheetGeneration";
 import SubjectGroups from "./pages/Admin/SubjectGroups";
 import SubjectGroupsManagement from "./pages/Admin/SubjectGroupsManagement";
+import HonorRoll from "./pages/Admin/HonorRoll";
 
 // Parent Pages
 import ParentLogin from "./pages/Parent/ParentLogin";
@@ -538,6 +539,15 @@ const AppContent = () => {
                 element={
                   <ProtectedRoute requiredRoles={['admin', 'principal']}>
                     <SubjectGroupsManagement />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/admin/honor-roll"
+                element={
+                  <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire']}>
+                    <HonorRoll />
                   </ProtectedRoute>
                 }
               />
