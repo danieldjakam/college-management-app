@@ -1334,7 +1334,7 @@ class BulletinService
             'birth_date' => $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : '',
             'birth_place' => $student->place_of_birth ?? 'EMANA',
             'class_name' => $student->classSeries->name ?? $student->schoolClass->name ?? ($sectionType === 'anglophone' ? 'FORM 2A' : 'SIXIÈME A'),
-            'main_teacher' => $sectionType === 'anglophone' ? 'MR. TCHAMENI MATHIEU' : 'TCHAMENI MATHIEU', // TODO: Get from database
+            'main_teacher' => $this->getMainTeacher($student, $sectionType),
             'class_size' => $this->getClassSize($student),
             'student_number' => $student->student_number ?? '24A856',
             'bulletin_type_label' => $bulletinTypeLabel,
@@ -2014,6 +2014,40 @@ class BulletinService
             return $student->schoolClass->students()->count();
         }
         return 72; // Default value
+    }
+
+    /**
+     * Get main teacher name for a student's class
+     *
+     * @param mixed $student
+     * @param string $sectionType
+     * @return string
+     */
+    protected function getMainTeacher($student, $sectionType = 'francophone')
+    {
+        if (!$student->class_series_id) {
+            return $sectionType === 'anglophone' ? 'MR. N/A' : 'N/A';
+        }
+
+        // Get current school year (assuming school_year_id = 1 for now)
+        $currentSchoolYearId = 1;
+
+        // Query main_teachers table
+        $mainTeacher = \DB::table('main_teachers')
+            ->join('teachers', 'main_teachers.teacher_id', '=', 'teachers.id')
+            ->where('main_teachers.class_series_id', $student->class_series_id)
+            ->where('main_teachers.school_year_id', $currentSchoolYearId)
+            ->where('main_teachers.is_active', 1)
+            ->select('teachers.first_name', 'teachers.last_name')
+            ->first();
+
+        if ($mainTeacher) {
+            $fullName = strtoupper($mainTeacher->first_name . ' ' . $mainTeacher->last_name);
+            return $sectionType === 'anglophone' ? 'MR. ' . $fullName : $fullName;
+        }
+
+        // Fallback value if no main teacher assigned
+        return $sectionType === 'anglophone' ? 'MR. N/A' : 'N/A';
     }
 
     /**
