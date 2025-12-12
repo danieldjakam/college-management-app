@@ -661,7 +661,48 @@ class BulletinService
         });
 
         $gradesBySubject = $allGrades->groupBy('class_series_subject_id');
-        
+
+        // 🚀 OPTIMISATION RANK/MIN/MAX: Précharger les notes de TOUTE LA CLASSE en une seule fois
+        // Ceci évite 6,000+ requêtes SQL dans getTrimesterSubjectRank() et getTrimesterSubjectMinMax()
+        $classStudents = Student::where('class_series_id', $student->class_series_id)->get();
+        $classStudentIds = $classStudents->pluck('id');
+
+        // Charger TOUTES les notes de TOUS les étudiants en UNE SEULE requête
+        $allClassGrades = Grade::whereIn('student_id', $classStudentIds)
+                               ->where('trimester_id', $trimesterNumber)
+                               ->whereIn('class_series_subject_id', $subjects->pluck('id'))
+                               ->with('evaluation')
+                               ->get()
+                               ->groupBy('student_id');
+
+        // Précalculer TOUTES les moyennes de trimestre: [subjectId][studentId] = average
+        // Ceci évite de recalculer pour chaque matière dans les méthodes de rank/minmax
+        $classTrimesterGrades = [];
+
+        // 🚀 OPTIMISATION: Tous les étudiants de la même classe ont le même cycle type
+        // Calculer UNE SEULE FOIS au lieu de pour chaque étudiant
+
+        foreach ($subjects as $subject) {
+            $classTrimesterGrades[$subject->id] = [];
+            foreach ($classStudents as $classStudent) {
+                $studentGrades = $allClassGrades->get($classStudent->id, collect())
+                                                ->where('class_series_subject_id', $subject->id);
+
+                // Utiliser la même logique de calcul que pour l'étudiant courant
+                $average = $this->calculateTrimesterGradeFromGrades(
+                    $studentGrades,
+                    $sequences,
+                    $compositionSequence,
+                    $cycleType  // Réutiliser le cycle type déjà calculé pour la classe
+                );
+
+                // Stocker seulement les moyennes valides (pas null, pas 'ABS')
+                if ($average !== null && $average !== 'ABS' && is_numeric($average)) {
+                    $classTrimesterGrades[$subject->id][$classStudent->id] = (float)$average;
+                }
+            }
+        }
+
         $bulletinData = [
             'student' => $student,
             'trimester' => $trimester,
@@ -747,11 +788,11 @@ class BulletinService
                     'coefficient' => $seriesSubject->coefficient,
                     'total' => $weightedScore,
                     'nxc' => $weightedScore, // NXC = Moy × COEF (ou null si absent)
-                    'rank' => $this->getTrimesterSubjectRank($trimesterNumber, $studentId, $seriesSubject->id),
+                    'rank' => $this->getTrimesterSubjectRankOptimized($studentId, $seriesSubject->id, $classTrimesterGrades),
                     'grade' => $this->getMentionBySection($trimesterGrade, $sectionType),
                     'competence' => $this->getCompetence($trimesterGrade, 'deuxieme', $sectionType), // Compétences avec section
                     'teacher' => $teacherName,
-                    'min_max' => $this->getTrimesterSubjectMinMax($trimesterNumber, $seriesSubject->id),
+                    'min_max' => $this->getTrimesterSubjectMinMaxOptimized($seriesSubject->id, $classTrimesterGrades),
                     'appreciation' => $this->getAppreciationBySection($trimesterGrade, $sectionType),
                     'cycle_type' => 'deuxieme',
                     'section_type' => $sectionType,
@@ -815,10 +856,10 @@ class BulletinService
                     'average' => $trimesterGrade,
                     'coefficient' => $seriesSubject->coefficient,
                     'total' => $weightedScore,
-                    'rank' => $this->getTrimesterSubjectRank($trimesterNumber, $studentId, $seriesSubject->id),
+                    'rank' => $this->getTrimesterSubjectRankOptimized($studentId, $seriesSubject->id, $classTrimesterGrades),
                     'grade' => $this->getMention($trimesterGrade),
                     'teacher' => $teacherName,
-                    'min_max' => $this->getTrimesterSubjectMinMax($trimesterNumber, $seriesSubject->id),
+                    'min_max' => $this->getTrimesterSubjectMinMaxOptimized($seriesSubject->id, $classTrimesterGrades),
                     'appreciation' => $this->getAppreciation($trimesterGrade),
                     'cycle_type' => 'premier',
                     'class_size' => $bulletinData['class_size'] ?? 57 // Pour le rang par défaut
@@ -1149,7 +1190,69 @@ class BulletinService
 
         return '[' . number_format((float)$min, 2) . ' - ' . number_format((float)$max, 2) . ']';
     }
-    
+
+    /**
+     * 🚀 OPTIMIZED: Get subject rank in trimester using pre-calculated data
+     * This eliminates 3,000+ SQL queries by using in-memory data
+     *
+     * @param int $studentId Current student ID
+     * @param int $seriesSubjectId Subject ID
+     * @param array $classTrimesterGrades Pre-calculated trimester grades: [subjectId][studentId] = average
+     * @return int|null Student rank in this subject (1 = best)
+     */
+    protected function getTrimesterSubjectRankOptimized($studentId, $seriesSubjectId, $classTrimesterGrades)
+    {
+        // Vérifier si la matière existe dans les données précalculées
+        if (!isset($classTrimesterGrades[$seriesSubjectId]) || empty($classTrimesterGrades[$seriesSubjectId])) {
+            return null; // Aucune note dans cette matière
+        }
+
+        $subjectAverages = $classTrimesterGrades[$seriesSubjectId];
+
+        // Vérifier si l'étudiant courant a une note
+        if (!isset($subjectAverages[$studentId])) {
+            return null; // L'étudiant n'a pas de note dans cette matière
+        }
+
+        // Trier les moyennes par ordre décroissant (meilleur en premier)
+        arsort($subjectAverages);
+
+        // Trouver le rang de l'étudiant courant
+        $rank = 1;
+        foreach ($subjectAverages as $sid => $avg) {
+            if ($sid == $studentId) {
+                return $rank;
+            }
+            $rank++;
+        }
+
+        return null; // Fallback (ne devrait jamais arriver)
+    }
+
+    /**
+     * 🚀 OPTIMIZED: Get subject min/max in trimester using pre-calculated data
+     * This eliminates 3,000+ SQL queries by using in-memory data
+     *
+     * @param int $seriesSubjectId Subject ID
+     * @param array $classTrimesterGrades Pre-calculated trimester grades: [subjectId][studentId] = average
+     * @return string Format: "[min - max]" like "[8.50 - 18.00]"
+     */
+    protected function getTrimesterSubjectMinMaxOptimized($seriesSubjectId, $classTrimesterGrades)
+    {
+        // Vérifier si la matière existe dans les données précalculées
+        if (!isset($classTrimesterGrades[$seriesSubjectId]) || empty($classTrimesterGrades[$seriesSubjectId])) {
+            return '[0.00 - 0.00]'; // Aucune note dans cette matière
+        }
+
+        $subjectAverages = array_values($classTrimesterGrades[$seriesSubjectId]);
+
+        // Calculer min/max
+        $min = min($subjectAverages);
+        $max = max($subjectAverages);
+
+        return '[' . number_format((float)$min, 2) . ' - ' . number_format((float)$max, 2) . ']';
+    }
+
     /**
      * Generate PDF from HTML template
      */
