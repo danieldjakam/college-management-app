@@ -35,6 +35,40 @@ Route::get('/login', function (\Illuminate\Http\Request $request) {
 })->name('login');
 
 // ============================================
+// 🔥 TEMPORARY: Clear OPcache (REMOVE AFTER FIX!)
+// ============================================
+Route::get('/clear-opcache-now', function () {
+    $results = [];
+
+    if (function_exists('opcache_reset')) {
+        opcache_reset();
+        $results[] = '✅ OPcache cleared successfully!';
+    } else {
+        $results[] = '❌ OPcache not available';
+    }
+
+    if (function_exists('opcache_invalidate')) {
+        opcache_invalidate(__FILE__, true);
+        $results[] = '✅ Files invalidated';
+    }
+
+    if (function_exists('opcache_get_status')) {
+        $status = opcache_get_status();
+        $results[] = '📊 OPcache status: ' . ($status !== false ? 'ACTIVE' : 'INACTIVE');
+        if ($status && isset($status['opcache_statistics'])) {
+            $results[] = '🔢 Cached scripts: ' . $status['opcache_statistics']['num_cached_scripts'];
+        }
+    }
+
+    $results[] = '🔄 Please refresh your application now!';
+
+    return response()->json([
+        'success' => true,
+        'results' => $results
+    ]);
+});
+
+// ============================================
 // ADMIN ROUTES - Gestion des groupes de matières
 // ============================================
 Route::middleware(['auth:api', 'role:admin,principal,directeur_etudes'])->group(function () {

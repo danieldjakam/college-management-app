@@ -6,10 +6,10 @@ import { withRateLimit } from "./rateLimiter";
  * Configuration par défaut pour les requêtes API
  */
 const DEFAULT_CONFIG = {
-  timeout: 30000, // 30 secondes
+  timeout: 180000, // 180 secondes (3 minutes) - nécessaire pour génération bulletins classes nombreuses
   retries: 3,
   retryDelay: 1000, // 1 seconde
-  maxRetryDelay: 10000, // 10 secondes maximuma
+  maxRetryDelay: 10000, // 10 secondes maximum
 };
 
 /**

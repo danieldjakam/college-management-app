@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, CardBody, Table, Button, Input, Label, FormGroup, Alert, Spinner } from 'reactstrap';
 import { Search, Save, RefreshCw } from 'react-bootstrap-icons';
-import secureApi from '../../services/api';
+import secureApi from '../../utils/api';
 
 const StudentDiscipline = () => {
   const [sections, setSections] = useState([]);

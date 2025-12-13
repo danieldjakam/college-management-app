@@ -158,6 +158,7 @@ import MarkSheetGeneration from "./pages/MarkSheets/MarkSheetGeneration";
 import SubjectGroups from "./pages/Admin/SubjectGroups";
 import SubjectGroupsManagement from "./pages/Admin/SubjectGroupsManagement";
 import HonorRoll from "./pages/Admin/HonorRoll";
+import StudentDiscipline from "./pages/Admin/StudentDiscipline";
 
 // Parent Pages
 import ParentLogin from "./pages/Parent/ParentLogin";
@@ -557,6 +558,15 @@ const AppContent = () => {
                 element={
                   <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
                     <ParentNotifications />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/admin/student-discipline"
+                element={
+                  <ProtectedRoute requiredRoles={['admin', 'secretaire', 'surveillant_general', 'surveillant_secteur']}>
+                    <StudentDiscipline />
                   </ProtectedRoute>
                 }
               />
