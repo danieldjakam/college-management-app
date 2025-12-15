@@ -1356,8 +1356,9 @@ class BulletinService
             }
         }
 
+        // Si l'élève n'a aucune note, ne pas le classer
         if (empty($averages) || !isset($averages[$studentId])) {
-            return 1;
+            return null;
         }
 
         // Sort by average descending
@@ -1372,7 +1373,7 @@ class BulletinService
             $rank++;
         }
 
-        return 1;
+        return null;
     }
     
     /**
@@ -1419,6 +1420,11 @@ class BulletinService
             }
         }
 
+        // Si l'élève n'a aucune note, ne pas le classer
+        if (empty($averages) || !isset($averages[$studentId])) {
+            return null;
+        }
+
         // Sort averages in descending order to get ranks
         arsort($averages);
 
@@ -1431,7 +1437,7 @@ class BulletinService
             $rank++;
         }
 
-        return 1; // Fallback
+        return null; // Fallback si non trouvé
     }
 
     /**
@@ -1475,8 +1481,9 @@ class BulletinService
             }
         }
 
+        // Si l'élève n'a aucune note, ne pas le classer
         if (empty($averages) || !isset($averages[$studentId])) {
-            return 1;
+            return null;
         }
 
         // Sort by average descending to get ranks
@@ -1519,7 +1526,7 @@ class BulletinService
             $rank++;
         }
 
-        return 1;
+        return null; // Fallback si non trouvé
     }
     
     /**
@@ -1968,7 +1975,7 @@ class BulletinService
             'total_coef' => number_format((float)($data['total_coefficient'] ?? 0), 2),
             'evaluation_average' => number_format((float)($data['average'] ?? 0), 2),
             'average_class' => $this->getAverageClass((float)($data['average'] ?? 0)),
-            'student_rank' => ($data['rank'] ?? 1) . ($sectionType === 'anglophone' ? '' : 'e'),
+            'student_rank' => $data['rank'] !== null ? ($data['rank'] . ($sectionType === 'anglophone' ? '' : 'e')) : 'NC',
             'class_average' => number_format((float)($data['class_average'] ?? 0), 2, ',', ''),
             'first_average' => number_format((float)($data['first_average'] ?? 0), 2, ',', ''),
             'last_average' => number_format((float)($data['last_average'] ?? 0), 2, ',', ''),

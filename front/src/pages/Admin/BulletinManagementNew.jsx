@@ -481,11 +481,13 @@ function BulletinManagementNew() {
 
     // Filtrer les étudiants qui n'ont PAS encore ce bulletin (côté frontend uniquement pour confirmer)
     const studentsToGenerate = studentsData.filter(student => {
-      const bulletin = student.bulletins?.find(b =>
-        b.period_type === period.type &&
-        b.period_identifier === period.identifier
+      // Convertir l'objet bulletins en tableau avant d'utiliser .find()
+      const bulletinsArray = Object.values(student.bulletins || {});
+      const bulletin = bulletinsArray.find(b =>
+        b.type === period.type &&
+        b.identifier === period.identifier
       );
-      return !bulletin || !bulletin.generated;
+      return !bulletin || !bulletin.is_generated;
     });
 
     if (studentsToGenerate.length === 0) {
@@ -660,13 +662,142 @@ function BulletinManagementNew() {
       return;
     }
 
-    // ⚠️ VÉRIFICATION: Seuls les trimestres peuvent utiliser la route optimisée (pour l'instant)
-    if (period.type !== 'trimester') {
-      setError('⚠️ La génération optimisée est actuellement disponible uniquement pour les trimestres.');
-      setTimeout(() => setError(''), 5000);
+    // ⚠️ Pour les SÉQUENCES: utiliser la génération un par un avec force=true
+    if (period.type === 'sequence') {
+      if (!window.confirm(`⚠️ ATTENTION : Régénérer TOUS les ${studentCount} bulletins pour ${period.label} ?\n\nCela remplacera les bulletins existants.`)) {
+        return;
+      }
+
+      setRegeneratingPeriod(period.identifier);
+      setError('');
+      setSuccess('');
+
+      // Utiliser la génération un par un pour les séquences
+      setOneByOneProgress({
+        current: 0,
+        total: studentCount,
+        percentage: 0,
+        status: 'processing',
+        message: `🔄 Régénération de ${studentCount} bulletin(s) pour ${period.label}...`,
+        errors: []
+      });
+
+      try {
+        const CHUNK_SIZE = 20;
+        const PARALLEL_REQUESTS = 3;
+        const totalStudents = studentCount;
+        let processedCount = 0;
+        let generatedCount = 0;
+        let allErrors = [];
+
+        // Traiter par lots
+        for (let i = 0; i < totalStudents; i += CHUNK_SIZE) {
+          const chunkStudents = studentsData.slice(i, i + CHUNK_SIZE);
+          const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
+          const totalChunks = Math.ceil(totalStudents / CHUNK_SIZE);
+
+          setOneByOneProgress(prev => ({
+            ...prev,
+            message: `⚙️ Lot ${chunkNumber}/${totalChunks} : Régénération de ${chunkStudents.length} bulletin(s)...`,
+          }));
+
+          // Générer plusieurs bulletins en parallèle dans ce lot
+          for (let j = 0; j < chunkStudents.length; j += PARALLEL_REQUESTS) {
+            const parallelStudents = chunkStudents.slice(j, j + PARALLEL_REQUESTS);
+
+            const promises = parallelStudents.map(student =>
+              secureApi.post('/bulletins/generate', {
+                student_id: student.id,
+                bulletin_type: period.type,
+                period_identifier: period.identifier,
+                force: true // FORCE pour régénérer
+              })
+              .then(response => ({
+                success: true,
+                student,
+                response
+              }))
+              .catch(err => ({
+                success: false,
+                student,
+                error: err
+              }))
+            );
+
+            const results = await Promise.all(promises);
+
+            results.forEach(result => {
+              if (result.success) {
+                generatedCount++;
+              } else {
+                allErrors.push({
+                  student: `${result.student.last_name} ${result.student.first_name}`,
+                  error: result.error.response?.data?.error || result.error.message
+                });
+              }
+              processedCount++;
+            });
+
+            const percentage = Math.round((processedCount / totalStudents) * 100);
+            setOneByOneProgress({
+              current: processedCount,
+              total: totalStudents,
+              percentage: percentage,
+              status: 'processing',
+              message: `⚙️ Lot ${chunkNumber}/${totalChunks} : ${processedCount}/${totalStudents} bulletin(s) traités\n✅ ${generatedCount} régénérés | ❌ ${allErrors.length} erreurs`,
+              errors: allErrors
+            });
+          }
+
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+        const finalMessage = `✅ Régénération terminée : ${generatedCount}/${totalStudents} bulletin(s) régénérés`;
+        setOneByOneProgress({
+          current: totalStudents,
+          total: totalStudents,
+          percentage: 100,
+          status: allErrors.length === 0 ? 'completed' : 'completed',
+          message: finalMessage,
+          errors: allErrors
+        });
+
+        if (allErrors.length === 0) {
+          setSuccess(finalMessage);
+        } else {
+          setError(`⚠️ ${finalMessage} - ${allErrors.length} erreur(s) - Voir détails ci-dessous`);
+        }
+
+        setTimeout(() => {
+          fetchStudentsData();
+          setOneByOneProgress({
+            current: 0,
+            total: 0,
+            percentage: 0,
+            status: 'idle',
+            message: '',
+            errors: []
+          });
+        }, 3000);
+
+      } catch (error) {
+        console.error('Erreur régénération séquences:', error);
+        setError(`❌ Erreur ${period.label}: ${error.response?.data?.error || error.message || 'Erreur lors de la régénération'}`);
+        setOneByOneProgress({
+          current: 0,
+          total: 0,
+          percentage: 0,
+          status: 'failed',
+          message: `❌ Erreur: ${error.response?.data?.error || error.message}`,
+          errors: []
+        });
+      } finally {
+        setRegeneratingPeriod(null);
+      }
       return;
     }
 
+    // Pour les TRIMESTRES: utiliser la route optimisée
     // Extraire le numéro du trimestre depuis l'identifier (trim1 -> 1, trim2 -> 2, etc.)
     const trimesterNumber = parseInt(period.identifier.replace('trim', ''));
 

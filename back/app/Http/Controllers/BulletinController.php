@@ -166,7 +166,14 @@ class BulletinController extends Controller
             if (!$bulletinData) {
                 return response()->json(['error' => 'Unable to generate bulletin data'], 500);
             }
-            
+
+            // Vérifier si l'élève a des notes (rank ne doit pas être null)
+            if ($bulletinData['rank'] === null || ($bulletinData['total_coefficient'] ?? 0) == 0) {
+                return response()->json([
+                    'error' => 'Cannot generate bulletin: student has no grades entered. Please enter grades before generating the bulletin.'
+                ], 400);
+            }
+
             // Render HTML template with data (use PDF-optimized template)
             $htmlContent = $this->bulletinService->renderBulletinTemplate($request->bulletin_type, $bulletinData, true);
             
