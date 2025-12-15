@@ -80,7 +80,7 @@ const StudentDiscipline = () => {
 
   const fetchSeries = async (classId) => {
     try {
-      const response = await secureApi.get(`/class-series?school_class_id=${classId}`);
+      const response = await secureApi.get(`/class-series?class_id=${classId}`);
       setSeries(response.data.data || response.data);
     } catch (err) {
       console.error('Error fetching series:', err);
@@ -120,20 +120,22 @@ const StudentDiscipline = () => {
     setError('');
 
     try {
-      const params = {
+      const params = new URLSearchParams({
         class_series_id: selectedSeries,
-        sequence_id: selectedPeriodType === 'sequence' ? selectedSequence : null,
-        trimester_id: selectedPeriodType === 'trimester' ? selectedTrimester : null
-      };
+        ...(selectedPeriodType === 'sequence' && selectedSequence && { sequence_id: selectedSequence }),
+        ...(selectedPeriodType === 'trimester' && selectedTrimester && { trimester_id: selectedTrimester })
+      });
 
-      const response = await secureApi.get('/discipline/class', { params });
+      console.log('Fetching discipline data with params:', params.toString());
+      const response = await secureApi.get(`/discipline/class?${params.toString()}`);
+      console.log('Discipline API response:', response);
 
-      if (response.data.success) {
-        setStudents(response.data.data);
+      if (response && response.success && response.data) {
+        setStudents(response.data);
 
         // Initialiser les données de discipline
         const initialData = {};
-        response.data.data.forEach(student => {
+        response.data.forEach(student => {
           initialData[student.student_id] = student.discipline || {
             delays_justified: 0,
             delays_unjustified: 0,
@@ -149,10 +151,20 @@ const StudentDiscipline = () => {
           };
         });
         setDisciplineData(initialData);
+        setError('');
+      } else {
+        console.error('Unexpected response format:', response);
+        setError(response?.message || 'Erreur lors du chargement des données');
       }
     } catch (err) {
       console.error('Error fetching discipline data:', err);
-      setError('Erreur lors du chargement des données');
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response,
+        status: err.response?.status
+      });
+      const errorMessage = err.response?.data?.message || err.message || 'Erreur lors du chargement des données';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -288,8 +300,8 @@ const StudentDiscipline = () => {
       </Card>
 
       {/* Messages */}
-      {error && <Alert color="danger">{error}</Alert>}
-      {success && <Alert color="success">{success}</Alert>}
+      {error && <Alert color="danger" fade={false}>{error}</Alert>}
+      {success && <Alert color="success" fade={false}>{success}</Alert>}
 
       {/* Tableau de saisie */}
       {students.length > 0 && (
@@ -338,7 +350,7 @@ const StudentDiscipline = () => {
                         <Input
                           type="number"
                           min="0"
-                          size="sm"
+                          bsSize="sm"
                           value={disciplineData[student.student_id]?.delays_justified || 0}
                           onChange={(e) => handleInputChange(student.student_id, 'delays_justified', e.target.value)}
                           style={{ width: '60px' }}
@@ -348,7 +360,7 @@ const StudentDiscipline = () => {
                         <Input
                           type="number"
                           min="0"
-                          size="sm"
+                          bsSize="sm"
                           value={disciplineData[student.student_id]?.delays_unjustified || 0}
                           onChange={(e) => handleInputChange(student.student_id, 'delays_unjustified', e.target.value)}
                           style={{ width: '60px' }}
@@ -358,7 +370,7 @@ const StudentDiscipline = () => {
                         <Input
                           type="number"
                           min="0"
-                          size="sm"
+                          bsSize="sm"
                           value={disciplineData[student.student_id]?.absences_justified || 0}
                           onChange={(e) => handleInputChange(student.student_id, 'absences_justified', e.target.value)}
                           style={{ width: '60px' }}
@@ -368,7 +380,7 @@ const StudentDiscipline = () => {
                         <Input
                           type="number"
                           min="0"
-                          size="sm"
+                          bsSize="sm"
                           value={disciplineData[student.student_id]?.absences_unjustified || 0}
                           onChange={(e) => handleInputChange(student.student_id, 'absences_unjustified', e.target.value)}
                           style={{ width: '60px' }}
@@ -378,7 +390,7 @@ const StudentDiscipline = () => {
                         <Input
                           type="number"
                           min="0"
-                          size="sm"
+                          bsSize="sm"
                           value={disciplineData[student.student_id]?.blame_conduct || 0}
                           onChange={(e) => handleInputChange(student.student_id, 'blame_conduct', e.target.value)}
                           style={{ width: '60px' }}
@@ -388,7 +400,7 @@ const StudentDiscipline = () => {
                         <Input
                           type="number"
                           min="0"
-                          size="sm"
+                          bsSize="sm"
                           value={disciplineData[student.student_id]?.blame_work || 0}
                           onChange={(e) => handleInputChange(student.student_id, 'blame_work', e.target.value)}
                           style={{ width: '60px' }}
@@ -398,7 +410,7 @@ const StudentDiscipline = () => {
                         <Input
                           type="number"
                           min="0"
-                          size="sm"
+                          bsSize="sm"
                           value={disciplineData[student.student_id]?.warning_conduct || 0}
                           onChange={(e) => handleInputChange(student.student_id, 'warning_conduct', e.target.value)}
                           style={{ width: '60px' }}
@@ -408,7 +420,7 @@ const StudentDiscipline = () => {
                         <Input
                           type="number"
                           min="0"
-                          size="sm"
+                          bsSize="sm"
                           value={disciplineData[student.student_id]?.warning_work || 0}
                           onChange={(e) => handleInputChange(student.student_id, 'warning_work', e.target.value)}
                           style={{ width: '60px' }}
@@ -418,7 +430,7 @@ const StudentDiscipline = () => {
                         <Input
                           type="number"
                           min="0"
-                          size="sm"
+                          bsSize="sm"
                           value={disciplineData[student.student_id]?.detention_hours || 0}
                           onChange={(e) => handleInputChange(student.student_id, 'detention_hours', e.target.value)}
                           style={{ width: '60px' }}
@@ -428,7 +440,7 @@ const StudentDiscipline = () => {
                         <Input
                           type="number"
                           min="0"
-                          size="sm"
+                          bsSize="sm"
                           value={disciplineData[student.student_id]?.exclusion_days || 0}
                           onChange={(e) => handleInputChange(student.student_id, 'exclusion_days', e.target.value)}
                           style={{ width: '60px' }}

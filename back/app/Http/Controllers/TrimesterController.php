@@ -14,20 +14,30 @@ class TrimesterController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = Trimester::with(['sequences', 'schoolYear']);
+            $query = Trimester::with(['sequences', 'academicPeriod.schoolYear']);
 
-            // Filtrer par année scolaire
+            // Filtrer par année scolaire via academic_period
             if ($request->has('school_year_id')) {
-                $query->where('school_year_id', $request->school_year_id);
+                $query->whereHas('academicPeriod', function($q) use ($request) {
+                    $q->where('school_year_id', $request->school_year_id);
+                });
             } else {
                 // Par défaut, année scolaire courante
                 $currentYear = SchoolYear::where('is_current', true)->first();
                 if ($currentYear) {
-                    $query->where('school_year_id', $currentYear->id);
+                    $query->whereHas('academicPeriod', function($q) use ($currentYear) {
+                        $q->where('school_year_id', $currentYear->id);
+                    });
                 }
             }
 
             $trimesters = $query->orderBy('number')->get();
+
+            // Ajouter schoolYear directement dans chaque trimester pour rétrocompatibilité
+            $trimesters = $trimesters->map(function($trimester) {
+                $trimester->school_year = $trimester->academicPeriod ? $trimester->academicPeriod->schoolYear : null;
+                return $trimester;
+            });
 
             return response()->json([
                 'success' => true,
@@ -189,8 +199,11 @@ class TrimesterController extends Controller
         try {
             $trimester->load([
                 'sequences.evaluations',
-                'schoolYear'
+                'academicPeriod.schoolYear'
             ]);
+
+            // Ajouter schoolYear directement pour rétrocompatibilité
+            $trimester->school_year = $trimester->academicPeriod ? $trimester->academicPeriod->schoolYear : null;
 
             return response()->json([
                 'success' => true,
@@ -215,7 +228,7 @@ class TrimesterController extends Controller
                 ->where('is_active', true)
                 ->with([
                     'sequences.evaluations',
-                    'schoolYear'
+                    'academicPeriod.schoolYear'
                 ])
                 ->first();
 
@@ -225,6 +238,9 @@ class TrimesterController extends Controller
                     'message' => 'Aucun trimestre courant trouvé'
                 ], 404);
             }
+
+            // Ajouter schoolYear directement pour rétrocompatibilité
+            $currentTrimester->school_year = $currentTrimester->academicPeriod ? $currentTrimester->academicPeriod->schoolYear : null;
 
             return response()->json([
                 'success' => true,
@@ -245,17 +261,20 @@ class TrimesterController extends Controller
     public function activate(Trimester $trimester)
     {
         try {
-            // Désactiver tous les autres trimestres
-            Trimester::where('school_year_id', $trimester->school_year_id)
+            // Désactiver tous les autres trimestres de la même période académique
+            Trimester::where('academic_period_id', $trimester->academic_period_id)
                 ->update(['is_current' => false]);
 
             // Activer le trimestre sélectionné
             $trimester->update(['is_current' => true]);
 
+            $trimester->load(['sequences', 'academicPeriod.schoolYear']);
+            $trimester->school_year = $trimester->academicPeriod ? $trimester->academicPeriod->schoolYear : null;
+
             return response()->json([
                 'success' => true,
                 'message' => 'Trimestre activé avec succès',
-                'data' => $trimester->load(['sequences', 'schoolYear'])
+                'data' => $trimester
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -275,30 +294,32 @@ class TrimesterController extends Controller
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
                 'number' => 'required|integer|min:1|max:3',
-                'school_year_id' => 'required|exists:school_years,id',
+                'academic_period_id' => 'required|exists:academic_periods,id',
                 'start_date' => 'required|date',
                 'end_date' => 'required|date|after:start_date',
                 'is_active' => 'boolean'
             ]);
 
             // Vérifier qu'il n'y a pas déjà un trimestre avec ce numéro
-            $existingTrimester = Trimester::where('school_year_id', $validated['school_year_id'])
+            $existingTrimester = Trimester::where('academic_period_id', $validated['academic_period_id'])
                 ->where('number', $validated['number'])
                 ->first();
 
             if ($existingTrimester) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Un trimestre #{$validated['number']} existe déjà pour cette année scolaire"
+                    'message' => "Un trimestre #{$validated['number']} existe déjà pour cette période académique"
                 ], 422);
             }
 
             $trimester = Trimester::create($validated);
+            $trimester->load(['sequences', 'academicPeriod.schoolYear']);
+            $trimester->school_year = $trimester->academicPeriod ? $trimester->academicPeriod->schoolYear : null;
 
             return response()->json([
                 'success' => true,
                 'message' => 'Trimestre créé avec succès',
-                'data' => $trimester->load(['sequences', 'schoolYear'])
+                'data' => $trimester
             ]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -341,7 +362,7 @@ class TrimesterController extends Controller
 
             // Vérifier qu'il n'y a pas déjà un trimestre avec ce numéro (si le numéro change)
             if (isset($validated['number']) && $validated['number'] !== $trimester->number) {
-                $existingTrimester = Trimester::where('school_year_id', $trimester->school_year_id)
+                $existingTrimester = Trimester::where('academic_period_id', $trimester->academic_period_id)
                     ->where('number', $validated['number'])
                     ->where('id', '!=', $trimester->id)
                     ->first();
@@ -349,17 +370,19 @@ class TrimesterController extends Controller
                 if ($existingTrimester) {
                     return response()->json([
                         'success' => false,
-                        'message' => "Un trimestre #{$validated['number']} existe déjà pour cette année scolaire"
+                        'message' => "Un trimestre #{$validated['number']} existe déjà pour cette période académique"
                     ], 422);
                 }
             }
 
             $trimester->update($validated);
+            $trimester->load(['sequences', 'academicPeriod.schoolYear']);
+            $trimester->school_year = $trimester->academicPeriod ? $trimester->academicPeriod->schoolYear : null;
 
             return response()->json([
                 'success' => true,
                 'message' => 'Trimestre mis à jour avec succès',
-                'data' => $trimester->load(['sequences', 'schoolYear'])
+                'data' => $trimester
             ]);
 
         } catch (\Exception $e) {
@@ -415,7 +438,7 @@ class TrimesterController extends Controller
                     });
                     $sequence->delete();
                 });
-                
+
                 $message = "Le trimestre \"{$trimesterName}\" et tous ses éléments ({$sequencesCount} séquence(s), {$evaluationsCount} évaluation(s)) ont été supprimés avec succès";
             } else {
                 $message = "Le trimestre \"{$trimesterName}\" a été supprimé avec succès";

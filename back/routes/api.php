@@ -415,6 +415,15 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/import/csv', [SchoolClassController::class, 'importCsv'])->middleware(['role:admin']);
     });
 
+    // Routes pour les séries de classes (ClassSeries model)
+    Route::prefix('class-series')->group(function () {
+        Route::get('/', [\App\Http\Controllers\ClassSeriesController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur,bibliothecaire,surveillant_general,surveillant_secteur']);
+        Route::get('/{id}', [\App\Http\Controllers\ClassSeriesController::class, 'show'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
+        Route::post('/', [\App\Http\Controllers\ClassSeriesController::class, 'store'])->middleware(['role:admin']);
+        Route::put('/{id}', [\App\Http\Controllers\ClassSeriesController::class, 'update'])->middleware(['role:admin']);
+        Route::delete('/{id}', [\App\Http\Controllers\ClassSeriesController::class, 'destroy'])->middleware(['role:admin']);
+    });
+
     // Routes pour les séries
     Route::prefix('series')->group(function () {
         Route::get('/', [SeriesController::class, 'index'])->middleware(['role:admin,secretaire,accountant']);

@@ -28,11 +28,22 @@ class HonorRollController extends Controller
      */
     public function getEligibleStudents(Request $request)
     {
+        // Augmenter le temps d'exécution pour cette opération coûteuse
+        set_time_limit(300); // 5 minutes
+
         $trimesterId = $request->input('trimester_id');
         $sectionId = $request->input('section_id');
         $levelId = $request->input('level_id');
         $classId = $request->input('class_id');
         $seriesId = $request->input('series_id');
+
+        \Log::info('Honor roll request received', [
+            'trimester_id' => $trimesterId,
+            'section_id' => $sectionId,
+            'level_id' => $levelId,
+            'class_id' => $classId,
+            'series_id' => $seriesId,
+        ]);
 
         if (!$trimesterId) {
             return response()->json([
@@ -53,11 +64,24 @@ class HonorRollController extends Controller
         // Construire la requête des étudiants avec filtres
         $query = Student::where('is_active', true);
 
+        // Important: Toujours avoir au moins un filtre pour éviter de traiter tous les élèves
+        if (!$seriesId && !$classId && !$levelId && !$sectionId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Veuillez sélectionner au moins un filtre (section, niveau, classe ou série)'
+            ], 400);
+        }
+
         if ($seriesId) {
-            $query->where('class_series_id', $seriesId);
+            // Si c'est un tableau de series_id (sélection multiple)
+            if (is_array($seriesId)) {
+                $query->whereIn('class_series_id', $seriesId);
+            } else {
+                $query->where('class_series_id', $seriesId);
+            }
         } elseif ($classId) {
             $query->whereHas('classSeries', function ($q) use ($classId) {
-                $q->where('school_class_id', $classId);
+                $q->where('class_id', $classId);
             });
         } elseif ($levelId) {
             $query->whereHas('classSeries.schoolClass', function ($q) use ($levelId) {
@@ -69,37 +93,67 @@ class HonorRollController extends Controller
             });
         }
 
+        \Log::info('Query built, fetching students...');
+
         $students = $query->with(['classSeries.schoolClass.level.section'])->get();
+
+        \Log::info('Students fetched', ['count' => $students->count()]);
+
+        // Limiter le traitement si trop d'élèves
+        if ($students->count() > 500) {
+            \Log::warning('Too many students', ['count' => $students->count()]);
+            return response()->json([
+                'success' => false,
+                'message' => "Trop d'élèves à traiter ({$students->count()}). Veuillez affiner vos filtres (maximum 500 élèves)."
+            ], 400);
+        }
+
+        \Log::info('Processing honor roll for ' . $students->count() . ' students');
 
         // Calculer les moyennes et filtrer >= 12/20
         $eligibleStudents = [];
+        $processedCount = 0;
 
         foreach ($students as $student) {
-            $bulletinData = $this->bulletinService->generateTrimesterBulletinData(
-                $trimester->number,
-                $student->id
-            );
+            $processedCount++;
 
-            if ($bulletinData && $bulletinData['average'] >= 12.00) {
+            // Log progress every 50 students
+            if ($processedCount % 50 === 0) {
+                \Log::info("Processed $processedCount / {$students->count()} students");
+            }
+
+            try {
+                $bulletinData = $this->bulletinService->generateTrimesterBulletinData(
+                    $trimester->number,
+                    $student->id
+                );
+
+                if ($bulletinData && $bulletinData['average'] >= 12.00) {
                 $mention = $this->getMention($bulletinData['average']);
 
-                $eligibleStudents[] = [
-                    'id' => $student->id,
-                    'first_name' => $student->first_name,
-                    'last_name' => $student->last_name,
-                    'full_name' => $student->first_name . ' ' . $student->last_name,
-                    'date_of_birth' => $student->date_of_birth,
-                    'class' => $student->classSeries->name ?? 'N/A',
-                    'class_series_id' => $student->class_series_id,
-                    'section' => $student->classSeries->schoolClass->level->section->name ?? 'N/A',
-                    'level' => $student->classSeries->schoolClass->level->name ?? 'N/A',
-                    'average' => round($bulletinData['average'], 2),
-                    'rank' => $bulletinData['rank'],
-                    'mention' => $mention,
-                    'total_points' => $bulletinData['totalPoints'] ?? 0,
-                ];
+                    $eligibleStudents[] = [
+                        'id' => $student->id,
+                        'first_name' => $student->first_name,
+                        'last_name' => $student->last_name,
+                        'full_name' => $student->first_name . ' ' . $student->last_name,
+                        'date_of_birth' => $student->date_of_birth,
+                        'class' => $student->classSeries->name ?? 'N/A',
+                        'class_series_id' => $student->class_series_id,
+                        'section' => $student->classSeries->schoolClass->level->section->name ?? 'N/A',
+                        'level' => $student->classSeries->schoolClass->level->name ?? 'N/A',
+                        'average' => round($bulletinData['average'], 2),
+                        'rank' => $bulletinData['rank'],
+                        'mention' => $mention,
+                        'total_points' => $bulletinData['totalPoints'] ?? 0,
+                    ];
+                }
+            } catch (\Exception $e) {
+                \Log::error("Error processing student {$student->id}: " . $e->getMessage());
+                continue;
             }
         }
+
+        \Log::info("Found " . count($eligibleStudents) . " eligible students out of {$students->count()}");
 
         // Trier par moyenne décroissante
         usort($eligibleStudents, function ($a, $b) {
@@ -195,6 +249,15 @@ class HonorRollController extends Controller
 
         $mention = $this->getMention($bulletinData['average']);
 
+        // Préparer le logo en base64
+        $logoPath = $this->getLogoPath();
+        $logoBase64 = '';
+        if ($logoPath && file_exists($logoPath)) {
+            $imageData = file_get_contents($logoPath);
+            $mimeType = mime_content_type($logoPath);
+            $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
+        }
+
         // Préparer les données pour le template
         $data = [
             'student' => $student,
@@ -206,6 +269,7 @@ class HonorRollController extends Controller
             'class_name' => $student->classSeries->name ?? 'N/A',
             'academic_year' => '2024/2025', // TODO: Récupérer depuis les settings
             'generation_date' => now()->format('d/m/Y'),
+            'logo_base64' => $logoBase64,
         ];
 
         // Générer le PDF

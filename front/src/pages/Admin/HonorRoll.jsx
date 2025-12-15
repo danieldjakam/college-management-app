@@ -56,7 +56,8 @@ const HonorRoll = () => {
   // Cascade filters: Class → Series
   useEffect(() => {
     if (selectedClass) {
-      const filteredSeries = series.filter(s => s.school_class_id === parseInt(selectedClass));
+      const filteredSeries = series.filter(s => s.class_id === parseInt(selectedClass));
+      console.log('Filtering series for class:', selectedClass, 'Found:', filteredSeries);
       setSeries(filteredSeries.length > 0 ? filteredSeries : series);
       setSelectedSeries('');
     }
@@ -94,6 +95,12 @@ const HonorRoll = () => {
       return;
     }
 
+    // Validation: au moins un filtre doit être sélectionné
+    if (!selectedSection && !selectedLevel && !selectedClass && !selectedSeries) {
+      setError('Veuillez sélectionner au moins un filtre (section, niveau, classe ou série)');
+      return;
+    }
+
     setLoading(true);
     setError('');
     setSuccess('');
@@ -107,19 +114,21 @@ const HonorRoll = () => {
         series_id: selectedSeries || null,
       });
 
-      const data = response.data;
-      setEligibleStudents(data.students || []);
-      setGroupedByMention(data.grouped_by_mention || {});
-      setStatistics(data.statistics || {});
+      // secureApi returns the data directly, not wrapped in { data: ... }
+      console.log('Honor roll API response:', response);
 
-      if (data.students && data.students.length === 0) {
+      setEligibleStudents(response.students || []);
+      setGroupedByMention(response.grouped_by_mention || {});
+      setStatistics(response.statistics || {});
+
+      if (response.students && response.students.length === 0) {
         setError('Aucun élève éligible trouvé avec les critères sélectionnés');
       } else {
-        setSuccess(`${data.students.length} élève(s) éligible(s) au tableau d'honneur`);
+        setSuccess(`${response.students.length} élève(s) éligible(s) au tableau d'honneur`);
       }
     } catch (err) {
       console.error('Error fetching eligible students:', err);
-      setError(err.response?.data?.message || 'Erreur lors du chargement des élèves');
+      setError(err.message || 'Erreur lors du chargement des élèves');
     } finally {
       setLoading(false);
     }
@@ -141,17 +150,39 @@ const HonorRoll = () => {
         trimester_id: selectedTrimester,
       });
 
-      const data = response.data;
+      // secureApi returns the data directly, not wrapped in { data: ... }
+      console.log('Certificate generation response:', response);
 
-      // Télécharger automatiquement le fichier
-      if (data.file_path) {
-        const downloadUrl = secureApi.defaults.baseURL + data.download_url;
-        window.open(downloadUrl, '_blank');
-        setSuccess(`Certificat généré avec succès pour l'élève`);
+      // Télécharger automatiquement le fichier avec authentification
+      if (response.download_url) {
+        // Utiliser fetch avec le token pour télécharger le fichier
+        const token = localStorage.getItem('token');
+        const downloadResponse = await fetch('http://127.0.0.1:8001' + response.download_url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (downloadResponse.ok) {
+          const blob = await downloadResponse.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = response.download_url.split('/').pop(); // Nom du fichier
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+
+          setSuccess(`Certificat généré avec succès pour l'élève`);
+        } else {
+          setError('Erreur lors du téléchargement du certificat');
+        }
       }
     } catch (err) {
       console.error('Error generating certificate:', err);
-      setError(err.response?.data?.message || 'Erreur lors de la génération du certificat');
+      setError(err.message || 'Erreur lors de la génération du certificat');
     } finally {
       setGenerating({ ...generating, [studentId]: false });
     }
@@ -312,7 +343,7 @@ const HonorRoll = () => {
                 >
                   <option value="">Toutes les séries</option>
                   {series
-                    .filter(s => !selectedClass || s.school_class_id === parseInt(selectedClass))
+                    .filter(s => !selectedClass || s.class_id === parseInt(selectedClass))
                     .map((ser) => (
                       <option key={ser.id} value={ser.id}>
                         {ser.name}
