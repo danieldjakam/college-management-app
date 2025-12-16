@@ -1658,6 +1658,26 @@ Route::prefix('honor-rolls')->middleware('auth:api')->group(function () {
     // Download honor roll certificate
     Route::get('/download/{filename}', [HonorRollController::class, 'downloadCertificate'])
         ->middleware(['role:admin,principal,directeur_etudes,secretaire,parent']);
+
+    // Batch generate certificates for multiple students
+    Route::post('/batch-generate', [HonorRollController::class, 'batchGenerateCertificates'])
+        ->middleware(['role:admin,principal,directeur_etudes,secretaire']);
+
+    // Merge certificates into single PDF
+    Route::post('/merge', [HonorRollController::class, 'mergeCertificates'])
+        ->middleware(['role:admin,principal,directeur_etudes,secretaire']);
+
+    // Get merge progress
+    Route::get('/merge-progress/{jobId}', [HonorRollController::class, 'getMergeProgress'])
+        ->middleware(['role:admin,principal,directeur_etudes,secretaire']);
+
+    // Download merged certificate PDF
+    Route::get('/merged/{mergedId}/download', [HonorRollController::class, 'downloadMergedCertificate'])
+        ->middleware(['role:admin,principal,directeur_etudes,secretaire,parent']);
+
+    // List all merged certificate PDFs
+    Route::get('/merged', [HonorRollController::class, 'listMergedCertificates'])
+        ->middleware(['role:admin,principal,directeur_etudes,secretaire']);
 });
 
 

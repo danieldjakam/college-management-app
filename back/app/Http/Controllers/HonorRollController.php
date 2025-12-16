@@ -10,8 +10,12 @@ use App\Models\SchoolClass;
 use App\Models\ClassSeries;
 use App\Services\BulletinService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Dompdf\Dompdf;
 use Dompdf\Options;
+use App\Models\MergedHonorRollPDF;
+use App\Jobs\MergeHonorRollPDFs;
 
 class HonorRollController extends Controller
 {
@@ -377,6 +381,320 @@ class HonorRollController extends Controller
             'classes' => $classes,
             'series' => $series,
             'trimesters' => $trimesters,
+        ]);
+    }
+
+    /**
+     * Générer en masse tous les certificats pour les élèves éligibles
+     */
+    public function batchGenerateCertificates(Request $request)
+    {
+        set_time_limit(600); // 10 minutes
+
+        $request->validate([
+            'student_ids' => 'required|array',
+            'student_ids.*' => 'exists:students,id',
+            'trimester_id' => 'required|exists:trimesters,id',
+        ]);
+
+        $studentIds = $request->input('student_ids');
+        $trimesterId = $request->input('trimester_id');
+        $trimester = Trimester::find($trimesterId);
+
+        $generated = [];
+        $failed = [];
+
+        foreach ($studentIds as $studentId) {
+            try {
+                $student = Student::with(['classSeries.schoolClass.level.section'])->find($studentId);
+
+                if (!$student) {
+                    $failed[] = ['id' => $studentId, 'reason' => 'Étudiant introuvable'];
+                    continue;
+                }
+
+                // Calculer les données du bulletin
+                $bulletinData = $this->bulletinService->generateTrimesterBulletinData(
+                    $trimester->number,
+                    $student->id
+                );
+
+                if (!$bulletinData || $bulletinData['average'] < 12.00) {
+                    $failed[] = ['id' => $studentId, 'reason' => 'Non éligible (moyenne < 12/20)'];
+                    continue;
+                }
+
+                $mention = $this->getMention($bulletinData['average']);
+
+                // Préparer le logo en base64
+                $logoPath = $this->getLogoPath();
+                $logoBase64 = '';
+                if ($logoPath && file_exists($logoPath)) {
+                    $imageData = file_get_contents($logoPath);
+                    $mimeType = mime_content_type($logoPath);
+                    $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
+                }
+
+                // Préparer les données pour le template
+                $data = [
+                    'student' => $student,
+                    'trimester' => $trimester,
+                    'average' => round($bulletinData['average'], 2),
+                    'rank' => $bulletinData['rank'],
+                    'mention' => $mention,
+                    'total_points' => $bulletinData['totalPoints'] ?? 0,
+                    'class_name' => $student->classSeries->name ?? 'N/A',
+                    'academic_year' => '2024/2025',
+                    'generation_date' => now()->format('d/m/Y'),
+                    'logo_base64' => $logoBase64,
+                ];
+
+                // Générer le PDF
+                $html = view('honor_roll.certificate', $data)->render();
+
+                $options = new Options();
+                $options->set('isRemoteEnabled', true);
+                $options->set('isHtml5ParserEnabled', true);
+                $options->set('isFontSubsettingEnabled', true);
+
+                $dompdf = new Dompdf($options);
+                $dompdf->loadHtml($html);
+                $dompdf->setPaper('A4', 'landscape');
+                $dompdf->render();
+
+                // Ajouter le watermark
+                $canvas = $dompdf->getCanvas();
+                if ($logoPath && file_exists($logoPath)) {
+                    $pageWidth = $canvas->get_width();
+                    $pageHeight = $canvas->get_height();
+                    $logoWidth = 400;
+                    $logoHeight = 400;
+                    $x = ($pageWidth - $logoWidth) / 2;
+                    $y = ($pageHeight - $logoHeight) / 2;
+
+                    $canvas->page_script(function ($pageNumber) use ($canvas, $logoPath, $x, $y, $logoWidth, $logoHeight) {
+                        $canvas->set_opacity(0.08);
+                        $canvas->image($logoPath, $x, $y, $logoWidth, $logoHeight);
+                        $canvas->set_opacity(1.0);
+                    });
+                }
+
+                $pdfContent = $dompdf->output();
+
+                // Sauvegarder le PDF
+                $filename = 'honor_roll_' . $student->id . '_trim' . $trimester->number . '_' . date('Y-m-d') . '.pdf';
+                $filePath = 'public/honor_rolls/' . $filename;
+                $fullPath = storage_path('app/' . $filePath);
+
+                $directory = dirname($fullPath);
+                if (!file_exists($directory)) {
+                    mkdir($directory, 0755, true);
+                }
+
+                file_put_contents($fullPath, $pdfContent);
+
+                $generated[] = [
+                    'student_id' => $studentId,
+                    'file_path' => $filePath,
+                    'filename' => $filename,
+                ];
+
+            } catch (\Exception $e) {
+                \Log::error("Error generating certificate for student {$studentId}: " . $e->getMessage());
+                $failed[] = ['id' => $studentId, 'reason' => $e->getMessage()];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => count($generated) . ' certificats générés avec succès',
+            'generated' => $generated,
+            'failed' => $failed,
+            'total' => count($studentIds),
+            'generated_count' => count($generated),
+            'failed_count' => count($failed),
+        ]);
+    }
+
+    /**
+     * Fusionner les certificats d'honneur en un seul PDF
+     */
+    public function mergeCertificates(Request $request)
+    {
+        ini_set('max_execution_time', '300');
+        ini_set('memory_limit', '512M');
+
+        $validated = $request->validate([
+            'trimester_id' => 'required|exists:trimesters,id',
+            'section_id' => 'nullable|exists:sections,id',
+            'level_id' => 'nullable|exists:levels,id',
+            'class_id' => 'nullable|exists:school_classes,id',
+            'series_id' => 'nullable|exists:class_series,id',
+        ]);
+
+        // Récupérer tous les fichiers de certificats selon les filtres
+        $certificatePaths = [];
+        $students = Student::where('is_active', true);
+
+        if ($validated['series_id']) {
+            $students->where('class_series_id', $validated['series_id']);
+        } elseif ($validated['class_id']) {
+            $students->whereHas('classSeries', function ($q) use ($validated) {
+                $q->where('class_id', $validated['class_id']);
+            });
+        } elseif ($validated['level_id']) {
+            $students->whereHas('classSeries.schoolClass', function ($q) use ($validated) {
+                $q->where('level_id', $validated['level_id']);
+            });
+        } elseif ($validated['section_id']) {
+            $students->whereHas('classSeries.schoolClass.level', function ($q) use ($validated) {
+                $q->where('section_id', $validated['section_id']);
+            });
+        }
+
+        $students = $students->get();
+
+        // Chercher les certificats existants pour ces étudiants
+        foreach ($students as $student) {
+            $filename = 'honor_roll_' . $student->id . '_trim' . $validated['trimester_id'] . '_' . date('Y-m-d') . '.pdf';
+            $filePath = 'public/honor_rolls/' . $filename;
+            $fullPath = storage_path('app/' . $filePath);
+
+            if (file_exists($fullPath)) {
+                $certificatePaths[] = $filePath;
+            }
+        }
+
+        if (empty($certificatePaths)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aucun certificat trouvé pour les critères sélectionnés'
+            ], 404);
+        }
+
+        // Générer un identifiant unique pour suivre la progression
+        $jobId = uniqid('merge_honor_', true);
+
+        // Dispatcher le job de fusion
+        MergeHonorRollPDFs::dispatch(
+            $validated['trimester_id'],
+            $validated['section_id'] ?? null,
+            $validated['level_id'] ?? null,
+            $validated['class_id'] ?? null,
+            $validated['series_id'] ?? null,
+            $certificatePaths,
+            $jobId
+        );
+
+        // Si QUEUE_CONNECTION=sync, le job est déjà terminé
+        if (config('queue.default') === 'sync') {
+            sleep(1);
+            $progress = Cache::get("merge_honor_progress_{$jobId}");
+
+            if ($progress && $progress['status'] === 'completed') {
+                return response()->json([
+                    'success' => true,
+                    'message' => $progress['message'],
+                    'job_id' => $jobId,
+                    'certificate_count' => count($certificatePaths),
+                    'completed' => true,
+                    'file_id' => $progress['file_id'] ?? null,
+                    'filename' => $progress['filename'] ?? null,
+                    'download_url' => $progress['download_url'] ?? null
+                ]);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Fusion de " . count($certificatePaths) . " certificats en cours...",
+            'job_id' => $jobId,
+            'certificate_count' => count($certificatePaths),
+        ]);
+    }
+
+    /**
+     * Vérifier la progression de la fusion
+     */
+    public function getMergeProgress($jobId)
+    {
+        $progress = Cache::get("merge_honor_progress_{$jobId}", [
+            'status' => 'pending',
+            'current' => 0,
+            'total' => 0,
+            'message' => 'En attente...'
+        ]);
+
+        // Si mode sync, vérifier directement en DB si fusion récente existe
+        if (config('queue.default') === 'sync' && $progress['status'] !== 'completed') {
+            $recentMerge = MergedHonorRollPDF::where('status', 'completed')
+                ->where('created_at', '>=', now()->subSeconds(60))
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if ($recentMerge) {
+                $progress = [
+                    'status' => 'completed',
+                    'message' => "✅ {$recentMerge->certificate_count} certificats fusionnés avec succès !",
+                    'percentage' => 100,
+                    'current' => $recentMerge->certificate_count,
+                    'total' => $recentMerge->certificate_count,
+                    'file_id' => $recentMerge->id,
+                    'filename' => $recentMerge->filename,
+                    'download_url' => "/api/honor-rolls/merged/{$recentMerge->id}/download"
+                ];
+            }
+        }
+
+        return response()->json($progress);
+    }
+
+    /**
+     * Télécharger un PDF fusionné
+     */
+    public function downloadMergedCertificate($mergedId)
+    {
+        $merged = MergedHonorRollPDF::findOrFail($mergedId);
+
+        if (!Storage::disk('public')->exists($merged->file_path)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Fichier PDF introuvable'
+            ], 404);
+        }
+
+        return Storage::disk('public')->download(
+            $merged->file_path,
+            $merged->filename,
+            [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="' . $merged->filename . '"'
+            ]
+        );
+    }
+
+    /**
+     * Lister tous les PDFs fusionnés
+     */
+    public function listMergedCertificates(Request $request)
+    {
+        $query = MergedHonorRollPDF::with(['trimester', 'section', 'level', 'schoolClass', 'classSeries'])
+            ->orderBy('created_at', 'desc');
+
+        // Filtrage optionnel
+        if ($request->has('trimester_id')) {
+            $query->where('trimester_id', $request->trimester_id);
+        }
+
+        if ($request->has('series_id')) {
+            $query->where('series_id', $request->series_id);
+        }
+
+        $mergedPdfs = $query->paginate(20);
+
+        return response()->json([
+            'success' => true,
+            'data' => $mergedPdfs
         ]);
     }
 }

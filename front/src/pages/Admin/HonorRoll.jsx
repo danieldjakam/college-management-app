@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, CardBody, CardHeader, Table, Button, Input, Label, FormGroup, Alert, Spinner, Badge } from 'reactstrap';
-import { Search, Download, Award, TrophyFill, StarFill } from 'react-bootstrap-icons';
+import { Search, Download, Award, TrophyFill, StarFill, FileEarmarkPdfFill, PrinterFill } from 'react-bootstrap-icons';
 import secureApi from '../../utils/api';
+import { host } from '../../utils/fetch';
 
 const HonorRoll = () => {
   // Filtres
@@ -24,6 +25,8 @@ const HonorRoll = () => {
   const [statistics, setStatistics] = useState({});
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState({});
+  const [batchGenerating, setBatchGenerating] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -157,7 +160,7 @@ const HonorRoll = () => {
       if (response.download_url) {
         // Utiliser fetch avec le token pour télécharger le fichier
         const token = localStorage.getItem('token');
-        const downloadResponse = await fetch('http://127.0.0.1:8001' + response.download_url, {
+        const downloadResponse = await fetch(host + response.download_url, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -215,6 +218,147 @@ const HonorRoll = () => {
         return <Award className="me-1" />;
       default:
         return null;
+    }
+  };
+
+  const batchGenerateAllCertificates = async () => {
+    if (!selectedTrimester || eligibleStudents.length === 0) {
+      setError('Aucun élève éligible à générer');
+      return;
+    }
+
+    setBatchGenerating(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const studentIds = eligibleStudents.map(s => s.id);
+      const response = await secureApi.post('/honor-rolls/batch-generate', {
+        student_ids: studentIds,
+        trimester_id: selectedTrimester,
+      });
+
+      setSuccess(`${response.generated_count} certificats générés avec succès (${response.failed_count} échecs)`);
+    } catch (err) {
+      console.error('Error batch generating certificates:', err);
+      setError(err.message || 'Erreur lors de la génération en masse');
+    } finally {
+      setBatchGenerating(false);
+    }
+  };
+
+  const mergeAndDownloadCertificates = async () => {
+    if (!selectedTrimester) {
+      setError('Veuillez sélectionner un trimestre');
+      return;
+    }
+
+    setMerging(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      // Lancer la fusion
+      const response = await secureApi.post('/honor-rolls/merge', {
+        trimester_id: selectedTrimester,
+        section_id: selectedSection || null,
+        level_id: selectedLevel || null,
+        class_id: selectedClass || null,
+        series_id: selectedSeries || null,
+      });
+
+      const jobId = response.job_id;
+
+      // Attendre la fin de la fusion
+      let completed = response.completed || false;
+      let downloadUrl = response.download_url;
+
+      if (!completed) {
+        // Polling pour vérifier la progression
+        const checkProgress = setInterval(async () => {
+          try {
+            const progressResponse = await secureApi.get(`/honor-rolls/merge-progress/${jobId}`);
+
+            if (progressResponse.status === 'completed') {
+              clearInterval(checkProgress);
+              downloadUrl = progressResponse.download_url;
+              completed = true;
+
+              // Télécharger automatiquement
+              if (downloadUrl) {
+                const token = localStorage.getItem('token');
+                const downloadResponse = await fetch(host + downloadUrl, {
+                  method: 'GET',
+                  headers: {
+                    'Authorization': `Bearer ${token}`
+                  }
+                });
+
+                if (downloadResponse.ok) {
+                  const blob = await downloadResponse.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = progressResponse.filename;
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  document.body.removeChild(a);
+
+                  setSuccess(`${progressResponse.current} certificats fusionnés et téléchargés avec succès !`);
+                  setMerging(false);
+                }
+              }
+            } else if (progressResponse.status === 'failed') {
+              clearInterval(checkProgress);
+              setError('Erreur lors de la fusion des certificats');
+              setMerging(false);
+            }
+          } catch (err) {
+            console.error('Error checking progress:', err);
+          }
+        }, 2000); // Vérifier toutes les 2 secondes
+
+        // Timeout après 5 minutes
+        setTimeout(() => {
+          clearInterval(checkProgress);
+          if (merging) {
+            setError('La fusion prend trop de temps. Vérifiez les PDFs fusionnés dans l\'historique.');
+            setMerging(false);
+          }
+        }, 300000);
+      } else {
+        // Déjà terminé (mode sync)
+        if (downloadUrl) {
+          const token = localStorage.getItem('token');
+          const downloadResponse = await fetch(host + downloadUrl, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (downloadResponse.ok) {
+            const blob = await downloadResponse.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = response.filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            setSuccess(`${response.certificate_count} certificats fusionnés et téléchargés avec succès !`);
+          }
+        }
+        setMerging(false);
+      }
+
+    } catch (err) {
+      console.error('Error merging certificates:', err);
+      setError(err.message || 'Erreur lors de la fusion des certificats');
+      setMerging(false);
     }
   };
 
@@ -440,6 +584,61 @@ const HonorRoll = () => {
               <CardBody>
                 <h3 className="text-warning mb-0">{statistics.assez_bien || 0}</h3>
                 <small className="text-muted">Assez bien</small>
+              </CardBody>
+            </Card>
+          </Col>
+        </Row>
+      )}
+
+      {/* Actions en masse */}
+      {eligibleStudents.length > 0 && (
+        <Row className="mb-4">
+          <Col>
+            <Card>
+              <CardHeader>
+                <h5 className="mb-0">Actions en masse</h5>
+              </CardHeader>
+              <CardBody>
+                <div className="d-flex gap-2">
+                  <Button
+                    color="primary"
+                    onClick={batchGenerateAllCertificates}
+                    disabled={batchGenerating}
+                  >
+                    {batchGenerating ? (
+                      <>
+                        <Spinner size="sm" className="me-2" />
+                        Génération en cours...
+                      </>
+                    ) : (
+                      <>
+                        <FileEarmarkPdfFill className="me-2" />
+                        Générer tous les certificats ({eligibleStudents.length})
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    color="success"
+                    onClick={mergeAndDownloadCertificates}
+                    disabled={merging}
+                  >
+                    {merging ? (
+                      <>
+                        <Spinner size="sm" className="me-2" />
+                        Fusion en cours...
+                      </>
+                    ) : (
+                      <>
+                        <PrinterFill className="me-2" />
+                        Fusionner et imprimer
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <small className="text-muted d-block mt-2">
+                  * Générez d'abord tous les certificats individuels, puis fusionnez-les en un seul PDF pour l'impression.
+                </small>
               </CardBody>
             </Card>
           </Col>
