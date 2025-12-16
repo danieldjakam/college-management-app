@@ -1136,26 +1136,42 @@ class BulletinService
                             return $t->first_name . ' ' . $t->last_name;
                         })->implode(', ');
 
-                        // 🔥 CALCUL DS ET COMPOSITION pour le template
+                        // 🔥 CALCUL SÉQUENCES ET COMPOSITION pour le template
                         // Récupérer les notes de séquences pour cet étudiant et cette matière
                         $key = $student->id . '_' . $subject->id;
                         $studentGrades = $allClassGrades->get($key, collect());
 
-                        // Calculer DS = (Seq1 + Seq2) / 2
-                        $dsGrades = collect();
-                        foreach ($sequences as $seq) {
-                            $gradeForSeq = $studentGrades->first(function($g) use ($seq) {
-                                return $g->sequence_id == $seq->id && !$seq->is_composition;
-                            });
-                            if ($gradeForSeq && $gradeForSeq->score !== null) {
-                                $dsGrades->push($gradeForSeq->getScoreOn20());
+                        // 🎓 DIFFÉRENCIER PREMIER vs DEUXIÈME CYCLE
+                        $sequenceGrades = [null, null]; // Pour deuxième cycle: [Seq1, Seq2]
+                        $dsAverage = null; // Pour premier cycle: DS = (Seq1 + Seq2) / 2
+
+                        if ($cycleType === 'deuxieme') {
+                            // DEUXIÈME CYCLE: Récupérer Seq1 et Seq2 séparément
+                            foreach ($sequences as $index => $seq) {
+                                $gradeForSeq = $studentGrades->first(function($g) use ($seq) {
+                                    return $g->sequence_id == $seq->id && !$seq->is_composition;
+                                });
+                                if ($gradeForSeq && $gradeForSeq->score !== null) {
+                                    $sequenceGrades[$index] = $gradeForSeq->getScoreOn20();
+                                }
                             }
+                        } else {
+                            // PREMIER CYCLE: Calculer DS = (Seq1 + Seq2) / 2
+                            $dsGrades = collect();
+                            foreach ($sequences as $seq) {
+                                $gradeForSeq = $studentGrades->first(function($g) use ($seq) {
+                                    return $g->sequence_id == $seq->id && !$seq->is_composition;
+                                });
+                                if ($gradeForSeq && $gradeForSeq->score !== null) {
+                                    $dsGrades->push($gradeForSeq->getScoreOn20());
+                                }
+                            }
+                            // Compléter avec 0.00 si séquences manquantes
+                            while ($dsGrades->count() < 2) {
+                                $dsGrades->push(0.00);
+                            }
+                            $dsAverage = $dsGrades->average();
                         }
-                        // Compléter avec 0.00 si séquences manquantes
-                        while ($dsGrades->count() < 2) {
-                            $dsGrades->push(0.00);
-                        }
-                        $dsAverage = $dsGrades->average();
 
                         // Calculer composition avec les données déjà chargées
                         $compositionGrade = null;
@@ -1172,14 +1188,13 @@ class BulletinService
                         $minMaxData = $subjectMinMax[$subject->id] ?? ['min' => 0, 'max' => 0];
                         $minMaxFormatted = '[' . number_format($minMaxData['min'], 2) . ' - ' . number_format($minMaxData['max'], 2) . ']';
 
-                        $bulletinData['subjects'][] = [
+                        $subjectData = [
                             'name' => $subject->subject->name ?? 'Matière inconnue',
-                            'ds' => $dsAverage, // ✅ AJOUTÉ
-                            'composition' => $compositionGrade, // ✅ AJOUTÉ
                             'score' => $average, // Pour compatibilité
                             'average' => number_format($average, 2),
                             'coefficient' => $coefficient,
                             'total' => number_format($average * $coefficient, 2),
+                            'nxc' => number_format($average * $coefficient, 2), // NXC = Moy × COEF
                             'teacher' => $teacherNames ?: 'Non assigné',
                             'subject_id' => $subject->id,
                             'rank' => null,
@@ -1187,9 +1202,25 @@ class BulletinService
                             'max' => $minMaxData['max'],
                             'appreciation' => $this->getAppreciation($average),
                             'grade' => $this->getMention($average), // Pour compatibilité template
-                            'min_max' => $minMaxFormatted, // ✅ PRÉ-CALCULÉ: Plus besoin d'appeler getAPCSubjectMinMax() dans renderBulletinTemplate()
-                            'cycle_type' => $cycleType
+                            'competence' => $this->getCompetence($average, $cycleType, $sectionType),
+                            'min_max' => $minMaxFormatted, // ✅ PRÉ-CALCULÉ
+                            'cycle_type' => $cycleType,
+                            'section_type' => $sectionType
                         ];
+
+                        // 🎓 Ajouter les champs spécifiques selon le cycle
+                        if ($cycleType === 'deuxieme') {
+                            // DEUXIÈME CYCLE: Seq1, Seq2, Compo séparées
+                            $subjectData['sequence1'] = $sequenceGrades[0];
+                            $subjectData['sequence2'] = $sequenceGrades[1];
+                            $subjectData['composition'] = $compositionGrade;
+                        } else {
+                            // PREMIER CYCLE: DS, Compo
+                            $subjectData['ds'] = $dsAverage;
+                            $subjectData['composition'] = $compositionGrade;
+                        }
+
+                        $bulletinData['subjects'][] = $subjectData;
                     }
                 }
 
@@ -2393,11 +2424,11 @@ class BulletinService
                     $nxc = $subject['nxc'] ?? $weightedGrade;
 
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
-                    // CORRECTION: Afficher "/" pour les absents (ABS) au lieu de "-"
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq1 === 'ABS' ? '/' : (is_numeric($seq1) && $seq1 > 0 ? number_format((float)$seq1, 2) : '-')) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq2 === 'ABS' ? '/' : (is_numeric($seq2) && $seq2 > 0 ? number_format((float)$seq2, 2) : '-')) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) && $compo1 > 0 ? number_format((float)$compo1, 2) : '-')) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . (is_numeric($average) && $average > 0 ? number_format((float)$average, 2) : '-') . '</td>';
+                    // CORRECTION: Afficher "/" pour les absents (ABS) au lieu de "-", afficher la note même si c'est 0.00
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq1 === 'ABS' ? '/' : (is_numeric($seq1) ? number_format((float)$seq1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq2 === 'ABS' ? '/' : (is_numeric($seq2) ? number_format((float)$seq2, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) ? number_format((float)$compo1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . (is_numeric($average) ? number_format((float)$average, 2) : '-') . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$coef, 2) . '</td>';
                     // CORRECTION: Afficher "-" si NXC est null (élève absent)
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($nxc !== null ? number_format((float)$nxc, 2) : '-') . '</td>';
@@ -2413,10 +2444,10 @@ class BulletinService
                     $average = $subject['average'] ?? null;
 
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
-                    // CORRECTION: Afficher "/" pour les absents (ABS) au lieu de "-"
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($ds1 === 'ABS' ? '/' : (is_numeric($ds1) && $ds1 > 0 ? number_format((float)$ds1, 2) : '-')) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) && $compo1 > 0 ? number_format((float)$compo1, 2) : '-')) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . (is_numeric($average) && $average > 0 ? number_format((float)$average, 2) : '-') . '</td>';
+                    // CORRECTION: Afficher "/" pour les absents (ABS) au lieu de "-", afficher la note même si c'est 0.00
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($ds1 === 'ABS' ? '/' : (is_numeric($ds1) ? number_format((float)$ds1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) ? number_format((float)$compo1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . (is_numeric($average) ? number_format((float)$average, 2) : '-') . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$coef, 2) . '</td>';
                     // CORRECTION: Afficher "-" si weightedGrade est null (élève absent)
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($weightedGrade !== null ? number_format((float)$weightedGrade, 2) : '-') . '</td>';
@@ -2428,8 +2459,8 @@ class BulletinService
             } else {
                 // Pour bulletin séquence avec alignement
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
-                // CORRECTION: Afficher "/" pour absent (ABS), "-" si null, ou la note
-                $displayGrade = ($grade === 'ABS') ? '/' : ((is_numeric($grade) && $grade > 0) ? number_format((float)$grade, 2) : '-');
+                // CORRECTION: Afficher "/" pour absent (ABS), "-" si null, ou la note même si c'est 0.00
+                $displayGrade = ($grade === 'ABS') ? '/' : (is_numeric($grade) ? number_format((float)$grade, 2) : '-');
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $displayGrade . '</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$coef, 2) . '</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($weightedGrade !== null ? number_format((float)$weightedGrade, 2) : '-') . '</td>';
