@@ -153,6 +153,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
         {
+          title: "Discipline",
+          items: [
+            { name: "Gestion de la Discipline", href: "/admin/student-discipline", icon: <ExclamationTriangle /> },
+          ],
+        },
+        {
           title: "Administration",
           items: [
             { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> },
@@ -395,6 +401,12 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Appel Manuel Classes", href: "/manual-attendance", icon: <ListCheck /> },
             { name: "Scanner QR Personnel", href: "/staff-attendance-scanner", icon: <QrCodeScan /> },
             { name: "Rapports Présence", href: "/attendance-reports", icon: <FileTextFill /> },
+          ],
+        },
+        {
+          title: "Discipline",
+          items: [
+            { name: "Gestion de la Discipline", href: "/admin/student-discipline", icon: <ExclamationTriangle /> },
           ],
         },
         {
