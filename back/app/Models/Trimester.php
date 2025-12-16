@@ -12,7 +12,7 @@ class Trimester extends Model
     protected $fillable = [
         'name',
         'number',
-        'academic_period_id',
+        'school_year_id',
         'start_date',
         'end_date',
         'is_active',
@@ -27,26 +27,11 @@ class Trimester extends Model
     ];
 
     /**
-     * Relation avec la période académique
-     */
-    public function academicPeriod()
-    {
-        return $this->belongsTo(AcademicPeriod::class);
-    }
-
-    /**
-     * Relation avec l'année scolaire via la période académique
+     * Relation avec l'année scolaire
      */
     public function schoolYear()
     {
-        return $this->hasOneThrough(
-            SchoolYear::class,
-            AcademicPeriod::class,
-            'id',              // Clé dans academic_periods
-            'id',              // Clé dans school_years
-            'academic_period_id', // Clé dans trimesters
-            'school_year_id'   // Clé dans academic_periods
-        );
+        return $this->belongsTo(SchoolYear::class);
     }
 
     /**
