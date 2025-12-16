@@ -341,7 +341,7 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les sections
     Route::prefix('sections')->group(function () {
         Route::get('/dashboard', [SectionController::class, 'dashboard'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
-        Route::get('/', [SectionController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur,bibliothecaire']);
+        Route::get('/', [SectionController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur,bibliothecaire,surveillant_general,surveillant_secteur']);
         Route::get('/{section}', [SectionController::class, 'show'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
 
         // Export routes
@@ -374,7 +374,7 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les niveaux
     Route::prefix('levels')->group(function () {
         Route::get('/dashboard', [LevelController::class, 'dashboard'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
-        Route::get('/', [LevelController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
+        Route::get('/', [LevelController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur,surveillant_general,surveillant_secteur']);
         Route::get('/{level}', [LevelController::class, 'show'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
         Route::get('/{level}/series', [LevelController::class, 'getSeries'])->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur']);
 
@@ -1183,10 +1183,10 @@ Route::middleware(['auth:api'])->group(function () {
     // Routes pour les séquences
     Route::prefix('sequences')->group(function () {
         // Consultation (enseignants, admins, comptables, principal)
-        Route::get('/', [SequenceController::class, 'index'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
-        Route::get('/current', [SequenceController::class, 'getCurrentSequence'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
-        Route::get('/{sequence}', [SequenceController::class, 'show'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
-        Route::get('/{sequence}/stats', [SequenceController::class, 'getStats'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/', [SequenceController::class, 'index'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire,surveillant_general,surveillant_secteur']);
+        Route::get('/current', [SequenceController::class, 'getCurrentSequence'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire,surveillant_general,surveillant_secteur']);
+        Route::get('/{sequence}', [SequenceController::class, 'show'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire,surveillant_general,surveillant_secteur']);
+        Route::get('/{sequence}/stats', [SequenceController::class, 'getStats'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire,surveillant_general,surveillant_secteur']);
         
         // Gestion (admin, principal et secrétaire)
         Route::post('/', [SequenceController::class, 'store'])->middleware(['role:admin,principal,secretaire']);
@@ -1198,11 +1198,11 @@ Route::middleware(['auth:api'])->group(function () {
     // Routes pour les trimestres
     Route::prefix('trimesters')->group(function () {
         // Consultation (enseignants, admins, comptables, principal)
-        Route::get('/', [TrimesterController::class, 'index'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/', [TrimesterController::class, 'index'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire,surveillant_general,surveillant_secteur']);
         Route::get('/teacher', [TrimesterController::class, 'getTeacherTrimesters'])->middleware(['role:teacher']);
-        Route::get('/current', [TrimesterController::class, 'getCurrentTrimester'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
-        Route::get('/{trimester}', [TrimesterController::class, 'show'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
-        Route::get('/{trimester}/stats', [TrimesterController::class, 'getStats'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
+        Route::get('/current', [TrimesterController::class, 'getCurrentTrimester'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire,surveillant_general,surveillant_secteur']);
+        Route::get('/{trimester}', [TrimesterController::class, 'show'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire,surveillant_general,surveillant_secteur']);
+        Route::get('/{trimester}/stats', [TrimesterController::class, 'getStats'])->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire,surveillant_general,surveillant_secteur']);
         Route::get('/{trimester}/ds-details', [TrimesterController::class, 'getDSDetails'])->middleware(['role:teacher']);
         
         // Gestion (admin, principal et secrétaires)
@@ -1667,19 +1667,19 @@ Route::prefix('honor-rolls')->middleware('auth:api')->group(function () {
 Route::prefix('discipline')->middleware('auth:api')->group(function () {
     // Get discipline data for a student
     Route::get('/student/{studentId}', [App\Http\Controllers\StudentDisciplineController::class, 'show'])
-        ->middleware(['role:admin,principal,secretaire,surveillant']);
+        ->middleware(['role:admin,principal,secretaire,surveillant_general,surveillant_secteur']);
 
     // Get discipline data for all students in a class
     Route::get('/class', [App\Http\Controllers\StudentDisciplineController::class, 'getByClass'])
-        ->middleware(['role:admin,principal,secretaire,surveillant']);
+        ->middleware(['role:admin,principal,secretaire,surveillant_general,surveillant_secteur']);
 
     // Store or update discipline data for a student
     Route::post('/store', [App\Http\Controllers\StudentDisciplineController::class, 'store'])
-        ->middleware(['role:admin,principal,secretaire,surveillant']);
+        ->middleware(['role:admin,principal,secretaire,surveillant_general,surveillant_secteur']);
 
     // Bulk update discipline data
     Route::post('/bulk-store', [App\Http\Controllers\StudentDisciplineController::class, 'bulkStore'])
-        ->middleware(['role:admin,principal,secretaire,surveillant']);
+        ->middleware(['role:admin,principal,secretaire,surveillant_general,surveillant_secteur']);
 
     // Delete discipline record
     Route::delete('/{id}', [App\Http\Controllers\StudentDisciplineController::class, 'destroy'])
