@@ -155,29 +155,31 @@
 
         /* Signatures */
         .signatures-table {
-            width: 100%;
-            margin-top: 3mm;
+            width: 60%;
+            margin: 4mm auto 0 auto;
         }
 
         .signature-cell {
-            width: 33.33%;
             text-align: center;
             vertical-align: top;
-            padding: 1mm;
+            padding: 2mm;
         }
 
         .signature-title {
             font-weight: bold;
-            font-size: 7pt;
-            margin-bottom: 6mm;
+            font-size: 8pt;
+            margin-bottom: 8mm;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .signature-line {
-            border-top: 1px solid #000;
+            border-top: 1.5px solid #000;
             padding-top: 1mm;
-            font-size: 6pt;
+            font-size: 7pt;
             color: #666;
+            width: 60%;
+            margin: 0 auto;
         }
 
         /* Footer */
@@ -293,17 +295,9 @@
         <!-- Signatures -->
         <table class="signatures-table">
             <tr>
-                <td class="signature-cell">
-                    <div class="signature-title">Le Principal</div>
+                <td class="signature-cell" style="width: 100%; text-align: center;">
+                    <div class="signature-title">LE PRINCIPAL</div>
                     <div class="signature-line">Principal</div>
-                </td>
-                <td class="signature-cell">
-                    <div class="signature-title">Principal Adjoint</div>
-                    <div class="signature-line">Vice Principal</div>
-                </td>
-                <td class="signature-cell">
-                    <div class="signature-title">Le Président du Conseil d'École</div>
-                    <div class="signature-line">School Board President</div>
                 </td>
             </tr>
         </table>
