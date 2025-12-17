@@ -1023,6 +1023,11 @@ class BulletinService
         $firstStudent = Student::where('class_series_id', $seriesId)->first();
         $sectionType = $firstStudent ? $this->determineSectionType($firstStudent) : 'francophone';
 
+        // Force Anglophone and Technique to use DEUXIÈME CYCLE logic (like in generateTrimesterBulletinData)
+        if ($sectionType === 'anglophone' || $sectionType === 'technique') {
+            $cycleType = 'deuxieme';
+        }
+
         // Cache l'année scolaire
         $currentSchoolYear = \Cache::remember('current_school_year', 3600, function () {
             return \App\Models\SchoolYear::where('is_active', true)->first();
