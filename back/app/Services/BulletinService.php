@@ -109,10 +109,10 @@ class BulletinService
      * PREMIER CYCLE: Trimestre 1/2: (DS + COMPOSITION) / 2, Trimestre 3: COMPOSITION uniquement
      * DEUXIÈME CYCLE: (Sequence 1 + Sequence 2 + COMPOSITION) / 3
      */
-    public function calculateTrimesterGrade($trimester, $studentId, $subjectId, $cycleType = 'premier')
+    public function calculateTrimesterGrade($trimester, $studentId, $subjectId, $cycleType = 'premier', $sectionType = 'francophone')
     {
         if ($cycleType === 'deuxieme') {
-            return $this->calculateTrimesterGradeDeuxiemeCycle($trimester, $studentId, $subjectId);
+            return $this->calculateTrimesterGradeDeuxiemeCycle($trimester, $studentId, $subjectId, $sectionType);
         }
 
         // PREMIER CYCLE (logique existante)
@@ -148,9 +148,10 @@ class BulletinService
 
     /**
      * Calculate trimester grade for DEUXIÈME CYCLE
-     * Formule: (Sequence 1 + Sequence 2 + Composition) / 3
+     * FRANCOPHONE: DS = (Seq1 + Seq2) / 2, Moy = (DS + Compo) / 2
+     * TECHNIQUE: Moy = (Seq1 + Seq2 + Compo) / 3
      */
-    public function calculateTrimesterGradeDeuxiemeCycle($trimester, $studentId, $subjectId)
+    public function calculateTrimesterGradeDeuxiemeCycle($trimester, $studentId, $subjectId, $sectionType = 'francophone')
     {
         \Log::info("🎓 DEUXIÈME CYCLE: calculating trimester grade for trimester={$trimester}, student={$studentId}, subject={$subjectId}");
 
@@ -230,8 +231,18 @@ class BulletinService
         $finalSeq2 = ($sequenceGrades[1] !== null && $sequenceGrades[1] !== 'ABS') ? $sequenceGrades[1] : 0.00;
         $finalCompositionGrade = ($compositionGrade !== null && $compositionGrade !== 'ABS') ? $compositionGrade : 0.00;
 
-        $average = ($finalSeq1 + $finalSeq2 + $finalCompositionGrade) / 3;
-        \Log::info("🎓 DEUXIÈME CYCLE M/20 = ({$finalSeq1} + {$finalSeq2} + {$finalCompositionGrade}) / 3 = {$average}");
+        // 🔧 FORMULE SELON LE TYPE DE SECTION
+        if ($sectionType === 'technique' || $sectionType === 'anglophone') {
+            // TECHNIQUE/ANGLOPHONE: (Seq1 + Seq2 + Compo) / 3 (33.33% chacun)
+            $average = ($finalSeq1 + $finalSeq2 + $finalCompositionGrade) / 3;
+            \Log::info("🎓 TECHNIQUE M/20 = ({$finalSeq1} + {$finalSeq2} + {$finalCompositionGrade}) / 3 = {$average}");
+        } else {
+            // FRANCOPHONE: DS = (Seq1 + Seq2) / 2, puis M/20 = (DS + Compo) / 2 (50% + 50%)
+            $ds = ($finalSeq1 + $finalSeq2) / 2;
+            $average = ($ds + $finalCompositionGrade) / 2;
+            \Log::info("🎓 FRANCOPHONE DS = ({$finalSeq1} + {$finalSeq2}) / 2 = {$ds}");
+            \Log::info("🎓 FRANCOPHONE M/20 = ({$ds} + {$finalCompositionGrade}) / 2 = {$average}");
+        }
 
         return $average;
     }
@@ -734,7 +745,8 @@ class BulletinService
                     $studentGrades,
                     $sequences,
                     $compositionSequence,
-                    $cycleType  // Réutiliser le cycle type déjà calculé pour la classe
+                    $cycleType,  // Réutiliser le cycle type déjà calculé pour la classe
+                    $sectionType  // Ajouter le type de section
                 );
 
                 // Stocker seulement les moyennes valides (pas null, pas 'ABS')
@@ -790,7 +802,7 @@ class BulletinService
                     }
                 }
 
-                // Calculer moyenne trimestre DEUXIÈME CYCLE: (Seq1 + Seq2 + Compo) / 3
+                // Calculer moyenne trimestre DEUXIÈME CYCLE selon le type de section
                 $trimesterGrade = null;
                 $gradesForAverage = collect([
                     $sequenceGrades[0],
@@ -805,10 +817,24 @@ class BulletinService
                     $seq1 = $sequenceGrades[0] ?? 0.00;
                     $seq2 = $sequenceGrades[1] ?? 0.00;
                     $comp = $compositionGrade ?? 0.00;
-                    $trimesterGrade = ($seq1 + $seq2 + $comp) / 3;
+
+                    // 🔧 FORMULE SELON LE TYPE DE SECTION
+                    if ($sectionType === 'technique' || $sectionType === 'anglophone') {
+                        // TECHNIQUE/ANGLOPHONE: (Seq1 + Seq2 + Compo) / 3 (33.33% chacun)
+                        $trimesterGrade = ($seq1 + $seq2 + $comp) / 3;
+                    } else {
+                        // FRANCOPHONE: DS = (Seq1 + Seq2) / 2, puis M/20 = (DS + Compo) / 2 (50% + 50%)
+                        $ds = ($seq1 + $seq2) / 2;
+                        $trimesterGrade = ($ds + $comp) / 2;
+                    }
                 }
 
-                \Log::info("🎓 DEUXIÈME CYCLE - {$seriesSubject->subject->name}: Seq1={$sequenceGrades[0]}, Seq2={$sequenceGrades[1]}, Compo={$compositionGrade}, Avg={$trimesterGrade}");
+                if ($sectionType === 'technique' || $sectionType === 'anglophone') {
+                    \Log::info("🎓 DEUXIÈME CYCLE {$sectionType} - {$seriesSubject->subject->name}: Seq1={$sequenceGrades[0]}, Seq2={$sequenceGrades[1]}, Compo={$compositionGrade}, Avg={$trimesterGrade} = (Seq1+Seq2+Compo)/3");
+                } else {
+                    $ds = (($sequenceGrades[0] ?? 0.00) + ($sequenceGrades[1] ?? 0.00)) / 2;
+                    \Log::info("🎓 DEUXIÈME CYCLE FRANCOPHONE - {$seriesSubject->subject->name}: Seq1={$sequenceGrades[0]}, Seq2={$sequenceGrades[1]}, DS={$ds}, Compo={$compositionGrade}, Avg={$trimesterGrade} = (DS+Compo)/2");
+                }
 
                 // OPTION B: Si pas de note, on n'ajoute NI le coefficient NI les points
                 $weightedScore = $trimesterGrade !== null ? (float)$trimesterGrade * (float)$seriesSubject->coefficient : null;
@@ -902,6 +928,7 @@ class BulletinService
                     'min_max' => $this->getTrimesterSubjectMinMaxOptimized($seriesSubject->id, $classTrimesterGrades),
                     'appreciation' => $this->getAppreciation($trimesterGrade),
                     'cycle_type' => 'premier',
+                    'section_type' => $sectionType, // 🔧 FIX: Ajouter section_type pour cohérence avec deuxième cycle
                     'class_size' => $bulletinData['class_size'] ?? 57 // Pour le rang par défaut
                 ];
             }
@@ -927,13 +954,12 @@ class BulletinService
         // Construire les lignes HTML pour le template
         $bulletinData['subjects_rows'] = $this->buildSubjectRowsHTML($bulletinData['subjects'], 'trimester');
 
-        // ⚠️ DÉSACTIVÉ temporairement pour debug - prend trop de temps de calcul
-        // TODO: Mettre en cache ou optimiser davantage
-        // $classStats = $this->calculateClassStatistics($trimester->id, $student->class_series_id, 'trimester');
-        $bulletinData['first_average'] = 18.50; // Mock data
-        $bulletinData['last_average'] = 8.00; // Mock data
-        $bulletinData['class_average'] = 12.50; // Mock data
-        $bulletinData['class_size'] = $bulletinData['class_size'] ?? 57;
+        // 🚀 OPTIMIZED: Calculate class stats from pre-loaded data
+        $classStats = $this->calculateClassStatsFromPreloadedData($classTrimesterGrades, $subjects, $classStudents);
+        $bulletinData['first_average'] = $classStats['first_average'];
+        $bulletinData['last_average'] = $classStats['last_average'];
+        $bulletinData['class_average'] = $classStats['class_average'];
+        $bulletinData['class_size'] = $classStats['class_size'];
 
         $bulletinData['appreciation'] = $this->getAppreciationBySection($bulletinData['average'], $sectionType);
 
@@ -1004,9 +1030,12 @@ class BulletinService
         // Récupérer la série de classe
         $classSeries = \App\Models\ClassSeries::with('schoolClass')->findOrFail($seriesId);
 
-        // Déterminer le cycle (UNE FOIS pour toute la classe!)
+        // Déterminer le cycle et le type de section (UNE FOIS pour toute la classe!)
         $cycleType = $this->determineCycleTypeFromClassName($classSeries->schoolClass->name ?? '');
-        $sectionType = 'francophone'; // Default section type (pas utilisé pour l'instant mais requis par certaines méthodes)
+
+        // Déterminer le type de section depuis un étudiant de la classe
+        $firstStudent = Student::where('class_series_id', $seriesId)->first();
+        $sectionType = $firstStudent ? $this->determineSectionType($firstStudent) : 'francophone';
 
         // Cache l'année scolaire
         $currentSchoolYear = \Cache::remember('current_school_year', 3600, function () {
@@ -1071,7 +1100,8 @@ class BulletinService
                     $studentGrades,
                     $sequences,
                     $compositionSequence,
-                    $cycleType
+                    $cycleType,
+                    $sectionType
                 );
 
                 if ($average !== null && $average !== 'ABS' && is_numeric($average)) {
@@ -1122,7 +1152,8 @@ class BulletinService
                         $studentGrades,
                         $sequences,
                         $compositionSequence,
-                        $cycleType
+                        $cycleType,
+                        $sectionType
                     );
 
                     if ($average !== null && $average !== 'ABS') {
@@ -1238,11 +1269,12 @@ class BulletinService
                 $bulletinData['mention'] = $this->getMentionBySection($bulletinData['average'], $sectionType);
                 $bulletinData['section_type'] = $sectionType;
 
-                // Mock data pour stats de classe
-                $bulletinData['first_average'] = 18.50;
-                $bulletinData['last_average'] = 8.00;
-                $bulletinData['class_average'] = 12.50;
-                $bulletinData['class_size'] = $allStudents->count();
+                // 🚀 OPTIMIZED: Calculate real class stats from pre-loaded data
+                $classStats = $this->calculateClassStatsFromPreloadedData($classTrimesterGrades, $subjects, $allStudents);
+                $bulletinData['first_average'] = $classStats['first_average'];
+                $bulletinData['last_average'] = $classStats['last_average'];
+                $bulletinData['class_average'] = $classStats['class_average'];
+                $bulletinData['class_size'] = $classStats['class_size'];
                 $bulletinData['appreciation'] = $this->getAppreciationBySection($bulletinData['average'], $sectionType);
 
                 // Charger les données de discipline
@@ -1423,8 +1455,9 @@ class BulletinService
             return 1;
         }
 
-        // Detect cycle type for correct calculation
+        // Detect cycle type and section type for correct calculation
         $cycleType = $this->determineCycleType($student);
+        $sectionType = $this->determineSectionType($student);
 
         // Calculate average for each student
         $averages = [];
@@ -1436,7 +1469,7 @@ class BulletinService
             $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();
 
             foreach ($subjects as $subject) {
-                $trimesterGrade = $this->calculateTrimesterGrade($trimesterNumber, $s->id, $subject->id, $cycleType);
+                $trimesterGrade = $this->calculateTrimesterGrade($trimesterNumber, $s->id, $subject->id, $cycleType, $sectionType);
 
                 if ($trimesterGrade !== null && $trimesterGrade > 0) {
                     $totalPoints += (float)$trimesterGrade * (float)$subject->coefficient;
@@ -1574,8 +1607,9 @@ class BulletinService
             return null;
         }
 
-        // Détecter le type de cycle
+        // Détecter le type de cycle et de section
         $cycleType = $this->determineCycleType($student);
+        $sectionType = $this->determineSectionType($student);
 
         // Get all students in the same class series
         $students = Student::where('class_series_id', $student->class_series_id)->get();
@@ -1587,7 +1621,7 @@ class BulletinService
         // Calculate average for each student in THIS subject
         $averages = [];
         foreach ($students as $s) {
-            $average = $this->calculateTrimesterGrade($trimesterNumber, $s->id, $subjectId, $cycleType);
+            $average = $this->calculateTrimesterGrade($trimesterNumber, $s->id, $subjectId, $cycleType, $sectionType);
 
             if ($average !== null && $average !== 'ABS' && is_numeric($average)) {
                 $averages[$s->id] = (float)$average;
@@ -1632,19 +1666,25 @@ class BulletinService
             return '[0.00 - 0.00]';
         }
 
-        $students = Student::where('class_series_id', $seriesSubject->class_series_id)->pluck('id');
+        $students = Student::where('class_series_id', $seriesSubject->class_series_id)->get();
 
         if ($students->isEmpty()) {
             return '[0.00 - 0.00]';
         }
 
+        // Déterminer le cycle et la section depuis le premier étudiant
+        $firstStudent = $students->first();
+        $cycleType = $this->determineCycleType($firstStudent);
+        $sectionType = $this->determineSectionType($firstStudent);
+
         $subjectAverages = [];
 
-        foreach ($students as $studentId) {
+        foreach ($students as $student) {
             // Calculate M/20 (Moyenne finale du trimestre) for each student
-            // This uses the same logic as the bulletin: (DS + Composition) / 2
-            // If composition not entered, it uses 0: (DS + 0) / 2 = DS / 2
-            $moyenne = $this->calculateTrimesterGrade($trimester->id, $studentId, $seriesSubjectId, 'premier');
+            // This uses the same logic as the bulletin: (DS + Composition) / 2 (Premier Cycle)
+            // or (Seq1 + Seq2 + Compo) / 3 (Deuxième Cycle Technique/Anglophone)
+            // or (DS + Compo) / 2 where DS = (Seq1 + Seq2) / 2 (Deuxième Cycle Francophone)
+            $moyenne = $this->calculateTrimesterGrade($trimester->id, $student->id, $seriesSubjectId, $cycleType, $sectionType);
 
             // Only include numeric values (exclude null and 'ABS')
             if ($moyenne !== null && is_numeric($moyenne)) {
@@ -1830,6 +1870,14 @@ class BulletinService
     {
         $sectionName = $student->schoolClass->level->section->name ?? '';
 
+        // 🔧 FIX: Aussi vérifier le nom de la classe pour détecter l'enseignement technique
+        $className = '';
+        if (isset($student->classSeries) && $student->classSeries) {
+            $className = strtolower($student->classSeries->name);
+        } elseif (isset($student->schoolClass) && $student->schoolClass) {
+            $className = strtolower($student->schoolClass->name);
+        }
+
         if (
             stripos($sectionName, 'anglophone') !== false ||
             stripos($sectionName, 'english') !== false ||
@@ -1838,10 +1886,21 @@ class BulletinService
             return 'anglophone';
         }
 
+        // 🎓 ENSEIGNEMENT TECHNIQUE: Vérifier dans section ET nom de classe
         if (
             stripos($sectionName, 'technique') !== false ||
             stripos($sectionName, 'technical') !== false ||
-            stripos($sectionName, 'enseignement technique') !== false
+            stripos($sectionName, 'enseignement technique') !== false ||
+            // Détecter les classes techniques par leur nom (SEME, PREM, etc.)
+            stripos($className, 'seme') !== false ||          // Seconde Technique (ex: SEME 1 A)
+            preg_match('/\bprem\b/i', $className) ||          // Première Technique (mot entier uniquement)
+            stripos($className, 'stt') !== false ||           // Sciences et Technologies Tertiaires
+            stripos($className, 'sti') !== false ||           // Sciences et Technologies Industrielles
+            stripos($className, 'stl') !== false ||           // Sciences et Technologies de Laboratoire
+            stripos($className, 'st2s') !== false ||          // Sciences et Technologies de la Santé
+            stripos($className, 'tig') !== false ||           // Technique Industrielle Générale
+            stripos($className, 'esf') !== false ||           // Économie Sociale et Familiale
+            (stripos($className, 'tle') !== false && stripos($className, 'tech') !== false) // TLE Technique
         ) {
             return 'technique';
         }
@@ -1858,12 +1917,20 @@ class BulletinService
         $sectionType = $this->determineSectionType($data['student']);
         $cycleType = $this->determineCycleType($data['student']);
 
+        // For Anglophone and Technical sections, force Deuxième Cycle logic
+        if ($sectionType === 'anglophone' || $sectionType === 'technique') {
+            $cycleType = 'deuxieme';
+        }
+
         // Use APC template for 1er cycle francophone trimester bulletins
         if ($cycleType === 'premier' && $sectionType === 'francophone' && $templateType === 'trimester') {
             $templateFile = 'bulletin_apc_structure_finale.html';
         } elseif ($sectionType === 'anglophone') {
             // Use Anglophone templates
             $templateFile = $forPdf ? 'cpbd_bulletin_anglophone_pdf.html' : 'cpbd_bulletin_anglophone.html';
+        } elseif ($sectionType === 'technique') {
+            // Use non-APC template for Technical sections (use same as 2nd cycle)
+            $templateFile = $forPdf ? 'cpbd_bulletin_pdf.html' : 'cpbd_bulletin.html';
         } else {
             // Default Francophone templates
             $templateFile = $forPdf ? 'cpbd_bulletin_pdf.html' : 'cpbd_bulletin.html';
@@ -2283,6 +2350,11 @@ class BulletinService
         if (!empty($subjects)) {
             $cycleType = $subjects[0]['cycle_type'] ?? 'premier';
             $sectionType = $subjects[0]['section_type'] ?? 'francophone';
+        }
+
+        // Forcer Deuxième Cycle pour les sections techniques et anglophones
+        if ($sectionType === 'technique' || $sectionType === 'anglophone') {
+            $cycleType = 'deuxieme';
         }
 
         // Traduire le nom du groupe si Anglophone (depuis la base de données)
@@ -3069,15 +3141,20 @@ class BulletinService
     private function getClassMinMax($trimesterId, $classSeriesId)
     {
         // Get all students in the same class series
-        $students = Student::where('class_series_id', $classSeriesId)->pluck('id');
+        $students = Student::where('class_series_id', $classSeriesId)->get();
 
         if ($students->isEmpty()) {
             return '[0.00 - 0.00]';
         }
 
+        // Déterminer le cycle et la section depuis le premier étudiant
+        $firstStudent = $students->first();
+        $cycleType = $this->determineCycleType($firstStudent);
+        $sectionType = $this->determineSectionType($firstStudent);
+
         $averages = [];
 
-        foreach ($students as $studentId) {
+        foreach ($students as $student) {
             // Calculate trimester average for each student
             $subjects = ClassSeriesSubject::where('class_series_id', $classSeriesId)->get();
 
@@ -3086,8 +3163,7 @@ class BulletinService
 
             foreach ($subjects as $subject) {
                 // Calculate M/20 (Moyenne finale du trimestre) for this subject
-                // This uses: (DS + Composition) / 2, or (DS + 0) / 2 if composition not entered
-                $moyenne = $this->calculateTrimesterGrade($trimesterId, $studentId, $subject->id, 'premier');
+                $moyenne = $this->calculateTrimesterGrade($trimesterId, $student->id, $subject->id, $cycleType, $sectionType);
 
                 // Only include numeric values (exclude null and 'ABS')
                 if ($moyenne !== null && is_numeric($moyenne)) {
@@ -3124,18 +3200,22 @@ class BulletinService
         }
 
         // Get all students in the same class series
-        $students = Student::where('class_series_id', $classSeriesId)->pluck('id');
+        $students = Student::where('class_series_id', $classSeriesId)->get();
 
         if ($students->isEmpty()) {
             return '[0.00 - 0.00]';
         }
 
+        // Déterminer le cycle et la section depuis le premier étudiant
+        $firstStudent = $students->first();
+        $cycleType = $this->determineCycleType($firstStudent);
+        $sectionType = $this->determineSectionType($firstStudent);
+
         $subjectAverages = [];
 
-        foreach ($students as $studentId) {
+        foreach ($students as $student) {
             // Calculate M/20 (Moyenne finale du trimestre) for this subject
-            // This uses: (DS + Composition) / 2, or (DS + 0) / 2 if composition not entered
-            $moyenne = $this->calculateTrimesterGrade($trimesterId, $studentId, $subjectId, 'premier');
+            $moyenne = $this->calculateTrimesterGrade($trimesterId, $student->id, $subjectId, $cycleType, $sectionType);
 
             // Only include numeric values (exclude null and 'ABS')
             if ($moyenne !== null && is_numeric($moyenne)) {
@@ -3160,15 +3240,20 @@ class BulletinService
     private function getNumberOfAverages($trimesterId, $classSeriesId)
     {
         // Get all students in the same class series
-        $students = Student::where('class_series_id', $classSeriesId)->pluck('id');
+        $students = Student::where('class_series_id', $classSeriesId)->get();
 
         if ($students->isEmpty()) {
             return '0';
         }
 
+        // Déterminer le cycle et la section depuis le premier étudiant
+        $firstStudent = $students->first();
+        $cycleType = $this->determineCycleType($firstStudent);
+        $sectionType = $this->determineSectionType($firstStudent);
+
         $passCount = 0;
 
-        foreach ($students as $studentId) {
+        foreach ($students as $student) {
             // Calculate trimester average for each student
             $subjects = ClassSeriesSubject::where('class_series_id', $classSeriesId)->get();
 
@@ -3177,7 +3262,7 @@ class BulletinService
 
             foreach ($subjects as $subject) {
                 // Use calculateTrimesterGrade to get M/20 (handles composition = 0 correctly)
-                $moyenne = $this->calculateTrimesterGrade($trimesterId, $studentId, $subject->id, 'premier');
+                $moyenne = $this->calculateTrimesterGrade($trimesterId, $student->id, $subject->id, $cycleType, $sectionType);
 
                 // Only include numeric values (exclude null and 'ABS')
                 if ($moyenne !== null && is_numeric($moyenne)) {
@@ -3203,16 +3288,21 @@ class BulletinService
     private function getSuccessRate($trimesterId, $classSeriesId)
     {
         // Get all students in the same class series
-        $students = Student::where('class_series_id', $classSeriesId)->pluck('id');
+        $students = Student::where('class_series_id', $classSeriesId)->get();
 
         if ($students->isEmpty()) {
             return '0,0';
         }
 
+        // Déterminer le cycle et la section depuis le premier étudiant
+        $firstStudent = $students->first();
+        $cycleType = $this->determineCycleType($firstStudent);
+        $sectionType = $this->determineSectionType($firstStudent);
+
         $totalStudents = 0;
         $passCount = 0;
 
-        foreach ($students as $studentId) {
+        foreach ($students as $student) {
             // Calculate trimester average for each student
             $subjects = ClassSeriesSubject::where('class_series_id', $classSeriesId)->get();
 
@@ -3221,7 +3311,7 @@ class BulletinService
 
             foreach ($subjects as $subject) {
                 // Use calculateTrimesterGrade to get M/20 (handles composition = 0 correctly)
-                $moyenne = $this->calculateTrimesterGrade($trimesterId, $studentId, $subject->id, 'premier');
+                $moyenne = $this->calculateTrimesterGrade($trimesterId, $student->id, $subject->id, $cycleType, $sectionType);
 
                 // Only include numeric values (exclude null and 'ABS')
                 if ($moyenne !== null && is_numeric($moyenne)) {
@@ -3333,6 +3423,67 @@ class BulletinService
     }
 
     /**
+     * 🚀 ULTRA-OPTIMIZED: Calculate class statistics from pre-loaded grade data
+     * Avoids recalculating everything - uses already computed averages
+     *
+     * @param array $classTrimesterGrades [subjectId][studentId] = average
+     * @param Collection $subjects All class subjects
+     * @param Collection $students All class students
+     * @return array ['first_average', 'last_average', 'class_average', 'class_size']
+     */
+    protected function calculateClassStatsFromPreloadedData($classTrimesterGrades, $subjects, $students)
+    {
+        if ($students->isEmpty() || empty($classTrimesterGrades)) {
+            return [
+                'first_average' => 0,
+                'last_average' => 0,
+                'class_average' => 0,
+                'class_size' => $students->count()
+            ];
+        }
+
+        // Calculate general average for each student
+        $studentAverages = [];
+        foreach ($students as $student) {
+            $totalPoints = 0;
+            $totalCoef = 0;
+
+            foreach ($subjects as $subject) {
+                // Get pre-calculated average for this student in this subject
+                $average = $classTrimesterGrades[$subject->id][$student->id] ?? null;
+
+                if ($average !== null && is_numeric($average)) {
+                    $totalPoints += (float)$average * (float)$subject->coefficient;
+                    $totalCoef += (float)$subject->coefficient;
+                }
+            }
+
+            if ($totalCoef > 0) {
+                $studentAverages[] = $totalPoints / $totalCoef;
+            }
+        }
+
+        if (empty($studentAverages)) {
+            return [
+                'first_average' => 0,
+                'last_average' => 0,
+                'class_average' => 0,
+                'class_size' => $students->count()
+            ];
+        }
+
+        // Sort to get min and max
+        sort($studentAverages);
+
+        return [
+            'first_average' => end($studentAverages), // Highest
+            'last_average' => reset($studentAverages), // Lowest
+            'class_average' => array_sum($studentAverages) / count($studentAverages),
+            'class_size' => $students->count()
+        ];
+    }
+
+    /**
      * Calculate class statistics (first, last, average) for a sequence or trimester
      * Uses class_series_id to get students in the specific section (e.g., "6ème A")
      * 🚀 OPTIMIZED: Loads all grades in ONE query instead of 1000+ queries
@@ -3416,6 +3567,7 @@ class BulletinService
                 $totalPoints = 0;
                 $totalCoef = 0;
                 $cycleType = $this->determineCycleType($student);
+                $sectionType = $this->determineSectionType($student);
 
                 foreach ($allSubjects as $subject) {
                     $subjectGrades = $gradesBySubject->get($subject->id, collect());
@@ -3425,7 +3577,8 @@ class BulletinService
                         $subjectGrades,
                         $sequences,
                         $compositionSequence,
-                        $cycleType
+                        $cycleType,
+                        $sectionType
                     );
 
                     if ($trimesterGrade !== null && $trimesterGrade > 0) {
@@ -3464,7 +3617,7 @@ class BulletinService
      * Calculate trimester grade from pre-loaded grades collection
      * 🚀 OPTIMIZED: No database queries, works with in-memory data
      */
-    protected function calculateTrimesterGradeFromGrades($subjectGrades, $sequences, $compositionSequence, $cycleType)
+    protected function calculateTrimesterGradeFromGrades($subjectGrades, $sequences, $compositionSequence, $cycleType, $sectionType = 'francophone')
     {
         if ($subjectGrades->isEmpty()) {
             return null;
@@ -3474,7 +3627,7 @@ class BulletinService
         $gradesBySequence = $subjectGrades->groupBy('sequence_id');
 
         if ($cycleType === 'deuxieme') {
-            // DEUXIÈME CYCLE: (Seq1 + Seq2 + Composition) / 3
+            // DEUXIÈME CYCLE: Formule selon le type de section
             $seq1Grade = null;
             $seq2Grade = null;
             $compGrade = null;
@@ -3509,7 +3662,16 @@ class BulletinService
                 $s1 = $seq1Grade ?? 0.00;
                 $s2 = $seq2Grade ?? 0.00;
                 $comp = $compGrade ?? 0.00;
-                return ($s1 + $s2 + $comp) / 3;
+
+                // 🔧 FORMULE SELON LE TYPE DE SECTION
+                if ($sectionType === 'technique' || $sectionType === 'anglophone') {
+                    // TECHNIQUE/ANGLOPHONE: (Seq1 + Seq2 + Compo) / 3 (33.33% chacun)
+                    return ($s1 + $s2 + $comp) / 3;
+                } else {
+                    // FRANCOPHONE: DS = (Seq1 + Seq2) / 2, puis M/20 = (DS + Compo) / 2 (50% + 50%)
+                    $ds = ($s1 + $s2) / 2;
+                    return ($ds + $comp) / 2;
+                }
             }
 
             return null;
