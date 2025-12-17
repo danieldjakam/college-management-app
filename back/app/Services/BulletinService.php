@@ -2543,7 +2543,9 @@ class BulletinService
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq1 === 'ABS' ? '/' : (is_numeric($seq1) ? number_format((float)$seq1, 2) : '-')) . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq2 === 'ABS' ? '/' : (is_numeric($seq2) ? number_format((float)$seq2, 2) : '-')) . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) ? number_format((float)$compo1, 2) : '-')) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . (is_numeric($average) ? number_format((float)$average, 2) : '-') . '</td>';
+                    // Couleur conditionnelle pour Moy./20: vert si ≥10, rouge si <10
+                    $moyClass = is_numeric($average) ? ((float)$average >= 10 ? 'moy-above-average' : 'moy-below-average') : '';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;"' . ($moyClass ? ' class="' . $moyClass . '"' : '') . '>' . (is_numeric($average) ? number_format((float)$average, 2) : '-') . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$coef, 2) . '</td>';
                     // CORRECTION: Afficher "-" si NXC est null (élève absent)
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($nxc !== null ? number_format((float)$nxc, 2) : '-') . '</td>';
@@ -2562,7 +2564,9 @@ class BulletinService
                     // CORRECTION: Afficher "/" pour les absents (ABS) au lieu de "-", afficher la note même si c'est 0.00
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($ds1 === 'ABS' ? '/' : (is_numeric($ds1) ? number_format((float)$ds1, 2) : '-')) . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) ? number_format((float)$compo1, 2) : '-')) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . (is_numeric($average) ? number_format((float)$average, 2) : '-') . '</td>';
+                    // Couleur conditionnelle pour Moy./20: vert si ≥10, rouge si <10
+                    $moyClass = is_numeric($average) ? ((float)$average >= 10 ? 'moy-above-average' : 'moy-below-average') : '';
+                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;"' . ($moyClass ? ' class="' . $moyClass . '"' : '') . '>' . (is_numeric($average) ? number_format((float)$average, 2) : '-') . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$coef, 2) . '</td>';
                     // CORRECTION: Afficher "-" si weightedGrade est null (élève absent)
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($weightedGrade !== null ? number_format((float)$weightedGrade, 2) : '-') . '</td>';
@@ -2603,7 +2607,9 @@ class BulletinService
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Sequence 1
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Sequence 2
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Compo1
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$groupAverage, 2) . '</td>'; // Moy./20
+                // Couleur conditionnelle pour moyenne du groupe: vert si ≥10, rouge si <10
+                $groupMoyClass = ($groupAverage >= 10) ? 'moy-above-average' : 'moy-below-average';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $groupMoyClass . '">' . number_format((float)$groupAverage, 2) . '</td>'; // Moy./20
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalCoef, 2) . '</td>'; // COEF
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // (NXC)
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // TOTAL
@@ -2615,7 +2621,9 @@ class BulletinService
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // DS1
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Compo1
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$groupAverage, 2) . '</td>'; // Moy
+                // Couleur conditionnelle pour moyenne du groupe: vert si ≥10, rouge si <10
+                $groupMoyClass = ($groupAverage >= 10) ? 'moy-above-average' : 'moy-below-average';
+                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $groupMoyClass . '">' . number_format((float)$groupAverage, 2) . '</td>'; // Moy
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalCoef, 2) . '</td>'; // COEF
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // (NXC)
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // RANG
