@@ -90,22 +90,32 @@ class StudentCardController extends Controller
                 'academic_year' => 'required|string',
             ]);
 
-            $student = Student::with(['class', 'classSeries'])->findOrFail($studentId);
+            $student = Student::with(['schoolClass', 'classSeries'])->findOrFail($studentId);
             $academicYear = $request->academic_year;
 
             $cardData = $this->prepareCardData($student, $academicYear);
 
-            // Générer le PDF pour une seule carte
-            $pdf = Pdf::loadView('student-cards.single', [
+            // Récupérer les paramètres de mise en page
+            $layoutSettings = \App\Models\CardLayoutSetting::getAllSettings();
+
+            // Générer le PDF pour une seule carte avec le nouveau template
+            $pdf = Pdf::loadView('student-cards.single-v2', [
                 'card' => $cardData,
                 'academicYear' => $academicYear,
+                'settings' => $layoutSettings,
             ]);
 
-            $pdf->setPaper('a4', 'portrait');
+            // Taille exacte de la carte (85.6mm x 54mm format carte bancaire)
+            $pdf->setPaper([0, 0, 242.65, 153.07], 'landscape');
 
             $fileName = 'carte_' . $student->matricule . '.pdf';
 
-            return $pdf->download($fileName);
+            return response()->streamDownload(function() use ($pdf) {
+                echo $pdf->output();
+            }, $fileName, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="' . $fileName . '"'
+            ]);
 
         } catch (\Exception $e) {
             Log::error('Erreur génération carte individuelle: ' . $e->getMessage());
@@ -193,11 +203,20 @@ class StudentCardController extends Controller
             // Récupérer les paramètres de mise en page
             $layoutSettings = \App\Models\CardLayoutSetting::getAllSettings();
 
-            // Retourner le HTML directement pour la prévisualisation
-            return view('student-cards.preview', [
+            // Récupérer le token JWT depuis l'en-tête Authorization
+            $token = $request->bearerToken();
+
+            // Générer le HTML et le retourner en JSON pour le frontend
+            $html = view('student-cards.preview', [
                 'card' => $cardData,
                 'academicYear' => $academicYear,
                 'settings' => $layoutSettings,
+                'token' => $token, // Passer le token au template
+            ])->render();
+
+            return response()->json([
+                'success' => true,
+                'html' => $html
             ]);
 
         } catch (\Exception $e) {

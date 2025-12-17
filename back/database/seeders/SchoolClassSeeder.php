@@ -62,7 +62,7 @@ class SchoolClassSeeder extends Seeder
                 return ['A', 'B'];
             case '4ème':
             case '3ème':
-            case '2nde':
+            case '2nd':
                 return ['A', 'B', 'C'];
             case '1ère':
                 return ['A', 'C', 'D']; // Séries littéraires et scientifiques
@@ -78,7 +78,7 @@ class SchoolClassSeeder extends Seeder
         foreach ($tranches as $tranche) {
             // Définir les montants selon le niveau (montant unique)
             $amounts = $this->getAmountsForLevel($level->name, $tranche->name);
-            
+
             ClassPaymentAmount::create([
                 'class_id' => $schoolClass->id,
                 'payment_tranche_id' => $tranche->id,
@@ -104,7 +104,7 @@ class SchoolClassSeeder extends Seeder
             '5ème' => ['inscription' => 25000, 'tranche' => 55000],
             '4ème' => ['inscription' => 28000, 'tranche' => 60000],
             '3ème' => ['inscription' => 28000, 'tranche' => 60000],
-            '2nde' => ['inscription' => 30000, 'tranche' => 65000],
+            '2nd' => ['inscription' => 30000, 'tranche' => 65000],
             '1ère' => ['inscription' => 32000, 'tranche' => 70000],
             'Terminale' => ['inscription' => 35000, 'tranche' => 75000],
         ];

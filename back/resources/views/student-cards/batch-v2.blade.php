@@ -137,38 +137,10 @@
         /* Photo élève - en haut à droite (cercle) */
         .student-photo {
             position: absolute;
-
-            top: {
-                    {
-                    $settings['photo_top'] ?? '11'
-                }
-            }
-
-            mm;
-
-            right: {
-                    {
-                    $settings['photo_right'] ?? '8'
-                }
-            }
-
-            mm;
-
-            width: {
-                    {
-                    $settings['photo_width'] ?? '24'
-                }
-            }
-
-            mm;
-
-            height: {
-                    {
-                    $settings['photo_height'] ?? '24'
-                }
-            }
-
-            mm;
+            top: {{ $settings['photo_top'] ?? '11' }}mm;
+            right: {{ $settings['photo_right'] ?? '8' }}mm;
+            width: {{ $settings['photo_width'] ?? '24' }}mm;
+            height: {{ $settings['photo_height'] ?? '24' }}mm;
             border-radius: 50%;
             overflow: hidden;
             border: 2px solid #2d5a3d;
@@ -346,17 +318,3 @@
 </body>
 
 </html>
-
-
-
-
-
-
-
-
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=c0immigo
-DB_USERNAME=c0immigo
-DB_PASSWORD=Estuaire@1234

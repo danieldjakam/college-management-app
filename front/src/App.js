@@ -9,6 +9,7 @@ import AppAuthProvider from "./components/AuthProvider";
 import ProtectedRoute, {
   AccountantRoute,
   AdminRoute,
+  IdCardManagerRoute,
   NeedsManagementRoute,
   PublicRoute,
   RoleBasedRedirect,
@@ -163,6 +164,11 @@ import StudentDiscipline from "./pages/Admin/StudentDiscipline";
 // Parent Pages
 import ParentLogin from "./pages/Parent/ParentLogin";
 import ParentDashboard from "./pages/Parent/ParentDashboard";
+
+// ID Card Manager Pages
+import IdCardManagerDashboard from "./pages/IdCardManager/IdCardManagerDashboard";
+import IdCardManagerStudents from "./pages/IdCardManager/IdCardManagerStudents";
+import CardLayoutSettings from "./pages/IdCardManager/CardLayoutSettings";
 
 
 // Components
@@ -1069,6 +1075,34 @@ const AppContent = () => {
                   <TeacherRoute>
                     <Competences />
                   </TeacherRoute>
+                }
+              />
+
+              {/* Routes Gestionnaire de Cartes d'Identité */}
+              <Route
+                path="/id-card-manager/dashboard"
+                element={
+                  <IdCardManagerRoute>
+                    <IdCardManagerDashboard />
+                  </IdCardManagerRoute>
+                }
+              />
+
+              <Route
+                path="/id-card-manager/classes/:classId/students"
+                element={
+                  <IdCardManagerRoute>
+                    <IdCardManagerStudents />
+                  </IdCardManagerRoute>
+                }
+              />
+
+              <Route
+                path="/id-card-manager/settings"
+                element={
+                  <IdCardManagerRoute>
+                    <CardLayoutSettings />
+                  </IdCardManagerRoute>
                 }
               />
 

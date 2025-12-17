@@ -121,6 +121,20 @@ export const AccountantRoute = ({ children, fallbackPath = "/" }) => {
 };
 
 /**
+ * Composant pour les routes réservées au gestionnaire de cartes d'identité
+ */
+export const IdCardManagerRoute = ({ children, fallbackPath = "/" }) => {
+  return (
+    <ProtectedRoute
+      requiredRoles={["id_card_manager"]}
+      fallbackPath={fallbackPath}
+    >
+      {children}
+    </ProtectedRoute>
+  );
+};
+
+/**
  * Composant pour les routes réservées à la gestion des besoins (admin, principal et comptable supérieur)
  */
 export const NeedsManagementRoute = ({ children, fallbackPath = "/" }) => {
@@ -216,6 +230,7 @@ export const RoleBasedRedirect = ({ children }) => {
       comptable_superieur: "/class-comp",
       surveillant_general: "/attendance",
       surveillant_secteur: "/staff-attendance-scanner",
+      id_card_manager: "/id-card-manager/dashboard",
       user: "/profile",
     };
 

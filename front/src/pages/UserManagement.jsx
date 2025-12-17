@@ -93,6 +93,7 @@ const UserManagement = () => {
         chef_securite: 'Chef de Sécurité',
         reprographe: 'Reprographe',
         agent_entretien: 'Agent d\'Entretien',
+        id_card_manager: 'Gestionnaire de Cartes',
     }), []);
 
     const roleColors = useMemo(() => ({
@@ -118,6 +119,7 @@ const UserManagement = () => {
         chef_securite: 'danger',
         reprographe: 'light',
         agent_entretien: 'secondary',
+        id_card_manager: 'primary',
     }), []);
 
     // Liste complète des rôles du personnel (incluant tous les nouveaux rôles)
@@ -1024,6 +1026,7 @@ const UserManagement = () => {
                                     <option value="accountant">📊 Comptable</option>
                                     <option value="secretaire">📝 Secrétaire</option>
                                     <option value="user">👤 Utilisateur</option>
+                                    <option value="id_card_manager">🎫 Gestionnaire de Cartes</option>
                                     <option value="bibliothecaire">📚 Bibliothécaire</option>
                                     <option value="responsable_pedagogique">🎓 Responsable Pédagogique</option>
                                     <option value="dean_of_studies">🏫 Dean of Studies</option>
@@ -1192,6 +1195,7 @@ const UserManagement = () => {
                                         <option value="secretaire">Secrétaires</option>
                                         <option value="teacher">Enseignants (anciens)</option>
                                         <option value="accountant">Comptables (anciens)</option>
+                                        <option value="id_card_manager">Gestionnaires de Cartes</option>
                                     </optgroup>
                                     <optgroup label="Nouveaux rôles">
                                         <option value="responsable_pedagogique">Responsables Pédagogiques</option>

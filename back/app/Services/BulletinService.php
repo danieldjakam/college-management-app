@@ -30,54 +30,54 @@ class BulletinService
     public function calculateDSAverage($trimester, $studentId, $subjectId)
     {
         // \Log::info("🔍 DEBUG DS: trimester={$trimester}, student={$studentId}, subject={$subjectId}");
-        
+
         $sequences = $this->getSequencesForTrimester($trimester);
         // \Log::info("🔍 Sequences found: " . $sequences->pluck('number')->join(','));
-        
+
         if ($sequences->count() != 2) {
             // \Log::info("🔍 PROBLÈME: Expected 2 sequences, found " . $sequences->count());
             return null;
         }
-        
+
         $grades = collect();
         $foundSequenceNotes = 0;
-        
+
         foreach ($sequences as $sequence) {
             // \Log::info("🔍 Checking sequence {$sequence->number} (id={$sequence->id})");
             $sequenceNote = null;
-            
+
             // 🔧 FIX: Ajouter trimester dans la requête comme TrimesterController
             $grade = Grade::where('student_id', $studentId)
-                         ->where('sequence_id', $sequence->id)
-                         ->where('class_series_subject_id', $subjectId)
-                         ->where('trimester_id', $trimester)
-                         ->whereNotNull('score')
-                         ->first();
-            
+                ->where('sequence_id', $sequence->id)
+                ->where('class_series_subject_id', $subjectId)
+                ->where('trimester_id', $trimester)
+                ->whereNotNull('score')
+                ->first();
+
             // \Log::info("🔍 Direct grade found: " . ($grade ? "score={$grade->score}" : "none"));
-            
+
             // Si pas de note directe, chercher via les évaluations de la séquence
             if (!$grade) {
                 $evaluations = Evaluation::where('sequence_id', $sequence->id)
-                                        ->where('class_series_subject_id', $subjectId)
-                                        ->get();
-                
+                    ->where('class_series_subject_id', $subjectId)
+                    ->get();
+
                 // \Log::info("🔍 Evaluations for sequence: " . $evaluations->count());
-                
+
                 foreach ($evaluations as $evaluation) {
                     $grade = Grade::where('student_id', $studentId)
-                                 ->where('evaluation_id', $evaluation->id)
-                                 ->where('trimester_id', $trimester)
-                                 ->whereNotNull('score')
-                                 ->first();
-                    
+                        ->where('evaluation_id', $evaluation->id)
+                        ->where('trimester_id', $trimester)
+                        ->whereNotNull('score')
+                        ->first();
+
                     if ($grade) {
                         // \Log::info("🔍 Grade found via evaluation {$evaluation->id}: score={$grade->score}");
                         break; // Prendre la première note trouvée pour cette séquence
                     }
                 }
             }
-            
+
             if ($grade) {
                 $sequenceNote = $grade->getScoreOn20();
                 $grades->push($sequenceNote);
@@ -87,7 +87,7 @@ class BulletinService
                 // \Log::info("🔍 No grade found for sequence {$sequence->number}");
             }
         }
-        
+
         // \Log::info("🔍 Found {$foundSequenceNotes} sequence notes out of 2");
 
         // RÈGLE ACADÉMIQUE PROGRESSIVE avec 0.00 par défaut:
@@ -103,7 +103,7 @@ class BulletinService
         // \Log::info("🔍 DS CALCULATED: {$dsAverage} = ({$grades[0]} + {$grades[1]}) / 2");
         return $dsAverage;
     }
-    
+
     /**
      * Calculate trimester grade for a student in a subject
      * PREMIER CYCLE: Trimestre 1/2: (DS + COMPOSITION) / 2, Trimestre 3: COMPOSITION uniquement
@@ -169,24 +169,24 @@ class BulletinService
         // Récupérer les notes des 2 séquences
         foreach ($sequences as $sequence) {
             $grade = Grade::where('student_id', $studentId)
-                         ->where('sequence_id', $sequence->id)
-                         ->where('class_series_subject_id', $subjectId)
-                         ->where('trimester_id', $trimester)
-                         ->whereNotNull('score')
-                         ->first();
+                ->where('sequence_id', $sequence->id)
+                ->where('class_series_subject_id', $subjectId)
+                ->where('trimester_id', $trimester)
+                ->whereNotNull('score')
+                ->first();
 
             if (!$grade) {
                 // Chercher via les évaluations de la séquence
                 $evaluations = Evaluation::where('sequence_id', $sequence->id)
-                                        ->where('class_series_subject_id', $subjectId)
-                                        ->get();
+                    ->where('class_series_subject_id', $subjectId)
+                    ->get();
 
                 foreach ($evaluations as $evaluation) {
                     $grade = Grade::where('student_id', $studentId)
-                                 ->where('evaluation_id', $evaluation->id)
-                                 ->where('trimester_id', $trimester)
-                                 ->whereNotNull('score')
-                                 ->first();
+                        ->where('evaluation_id', $evaluation->id)
+                        ->where('trimester_id', $trimester)
+                        ->whereNotNull('score')
+                        ->first();
 
                     if ($grade) {
                         break;
@@ -249,24 +249,24 @@ class BulletinService
 
         foreach ($sequences as $index => $sequence) {
             $grade = Grade::where('student_id', $studentId)
-                         ->where('sequence_id', $sequence->id)
-                         ->where('class_series_subject_id', $subjectId)
-                         ->where('trimester_id', $trimester)
-                         ->whereNotNull('score')
-                         ->first();
+                ->where('sequence_id', $sequence->id)
+                ->where('class_series_subject_id', $subjectId)
+                ->where('trimester_id', $trimester)
+                ->whereNotNull('score')
+                ->first();
 
             if (!$grade) {
                 // Chercher via les évaluations de la séquence
                 $evaluations = Evaluation::where('sequence_id', $sequence->id)
-                                        ->where('class_series_subject_id', $subjectId)
-                                        ->get();
+                    ->where('class_series_subject_id', $subjectId)
+                    ->get();
 
                 foreach ($evaluations as $evaluation) {
                     $grade = Grade::where('student_id', $studentId)
-                                 ->where('evaluation_id', $evaluation->id)
-                                 ->where('trimester_id', $trimester)
-                                 ->whereNotNull('score')
-                                 ->first();
+                        ->where('evaluation_id', $evaluation->id)
+                        ->where('trimester_id', $trimester)
+                        ->whereNotNull('score')
+                        ->first();
 
                     if ($grade) {
                         break;
@@ -277,11 +277,11 @@ class BulletinService
             // Vérifier aussi si marqué absent (même sans note)
             if (!$grade) {
                 $grade = Grade::where('student_id', $studentId)
-                             ->where('sequence_id', $sequence->id)
-                             ->where('class_series_subject_id', $subjectId)
-                             ->where('trimester_id', $trimester)
-                             ->where('is_absent', true)
-                             ->first();
+                    ->where('sequence_id', $sequence->id)
+                    ->where('class_series_subject_id', $subjectId)
+                    ->where('trimester_id', $trimester)
+                    ->where('is_absent', true)
+                    ->first();
             }
 
             if ($grade && $index < 2) {
@@ -310,8 +310,8 @@ class BulletinService
         // Dans la base de production, les compositions ont sequence_id (ex: 3, 4, 5, 6)
         // Il faut chercher la séquence où is_composition = true
         $compositionSequence = \App\Models\Sequence::where('is_composition', true)
-                                    ->where('trimester_id', $trimester)
-                                    ->first();
+            ->where('trimester_id', $trimester)
+            ->first();
 
         if (!$compositionSequence) {
             \Log::warning("⚠️ Aucune séquence de composition trouvée pour trimestre {$trimester}");
@@ -332,24 +332,24 @@ class BulletinService
         // Au lieu de passer par evaluations.sequence_id IS NULL
         // On cherche par subject_id au lieu de class_series_subject_id pour gérer les doublons
         $grade = Grade::where('student_id', $studentId)
-                     ->where('sequence_id', $compositionSequence->id)
-                     ->where('trimester_id', $trimester)
-                     ->whereHas('classSeriesSubject', function($q) use ($realSubjectId) {
-                         $q->where('subject_id', $realSubjectId);
-                     })
-                     ->whereNotNull('score')
-                     ->first();
+            ->where('sequence_id', $compositionSequence->id)
+            ->where('trimester_id', $trimester)
+            ->whereHas('classSeriesSubject', function ($q) use ($realSubjectId) {
+                $q->where('subject_id', $realSubjectId);
+            })
+            ->whereNotNull('score')
+            ->first();
 
         // Vérifier aussi si marqué absent (même sans note)
         if (!$grade) {
             $grade = Grade::where('student_id', $studentId)
-                         ->where('sequence_id', $compositionSequence->id)
-                         ->where('trimester_id', $trimester)
-                         ->whereHas('classSeriesSubject', function($q) use ($realSubjectId) {
-                             $q->where('subject_id', $realSubjectId);
-                         })
-                         ->where('is_absent', true)
-                         ->first();
+                ->where('sequence_id', $compositionSequence->id)
+                ->where('trimester_id', $trimester)
+                ->whereHas('classSeriesSubject', function ($q) use ($realSubjectId) {
+                    $q->where('subject_id', $realSubjectId);
+                })
+                ->where('is_absent', true)
+                ->first();
         }
 
         if ($grade) {
@@ -365,7 +365,7 @@ class BulletinService
         \Log::debug("❌ Aucune note de composition (sequence_id:{$compositionSequence->id})");
         return null;
     }
-    
+
     /**
      * Get sequences for a trimester
      * 🚀 OPTIMIZED: Results are cached in memory to avoid repeated SQL queries
@@ -378,7 +378,7 @@ class BulletinService
         }
 
         $sequenceNumbers = [];
-        
+
         switch ($trimester) {
             case 1:
                 $sequenceNumbers = [1, 2];
@@ -389,7 +389,7 @@ class BulletinService
             default:
                 return collect();
         }
-        
+
         // Prendre seulement une séquence par numéro pour éviter les doublons
         $sequences = collect();
         foreach ($sequenceNumbers as $number) {
@@ -417,8 +417,8 @@ class BulletinService
         }
 
         $composition = Sequence::where('is_composition', true)
-                               ->where('trimester_id', $trimester)
-                               ->first();
+            ->where('trimester_id', $trimester)
+            ->first();
 
         // Mettre en cache pour réutilisation
         $this->compositionCache[$trimester] = $composition;
@@ -435,7 +435,7 @@ class BulletinService
         $annualAverage = $this->calculateAnnualAverage($studentId);
         return $annualAverage !== null && $annualAverage >= 12;
     }
-    
+
     /**
      * Calculate annual average for a student
      * (Trimestre 1 + Trimestre 2 + Trimestre 3) / 3
@@ -447,10 +447,10 @@ class BulletinService
 
         $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();
         $trimesterAverages = [];
-        
+
         for ($trimester = 1; $trimester <= 3; $trimester++) {
             $subjectGrades = [];
-            
+
             foreach ($subjects as $subject) {
                 $grade = $this->calculateTrimesterGrade($trimester, $studentId, $subject->id);
                 if ($grade !== null) {
@@ -463,10 +463,10 @@ class BulletinService
                 $trimesterAverages[] = array_sum($subjectGrades) / $totalCoefficient;
             }
         }
-        
+
         return count($trimesterAverages) > 0 ? array_sum($trimesterAverages) / count($trimesterAverages) : null;
     }
-    
+
     /**
      * Generate sequence bulletin data for a student
      */
@@ -488,31 +488,31 @@ class BulletinService
         $sectionType = $this->determineSectionType($student);
 
         // 🚀 OPTIMISATION: Cache l'année scolaire pour éviter la requête répétée
-        $currentSchoolYear = \Cache::remember('current_school_year', 3600, function() {
+        $currentSchoolYear = \Cache::remember('current_school_year', 3600, function () {
             return \App\Models\SchoolYear::where('is_active', true)->first();
         });
         $schoolYearId = $currentSchoolYear ? $currentSchoolYear->id : null;
 
         // 🚀 OPTIMISATION: Eager load subject + teachers + grades en une seule requête
         $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)
-                                 ->with([
-                                     'subject', // Charger toute la relation pour éviter l'ambiguïté SQL
-                                     'teachers' => function($query) use ($schoolYearId) {
-                                         $query->wherePivot('is_active', true);
-                                         if ($schoolYearId) {
-                                             $query->wherePivot('school_year_id', $schoolYearId);
-                                         }
-                                     }
-                                 ])
-                                 ->get();
+            ->with([
+                'subject', // Charger toute la relation pour éviter l'ambiguïté SQL
+                'teachers' => function ($query) use ($schoolYearId) {
+                    $query->wherePivot('is_active', true);
+                    if ($schoolYearId) {
+                        $query->wherePivot('school_year_id', $schoolYearId);
+                    }
+                }
+            ])
+            ->get();
 
         // 🚀 OPTIMISATION: Charger TOUTES les notes en une seule requête
         $gradesCollection = Grade::where('student_id', $studentId)
-                                 ->where('sequence_id', $sequence->id)
-                                 ->whereIn('class_series_subject_id', $subjects->pluck('id'))
-                                 ->get()
-                                 ->keyBy('class_series_subject_id');
-        
+            ->where('sequence_id', $sequence->id)
+            ->whereIn('class_series_subject_id', $subjects->pluck('id'))
+            ->get()
+            ->keyBy('class_series_subject_id');
+
         $bulletinData = [
             'student' => $student,
             'sequence' => $sequence,
@@ -530,7 +530,7 @@ class BulletinService
             'school_year' => date('Y') . '/' . (date('Y') + 1),
             'subjects_rows' => ''
         ];
-        
+
         $totalPoints = 0;
         $totalCoefficient = 0;
 
@@ -624,7 +624,7 @@ class BulletinService
 
         return $bulletinData;
     }
-    
+
     /**
      * Generate trimester bulletin data for a student
      */
@@ -652,23 +652,23 @@ class BulletinService
         }
 
         // 🚀 OPTIMISATION: Cache l'année scolaire pour éviter la requête répétée
-        $currentSchoolYear = \Cache::remember('current_school_year', 3600, function() {
+        $currentSchoolYear = \Cache::remember('current_school_year', 3600, function () {
             return \App\Models\SchoolYear::where('is_active', true)->first();
         });
         $schoolYearId = $currentSchoolYear ? $currentSchoolYear->id : null;
 
         // 🚀 OPTIMISATION: Eager load subject + teachers
         $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)
-                                 ->with([
-                                     'subject', // Charger toute la relation pour éviter l'ambiguïté SQL
-                                     'teachers' => function($query) use ($schoolYearId) {
-                                         $query->wherePivot('is_active', true);
-                                         if ($schoolYearId) {
-                                             $query->wherePivot('school_year_id', $schoolYearId);
-                                         }
-                                     }
-                                 ])
-                                 ->get();
+            ->with([
+                'subject', // Charger toute la relation pour éviter l'ambiguïté SQL
+                'teachers' => function ($query) use ($schoolYearId) {
+                    $query->wherePivot('is_active', true);
+                    if ($schoolYearId) {
+                        $query->wherePivot('school_year_id', $schoolYearId);
+                    }
+                }
+            ])
+            ->get();
 
         // 🚀 OPTIMISATION: Précharger TOUTES les notes du trimestre en une seule requête
         // Récupérer les séquences de ce trimestre pour charger toutes les notes
@@ -676,8 +676,8 @@ class BulletinService
 
         // Charger aussi toutes les évaluations et la composition
         $allEvaluations = Evaluation::whereIn('sequence_id', $sequences->pluck('id'))
-                                    ->whereIn('class_series_subject_id', $subjects->pluck('id'))
-                                    ->get();
+            ->whereIn('class_series_subject_id', $subjects->pluck('id'))
+            ->get();
 
         // 🚀 OPTIMISATION: Mettre en cache la composition pour éviter 337 requêtes dupliquées
         $compositionSequence = $this->getCompositionForTrimester($trimesterNumber);
@@ -685,13 +685,13 @@ class BulletinService
         // Charger TOUTES les notes (séquences + évaluations + composition)
         // 🚀 OPTIMISATION: Eager load 'classSeriesSubject' pour éviter 336 requêtes N+1
         $allGrades = Grade::where('student_id', $studentId)
-                          ->where('trimester_id', $trimesterNumber)
-                          ->whereIn('class_series_subject_id', $subjects->pluck('id'))
-                          ->with(['evaluation', 'classSeriesSubject']) // Eager load les relations
-                          ->get();
+            ->where('trimester_id', $trimesterNumber)
+            ->whereIn('class_series_subject_id', $subjects->pluck('id'))
+            ->with(['evaluation', 'classSeriesSubject']) // Eager load les relations
+            ->get();
 
         // Grouper par matière et par séquence pour un accès rapide
-        $gradesBySubjectAndSequence = $allGrades->groupBy(function($grade) {
+        $gradesBySubjectAndSequence = $allGrades->groupBy(function ($grade) {
             return $grade->class_series_subject_id . '_' . $grade->sequence_id;
         });
 
@@ -706,13 +706,13 @@ class BulletinService
         // 🚀 OPTIMISATION: Eager load 'classSeriesSubject' aussi pour éviter lazy loading dans les calculs
         // 🚀 OPTIMISATION CRITIQUE: Indexer par student_id + subject_id pour accès DIRECT (pas de filtre)
         $allClassGrades = Grade::whereIn('student_id', $classStudentIds)
-                               ->where('trimester_id', $trimesterNumber)
-                               ->whereIn('class_series_subject_id', $subjects->pluck('id'))
-                               ->with(['evaluation', 'classSeriesSubject'])
-                               ->get()
-                               ->groupBy(function($grade) {
-                                   return $grade->student_id . '_' . $grade->class_series_subject_id;
-                               });
+            ->where('trimester_id', $trimesterNumber)
+            ->whereIn('class_series_subject_id', $subjects->pluck('id'))
+            ->with(['evaluation', 'classSeriesSubject'])
+            ->get()
+            ->groupBy(function ($grade) {
+                return $grade->student_id . '_' . $grade->class_series_subject_id;
+            });
 
         // Précalculer TOUTES les moyennes de trimestre: [subjectId][studentId] = average
         // Ceci évite de recalculer pour chaque matière dans les méthodes de rank/minmax
@@ -760,7 +760,7 @@ class BulletinService
             'school_year' => date('Y') . '/' . (date('Y') + 1),
             'subjects_rows' => ''
         ];
-        
+
         $totalPoints = 0;
         $totalCoefficient = 0;
 
@@ -796,7 +796,7 @@ class BulletinService
                     $sequenceGrades[0],
                     $sequenceGrades[1],
                     $compositionGrade
-                ])->filter(function($grade) {
+                ])->filter(function ($grade) {
                     return $grade !== null;
                 });
 
@@ -839,7 +839,6 @@ class BulletinService
                     'section_type' => $sectionType,
                     'class_size' => $bulletinData['class_size'] ?? 57 // Pour le rang par défaut
                 ];
-
             } else {
                 // PREMIER CYCLE: Logique optimisée avec données préchargées
                 // Calculer DS avec les données déjà chargées
@@ -1010,23 +1009,23 @@ class BulletinService
         $sectionType = 'francophone'; // Default section type (pas utilisé pour l'instant mais requis par certaines méthodes)
 
         // Cache l'année scolaire
-        $currentSchoolYear = \Cache::remember('current_school_year', 3600, function() {
+        $currentSchoolYear = \Cache::remember('current_school_year', 3600, function () {
             return \App\Models\SchoolYear::where('is_active', true)->first();
         });
         $schoolYearId = $currentSchoolYear ? $currentSchoolYear->id : null;
 
         // Charger TOUTES les matières de la classe en une fois
         $subjects = ClassSeriesSubject::where('class_series_id', $seriesId)
-                                 ->with([
-                                     'subject',
-                                     'teachers' => function($query) use ($schoolYearId) {
-                                         $query->wherePivot('is_active', true);
-                                         if ($schoolYearId) {
-                                             $query->wherePivot('school_year_id', $schoolYearId);
-                                         }
-                                     }
-                                 ])
-                                 ->get();
+            ->with([
+                'subject',
+                'teachers' => function ($query) use ($schoolYearId) {
+                    $query->wherePivot('is_active', true);
+                    if ($schoolYearId) {
+                        $query->wherePivot('school_year_id', $schoolYearId);
+                    }
+                }
+            ])
+            ->get();
 
         // Charger les séquences et composition (UNE FOIS!)
         $sequences = $this->getSequencesForTrimester($trimesterNumber);
@@ -1034,10 +1033,10 @@ class BulletinService
 
         // Récupérer TOUS les étudiants actifs de la classe
         $allStudents = Student::where('class_series_id', $seriesId)
-                             ->where('is_active', true)
-                             ->orderBy('last_name')
-                             ->orderBy('first_name')
-                             ->get();
+            ->where('is_active', true)
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
 
         if ($allStudents->isEmpty()) {
             \Log::warning('Aucun étudiant trouvé pour series_id: ' . $seriesId);
@@ -1050,13 +1049,13 @@ class BulletinService
 
         // 🔥 CRITICAL OPTIMIZATION: Load ALL grades for ALL students in ONE QUERY
         $allClassGrades = Grade::whereIn('student_id', $studentIds)
-                               ->where('trimester_id', $trimesterNumber)
-                               ->whereIn('class_series_subject_id', $subjects->pluck('id'))
-                               ->with(['evaluation', 'classSeriesSubject'])
-                               ->get()
-                               ->groupBy(function($grade) {
-                                   return $grade->student_id . '_' . $grade->class_series_subject_id;
-                               });
+            ->where('trimester_id', $trimesterNumber)
+            ->whereIn('class_series_subject_id', $subjects->pluck('id'))
+            ->with(['evaluation', 'classSeriesSubject'])
+            ->get()
+            ->groupBy(function ($grade) {
+                return $grade->student_id . '_' . $grade->class_series_subject_id;
+            });
 
         \Log::info('✅ Loaded ' . $allClassGrades->count() . ' grade records for ALL students');
 
@@ -1132,7 +1131,7 @@ class BulletinService
                         $bulletinData['total_coefficient'] += $coefficient;
 
                         $subjectTeachers = $subject->teachers;
-                        $teacherNames = $subjectTeachers->map(function($t) {
+                        $teacherNames = $subjectTeachers->map(function ($t) {
                             return $t->first_name . ' ' . $t->last_name;
                         })->implode(', ');
 
@@ -1148,7 +1147,7 @@ class BulletinService
                         if ($cycleType === 'deuxieme') {
                             // DEUXIÈME CYCLE: Récupérer Seq1 et Seq2 séparément
                             foreach ($sequences as $index => $seq) {
-                                $gradeForSeq = $studentGrades->first(function($g) use ($seq) {
+                                $gradeForSeq = $studentGrades->first(function ($g) use ($seq) {
                                     return $g->sequence_id == $seq->id && !$seq->is_composition;
                                 });
                                 if ($gradeForSeq && $gradeForSeq->score !== null) {
@@ -1159,7 +1158,7 @@ class BulletinService
                             // PREMIER CYCLE: Calculer DS = (Seq1 + Seq2) / 2
                             $dsGrades = collect();
                             foreach ($sequences as $seq) {
-                                $gradeForSeq = $studentGrades->first(function($g) use ($seq) {
+                                $gradeForSeq = $studentGrades->first(function ($g) use ($seq) {
                                     return $g->sequence_id == $seq->id && !$seq->is_composition;
                                 });
                                 if ($gradeForSeq && $gradeForSeq->score !== null) {
@@ -1176,7 +1175,7 @@ class BulletinService
                         // Calculer composition avec les données déjà chargées
                         $compositionGrade = null;
                         if ($compositionSequence) {
-                            $compGrade = $studentGrades->first(function($g) use ($compositionSequence) {
+                            $compGrade = $studentGrades->first(function ($g) use ($compositionSequence) {
                                 return $g->sequence_id == $compositionSequence->id;
                             });
                             if ($compGrade && $compGrade->score !== null) {
@@ -1266,7 +1265,6 @@ class BulletinService
                 ];
 
                 $allBulletinData[$student->id] = $bulletinData;
-
             } catch (\Exception $e) {
                 \Log::error('Error generating bulletin for student ' . $student->id . ': ' . $e->getMessage());
                 // Continue avec les autres étudiants même si un échoue
@@ -1284,7 +1282,7 @@ class BulletinService
     protected function determineCycleTypeFromClassName($className)
     {
         $className = strtolower($className);
-        $deuxiemeCycleKeywords = ['seconde', 'première', 'terminale', '2nde', '1ère', 'tle'];
+        $deuxiemeCycleKeywords = ['seconde', 'première', 'terminale', '2nd', '1ère', 'tle'];
 
         foreach ($deuxiemeCycleKeywords as $keyword) {
             if (strpos($className, $keyword) !== false) {
@@ -1301,20 +1299,20 @@ class BulletinService
     protected function getSubjectMinMax($sequenceId, $seriesSubjectId)
     {
         $grades = Grade::where('sequence_id', $sequenceId)
-                      ->where('class_series_subject_id', $seriesSubjectId)
-                      ->whereNotNull('score')
-                      ->pluck('score')
-                      ->map(function($score) {
-                          return ($score / 20) * 20; // Convert to /20
-                      });
-        
+            ->where('class_series_subject_id', $seriesSubjectId)
+            ->whereNotNull('score')
+            ->pluck('score')
+            ->map(function ($score) {
+                return ($score / 20) * 20; // Convert to /20
+            });
+
         if ($grades->isEmpty()) {
             return 'N/A';
         }
-        
+
         return round($grades->min(), 2) . '-' . round($grades->max(), 2);
     }
-    
+
     /**
      * Get appreciation based on score
      */
@@ -1327,7 +1325,7 @@ class BulletinService
         if ($score >= 10) return 'Assez Bien';
         return 'Insuffisant';
     }
-    
+
     /**
      * Get mention based on average
      */
@@ -1340,7 +1338,7 @@ class BulletinService
         if ($average >= 10) return 'Passable';
         return 'Insuffisant';
     }
-    
+
     /**
      * Get student rank in sequence
      * 🔧 FIX: Compter TOUTES les matières (absences = 0) pour cohérence avec le calcul de moyenne
@@ -1406,7 +1404,7 @@ class BulletinService
 
         return null;
     }
-    
+
     /**
      * Get student rank in trimester
      */
@@ -1559,7 +1557,7 @@ class BulletinService
 
         return null; // Fallback si non trouvé
     }
-    
+
     /**
      * Get subject rank in trimester
      */
@@ -1615,7 +1613,7 @@ class BulletinService
 
         return null; // Student not found in rankings
     }
-    
+
     /**
      * Get subject min/max scores for trimester ranking
      * 🔧 FIX: Retourne [0.00 - 0.00] au lieu de [N/A] si aucune note
@@ -1824,7 +1822,7 @@ class BulletinService
 
         return null;
     }
-    
+
     /**
      * Detect section type (Francophone/Anglophone/Technique) from student
      */
@@ -1832,15 +1830,19 @@ class BulletinService
     {
         $sectionName = $student->schoolClass->level->section->name ?? '';
 
-        if (stripos($sectionName, 'anglophone') !== false ||
+        if (
+            stripos($sectionName, 'anglophone') !== false ||
             stripos($sectionName, 'english') !== false ||
-            stripos($sectionName, 'anglo') !== false) {
+            stripos($sectionName, 'anglo') !== false
+        ) {
             return 'anglophone';
         }
 
-        if (stripos($sectionName, 'technique') !== false ||
+        if (
+            stripos($sectionName, 'technique') !== false ||
             stripos($sectionName, 'technical') !== false ||
-            stripos($sectionName, 'enseignement technique') !== false) {
+            stripos($sectionName, 'enseignement technique') !== false
+        ) {
             return 'technique';
         }
 
@@ -1916,8 +1918,8 @@ class BulletinService
 
         return $html;
     }
-    
-    
+
+
     /**
      * Prepare template data for the CPBD bulletin
      */
@@ -1953,7 +1955,7 @@ class BulletinService
 
         // DEBUG: Log pour tracer le problème
         // \Log::info("DEBUG prepareTemplateData: templateType=$templateType, sectionType=$sectionType, trimester=" . ($trimester ? $trimester->number : 'null') . ", sequence=" . ($sequence ? $sequence->number : 'null'));
-        
+
         // Get school settings and logo
         $schoolSettings = \App\Models\SchoolSetting::first();
         $logoBase64 = '';
@@ -1985,7 +1987,7 @@ class BulletinService
                 \Log::error("✗ Aucun logo disponible (ni BDD ni public)");
             }
         }
-        
+
         // Language-specific labels
         $labels = $this->getLanguageLabels($sectionType);
 
@@ -2053,7 +2055,7 @@ class BulletinService
             'discipline_exclusion_days' => $data['discipline']['exclusion_days'] ?? 0
         ];
     }
-    
+
     /**
      * Get language-specific labels based on section type
      */
@@ -2173,25 +2175,25 @@ class BulletinService
         if (!isset($data['subjects']) || empty($data['subjects'])) {
             return str_replace('{{#each subject_groups}}{{/each}}', '', $html);
         }
-        
+
         // Determine bulletin type based on data structure
         $bulletinType = isset($data['trimester']) ? 'trimester' : 'sequence';
-        
+
         // Group subjects by type (simulate the groups from the example)
         $subjectGroups = $this->groupSubjectsByType($data['subjects']);
-        
+
         $groupsHtml = '';
         foreach ($subjectGroups as $groupName => $subjects) {
             $groupsHtml .= $this->renderSubjectGroup($groupName, $subjects, $forPdf, $bulletinType);
         }
-        
+
         // Replace the {{#each subject_groups}}...{{/each}} block
         $pattern = '/\{\{#each subject_groups\}\}(.*?)\{\{\/each\}\}/s';
         $html = preg_replace($pattern, $groupsHtml, $html);
-        
+
         return $html;
     }
-    
+
     /**
      * Group subjects by type for display
      */
@@ -2199,8 +2201,8 @@ class BulletinService
     {
         // Récupérer tous les groupes actifs de la base de données
         $subjectGroups = \App\Models\SubjectGroup::where('is_active', true)
-                                                  ->orderBy('order')
-                                                  ->get();
+            ->orderBy('order')
+            ->get();
 
         // Initialiser un tableau pour chaque groupe
         $groups = [];
@@ -2265,11 +2267,11 @@ class BulletinService
         }
 
         // Remove empty groups
-        return array_filter($groups, function($subjects) {
+        return array_filter($groups, function ($subjects) {
             return !empty($subjects);
         });
     }
-    
+
     /**
      * Render a single subject group
      */
@@ -2382,7 +2384,7 @@ class BulletinService
                 $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 20%;">NOMS DES PROFESSEURS</th>';
             }
         }
-        
+
         $html .= '</tr>';
 
         $totalCoef = 0;
@@ -2477,7 +2479,7 @@ class BulletinService
         // CORRECTION BUG: Utiliser $totalCoef au lieu de $totalCoefWithGrades
         // Moyenne = Total Points / Total Coef (avec matières non saisies = 0 points)
         $groupAverage = $totalCoef > 0 ? $totalPoints / $totalCoef : 0;
-        
+
         // Total row avec alignement
         $html .= '<tr class="total-row" style="background: #f0f0f0; font-weight: bold;">';
 
@@ -2513,15 +2515,15 @@ class BulletinService
             $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy gpe: ' . number_format((float)$groupAverage, 2) . '</td>';
             $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy Gen Gpe: ' . number_format((float)$groupAverage, 2) . '</td>';
         }
-        
+
         $html .= '</tr>';
-        
+
         $html .= '</table>';
         $html .= '</div>';
-        
+
         return $html;
     }
-    
+
     /**
      * Get CSS class for grade styling
      */
@@ -2532,7 +2534,7 @@ class BulletinService
         if ($grade >= 10) return 'grade-average';
         return 'grade-poor';
     }
-    
+
     /**
      * Get competence level based on grade
      */
@@ -2638,7 +2640,7 @@ class BulletinService
         if ($average >= 10) return 'ECA : En Cours d\'Acquisition';
         return 'NA : Non Acquise';
     }
-    
+
     /**
      * Get average CSS class
      */
@@ -2649,7 +2651,7 @@ class BulletinService
         if ($average >= 10) return 'grade-average';
         return 'grade-poor';
     }
-    
+
     /**
      * Get general appreciation
      */
@@ -2660,7 +2662,7 @@ class BulletinService
         if ($average >= 10) return 'ECA : En Cours d\'Acquisition';
         return 'NA : Non Acquise';
     }
-    
+
     /**
      * Get class size
      */
@@ -2743,7 +2745,7 @@ class BulletinService
     protected function buildSubjectRowsHTML($subjects, $type = 'sequence')
     {
         $html = '';
-        
+
         foreach ($subjects as $subject) {
             if ($type === 'sequence') {
                 $html .= '<tr>';
@@ -2786,7 +2788,7 @@ class BulletinService
                 $html .= '</tr>';
             }
         }
-        
+
         return $html;
     }
 
@@ -2985,7 +2987,7 @@ class BulletinService
         }
 
         // Replace Blade public_path() directive with base64 encoded image for DomPDF
-        $html = preg_replace_callback('/src=["\']?\{\{\s*public_path\([\'"](.+?)[\'"]\)\s*\}\}["\']?/', function($matches) {
+        $html = preg_replace_callback('/src=["\']?\{\{\s*public_path\([\'"](.+?)[\'"]\)\s*\}\}["\']?/', function ($matches) {
             $imagePath = public_path($matches[1]);
             if (file_exists($imagePath)) {
                 $imageData = base64_encode(file_get_contents($imagePath));
@@ -2996,7 +2998,7 @@ class BulletinService
         }, $html);
 
         // Replace background-image with base64 encoded image for DomPDF
-        $html = preg_replace_callback('/background-image:\s*\{\{\s*public_path\([\'"](.+?)[\'"]\)\s*\}\}/', function($matches) {
+        $html = preg_replace_callback('/background-image:\s*\{\{\s*public_path\([\'"](.+?)[\'"]\)\s*\}\}/', function ($matches) {
             $imagePath = public_path($matches[1]);
             if (file_exists($imagePath)) {
                 $imageData = base64_encode(file_get_contents($imagePath));
@@ -3284,12 +3286,40 @@ class BulletinService
 
         // 🎓 DEUXIÈME CYCLE: Classes du lycée
         $deuxiemeCycleClasses = [
-            'seconde', '2nde', '2ème', '2eme', 'première', '1ère', '1ere', 'terminale', 'tle',
-            'seconde a', 'seconde c', 'seconde d',
-            '2ème a', '2ème c', '2ème d', '2eme a', '2eme c', '2eme d',
-            'première a', 'première c', 'première d', 'première a4',
-            '1ère a', '1ère c', '1ère d', '1ere a', '1ere c', '1ere d',
-            'terminale a', 'terminale c', 'terminale d', 'tle a', 'tle c', 'tle d'
+            'seconde',
+            '2nd',
+            '2ème',
+            '2eme',
+            'première',
+            '1ère',
+            '1ere',
+            'terminale',
+            'tle',
+            'seconde a',
+            'seconde c',
+            'seconde d',
+            '2ème a',
+            '2ème c',
+            '2ème d',
+            '2eme a',
+            '2eme c',
+            '2eme d',
+            'première a',
+            'première c',
+            'première d',
+            'première a4',
+            '1ère a',
+            '1ère c',
+            '1ère d',
+            '1ere a',
+            '1ere c',
+            '1ere d',
+            'terminale a',
+            'terminale c',
+            'terminale d',
+            'tle a',
+            'tle c',
+            'tle d'
         ];
 
         foreach ($deuxiemeCycleClasses as $cycleClass) {
@@ -3471,7 +3501,7 @@ class BulletinService
             }
 
             // Si au moins une note existe, calculer la moyenne
-            $gradesForAverage = collect([$seq1Grade, $seq2Grade, $compGrade])->filter(function($grade) {
+            $gradesForAverage = collect([$seq1Grade, $seq2Grade, $compGrade])->filter(function ($grade) {
                 return $grade !== null;
             });
 

@@ -30,7 +30,7 @@ class BulletinController extends Controller
         $this->bulletinService = $bulletinService;
         $this->cacheService = $cacheService;
     }
-    
+
     /**
      * Get available bulletins for a student
      */
@@ -49,15 +49,15 @@ class BulletinController extends Controller
 
         // Check sequence bulletins selon le cycle
         $sequences = Sequence::whereIn('number', $allowedSequences)
-                            ->where('is_completed', true)
-                            ->where('is_composition', false) // Exclure les compositions
-                            ->get();
-                            
+            ->where('is_completed', true)
+            ->where('is_composition', false) // Exclure les compositions
+            ->get();
+
         foreach ($sequences as $sequence) {
             $existing = BulletinGeneration::byStudent($studentId)
-                                         ->byPeriod('sequence', 'seq' . $sequence->number)
-                                         ->first();
-            
+                ->byPeriod('sequence', 'seq' . $sequence->number)
+                ->first();
+
             $availableBulletins[] = [
                 'type' => 'sequence',
                 'identifier' => 'seq' . $sequence->number,
@@ -67,17 +67,17 @@ class BulletinController extends Controller
                 'file_path' => $existing ? $existing->file_path : null
             ];
         }
-        
+
         // Check trimester bulletins
-        $trimesters = Trimester::whereHas('sequences', function($query) {
-                               $query->where('is_completed', true);
-                             })->get();
-                             
+        $trimesters = Trimester::whereHas('sequences', function ($query) {
+            $query->where('is_completed', true);
+        })->get();
+
         foreach ($trimesters as $trimester) {
             $existing = BulletinGeneration::byStudent($studentId)
-                                         ->byPeriod('trimester', 'trim' . $trimester->number)
-                                         ->first();
-                                         
+                ->byPeriod('trimester', 'trim' . $trimester->number)
+                ->first();
+
             $availableBulletins[] = [
                 'type' => 'trimester',
                 'identifier' => 'trim' . $trimester->number,
@@ -87,13 +87,13 @@ class BulletinController extends Controller
                 'file_path' => $existing ? $existing->file_path : null
             ];
         }
-        
+
         return response()->json([
             'student' => $student,
             'bulletins' => $availableBulletins
         ]);
     }
-    
+
     /**
      * Generate a bulletin
      */
@@ -131,8 +131,8 @@ class BulletinController extends Controller
 
         // Check if bulletin already exists
         $existing = BulletinGeneration::byStudent($request->student_id)
-                                     ->byPeriod($request->bulletin_type, $request->period_identifier)
-                                     ->first();
+            ->byPeriod($request->bulletin_type, $request->period_identifier)
+            ->first();
 
         if ($existing && !$request->input('force', false)) {
             return response()->json(['error' => 'Bulletin already generated. Use force=true to regenerate.'], 409);
@@ -147,12 +147,12 @@ class BulletinController extends Controller
             // Supprimer l'enregistrement
             $existing->delete();
         }
-        
+
         try {
             // Generate bulletin data based on type
             $bulletinData = null;
             $filename = null;
-            
+
             if ($request->bulletin_type === 'sequence') {
                 $sequenceNumber = (int) str_replace('seq', '', $request->period_identifier);
                 $bulletinData = $this->bulletinService->generateSequenceBulletinData($sequenceNumber, $request->student_id);
@@ -162,7 +162,7 @@ class BulletinController extends Controller
                 $bulletinData = $this->bulletinService->generateTrimesterBulletinData($trimesterNumber, $request->student_id);
                 $filename = "bulletin_trimestre_{$trimesterNumber}_{$request->student_id}_" . now()->format('Y-m-d') . ".pdf";
             }
-            
+
             if (!$bulletinData) {
                 return response()->json(['error' => 'Unable to generate bulletin data'], 500);
             }
@@ -176,10 +176,10 @@ class BulletinController extends Controller
 
             // Render HTML template with data (use PDF-optimized template)
             $htmlContent = $this->bulletinService->renderBulletinTemplate($request->bulletin_type, $bulletinData, true);
-            
+
             // Generate PDF
             $filePath = $this->bulletinService->generatePDF($htmlContent, $filename);
-            
+
             // Create the record
             $bulletinGeneration = BulletinGeneration::create([
                 'student_id' => $request->student_id,
@@ -200,14 +200,13 @@ class BulletinController extends Controller
                 'bulletin' => $bulletinGeneration,
                 'download_url' => route('bulletins.download', $bulletinGeneration->id)
             ]);
-            
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Error generating bulletin: ' . $e->getMessage()
             ], 500);
         }
     }
-    
+
     /**
      * Download a bulletin
      */
@@ -361,7 +360,7 @@ class BulletinController extends Controller
             'status' => 'queued'
         ]);
     }
-    
+
     /**
      * Get all templates (Admin only)
      */
@@ -370,7 +369,7 @@ class BulletinController extends Controller
         $templates = BulletinTemplate::all();
         return response()->json($templates);
     }
-    
+
     /**
      * Create new template (Admin only)
      */
@@ -383,22 +382,22 @@ class BulletinController extends Controller
             'css_styles' => 'nullable|string',
             'description' => 'nullable|string'
         ]);
-        
+
         $template = BulletinTemplate::create($request->all());
-        
+
         return response()->json([
             'message' => 'Template created successfully',
             'template' => $template
         ], 201);
     }
-    
+
     /**
      * Update template (Admin only)
      */
     public function updateTemplate(Request $request, $templateId)
     {
         $template = BulletinTemplate::findOrFail($templateId);
-        
+
         $request->validate([
             'name' => 'string|max:255',
             'type' => 'in:sequence,trimester,annual,honor_roll',
@@ -407,15 +406,15 @@ class BulletinController extends Controller
             'description' => 'nullable|string',
             'is_active' => 'boolean'
         ]);
-        
+
         $template->update($request->all());
-        
+
         return response()->json([
             'message' => 'Template updated successfully',
             'template' => $template
         ]);
     }
-    
+
     /**
      * Delete template (Admin only)
      */
@@ -423,12 +422,12 @@ class BulletinController extends Controller
     {
         $template = BulletinTemplate::findOrFail($templateId);
         $template->delete();
-        
+
         return response()->json([
             'message' => 'Template deleted successfully'
         ]);
     }
-    
+
     /**
      * Toggle template status (Admin only)
      */
@@ -436,38 +435,38 @@ class BulletinController extends Controller
     {
         $template = BulletinTemplate::findOrFail($templateId);
         $template->update(['is_active' => !$template->is_active]);
-        
+
         return response()->json([
             'message' => 'Template status updated successfully',
             'template' => $template
         ]);
     }
-    
+
     /**
      * Get all generated bulletins for admin view
      */
     public function getGeneratedBulletins(Request $request)
     {
         $query = BulletinGeneration::with(['student.schoolClass', 'template'])
-                                  ->orderBy('generated_at', 'desc');
-        
+            ->orderBy('generated_at', 'desc');
+
         // Apply filters
         if ($request->has('class_id') && $request->class_id) {
-            $query->whereHas('student', function($q) use ($request) {
+            $query->whereHas('student', function ($q) use ($request) {
                 $q->where('school_class_id', $request->class_id);
             });
         }
-        
+
         if ($request->has('period_type') && $request->period_type) {
             $query->where('period_type', $request->period_type);
         }
-        
+
         if ($request->has('period_identifier') && $request->period_identifier) {
             $query->where('period_identifier', $request->period_identifier);
         }
-        
+
         $bulletins = $query->paginate(50);
-        
+
         return response()->json($bulletins);
     }
 
@@ -477,7 +476,7 @@ class BulletinController extends Controller
     public function getHierarchicalStructure()
     {
         $sections = \App\Models\Section::with([
-            'levels.schoolClasses.series' => function($query) {
+            'levels.schoolClasses.series' => function ($query) {
                 $query->whereHas('students');
             }
         ])->get();
@@ -536,7 +535,7 @@ class BulletinController extends Controller
                 $compositionEvaluations = \App\Models\Evaluation::where('type', 'composition')
                     ->whereIn('class_series_subject_id', $subjectIds)
                     ->get()
-                    ->groupBy(function($eval) {
+                    ->groupBy(function ($eval) {
                         return $eval->trimester_id . '_' . $eval->class_series_subject_id;
                     });
 
@@ -664,7 +663,7 @@ class BulletinController extends Controller
             ->where('is_composition', false)
             ->first();
         if (!$sequence) return 0;
-        
+
         // Logique:
         // - Si la séquence est terminée (is_completed), garder 100% si bulletin existe
         // - Si la séquence n'est pas active (is_active = false), c'est une séquence future -> 0%
@@ -692,7 +691,7 @@ class BulletinController extends Controller
                 ->where('class_series_subject_id', $subject->id)
                 ->whereNotNull('score')
                 ->exists();
-            
+
             if ($hasGrade) {
                 $gradedSubjects++;
             }
@@ -718,41 +717,41 @@ class BulletinController extends Controller
                 return 0;
             }
 
-        $totalCompletion = 0;
-        $currentActiveSequence = \App\Models\Sequence::where('is_active', true)->first();
-        
-        foreach ($subjects as $subject) {
-            if ($trimesterNumber == 3) {
-                // Trimestre 3: Composition seule
-                $compositionCompletion = $this->checkCompositionCompletion($studentId, 3, $subject->id);
-                $subjectCompletion = $compositionCompletion;
-            } else {
-                // Trimestre 1 ou 2: (DS + Composition) / 2
-                $dsCompletion = $this->checkDSCompletion($studentId, $trimesterNumber, $subject->id);
-                $compositionCompletion = $this->checkCompositionCompletion($studentId, $trimesterNumber, $subject->id);
-                
-                // Logique de mise à jour pendant les séquences:
-                // - Trimestre 1 se met à jour pendant séquences 1 et 2
-                // - Trimestre 2 se met à jour pendant séquences 3 et 4
-                
-                if ($trimesterNumber == 1) {
-                    // Pendant séquence 2, le trimestre 1 se calcule déjà avec séq1+séq2
-                    if ($currentActiveSequence && $currentActiveSequence->number == 2) {
-                        // On est en train de saisir la séquence 2 -> calculer DS1 avec séq1+séq2
-                        $dsCompletion = $this->checkDSCompletion($studentId, 1, $subject->id);
+            $totalCompletion = 0;
+            $currentActiveSequence = \App\Models\Sequence::where('is_active', true)->first();
+
+            foreach ($subjects as $subject) {
+                if ($trimesterNumber == 3) {
+                    // Trimestre 3: Composition seule
+                    $compositionCompletion = $this->checkCompositionCompletion($studentId, 3, $subject->id);
+                    $subjectCompletion = $compositionCompletion;
+                } else {
+                    // Trimestre 1 ou 2: (DS + Composition) / 2
+                    $dsCompletion = $this->checkDSCompletion($studentId, $trimesterNumber, $subject->id);
+                    $compositionCompletion = $this->checkCompositionCompletion($studentId, $trimesterNumber, $subject->id);
+
+                    // Logique de mise à jour pendant les séquences:
+                    // - Trimestre 1 se met à jour pendant séquences 1 et 2
+                    // - Trimestre 2 se met à jour pendant séquences 3 et 4
+
+                    if ($trimesterNumber == 1) {
+                        // Pendant séquence 2, le trimestre 1 se calcule déjà avec séq1+séq2
+                        if ($currentActiveSequence && $currentActiveSequence->number == 2) {
+                            // On est en train de saisir la séquence 2 -> calculer DS1 avec séq1+séq2
+                            $dsCompletion = $this->checkDSCompletion($studentId, 1, $subject->id);
+                        }
+                    } elseif ($trimesterNumber == 2) {
+                        // Pendant séquence 4, le trimestre 2 se calcule avec séq3+séq4
+                        if ($currentActiveSequence && $currentActiveSequence->number == 4) {
+                            $dsCompletion = $this->checkDSCompletion($studentId, 2, $subject->id);
+                        }
                     }
-                } elseif ($trimesterNumber == 2) {
-                    // Pendant séquence 4, le trimestre 2 se calcule avec séq3+séq4
-                    if ($currentActiveSequence && $currentActiveSequence->number == 4) {
-                        $dsCompletion = $this->checkDSCompletion($studentId, 2, $subject->id);
-                    }
+
+                    $subjectCompletion = ($dsCompletion + $compositionCompletion) / 2;
                 }
-                
-                $subjectCompletion = ($dsCompletion + $compositionCompletion) / 2;
+
+                $totalCompletion += $subjectCompletion;
             }
-            
-            $totalCompletion += $subjectCompletion;
-        }
 
             $finalCompletion = round($totalCompletion / $subjects->count(), 1);
             return $finalCompletion;
@@ -767,9 +766,9 @@ class BulletinController extends Controller
      */
     private function checkDSCompletion($studentId, $trimesterNumber, $subjectId)
     {
-        
+
         $sequenceNumbers = [];
-        
+
         switch ($trimesterNumber) {
             case 1:
                 $sequenceNumbers = [1, 2];
@@ -780,7 +779,7 @@ class BulletinController extends Controller
             default:
                 return 100; // Trimestre 3 n'a pas de DS
         }
-        
+
         // Prendre seulement une séquence par numéro pour éviter les doublons
         $sequences = collect();
         foreach ($sequenceNumbers as $number) {
@@ -792,7 +791,7 @@ class BulletinController extends Controller
             }
         }
         $gradedSequences = 0;
-        
+
         foreach ($sequences as $sequence) {
             $hasGrade = \App\Models\Grade::where('student_id', $studentId)
                 ->where('sequence_id', $sequence->id)
@@ -800,13 +799,13 @@ class BulletinController extends Controller
                 ->where('trimester_id', $trimesterNumber)
                 ->whereNotNull('score')
                 ->exists();
-            
-            
+
+
             if ($hasGrade) {
                 $gradedSequences++;
             }
         }
-        
+
         $completion = $sequences->count() > 0 ? ($gradedSequences / $sequences->count()) * 100 : 0;
         return $completion;
     }
@@ -816,23 +815,23 @@ class BulletinController extends Controller
      */
     private function checkCompositionCompletion($studentId, $trimesterNumber, $subjectId)
     {
-        
+
         $evaluation = \App\Models\Evaluation::where('type', 'composition')
             ->where('trimester_id', $trimesterNumber)
             ->where('class_series_subject_id', $subjectId)
             ->first();
-        
-        
+
+
         if (!$evaluation) {
             return 0;
         }
-        
+
         $grade = \App\Models\Grade::where('student_id', $studentId)
             ->where('evaluation_id', $evaluation->id)
             ->where('trimester_id', $trimesterNumber)
             ->whereNotNull('score')
             ->exists();
-        
+
         $completion = $grade ? 100 : 0;
         \Log::info("🔍 Composition completion: " . ($grade ? 'YES' : 'NO') . " = {$completion}%");
         return $completion;
@@ -845,11 +844,11 @@ class BulletinController extends Controller
     {
         $sequences = \App\Models\Sequence::orderBy('number')->get();
         $trimesters = \App\Models\Trimester::orderBy('number')->get();
-        
+
         // Déterminer la période actuelle basée sur les séquences actives
         $currentSequence = $sequences->where('is_active', true)->first();
         $currentTrimester = null;
-        
+
         if ($currentSequence) {
             $currentTrimester = $trimesters->find($currentSequence->trimester_id);
         }
@@ -883,7 +882,7 @@ class BulletinController extends Controller
 
         try {
             $bulletinData = null;
-            
+
             if ($request->type === 'sequence') {
                 $sequenceNumber = (int) str_replace('seq', '', $request->period_identifier);
                 $bulletinData = $this->bulletinService->generateSequenceBulletinData($sequenceNumber, $request->student_id);
@@ -903,7 +902,6 @@ class BulletinController extends Controller
                 'html' => $htmlContent,
                 'data' => $bulletinData
             ]);
-
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
@@ -955,7 +953,6 @@ class BulletinController extends Controller
 
             // Download and delete after sending
             return response()->download($fullPath, $filename)->deleteFileAfterSend(true);
-
         } catch (\Exception $e) {
             \Log::error('Error in downloadDirect: ' . $e->getMessage());
             return response()->json(['error' => 'Erreur: ' . $e->getMessage()], 500);
@@ -988,7 +985,6 @@ class BulletinController extends Controller
 
             // Appeler la fonction generate() qui a déjà toutes les optimisations
             return $this->generate($generateRequest);
-
         } catch (\Exception $e) {
             // Libérer la mémoire en cas d'erreur
             gc_collect_cycles();
@@ -1072,7 +1068,6 @@ class BulletinController extends Controller
                             'error' => 'Échec génération (code ' . $response->getStatusCode() . ')'
                         ];
                     }
-
                 } catch (\Exception $e) {
                     $errors[] = [
                         'student' => $student->last_name . ' ' . $student->first_name,
@@ -1117,7 +1112,6 @@ class BulletinController extends Controller
                 'message' => "✅ Génération terminée en {$duration}s : {$generated} bulletin(s) générés, " . count($errors) . " erreur(s)",
                 'progress_key' => $progressKey
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -1257,7 +1251,6 @@ class BulletinController extends Controller
                         gc_collect_cycles();
                         \Log::info("📊 Progression: " . ($index + 1) . "/{$total} bulletins générés");
                     }
-
                 } catch (\Exception $e) {
                     \Log::error("❌ Erreur pour étudiant {$student->id}: " . $e->getMessage());
                     $errors[] = [
@@ -1285,7 +1278,6 @@ class BulletinController extends Controller
                 'duration' => $duration,
                 'message' => "✅ Génération terminée en {$duration}s : {$generated}/{$total} bulletin(s) générés, " . count($errors) . " erreur(s)"
             ]);
-
         } catch (\Exception $e) {
             \Log::error('❌ ERREUR BATCH GENERATION: ' . $e->getMessage(), [
                 'file' => $e->getFile(),
@@ -1323,14 +1315,14 @@ class BulletinController extends Controller
             // Cela évite les timeouts et rend le téléchargement instantané
 
             // Get all generated bulletins for this series
-            $query = BulletinGeneration::whereHas('student', function($q) use ($request) {
+            $query = BulletinGeneration::whereHas('student', function ($q) use ($request) {
                 $q->where('class_series_id', $request->series_id);
             })->where('is_complete', true);
 
             // Filter by period if specified
             if ($request->period_type && $request->period_identifier) {
                 $query->where('period_type', $request->period_type)
-                      ->where('period_identifier', $request->period_identifier);
+                    ->where('period_identifier', $request->period_identifier);
             }
 
             $bulletins = $query->with('student')->get();
@@ -1338,11 +1330,11 @@ class BulletinController extends Controller
             if ($bulletins->isEmpty()) {
                 $totalStudents = \App\Models\Student::where('class_series_id', $request->series_id)->count();
                 $studentsWithBulletins = \App\Models\Student::where('class_series_id', $request->series_id)
-                    ->whereHas('bulletinGenerations', function($q) use ($request) {
+                    ->whereHas('bulletinGenerations', function ($q) use ($request) {
                         $q->where('is_complete', true);
                         if ($request->period_type && $request->period_identifier) {
                             $q->where('period_type', $request->period_type)
-                              ->where('period_identifier', $request->period_identifier);
+                                ->where('period_identifier', $request->period_identifier);
                         }
                     })->count();
 
@@ -1370,7 +1362,7 @@ class BulletinController extends Controller
             foreach ($bulletins as $bulletin) {
                 // Use the file_path field from the database
                 $pdfPath = storage_path('app/' . $bulletin->file_path);
-                
+
                 if (file_exists($pdfPath)) {
                     $student = $bulletin->student;
                     $fileName = sprintf(
@@ -1380,7 +1372,7 @@ class BulletinController extends Controller
                         $student->first_name,
                         $student->last_name
                     );
-                    
+
                     $destinationPath = $tempDir . '/' . $fileName;
                     copy($pdfPath, $destinationPath);
                     $validFiles[] = $fileName;
@@ -1419,7 +1411,6 @@ class BulletinController extends Controller
 
             // Return the ZIP file
             return response()->download($zipPath, $zipFileName)->deleteFileAfterSend(true);
-
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Erreur lors de la création du ZIP: ' . $e->getMessage()
@@ -1435,21 +1426,21 @@ class BulletinController extends Controller
         $sequence = \App\Models\Sequence::where('number', $sequenceNumber)
             ->where('is_composition', false) // Exclure les compositions
             ->first();
-        
+
         if (!$sequence) return 'future';
-        
+
         // Priorité à is_current
         if ($sequence->is_current) return 'current';
         if ($sequence->is_completed) return 'past';
         if ($sequence->is_active && !$sequence->is_completed) return 'current';
-        
+
         // Si pas trouvé de current, utiliser la logique globale
         $currentSequence = \App\Models\Sequence::where('is_current', true)->first();
         if ($currentSequence && !$currentSequence->is_composition) {
             if ($currentSequence->number > $sequenceNumber) return 'past';
             if ($currentSequence->number < $sequenceNumber) return 'future';
         }
-        
+
         return 'future';
     }
 
@@ -1459,28 +1450,28 @@ class BulletinController extends Controller
     private function getTrimesterStatus($trimesterNumber)
     {
         $currentActiveSequence = \App\Models\Sequence::where('is_active', true)->first();
-        
+
         if (!$currentActiveSequence) return 'future';
-        
-        // Logique académique: 
+
+        // Logique académique:
         // Trimestre 1 = Séquences 1,2 + Composition 1
-        // Trimestre 2 = Séquences 3,4 + Composition 2  
+        // Trimestre 2 = Séquences 3,4 + Composition 2
         // Trimestre 3 = Composition 3
-        
+
         if ($trimesterNumber == 1) {
             if ($currentActiveSequence->number >= 2) return 'current'; // Pendant ou après séq 2
             if ($currentActiveSequence->number == 1) return 'current'; // Pendant séq 1
             return 'future';
         } elseif ($trimesterNumber == 2) {
             if ($currentActiveSequence->number >= 4) return 'current'; // Pendant ou après séq 4
-            if ($currentActiveSequence->number == 3) return 'current'; // Pendant séq 3  
+            if ($currentActiveSequence->number == 3) return 'current'; // Pendant séq 3
             if ($currentActiveSequence->number <= 2) return 'future';
         } elseif ($trimesterNumber == 3) {
             // Trimestre 3 disponible après séquence 4
             if ($currentActiveSequence->number > 4) return 'current';
             return 'future';
         }
-        
+
         return 'future';
     }
 
@@ -1559,7 +1550,7 @@ class BulletinController extends Controller
     private function getAvailablePeriods()
     {
         $periods = [];
-        
+
         // Séquences 1 et 3 (seules avec bulletins)
         foreach ([1, 3] as $seqNumber) {
             $sequence = \App\Models\Sequence::where('number', $seqNumber)
@@ -1576,19 +1567,19 @@ class BulletinController extends Controller
                 ];
             }
         }
-        
+
         // Trimestres 1, 2, 3
         for ($trimNumber = 1; $trimNumber <= 3; $trimNumber++) {
             $status = $this->getTrimesterStatus($trimNumber);
             $periods[] = [
-                'type' => 'trimester', 
+                'type' => 'trimester',
                 'identifier' => "trim{$trimNumber}",
                 'name' => "Trimestre {$trimNumber}",
                 'status' => $status,
                 'icon' => $status === 'past' ? 'archive' : ($status === 'current' ? 'play-circle' : 'clock')
             ];
         }
-        
+
         // Option "Vue actuelle"
         $periods[] = [
             'type' => 'view',
@@ -1597,7 +1588,7 @@ class BulletinController extends Controller
             'status' => 'current',
             'icon' => 'eye'
         ];
-        
+
         // Option "Toutes les périodes"
         $periods[] = [
             'type' => 'view',
@@ -1606,7 +1597,7 @@ class BulletinController extends Controller
             'status' => 'all',
             'icon' => 'grid'
         ];
-        
+
         return $periods;
     }
 
@@ -1631,11 +1622,29 @@ class BulletinController extends Controller
 
         // 🎓 DEUXIÈME CYCLE: Classes du lycée
         $deuxiemeCycleClasses = [
-            'seconde', '2nde', 'première', '1ère', '1ere', 'terminale', 'tle',
-            'seconde a', 'seconde c', 'seconde d',
-            'première a', 'première c', 'première d', 'première a4',
-            '1ère a', '1ère c', '1ère d', '1ere a', '1ere c', '1ere d',
-            'terminale a', 'terminale c', 'terminale d'
+            'seconde',
+            '2nd',
+            'première',
+            '1ère',
+            '1ere',
+            'terminale',
+            'tle',
+            'seconde a',
+            'seconde c',
+            'seconde d',
+            'première a',
+            'première c',
+            'première d',
+            'première a4',
+            '1ère a',
+            '1ère c',
+            '1ère d',
+            '1ere a',
+            '1ere c',
+            '1ere d',
+            'terminale a',
+            'terminale c',
+            'terminale d'
         ];
 
         foreach ($deuxiemeCycleClasses as $cycleClass) {
@@ -1806,7 +1815,7 @@ class BulletinController extends Controller
         // Vérifier qu'il y a des bulletins à fusionner
         $bulletinCount = BulletinGeneration::where('period_type', $validated['period_type'])
             ->where('period_identifier', $validated['period_identifier'])
-            ->whereHas('student', function($query) use ($validated) {
+            ->whereHas('student', function ($query) use ($validated) {
                 $query->where('class_series_id', $validated['class_series_id']);
             })
             ->count();

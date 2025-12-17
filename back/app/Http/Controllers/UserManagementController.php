@@ -22,7 +22,7 @@ class UserManagementController extends Controller
             // Utiliser DB::table au lieu d'Eloquent pour éviter les problèmes de relations
             $query = DB::table('users')
                 ->select('id', 'name', 'username', 'email', 'contact', 'photo', 'role', 'qualification', 'is_active', 'created_at', 'staff_identifier')
-                ->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'enseignant', 'vacataire', 'SP', 'P', 'accountant', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe', 'agent_entretien']); // Tous les rôles gérables incluant tous les enseignants et agents d'entretien
+                ->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'enseignant', 'vacataire', 'SP', 'P', 'accountant', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe', 'agent_entretien', 'id_card_manager']); // Tous les rôles gérables incluant tous les enseignants et agents d'entretien
 
             // Système de recherche
             if ($request->has('search') && !empty($request->search)) {
@@ -50,7 +50,7 @@ class UserManagementController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $users,
-                'total' => DB::table('users')->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'enseignant', 'vacataire', 'SP', 'P', 'accountant', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe', 'agent_entretien'])->count()
+                'total' => DB::table('users')->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'teacher', 'enseignant', 'vacataire', 'SP', 'P', 'accountant', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe', 'agent_entretien', 'id_card_manager'])->count()
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -96,7 +96,7 @@ class UserManagementController extends Controller
                 'email' => 'required|email|unique:users,email',
                 'contact' => 'nullable|string|max:20',
                 'photo' => 'nullable|string|max:500',
-                'role' => 'required|in:principal,user,teacher,surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe,agent_entretien',
+                'role' => 'required|in:principal,user,teacher,surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe,agent_entretien,id_card_manager',
                 'qualification' => 'nullable|string|max:100',
                 'generate_password' => 'boolean'
             ], [
@@ -196,7 +196,7 @@ class UserManagementController extends Controller
                 'email' => 'required|email|unique:users,email,' . $id,
                 'contact' => 'nullable|string|max:20',
                 'photo' => 'nullable|string|max:500', // Nullable en update
-                'role' => 'required|in:principal,user,teacher,surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe,agent_entretien',
+                'role' => 'required|in:principal,user,teacher,surveillant_general,general_accountant,comptable_superieur,comptable,secretaire,accountant,responsable_pedagogique,dean_of_studies,censeur_esg,censeur,surveillant_secteur,caissiere,bibliothecaire,chef_travaux,chef_securite,reprographe,agent_entretien,id_card_manager',
                 'qualification' => 'nullable|string|max:100',
                 'is_active' => 'boolean'
             ], [
@@ -493,7 +493,7 @@ class UserManagementController extends Controller
             // Récupérer le personnel administratif (users sauf teachers)
             $administrativeStaff = User::select('id', 'name', 'role', 'qualification', 'contact', 'created_at')
                 ->where('is_active', true)
-                ->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'accountant', 'admin', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe'])
+                ->whereIn('role', ['principal', 'surveillant_general', 'general_accountant', 'comptable_superieur', 'comptable', 'secretaire', 'accountant', 'admin', 'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 'surveillant_secteur', 'caissiere', 'bibliothecaire', 'chef_travaux', 'chef_securite', 'reprographe', 'id_card_manager'])
                 ->orderBy('name')
                 ->get();
 
@@ -797,7 +797,8 @@ class UserManagementController extends Controller
             'accountant' => 'COMPTABLE',
             'secretaire' => 'SECRÉTAIRE',
             'teacher' => 'ENSEIGNANT',
-            
+            'id_card_manager' => 'GESTIONNAIRE DE CARTES',
+
             // Rôles additionnels du fichier k.png (peuvent ne pas avoir accès à l'app)
             'principal' => 'PRINCIPAL',
             'responsable_pedagogique' => 'RESPONSABLE PÉDAGOGIQUE',
@@ -858,11 +859,11 @@ class UserManagementController extends Controller
             $staffUsers = User::select('id', 'name', 'role', 'contact', 'email')
                 ->where('is_active', true)
                 ->whereIn('role', [
-                    'surveillant_general', 'general_accountant', 'comptable_superieur', 
+                    'surveillant_general', 'general_accountant', 'comptable_superieur',
                     'comptable', 'secretaire', 'teacher', 'accountant',
-                    'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 
-                    'surveillant_secteur', 'caissiere', 'bibliothecaire', 
-                    'chef_travaux', 'chef_securite', 'reprographe'
+                    'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur',
+                    'surveillant_secteur', 'caissiere', 'bibliothecaire',
+                    'chef_travaux', 'chef_securite', 'reprographe', 'id_card_manager'
                 ])
                 ->orderBy('name')
                 ->get();
@@ -1089,11 +1090,11 @@ class UserManagementController extends Controller
             
             // Vérifier que l'utilisateur est éligible pour un badge
             $staffRoles = [
-                'surveillant_general', 'general_accountant', 'comptable_superieur', 
+                'surveillant_general', 'general_accountant', 'comptable_superieur',
                 'comptable', 'secretaire', 'teacher', 'accountant',
-                'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur', 
-                'surveillant_secteur', 'caissiere', 'bibliothecaire', 
-                'chef_travaux', 'chef_securite', 'reprographe'
+                'responsable_pedagogique', 'dean_of_studies', 'censeur_esg', 'censeur',
+                'surveillant_secteur', 'caissiere', 'bibliothecaire',
+                'chef_travaux', 'chef_securite', 'reprographe', 'id_card_manager'
             ];
             
             if (!in_array($user->role, $staffRoles)) {

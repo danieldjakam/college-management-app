@@ -601,6 +601,35 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
       ];
+    } else if (userRole === "id_card_manager") {
+      return [
+        {
+          title: "Gestion des Cartes d'Identité",
+          items: [
+            {
+              name: "Tableau de Bord",
+              href: "/id-card-manager/dashboard",
+              icon: <HouseHeartFill />,
+            },
+          ],
+        },
+        {
+          title: "Configuration",
+          items: [
+            {
+              name: "Paramètres de Carte",
+              href: "/id-card-manager/settings",
+              icon: <GearFill />,
+            },
+          ],
+        },
+        {
+          title: "Compte",
+          items: [
+            { name: "Profil", href: "/profile", icon: <PersonCircle /> },
+          ],
+        },
+      ];
     }
   };
 
@@ -643,6 +672,8 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         return "Surveillant Général";
       case "surveillant_secteur":
         return "Surveillant de Secteur";
+      case "id_card_manager":
+        return "Gestionnaire de Cartes";
       default:
         return "Utilisateur";
     }

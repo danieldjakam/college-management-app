@@ -449,7 +449,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Route spéciale pour les enseignants pour voir les élèves de leurs classes (AVANT le groupe)
-    Route::get('/students/class/{classId}', [StudentController::class, 'getByClass'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,teacher,bibliothecaire,surveillant_general,surveillant_secteur']);
+    Route::get('/students/class/{classId}', [StudentController::class, 'getByClass'])->middleware(['role:admin,secretaire,accountant,comptable_superieur,teacher,bibliothecaire,surveillant_general,surveillant_secteur,id_card_manager']);
 
     // Routes pour les élèves
     Route::prefix('students')->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur,teacher'])->group(function () {
@@ -487,7 +487,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour les cartes d'identité scolaires
-    Route::prefix('student-cards')->middleware(['role:admin,principal,secretaire'])->group(function () {
+    Route::prefix('student-cards')->middleware(['role:admin,principal,secretaire,id_card_manager'])->group(function () {
         // Générer les cartes pour une classe entière (10 par page)
         Route::post('/class/{classId}/generate', [StudentCardController::class, 'generateClassCards']);
 
@@ -498,14 +498,14 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/student/{studentId}/preview', [StudentCardController::class, 'previewCard']);
 
         // Vérifier une carte via QR Code (route publique pour scan)
-        Route::get('/verify/{matricule}', [StudentCardController::class, 'verifyCard'])->withoutMiddleware(['role:admin,principal,secretaire']);
+        Route::get('/verify/{matricule}', [StudentCardController::class, 'verifyCard'])->withoutMiddleware(['role:admin,principal,secretaire,id_card_manager']);
     });
 
     // Routes pour les paramètres de mise en page des cartes
-    Route::prefix('card-layout-settings')->middleware(['role:admin,principal,secretaire'])->group(function () {
+    Route::prefix('card-layout-settings')->middleware(['role:admin,principal,secretaire,id_card_manager'])->group(function () {
         Route::get('/', [App\Http\Controllers\CardLayoutSettingController::class, 'index']);
-        Route::post('/update', [App\Http\Controllers\CardLayoutSettingController::class, 'update']);
-        Route::post('/reset', [App\Http\Controllers\CardLayoutSettingController::class, 'reset']);
+        Route::post('/update', [App\Http\Controllers\CardLayoutSettingController::class, 'update'])->middleware(['role:admin,principal,id_card_manager']);
+        Route::post('/reset', [App\Http\Controllers\CardLayoutSettingController::class, 'reset'])->middleware(['role:admin,principal,id_card_manager']);
     });
 
     // Routes utilisateurs (pour compatibilité)
@@ -516,6 +516,15 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/all', [UserController::class, 'all']);
         Route::put('/profile', [UserController::class, 'updateProfile']);
         Route::put('/change-password', [UserController::class, 'changePassword']);
+    });
+
+    // Routes pour les gestionnaires de cartes d'identité
+    Route::prefix('id-card-manager')->middleware(['role:id_card_manager'])->group(function () {
+        Route::get('/dashboard', [\App\Http\Controllers\IdCardManagerController::class, 'dashboard']);
+        Route::get('/classes', [\App\Http\Controllers\IdCardManagerController::class, 'getClasses']);
+        Route::get('/classes/{classId}/students', [\App\Http\Controllers\IdCardManagerController::class, 'getClassStudents']);
+        Route::get('/students/{studentId}', [\App\Http\Controllers\IdCardManagerController::class, 'getStudent']);
+        Route::post('/students/{studentId}/update-photo', [\App\Http\Controllers\IdCardManagerController::class, 'updateStudentPhoto']);
     });
 
     // Routes pour les comptables
@@ -584,8 +593,8 @@ Route::middleware('auth:api')->group(function () {
 
     // Routes pour les paramètres de l'école
     Route::prefix('school-settings')->group(function () {
-        Route::get('/', [SchoolSettingsController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant,surveillant_general,comptable_superieur,teacher']);
-        Route::get('/logo', [SchoolSettingsController::class, 'getLogo'])->middleware(['role:admin,principal,secretaire,accountant,surveillant_general,comptable_superieur,teacher']);
+        Route::get('/', [SchoolSettingsController::class, 'index'])->middleware(['role:admin,principal,secretaire,accountant,surveillant_general,comptable_superieur,teacher,id_card_manager']);
+        Route::get('/logo', [SchoolSettingsController::class, 'getLogo'])->middleware(['role:admin,principal,secretaire,accountant,surveillant_general,comptable_superieur,teacher,id_card_manager']);
 
         // Routes admin uniquement
         Route::put('/', [SchoolSettingsController::class, 'update'])->middleware(['role:admin']);

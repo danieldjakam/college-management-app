@@ -304,6 +304,10 @@
     </div>
 
     <script>
+        // Token JWT passé depuis le backend
+        const JWT_TOKEN = '{{ $token ?? '' }}';
+        const API_BASE_URL = '{{ url("/api") }}';
+
         // Fonction pour mettre à jour les styles CSS dynamiquement
         function updateStyle(className, property, value, unit = 'mm') {
             const elements = document.querySelectorAll('.' + className);
@@ -415,19 +419,16 @@
             ];
 
             try {
-                const token = window.__JWT_TOKEN__ || '';
-                const apiUrl = window.__API_BASE_URL__ || '/api';
-
-                if (!token) {
+                if (!JWT_TOKEN) {
                     alert('Token d\'authentification manquant. Veuillez rafraîchir la page.');
                     return;
                 }
 
-                const response = await fetch(`${apiUrl}/card-layout-settings/update`, {
+                const response = await fetch(`${API_BASE_URL}/card-layout-settings/update`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + token
+                        'Authorization': 'Bearer ' + JWT_TOKEN
                     },
                     body: JSON.stringify({ settings })
                 });
@@ -451,19 +452,16 @@
             }
 
             try {
-                const token = window.__JWT_TOKEN__ || '';
-                const apiUrl = window.__API_BASE_URL__ || '/api';
-
-                if (!token) {
+                if (!JWT_TOKEN) {
                     alert('Token d\'authentification manquant. Veuillez rafraîchir la page.');
                     return;
                 }
 
-                const response = await fetch(`${apiUrl}/card-layout-settings/reset`, {
+                const response = await fetch(`${API_BASE_URL}/card-layout-settings/reset`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + token
+                        'Authorization': 'Bearer ' + JWT_TOKEN
                     }
                 });
 

@@ -41,7 +41,7 @@ class LevelSeeder extends Seeder
                         ['name' => '5ème', 'order' => 2],
                         ['name' => '4ème', 'order' => 3],
                         ['name' => '3ème', 'order' => 4],
-                        ['name' => '2nde', 'order' => 5],
+                        ['name' => '2nd', 'order' => 5],
                         ['name' => '1ère', 'order' => 6],
                         ['name' => 'Terminale', 'order' => 7]
                     ];
