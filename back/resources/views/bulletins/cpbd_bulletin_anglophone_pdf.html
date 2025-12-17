@@ -354,6 +354,27 @@
             white-space: nowrap;
         }
 
+        .formula-explanation {
+            margin-top: 2px;
+            padding: 2px 4px;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            font-size: 7.5pt;
+            line-height: 1.2;
+        }
+
+        .formula-explanation h4 {
+            font-size: 8pt;
+            font-weight: bold;
+            margin-bottom: 1px;
+            color: #333;
+        }
+
+        .formula-text {
+            margin: 1px 0;
+            padding-left: 5px;
+        }
+
         /* Watermark - ENLARGED - DomPDF Compatible */
         .watermark {
             position: absolute;
@@ -519,6 +540,16 @@
                         <span class="legend-item"><strong>NA :</strong> Not Acquired</span>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div class="formula-explanation">
+            <h4>Grade Calculation Formula:</h4>
+            <div class="formula-text">
+                <strong>CA (Continuous Assessment)</strong> = (Term 1 + Term 2) / 2
+            </div>
+            <div class="formula-text">
+                <strong>Trimester Average (Avg./20)</strong> = (CA + Final Exam) / 2 = <strong>50% CA + 50% Final Exam</strong>
             </div>
         </div>
 

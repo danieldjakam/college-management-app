@@ -354,6 +354,27 @@
             white-space: nowrap;
         }
 
+        .formula-explanation {
+            margin-top: 2px;
+            padding: 2px 4px;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            font-size: 7.5pt;
+            line-height: 1.2;
+        }
+
+        .formula-explanation h4 {
+            font-size: 8pt;
+            font-weight: bold;
+            margin-bottom: 1px;
+            color: #333;
+        }
+
+        .formula-text {
+            margin: 1px 0;
+            padding-left: 5px;
+        }
+
         /* Filigrane en arrière-plan - AGRANDI - Compatible DomPDF */
         .watermark {
             position: absolute;
@@ -520,6 +541,16 @@
                         <span class="legend-item"><strong>NA :</strong> Non Acquise</span>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div class="formula-explanation">
+            <h4>Formule de calcul des moyennes:</h4>
+            <div class="formula-text">
+                <strong>DS (Devoir Surveillé)</strong> = (Séquence 1 + Séquence 2) / 2
+            </div>
+            <div class="formula-text">
+                <strong>Moyenne Trimestre (Moy./20)</strong> = (DS + Composition) / 2 = <strong>50% DS + 50% Composition</strong>
             </div>
         </div>
 
