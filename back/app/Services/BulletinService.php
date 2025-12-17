@@ -231,18 +231,12 @@ class BulletinService
         $finalSeq2 = ($sequenceGrades[1] !== null && $sequenceGrades[1] !== 'ABS') ? $sequenceGrades[1] : 0.00;
         $finalCompositionGrade = ($compositionGrade !== null && $compositionGrade !== 'ABS') ? $compositionGrade : 0.00;
 
-        // 🔧 FORMULE SELON LE TYPE DE SECTION
-        if ($sectionType === 'technique' || $sectionType === 'anglophone') {
-            // TECHNIQUE/ANGLOPHONE: (Seq1 + Seq2 + Compo) / 3 (33.33% chacun)
-            $average = ($finalSeq1 + $finalSeq2 + $finalCompositionGrade) / 3;
-            \Log::info("🎓 TECHNIQUE M/20 = ({$finalSeq1} + {$finalSeq2} + {$finalCompositionGrade}) / 3 = {$average}");
-        } else {
-            // FRANCOPHONE: DS = (Seq1 + Seq2) / 2, puis M/20 = (DS + Compo) / 2 (50% + 50%)
-            $ds = ($finalSeq1 + $finalSeq2) / 2;
-            $average = ($ds + $finalCompositionGrade) / 2;
-            \Log::info("🎓 FRANCOPHONE DS = ({$finalSeq1} + {$finalSeq2}) / 2 = {$ds}");
-            \Log::info("🎓 FRANCOPHONE M/20 = ({$ds} + {$finalCompositionGrade}) / 2 = {$average}");
-        }
+        // 🔧 FORMULE UNIQUE POUR TOUTES LES SECTIONS 2ÈME CYCLE
+        // DS = (Seq1 + Seq2) / 2, puis M/20 = (DS + Compo) / 2 (50% + 50%)
+        $ds = ($finalSeq1 + $finalSeq2) / 2;
+        $average = ($ds + $finalCompositionGrade) / 2;
+        \Log::info("🎓 DEUXIÈME CYCLE {$sectionType} - DS = ({$finalSeq1} + {$finalSeq2}) / 2 = {$ds}");
+        \Log::info("🎓 DEUXIÈME CYCLE {$sectionType} - M/20 = ({$ds} + {$finalCompositionGrade}) / 2 = {$average}");
 
         return $average;
     }
@@ -818,23 +812,15 @@ class BulletinService
                     $seq2 = $sequenceGrades[1] ?? 0.00;
                     $comp = $compositionGrade ?? 0.00;
 
-                    // 🔧 FORMULE SELON LE TYPE DE SECTION
-                    if ($sectionType === 'technique' || $sectionType === 'anglophone') {
-                        // TECHNIQUE/ANGLOPHONE: (Seq1 + Seq2 + Compo) / 3 (33.33% chacun)
-                        $trimesterGrade = ($seq1 + $seq2 + $comp) / 3;
-                    } else {
-                        // FRANCOPHONE: DS = (Seq1 + Seq2) / 2, puis M/20 = (DS + Compo) / 2 (50% + 50%)
-                        $ds = ($seq1 + $seq2) / 2;
-                        $trimesterGrade = ($ds + $comp) / 2;
-                    }
+                    // 🔧 FORMULE UNIQUE POUR TOUTES LES SECTIONS 2ÈME CYCLE
+                    // DS = (Seq1 + Seq2) / 2, puis M/20 = (DS + Compo) / 2 (50% + 50%)
+                    $ds = ($seq1 + $seq2) / 2;
+                    $trimesterGrade = ($ds + $comp) / 2;
                 }
 
-                if ($sectionType === 'technique' || $sectionType === 'anglophone') {
-                    \Log::info("🎓 DEUXIÈME CYCLE {$sectionType} - {$seriesSubject->subject->name}: Seq1={$sequenceGrades[0]}, Seq2={$sequenceGrades[1]}, Compo={$compositionGrade}, Avg={$trimesterGrade} = (Seq1+Seq2+Compo)/3");
-                } else {
-                    $ds = (($sequenceGrades[0] ?? 0.00) + ($sequenceGrades[1] ?? 0.00)) / 2;
-                    \Log::info("🎓 DEUXIÈME CYCLE FRANCOPHONE - {$seriesSubject->subject->name}: Seq1={$sequenceGrades[0]}, Seq2={$sequenceGrades[1]}, DS={$ds}, Compo={$compositionGrade}, Avg={$trimesterGrade} = (DS+Compo)/2");
-                }
+                // Logging uniforme pour toutes les sections
+                $ds = (($sequenceGrades[0] ?? 0.00) + ($sequenceGrades[1] ?? 0.00)) / 2;
+                \Log::info("🎓 DEUXIÈME CYCLE {$sectionType} - {$seriesSubject->subject->name}: Seq1={$sequenceGrades[0]}, Seq2={$sequenceGrades[1]}, DS={$ds}, Compo={$compositionGrade}, Avg={$trimesterGrade} = (DS+Compo)/2");
 
                 // OPTION B: Si pas de note, on n'ajoute NI le coefficient NI les points
                 $weightedScore = $trimesterGrade !== null ? (float)$trimesterGrade * (float)$seriesSubject->coefficient : null;
@@ -1864,6 +1850,48 @@ class BulletinService
     }
 
     /**
+     * Check if Anglophone class should use APC template
+     * Classes: FROM ONE, FROM TWO, FROM THREE, FROM FOUR ARTS, FROM FOUR science, FROM FIVE (science), FROM FIVE (ARTS)
+     */
+    protected function isAngloApcClass($student)
+    {
+        $className = '';
+        if (isset($student->classSeries) && $student->classSeries) {
+            $className = strtoupper($student->classSeries->name);
+        } elseif (isset($student->schoolClass) && $student->schoolClass) {
+            $className = strtoupper($student->schoolClass->name);
+        }
+
+        // Classes anglophones qui doivent avoir le template APC
+        $apcClasses = [
+            'FORM ONE',     // ✅ Correction: FORM au lieu de FROM
+            'FORM TWO',
+            'FORM THREE',
+            'FORM FOUR ARTS',
+            'FORM FOUR SCIENCE',
+            'FORM FIVE SCIENCE',
+            'FORM FIVE ARTS',
+            'FROM ONE',     // Garder aussi FROM au cas où
+            'FROM TWO',
+            'FROM THREE',
+            'FROM FOUR ARTS',
+            'FROM FOUR SCIENCE',
+            'FROM FIVE (SCIENCE)',
+            'FROM FIVE (ARTS)',
+            'FROM FIVE SCIENCE',
+            'FROM FIVE ARTS',
+        ];
+
+        foreach ($apcClasses as $apcClass) {
+            if (stripos($className, $apcClass) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Detect section type (Francophone/Anglophone/Technique) from student
      */
     protected function determineSectionType($student)
@@ -1917,16 +1945,24 @@ class BulletinService
         $sectionType = $this->determineSectionType($data['student']);
         $cycleType = $this->determineCycleType($data['student']);
 
+        // 🎓 Check if Anglophone class should use APC template
+        $isAngloApc = $this->isAngloApcClass($data['student']);
+
         // For Anglophone and Technical sections, force Deuxième Cycle logic
         if ($sectionType === 'anglophone' || $sectionType === 'technique') {
             $cycleType = 'deuxieme';
         }
 
-        // Use APC template for 1er cycle francophone trimester bulletins
-        if ($cycleType === 'premier' && $sectionType === 'francophone' && $templateType === 'trimester') {
+        // Use APC template for:
+        // 1. Anglophone classes (FROM ONE to FROM FIVE): TRIMESTER bulletins ONLY (English version)
+        // 2. 1er cycle francophone: TRIMESTER bulletins ONLY
+        if ($templateType === 'trimester' && $sectionType === 'anglophone' && $isAngloApc) {
+            // ⭐ Use English APC template for Anglophone classes (FROM ONE to FROM FIVE) - TRIMESTER ONLY
+            $templateFile = 'bulletin_apc_anglophone.html';
+        } elseif ($templateType === 'trimester' && $cycleType === 'premier' && $sectionType === 'francophone') {
             $templateFile = 'bulletin_apc_structure_finale.html';
-        } elseif ($sectionType === 'anglophone') {
-            // Use Anglophone templates
+        } elseif ($sectionType === 'anglophone' && !$isAngloApc) {
+            // Use Anglophone templates (for other anglophone classes not in APC list)
             $templateFile = $forPdf ? 'cpbd_bulletin_anglophone_pdf.html' : 'cpbd_bulletin_anglophone.html';
         } elseif ($sectionType === 'technique') {
             // Use non-APC template for Technical sections (use same as 2nd cycle)
@@ -1948,8 +1984,8 @@ class BulletinService
         $sectionType = $this->determineSectionType($data['student']);
         $data['section_type'] = $sectionType;
 
-        // Use APC data preparation for APC template
-        if ($templateFile === 'bulletin_apc_structure_finale.html') {
+        // Use APC data preparation for both APC templates (French and English)
+        if ($templateFile === 'bulletin_apc_structure_finale.html' || $templateFile === 'bulletin_apc_anglophone.html') {
             return $this->prepareAPCBulletinHTML($html, $data);
         }
 
@@ -2872,19 +2908,49 @@ class BulletinService
         $student = $data['student'];
         $trimester = $data['trimester'];
 
+        // 🌐 Detect if this is Anglophone section for translations
+        $sectionType = $this->determineSectionType($student);
+        $isAnglophone = ($sectionType === 'anglophone');
+
         // Get class level and section
         $classLevel = '6'; // Default
         $classSection = 'A'; // Default
         if ($student->schoolClass) {
-            // Extract level from class name (e.g., "6ème A" -> "6")
-            preg_match('/(\d+)/', $student->schoolClass->name, $matches);
-            if (!empty($matches[1])) {
-                $classLevel = $matches[1];
-            }
-            // Extract section (last letter of class name)
-            preg_match('/([A-Z])$/', $student->schoolClass->name, $sectionMatches);
-            if (!empty($sectionMatches[1])) {
-                $classSection = $sectionMatches[1];
+            // Extract level from class name (e.g., "6ème A" -> "6" or "FROM ONE" -> "1")
+            if ($isAnglophone) {
+                // For Anglophone classes like "FORM ONE", "FORM TWO", etc.
+                $className = strtoupper($student->schoolClass->name);
+                if (stripos($className, 'ONE') !== false || stripos($className, '1') !== false) {
+                    $classLevel = '1';
+                } elseif (stripos($className, 'TWO') !== false || stripos($className, '2') !== false) {
+                    $classLevel = '2';
+                } elseif (stripos($className, 'THREE') !== false || stripos($className, '3') !== false) {
+                    $classLevel = '3';
+                } elseif (stripos($className, 'FOUR') !== false || stripos($className, '4') !== false) {
+                    $classLevel = '4';
+                } elseif (stripos($className, 'FIVE') !== false || stripos($className, '5') !== false) {
+                    $classLevel = '5';
+                }
+
+                // Extract section (ARTS or SCIENCE)
+                if (stripos($className, 'ARTS') !== false) {
+                    $classSection = 'ARTS';
+                } elseif (stripos($className, 'SCIENCE') !== false) {
+                    $classSection = 'SCIENCE';
+                } else {
+                    $classSection = '';
+                }
+            } else {
+                // For Francophone classes: Extract level from class name (e.g., "6ème A" -> "6")
+                preg_match('/(\d+)/', $student->schoolClass->name, $matches);
+                if (!empty($matches[1])) {
+                    $classLevel = $matches[1];
+                }
+                // Extract section (last letter of class name)
+                preg_match('/([A-Z])$/', $student->schoolClass->name, $sectionMatches);
+                if (!empty($sectionMatches[1])) {
+                    $classSection = $sectionMatches[1];
+                }
             }
         }
 
@@ -2913,7 +2979,7 @@ class BulletinService
             'student_name' => strtoupper($student->last_name . ' ' . $student->first_name),
             'birth_date' => $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : ($student->birthday ?? 'N/A'),
             'birth_place' => $student->place_of_birth ?? ($student->birthday_place ?? 'N/A'),
-            'gender' => $student->gender === 'M' ? 'Masculin' : 'Féminin',
+            'gender' => $student->gender === 'M' ? ($isAnglophone ? 'Male' : 'Masculin') : ($isAnglophone ? 'Female' : 'Féminin'),
             'unique_id' => $student->matricule ?? $student->student_number ?? 'N/A',
             'class_level' => $classLevel,
             'class_section' => $classSection,
@@ -3663,15 +3729,10 @@ class BulletinService
                 $s2 = $seq2Grade ?? 0.00;
                 $comp = $compGrade ?? 0.00;
 
-                // 🔧 FORMULE SELON LE TYPE DE SECTION
-                if ($sectionType === 'technique' || $sectionType === 'anglophone') {
-                    // TECHNIQUE/ANGLOPHONE: (Seq1 + Seq2 + Compo) / 3 (33.33% chacun)
-                    return ($s1 + $s2 + $comp) / 3;
-                } else {
-                    // FRANCOPHONE: DS = (Seq1 + Seq2) / 2, puis M/20 = (DS + Compo) / 2 (50% + 50%)
-                    $ds = ($s1 + $s2) / 2;
-                    return ($ds + $comp) / 2;
-                }
+                // 🔧 FORMULE UNIQUE POUR TOUTES LES SECTIONS 2ÈME CYCLE
+                // DS = (Seq1 + Seq2) / 2, puis M/20 = (DS + Compo) / 2 (50% + 50%)
+                $ds = ($s1 + $s2) / 2;
+                return ($ds + $comp) / 2;
             }
 
             return null;

@@ -210,4 +210,107 @@ class PVController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Générer le PV de TRIMESTRE (moyennes DS + Composition)
+     * GET /api/pv/trimester/generate/{classSeriesId}/{trimesterId}
+     */
+    public function generateTrimester($classSeriesId, $trimesterId)
+    {
+        try {
+            Log::info("🎯 Requête génération PV TRIMESTRE - ClassSeries: {$classSeriesId}, Trimester: {$trimesterId}");
+
+            // Valider que la série existe
+            $classSeries = ClassSeries::findOrFail($classSeriesId);
+
+            // Valider que le trimestre existe
+            $trimester = \App\Models\Trimester::findOrFail($trimesterId);
+
+            // Générer le PV de trimestre
+            $pdf = $this->pvService->generateTrimesterPV($classSeriesId, $trimesterId);
+
+            // Nom du fichier
+            $fileName = 'PV_' . str_replace(' ', '_', $classSeries->name) . '_Trimestre' . $trimester->number . '_' . date('Y-m-d') . '.pdf';
+
+            Log::info("✅ PV TRIMESTRE généré avec succès: {$fileName}");
+
+            // Retourner le PDF
+            return $pdf->download($fileName);
+
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur génération PV TRIMESTRE: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du PV de trimestre',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Prévisualiser le PV de TRIMESTRE (retourner en HTML)
+     * GET /api/pv/trimester/preview/{classSeriesId}/{trimesterId}
+     */
+    public function previewTrimester($classSeriesId, $trimesterId)
+    {
+        try {
+            $classSeries = ClassSeries::findOrFail($classSeriesId);
+            $trimester = \App\Models\Trimester::findOrFail($trimesterId);
+
+            // Générer le HTML de prévisualisation
+            $html = $this->pvService->generateTrimesterHTML($classSeriesId, $trimesterId);
+
+            return response($html, 200)->header('Content-Type', 'text/html');
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la prévisualisation du PV de trimestre',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir la liste des trimestres disponibles pour une série
+     * GET /api/pv/trimesters/{classSeriesId}
+     */
+    public function getAvailableTrimesters($classSeriesId)
+    {
+        try {
+            $classSeries = ClassSeries::with(['schoolClass'])->findOrFail($classSeriesId);
+
+            // Récupérer l'année scolaire courante
+            $currentYear = SchoolYear::where('is_current', true)->first();
+
+            if (!$currentYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année scolaire active'
+                ], 404);
+            }
+
+            // Récupérer tous les trimestres de l'année courante
+            $trimesters = \App\Models\Trimester::where('school_year_id', $currentYear->id)
+                ->orderBy('number')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'class_series' => $classSeries,
+                    'trimesters' => $trimesters,
+                    'school_year' => $currentYear
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur récupération trimestres: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des trimestres',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

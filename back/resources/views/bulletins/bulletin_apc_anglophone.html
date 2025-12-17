@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>APC Report Card - 1st Cycle</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Times New Roman', serif;
+            font-size: 8pt;
+            color: #000;
+        }
+
+        .page {
+            width: 210mm;
+            padding: 8mm 8mm 8mm 8mm;
+            position: relative;
+        }
+
+        /* Watermark - DomPDF Compatible */
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 300px;
+            height: 300px;
+            margin-left: -150px;
+            margin-top: -150px;
+            opacity: 0.08;
+            z-index: -1;
+        }
+
+        .page {
+            position: relative;
+            z-index: 1;
+        }
+
+        table { border-collapse: collapse; width: 100%; }
+
+        /* CPBD Header */
+        .header-table { margin-bottom: 6px; }
+        .header-table td {
+            background: #EFE9F3;
+            padding: 3px 4px;
+            font-size: 8pt;
+            vertical-align: middle;
+            line-height: 1.2;
+        }
+
+        .header-left { text-align: left; width: 37%; }
+        .header-center { text-align: center; width: 26%; }
+        .header-right { text-align: right; width: 37%; }
+
+        .logo {
+            width: 45px;
+            height: 45px;
+            border: 2px solid #a855f7;
+            border-radius: 50%;
+            background: white;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12pt;
+            font-weight: bold;
+            color: #a855f7;
+            overflow: hidden;
+        }
+
+        .logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 2px;
+        }
+
+        .title {
+            text-align: center;
+            font-size: 14pt;
+            font-weight: bold;
+            background: #EFE9F3;
+            padding: 5px;
+            margin: 5px 0;
+        }
+
+        .year { text-align: center; font-size: 8pt; margin-bottom: 6px; }
+
+        /* Student info table */
+        .student-table { margin-bottom: 6px; }
+        .student-table td {
+            border: 1px solid #000;
+            padding: 3px 4px;
+            font-size: 8pt;
+            vertical-align: middle;
+            line-height: 1.3;
+        }
+
+        .photo-cell {
+            width: 75px;
+            text-align: center;
+            background: #f5f5f5;
+        }
+
+        .photo-box {
+            width: 70px;
+            height: 80px;
+            border: 1px dashed #999;
+            margin: 2px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8pt;
+            color: #666;
+        }
+
+        /* Grades table */
+        .grades-table { margin-bottom: 6px; }
+        .grades-table th, .grades-table td {
+            border: 1px solid #000;
+            padding: 2px;
+            font-size: 8pt;
+            text-align: center;
+            vertical-align: middle;
+            line-height: 1.2;
+        }
+
+        .grades-table th { background: #EFE9F3; font-weight: bold; font-size: 8pt; }
+
+        .subject-col { text-align: left; width: 12%; font-size: 8pt; }
+        .competence-col { text-align: left; width: 20%; font-size: 7.5pt; line-height: 1.2; }
+        .note-col { width: 5%; }
+        .avg-col { width: 5%; font-weight: bold; }
+        .coef-col { width: 4%; }
+        .total-col { width: 6%; }
+        .cote-col { width: 5%; font-weight: bold; }
+        .minmax-col { width: 10%; font-size: 7.5pt; }
+        .app-col { width: 15%; font-size: 7.5pt; }
+
+        .teacher-name { font-size: 8pt; font-style: italic; color: #555; }
+
+        .total-row td {
+            font-weight: bold;
+            font-size: 8pt;
+            background: #f9f9f9;
+        }
+
+        /* Discipline/Work/Profile table (9 columns) */
+        .bottom-table { margin-bottom: 6px; }
+        .bottom-table td {
+            border: 1px solid #000;
+            padding: 3px;
+            font-size: 8pt;
+            vertical-align: middle;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .section-header {
+            background: #EFE9F3;
+            font-weight: bold;
+            text-align: center;
+            font-size: 8pt;
+        }
+
+        .disc-label { width: 8%; text-align: left; font-size: 8pt; }
+        .disc-data { width: 3%; }
+        .travail-label { width: 8%; text-align: left; font-size: 8pt; }
+        .travail-data { width: 4%; }
+        .app-col1 { width: 7%; font-size: 8pt; }
+        .app-col2 { width: 5%; font-size: 8pt; }
+        .profil-label { width: 8%; font-size: 8pt; }
+        .profil-data { width: 10%; }
+
+        /* Detailed comments table */
+        .final-table { margin-bottom: 5px; }
+        .final-table td {
+            border: 1px solid #000;
+            padding: 4px 5px;
+            font-size: 8pt;
+            vertical-align: top;
+            line-height: 1.3;
+        }
+
+        .app-header {
+            background: #EFE9F3;
+            font-weight: bold;
+            text-align: center;
+            font-size: 8pt;
+        }
+
+        .app-box {
+            min-height: 45px;
+            font-size: 8pt;
+        }
+
+        .signature-cell {
+            text-align: center;
+            height: 35px;
+            vertical-align: bottom;
+            font-weight: bold;
+            font-size: 8pt;
+        }
+
+        /* Grade colors */
+        .cote-a-plus { color: #27ae60; }
+        .cote-a { color: #2ecc71; }
+        .cote-b-plus { color: #3498db; }
+        .cote-b { color: #5dade2; }
+        .cote-c-plus { color: #f39c12; }
+        .cote-c { color: #e67e22; }
+        .cote-d { color: #e74c3c; }
+
+        @media print {
+            .page { margin: 0; padding: 5mm; }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <!-- Watermark logo -->
+    <img src="{{ public_path('assets/images/logo.png') }}" alt="Watermark" class="watermark">
+
+    <div class="content-wrapper">
+    <!-- CPBD Header -->
+    <table class="header-table">
+        <tr>
+            <td class="header-left">
+                <b>REPUBLIC OF CAMEROON</b><br>
+                Peace - Work - Fatherland<br>
+                <b>MINISTRY OF SECONDARY EDUCATION</b><br>
+                <b>BILINGUAL COMPREHENSIVE COLLEGE DLA</b><br>
+                P.O. Box: 4100 Douala Phone: 233 43 25 47<br>
+                E-mail: info@cpbdyassa.com<br>
+                <b>YASSA</b>
+            </td>
+            <td class="header-center">
+                <div class="logo"><img src="{{ public_path('assets/images/logo.png') }}" alt="CPBD Logo"></div>
+            </td>
+            <td class="header-right">
+                <b>REPUBLIQUE DU CAMEROUN</b><br>
+                Paix - Travail - Patrie<br>
+                <b>MINISTÈRE DES ENSEIGNEMENTS SECONDAIRES</b><br>
+                <b>COLLÈGE POLYVALENT BILINGUE DE DOUALA</b><br>
+                B.P.: 4100 Douala Tél.: 233 43 25 47<br>
+                E-mail: info@cpbdyassa.com<br>
+                <b>YASSA</b>
+            </td>
+        </tr>
+    </table>
+
+    <div class="title">FIRST TERM REPORT CARD</div>
+    <div class="year">Academic Year: {{school_year}}</div>
+
+    <!-- Student information table -->
+    <table class="student-table">
+        <tr>
+            <td rowspan="3" class="photo-cell">
+                <div class="photo-box">Student Photo</div>
+            </td>
+            <td colspan="4"><b>Student's Name:</b> {{student_name}}</td>
+        </tr>
+        <tr>
+            <td colspan="2"><b>Class:</b> Form {{class_level}} {{class_section}}</td>
+            <td colspan="2"><b>Class Size:</b> {{class_size}}</td>
+        </tr>
+        <tr>
+            <td><b>Date and Place of Birth:</b> {{birth_date}} at {{birth_place}}</td>
+            <td><b>Gender:</b> {{gender}}</td>
+            <td colspan="2"><b>Repeating:</b> Yes ☐  No ☐</td>
+        </tr>
+        <tr>
+            <td><b>Student ID:</b> {{unique_id}}</td>
+            <td colspan="2"><b>Class Master/Mistress:</b> {{main_teacher}}</td>
+            <td colspan="2"></td>
+        </tr>
+        <tr>
+            <td colspan="5"><b>Parent/Guardian Names and Contacts:</b> {{parent_info}}</td>
+        </tr>
+    </table>
+
+    <!-- Grades table -->
+    <table class="grades-table">
+        <thead>
+            <tr>
+                <th class="subject-col">SUBJECTS AND TEACHER'S NAME</th>
+                <th class="competence-col">COMPETENCES ASSESSED</th>
+                <th class="note-col">N/20</th>
+                <th class="avg-col">M/20</th>
+                <th class="coef-col">Coef</th>
+                <th class="total-col">M x coef</th>
+                <th class="cote-col">GRADE</th>
+                <th class="minmax-col">[Min – Max]</th>
+                <th class="app-col">Comments and Visa</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{subjects_html}}
+
+            <!-- TOTAL/AVERAGE integrated -->
+            <tr class="total-row">
+                <td colspan="4" style="text-align: right;"><b>TOTAL</b></td>
+                <td>{{total_coef}}</td>
+                <td>{{total_general}}</td>
+                <td colspan="3" style="text-align: center;"><b>AVERAGE: {{general_average}}</b></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Discipline/Work/Profile table (9 columns) -->
+    <table class="bottom-table">
+        <!-- Header row -->
+        <tr>
+            <td colspan="4" class="section-header"><b>DISCIPLINE</b></td>
+            <td colspan="2" class="section-header"><b>STUDENT WORK</b></td>
+            <td colspan="2" class="section-header"><b>COMMENTS</b></td>
+            <td colspan="2" class="section-header"><b>CLASS PROFILE</b></td>
+        </tr>
+
+        <!-- Row 1 -->
+        <tr>
+            <td class="disc-label">Unjustified Abs. (h)</td>
+            <td class="disc-data"></td>
+            <td class="disc-label">Conduct Warning</td>
+            <td class="disc-data"></td>
+            <td class="travail-label">TOTAL GENERAL</td>
+            <td class="travail-data">{{total_general}}</td>
+            <td colspan="2" class="section-header">COMMENTS</td>
+            <td class="profil-label">GENERAL AVERAGE</td>
+            <td class="profil-data">{{general_average}}</td>
+        </tr>
+
+        <!-- Row 2 -->
+        <tr>
+            <td class="disc-label">Justified Abs. (h)</td>
+            <td class="disc-data">{{abs_just}}</td>
+            <td class="disc-label">Conduct Blame</td>
+            <td class="disc-data"></td>
+            <td class="travail-label">COEF</td>
+            <td class="travail-data">{{total_coef}}</td>
+            <td class="app-col1">CTBA<br>CBA</td>
+            <td class="app-col2"></td>
+            <td class="profil-label">[Min – Max]</td>
+            <td class="profil-data">{{class_min_max}}</td>
+        </tr>
+
+        <!-- Row 3 -->
+        <tr>
+            <td class="disc-label">Late (hours)</td>
+            <td class="disc-data">{{discipline_delays_justified}} / {{discipline_delays_unjustified}}</td>
+            <td class="disc-label">Exclusions (days)</td>
+            <td class="disc-data">{{discipline_exclusion_days}}</td>
+            <td class="travail-label">TERM AVERAGE</td>
+            <td class="travail-data">{{general_average}}</td>
+            <td class="app-col1">CA</td>
+            <td class="app-col2"></td>
+            <td class="profil-label">Number of averages</td>
+            <td class="profil-data">{{nb_averages}}</td>
+        </tr>
+
+        <!-- Row 4 -->
+        <tr>
+            <td colspan="6"></td>
+            <td class="app-col1">CMA</td>
+            <td class="app-col2"></td>
+            <td class="profil-label">Success rate</td>
+            <td class="profil-data">{{success_rate}}%</td>
+        </tr>
+    </table>
+
+    <!-- Detailed comments table -->
+    <table class="final-table">
+        <tr>
+            <td colspan="3" class="app-header"><b>Assessment of Student's Work (strengths and areas for improvement)</b></td>
+        </tr>
+        <tr>
+            <td colspan="3" class="app-box">{{detailed_appreciation}}</td>
+        </tr>
+        <tr>
+            <td class="signature-cell">Parent/Guardian Visa</td>
+            <td class="signature-cell">Class Master/Mistress Name and Visa</td>
+            <td class="signature-cell">Principal</td>
+        </tr>
+    </table>
+    </div><!-- end content-wrapper -->
+</div>
+</body>
+</html>

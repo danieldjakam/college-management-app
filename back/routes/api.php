@@ -1418,12 +1418,26 @@ Route::middleware(['auth:api'])->prefix('pv')->group(function () {
     Route::get('/evaluations/{classSeriesId}', [App\Http\Controllers\PVController::class, 'getAvailableEvaluations'])
         ->middleware(['role:admin,principal,secretaire,comptable_superieur']);
 
-    // Générer le PV en PDF
+    // Générer le PV en PDF (séquence/composition)
     Route::get('/generate/{classSeriesId}/{evaluationId}', [App\Http\Controllers\PVController::class, 'generate'])
         ->middleware(['role:admin,principal,secretaire,comptable_superieur']);
 
-    // Prévisualiser le PV (HTML)
+    // Prévisualiser le PV (HTML - séquence/composition)
     Route::get('/preview/{classSeriesId}/{evaluationId}', [App\Http\Controllers\PVController::class, 'preview'])
+        ->middleware(['role:admin,principal,secretaire,comptable_superieur']);
+
+    // === ROUTES POUR PV DE TRIMESTRE ===
+
+    // Liste des trimestres disponibles pour une série
+    Route::get('/trimesters/{classSeriesId}', [App\Http\Controllers\PVController::class, 'getAvailableTrimesters'])
+        ->middleware(['role:admin,principal,secretaire,comptable_superieur']);
+
+    // Générer le PV de trimestre en PDF
+    Route::get('/trimester/generate/{classSeriesId}/{trimesterId}', [App\Http\Controllers\PVController::class, 'generateTrimester'])
+        ->middleware(['role:admin,principal,secretaire,comptable_superieur']);
+
+    // Prévisualiser le PV de trimestre (HTML)
+    Route::get('/trimester/preview/{classSeriesId}/{trimesterId}', [App\Http\Controllers\PVController::class, 'previewTrimester'])
         ->middleware(['role:admin,principal,secretaire,comptable_superieur']);
 });
 

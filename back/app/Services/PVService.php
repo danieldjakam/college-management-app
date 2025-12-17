@@ -15,6 +15,7 @@ use App\Models\SchoolYear;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use App\Services\BulletinService;
 
 class PVService
 {
@@ -165,6 +166,245 @@ class PVService
             Log::error("❌ Erreur génération HTML: " . $e->getMessage());
             throw $e;
         }
+    }
+
+    /**
+     * Générer le PV de TRIMESTRE (avec moyennes DS + Composition)
+     */
+    public function generateTrimesterPV($classSeriesId, $trimesterId)
+    {
+        try {
+            Log::info("🎯 Génération PV TRIMESTRE pour class_series_id: {$classSeriesId}, trimester_id: {$trimesterId}");
+
+            // Récupérer les informations de base
+            $classSeries = ClassSeries::with(['schoolClass.level'])->findOrFail($classSeriesId);
+            $trimester = Trimester::findOrFail($trimesterId);
+            $schoolYear = SchoolYear::where('is_current', true)->firstOrFail();
+
+            // Déterminer le cycle (premier/deuxieme)
+            $cycleType = $this->determineCycleType($classSeries);
+            Log::info("🎓 Cycle détecté: {$cycleType}");
+
+            // Créer un objet "evaluation" virtuel pour la compatibilité
+            $evaluationData = (object) [
+                'trimester' => $trimester,
+                'schoolYear' => $schoolYear,
+                'school_year_id' => $schoolYear->id,
+                'is_trimester_pv' => true // Flag pour indiquer que c'est un PV de trimestre
+            ];
+
+            // Récupérer le professeur principal
+            $mainTeacher = MainTeacher::where('class_series_id', $classSeriesId)
+                ->where('school_year_id', $schoolYear->id)
+                ->where('is_active', true)
+                ->with('teacher')
+                ->first();
+
+            $mainTeacherName = $mainTeacher ? $mainTeacher->teacher->first_name . ' ' . $mainTeacher->teacher->last_name : 'Non désigné';
+
+            // Récupérer les matières de cette série
+            $seriesSubjects = ClassSeriesSubject::where('class_series_id', $classSeriesId)
+                ->where('is_active', true)
+                ->with('subject')
+                ->orderBy('subject_id')
+                ->get();
+
+            // Récupérer tous les élèves de cette série
+            $students = Student::where('class_series_id', $classSeriesId)
+                ->where('is_active', true)
+                ->get();
+
+            // Calculer les résultats de chaque élève (moyennes trimestrielles)
+            $bulletinService = new BulletinService();
+            $studentsResults = [];
+
+            foreach ($students as $student) {
+                $result = $this->calculateStudentTrimesterResults(
+                    $student,
+                    $seriesSubjects,
+                    $trimesterId,
+                    $schoolYear->id,
+                    $cycleType,
+                    $bulletinService
+                );
+                $studentsResults[] = $result;
+            }
+
+            // Trier par moyenne décroissante
+            usort($studentsResults, function ($a, $b) {
+                return $b['average'] <=> $a['average'];
+            });
+
+            // Attribuer les rangs
+            foreach ($studentsResults as $index => &$result) {
+                $result['rank'] = $index + 1;
+            }
+
+            // Calculer les statistiques
+            $statistics = $this->calculateStatistics($studentsResults);
+
+            // Générer le HTML
+            $html = $this->generateHTML($classSeries, $evaluationData, $seriesSubjects, $studentsResults, $statistics, $mainTeacherName, $cycleType);
+
+            // Générer le PDF
+            $pdf = PDF::loadHTML($html);
+            $pdf->setPaper('A4', 'landscape');
+
+            Log::info("✅ PV TRIMESTRE généré avec succès");
+
+            return $pdf;
+
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur génération PV TRIMESTRE: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Générer le HTML de prévisualisation pour un TRIMESTRE
+     */
+    public function generateTrimesterHTML($classSeriesId, $trimesterId)
+    {
+        try {
+            // Récupérer les informations de base
+            $classSeries = ClassSeries::with(['schoolClass.level'])->findOrFail($classSeriesId);
+            $trimester = Trimester::findOrFail($trimesterId);
+            $schoolYear = SchoolYear::where('is_current', true)->firstOrFail();
+
+            // Déterminer le cycle
+            $cycleType = $this->determineCycleType($classSeries);
+
+            // Créer un objet "evaluation" virtuel
+            $evaluationData = (object) [
+                'trimester' => $trimester,
+                'schoolYear' => $schoolYear,
+                'school_year_id' => $schoolYear->id,
+                'is_trimester_pv' => true
+            ];
+
+            // Récupérer le professeur principal
+            $mainTeacher = MainTeacher::where('class_series_id', $classSeriesId)
+                ->where('school_year_id', $schoolYear->id)
+                ->where('is_active', true)
+                ->with('teacher')
+                ->first();
+
+            $mainTeacherName = $mainTeacher ? $mainTeacher->teacher->first_name . ' ' . $mainTeacher->teacher->last_name : 'Non désigné';
+
+            // Récupérer les matières
+            $seriesSubjects = ClassSeriesSubject::where('class_series_id', $classSeriesId)
+                ->where('is_active', true)
+                ->with('subject')
+                ->orderBy('subject_id')
+                ->get();
+
+            // Récupérer les élèves
+            $students = Student::where('class_series_id', $classSeriesId)
+                ->where('is_active', true)
+                ->get();
+
+            // Calculer les résultats
+            $bulletinService = new BulletinService();
+            $studentsResults = [];
+
+            foreach ($students as $student) {
+                $result = $this->calculateStudentTrimesterResults(
+                    $student,
+                    $seriesSubjects,
+                    $trimesterId,
+                    $schoolYear->id,
+                    $cycleType,
+                    $bulletinService
+                );
+                $studentsResults[] = $result;
+            }
+
+            // Trier et attribuer rangs
+            usort($studentsResults, function ($a, $b) {
+                return $b['average'] <=> $a['average'];
+            });
+
+            foreach ($studentsResults as $index => &$result) {
+                $result['rank'] = $index + 1;
+            }
+
+            // Statistiques
+            $statistics = $this->calculateStatistics($studentsResults);
+
+            // Générer et retourner le HTML
+            return $this->generateHTML($classSeries, $evaluationData, $seriesSubjects, $studentsResults, $statistics, $mainTeacherName, $cycleType);
+
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur génération HTML TRIMESTRE: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Calculer les résultats d'un élève pour un TRIMESTRE COMPLET
+     * Utilise la logique de BulletinService (DS + Composition selon le cycle)
+     */
+    private function calculateStudentTrimesterResults($student, $seriesSubjects, $trimesterId, $schoolYearId, $cycleType, $bulletinService)
+    {
+        $totalPoints = 0;
+        $grades = [];
+
+        // 🔧 Calculer d'abord le total de TOUS les coefficients
+        $allCoefficients = 0;
+        foreach ($seriesSubjects as $seriesSubject) {
+            $allCoefficients += (float)$seriesSubject->coefficient;
+        }
+
+        foreach ($seriesSubjects as $seriesSubject) {
+            // Utiliser la méthode calculateTrimesterGrade du BulletinService
+            // Cette méthode calcule automatiquement: (DS + Composition) / 2 pour premier cycle
+            // ou (Seq1 + Seq2 + Compo) / 3 pour deuxieme cycle
+            $trimesterGrade = $bulletinService->calculateTrimesterGrade(
+                $trimesterId,
+                $student->id,
+                $seriesSubject->id,
+                $cycleType
+            );
+
+            if ($trimesterGrade !== null) {
+                $grades[$seriesSubject->id] = $trimesterGrade;
+                $totalPoints += (float)$trimesterGrade * (float)$seriesSubject->coefficient;
+            } else {
+                $grades[$seriesSubject->id] = null; // Absent ou pas de note (= 0)
+                // Les matières sans notes comptent comme 0
+            }
+        }
+
+        // 🔧 Compter TOUTES les matières (absence = 0)
+        $average = $allCoefficients > 0 ? round($totalPoints / $allCoefficients, 2) : 0;
+
+        return [
+            'student' => $student,
+            'grades' => $grades,
+            'total_points' => round($totalPoints, 2),
+            'average' => $average,
+            'mention' => $this->getMention($average),
+            'passed' => $average >= 10
+        ];
+    }
+
+    /**
+     * Déterminer le cycle (premier/deuxieme) à partir de la classe
+     */
+    private function determineCycleType($classSeries)
+    {
+        $className = strtolower($classSeries->name);
+
+        // Mots-clés du deuxième cycle
+        $deuxiemeCycleKeywords = ['seconde', '2nde', '2nd', 'première', '1ère', 'terminale', 'tle'];
+
+        foreach ($deuxiemeCycleKeywords as $keyword) {
+            if (strpos($className, $keyword) !== false) {
+                return 'deuxieme';
+            }
+        }
+
+        return 'premier'; // Par défaut
     }
 
     /**
@@ -394,7 +634,7 @@ class PVService
     /**
      * Générer le HTML du PV
      */
-    private function generateHTML($classSeries, $evaluation, $seriesSubjects, $studentsResults, $statistics, $mainTeacherName)
+    private function generateHTML($classSeries, $evaluation, $seriesSubjects, $studentsResults, $statistics, $mainTeacherName, $cycleType = 'premier')
     {
         // Déterminer le nombre de matières
         $subjectsCount = $seriesSubjects->count();
@@ -434,8 +674,21 @@ class PVService
 
         // Type d'évaluation
         $evaluationType = '';
-        if ($evaluation->sequence) {
-            // Vérifier si c'est une composition
+
+        // Vérifier si c'est un PV de trimestre
+        if (isset($evaluation->is_trimester_pv) && $evaluation->is_trimester_pv) {
+            // PV de trimestre avec formule selon le cycle
+            if ($cycleType === 'deuxieme') {
+                $evaluationType = "Trimestre {$evaluation->trimester->number} (Moy = (Seq1 + Seq2 + Compo) / 3)";
+            } else {
+                if ($evaluation->trimester->number == 3) {
+                    $evaluationType = "Trimestre {$evaluation->trimester->number} (Composition uniquement)";
+                } else {
+                    $evaluationType = "Trimestre {$evaluation->trimester->number} (Moy = (DS + Compo) / 2)";
+                }
+            }
+        } elseif ($evaluation->sequence) {
+            // PV de séquence ou composition
             if ($evaluation->sequence->is_composition) {
                 $evaluationType = "Composition {$evaluation->trimester->number} - Trimestre {$evaluation->trimester->number}";
             } else {
