@@ -262,6 +262,17 @@ class HonorRollController extends Controller
             $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
         }
 
+        // Récupérer l'année scolaire active
+        $currentSchoolYear = \App\Models\SchoolYear::where('is_active', true)->first();
+        if ($currentSchoolYear && $currentSchoolYear->start_date && $currentSchoolYear->end_date) {
+            $startYear = \Carbon\Carbon::parse($currentSchoolYear->start_date)->year;
+            $endYear = \Carbon\Carbon::parse($currentSchoolYear->end_date)->year;
+            $academicYear = $startYear . '/' . $endYear;
+        } else {
+            // Fallback: année courante
+            $academicYear = date('Y') . '/' . (date('Y') + 1);
+        }
+
         // Préparer les données pour le template
         $data = [
             'student' => $student,
@@ -271,7 +282,7 @@ class HonorRollController extends Controller
             'mention' => $mention,
             'total_points' => $bulletinData['totalPoints'] ?? 0,
             'class_name' => $student->classSeries->name ?? 'N/A',
-            'academic_year' => '2024/2025', // TODO: Récupérer depuis les settings
+            'academic_year' => $academicYear,
             'generation_date' => now()->format('d/m/Y'),
             'logo_base64' => $logoBase64,
         ];
@@ -435,6 +446,17 @@ class HonorRollController extends Controller
                     $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
                 }
 
+                // Récupérer l'année scolaire active
+                $currentSchoolYear = \App\Models\SchoolYear::where('is_active', true)->first();
+                if ($currentSchoolYear && $currentSchoolYear->start_date && $currentSchoolYear->end_date) {
+                    $startYear = \Carbon\Carbon::parse($currentSchoolYear->start_date)->year;
+                    $endYear = \Carbon\Carbon::parse($currentSchoolYear->end_date)->year;
+                    $academicYear = $startYear . '/' . $endYear;
+                } else {
+                    // Fallback: année courante
+                    $academicYear = date('Y') . '/' . (date('Y') + 1);
+                }
+
                 // Préparer les données pour le template
                 $data = [
                     'student' => $student,
@@ -444,7 +466,7 @@ class HonorRollController extends Controller
                     'mention' => $mention,
                     'total_points' => $bulletinData['totalPoints'] ?? 0,
                     'class_name' => $student->classSeries->name ?? 'N/A',
-                    'academic_year' => '2024/2025',
+                    'academic_year' => $academicYear,
                     'generation_date' => now()->format('d/m/Y'),
                     'logo_base64' => $logoBase64,
                 ];
