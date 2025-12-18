@@ -1065,8 +1065,10 @@ class BulletinService
         $compositionSequence = $this->getCompositionForTrimester($trimesterNumber);
 
         // Récupérer TOUS les étudiants actifs de la classe
+        // 🔧 FIX: Charger les relations classSeries et schoolClass pour afficher le bon nom de classe
         $allStudents = Student::where('class_series_id', $seriesId)
             ->where('is_active', true)
+            ->with(['classSeries', 'schoolClass.level.section']) // Eager load relations
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->get();
@@ -1915,6 +1917,9 @@ class BulletinService
             $className = strtoupper($student->schoolClass->name);
         }
 
+        // 🔧 FIX: Normaliser le nom de classe (supprimer espaces multiples)
+        $className = preg_replace('/\s+/', ' ', trim($className));
+
         // Classes anglophones qui doivent avoir le template APC
         $apcClasses = [
             'FORM ONE',     // ✅ Correction: FORM au lieu de FROM
@@ -1924,13 +1929,21 @@ class BulletinService
             'FORM FOUR SCIENCE',
             'FORM FIVE SCIENCE',
             'FORM FIVE ARTS',
+            'FORM FIVE (SCIENCE)',   // Sans espace
+            'FORM FIVE (SCIENCE )',  // 🔧 FIX: Avec espace APRÈS science (nom réel en DB)
+            'FORM FIVE (ARTS)',      // Sans espace
+            'FORM FIVE (ARTS )',     // 🔧 FIX: Avec espace APRÈS arts
+            'FORM FIVE ( SCIENCE )', // Avec espaces avant et après (au cas où)
+            'FORM FIVE ( ARTS )',    // Avec espaces avant et après (au cas où)
             'FROM ONE',     // Garder aussi FROM au cas où
             'FROM TWO',
             'FROM THREE',
             'FROM FOUR ARTS',
             'FROM FOUR SCIENCE',
             'FROM FIVE (SCIENCE)',
+            'FROM FIVE (SCIENCE )',
             'FROM FIVE (ARTS)',
+            'FROM FIVE (ARTS )',
             'FROM FIVE SCIENCE',
             'FROM FIVE ARTS',
         ];
@@ -2473,9 +2486,9 @@ class BulletinService
                 if ($sectionType === 'anglophone') {
                     // English headers for Anglophone section
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 15%;">SUBJECT</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Term 1</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Term 2</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Final Exam</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">1st Sequence</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">2nd Sequence</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">1st Term Exam</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Avg./20</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">COEF.</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
