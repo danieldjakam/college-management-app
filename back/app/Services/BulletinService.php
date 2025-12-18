@@ -2879,8 +2879,11 @@ class BulletinService
             return $sectionType === 'anglophone' ? 'MR. N/A' : 'N/A';
         }
 
-        // Get current school year (assuming school_year_id = 1 for now)
-        $currentSchoolYearId = 1;
+        // 🔧 FIX: Get current ACTIVE school year from database instead of hardcoded value
+        $currentSchoolYear = \Cache::remember('current_school_year', 3600, function () {
+            return \App\Models\SchoolYear::where('is_active', true)->first();
+        });
+        $currentSchoolYearId = $currentSchoolYear ? $currentSchoolYear->id : 1;
 
         // Query main_teachers table
         $mainTeacher = \DB::table('main_teachers')
@@ -3042,13 +3045,8 @@ class BulletinService
             }
         }
 
-        // 🚀 OPTIMISATION: Get main teacher from pre-loaded subject data (avoid SQL query)
-        $mainTeacher = 'N/A';
-        if (isset($data['subjects']) && count($data['subjects']) > 0) {
-            // Use the teacher from the first subject (already loaded in bulletinData)
-            $firstSubject = $data['subjects'][0];
-            $mainTeacher = $firstSubject['teacher'] ?? 'N/A';
-        }
+        // 🔧 FIX: Get REAL main teacher from main_teachers table (not just first subject teacher)
+        $mainTeacher = $this->getMainTeacher($student, $sectionType);
 
         // Get parent info
         $parentInfo = 'N/A';
@@ -3208,6 +3206,10 @@ class BulletinService
         $replacements['nb_averages'] = $nb_averages;
         $replacements['success_rate'] = $success_rate;
         $replacements['detailed_appreciation'] = $this->getDetailedAppreciation($generalAverage);
+
+        // 🔧 FIX: Add student rank (missing in APC template)
+        $student_rank = $data['rank'] ?? null;
+        $replacements['student_rank'] = $student_rank !== null ? $student_rank . 'e' : 'NC';
 
         // Replace all placeholders
         foreach ($replacements as $key => $value) {
