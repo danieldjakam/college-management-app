@@ -19,19 +19,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        'http://localhost:3006',
-        'http://127.0.0.1:3006',
-        'http://127.0.0.1:3000',
-        'http://localhost:3001',
-        'http://127.0.0.1:3001',
-        'http://localhost:3007',
-        'http://127.0.0.1:8001',
-        'http://admin1.cpb-douala.com',
-        'http://admin.cpb-douala.com',
-        'https://admin.cpb-douala.com',
-        'https://admin1.cpb-douala.com'
-    ],
+    'allowed_origins' => ['*'], // Accepter toutes les origines (mode développement)
 
     'allowed_origins_patterns' => [],
 

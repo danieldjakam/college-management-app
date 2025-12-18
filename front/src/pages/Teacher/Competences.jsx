@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     Card, Row, Col, Form, Button, Spinner, Alert,
     Accordion, Badge, Table
@@ -19,25 +19,74 @@ const Competences = () => {
     const [saving, setSaving] = useState({});
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(null);
+    const [competencesLoaded, setCompetencesLoaded] = useState(false);
+    const [activeAccordionKey, setActiveAccordionKey] = useState("0"); // Initialiser avec "0" pour ouvrir le premier par défaut
+    const loadedTrimestersRef = useRef(new Set());
 
-    useEffect(() => {
-        if (user && user.teacher_id) {
-            loadInitialData();
+    // Définir loadAllCompetences AVANT les useEffects
+    const loadAllCompetences = useCallback(async () => {
+        if (!selectedTrimester || classes.length === 0) return;
+
+        // Vérifier si on a déjà chargé ce trimestre
+        const trimesterKey = `${selectedTrimester.id}`;
+        if (loadedTrimestersRef.current.has(trimesterKey)) {
+            console.log('⏭️ Compétences déjà chargées pour ce trimestre, skip');
+            return;
         }
-    }, [user]);
 
-    useEffect(() => {
-        if (selectedTrimester && classes.length > 0) {
-            loadAllCompetences();
+        console.log('🔄 loadAllCompetences appelé pour trimestre', selectedTrimester.id);
+        try {
+            const loadedCompetences = {};
+
+            for (const classInfo of classes) {
+                for (const subject of classInfo.subjects) {
+                    const key = `${classInfo.id}-${subject.classSeriesSubjectId}-${selectedTrimester.id}`;
+
+                    try {
+                        const response = await secureApiEndpoints.request(
+                            `/subject-competences/${classInfo.id}/${subject.classSeriesSubjectId}/${selectedTrimester.id}`
+                        );
+
+                        if (response && response.success && response.data) {
+                            loadedCompetences[key] = {
+                                competence_1: response.data.competence_1 || '',
+                                competence_2: response.data.competence_2 || ''
+                            };
+                        } else {
+                            // If no competences found, set empty strings
+                            loadedCompetences[key] = {
+                                competence_1: '',
+                                competence_2: ''
+                            };
+                        }
+                    } catch (error) {
+                        // If no competences found, set empty strings
+                        loadedCompetences[key] = {
+                            competence_1: '',
+                            competence_2: ''
+                        };
+                    }
+                }
+            }
+
+            setCompetences(loadedCompetences);
+            setCompetencesLoaded(true);
+
+            // Marquer ce trimestre comme chargé
+            loadedTrimestersRef.current.add(trimesterKey);
+            console.log('✅ Compétences chargées et marquées pour trimestre', selectedTrimester.id);
+        } catch (error) {
+            console.error('Error loading competences:', error);
+            setCompetencesLoaded(true);
         }
-    }, [selectedTrimester, classes]);
+    }, [selectedTrimester?.id, classes.length]);
 
-    const loadInitialData = async () => {
+    const loadInitialData = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
 
-            const teacherId = user.teacher_id;
+            const teacherId = user?.teacher_id;
 
             // Load teacher's assignments grouped by class
             const assignmentsResponse = await secureApiEndpoints.request(
@@ -95,47 +144,43 @@ const Competences = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [user]);
 
-    const loadAllCompetences = async () => {
-        if (!selectedTrimester) return;
-
-        try {
-            const loadedCompetences = {};
-
-            for (const classInfo of classes) {
-                for (const subject of classInfo.subjects) {
-                    const key = `${classInfo.id}-${subject.classSeriesSubjectId}-${selectedTrimester.id}`;
-
-                    try {
-                        const response = await secureApiEndpoints.request(
-                            `/subject-competences/${classInfo.id}/${subject.classSeriesSubjectId}/${selectedTrimester.id}`
-                        );
-
-                        if (response) {
-                            loadedCompetences[key] = {
-                                competence_1: response.competence_1 || '',
-                                competence_2: response.competence_2 || ''
-                            };
-                        }
-                    } catch (error) {
-                        // If no competences found, set empty strings
-                        loadedCompetences[key] = {
-                            competence_1: '',
-                            competence_2: ''
-                        };
-                    }
-                }
-            }
-
-            setCompetences(loadedCompetences);
-        } catch (error) {
-            console.error('Error loading competences:', error);
+    useEffect(() => {
+        if (user && user.teacher_id) {
+            loadInitialData();
         }
-    };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?.teacher_id]);
 
-    const handleCompetenceChange = (classId, classSeriesSubjectId, field, value) => {
-        const key = `${classId}-${classSeriesSubjectId}-${selectedTrimester.id}`;
+    // Reset competencesLoaded when trimester changes (ONLY if not already loaded)
+    useEffect(() => {
+        if (selectedTrimester) {
+            const trimesterKey = `${selectedTrimester.id}`;
+            const alreadyLoaded = loadedTrimestersRef.current.has(trimesterKey);
+            console.log('🔄 Trimestre changé:', selectedTrimester.id, 'Déjà chargé:', alreadyLoaded);
+
+            if (!alreadyLoaded) {
+                setCompetencesLoaded(false);
+            }
+        }
+    }, [selectedTrimester?.id]);
+
+    useEffect(() => {
+        console.log('🔄 useEffect competences check:', {
+            selectedTrimester: !!selectedTrimester,
+            classesLength: classes.length,
+            competencesLoaded
+        });
+        if (selectedTrimester && classes.length > 0 && !competencesLoaded) {
+            console.log('✅ Conditions remplies - chargement des compétences');
+            loadAllCompetences();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedTrimester?.id, classes.length, competencesLoaded]);
+
+    const handleCompetenceChange = useCallback((classId, classSeriesSubjectId, field, value) => {
+        const key = `${classId}-${classSeriesSubjectId}-${selectedTrimester?.id}`;
         setCompetences(prev => ({
             ...prev,
             [key]: {
@@ -143,10 +188,10 @@ const Competences = () => {
                 [field]: value
             }
         }));
-    };
+    }, [selectedTrimester?.id]);
 
-    const handleSaveCompetences = async (classId, classSeriesSubjectId) => {
-        const key = `${classId}-${classSeriesSubjectId}-${selectedTrimester.id}`;
+    const handleSaveCompetences = useCallback(async (classId, classSeriesSubjectId) => {
+        const key = `${classId}-${classSeriesSubjectId}-${selectedTrimester?.id}`;
         const competenceData = competences[key] || {};
 
         setSaving(prev => ({ ...prev, [key]: true }));
@@ -157,7 +202,7 @@ const Competences = () => {
             const payload = {
                 class_series_id: classId,
                 class_series_subject_id: classSeriesSubjectId,
-                trimester_id: selectedTrimester.id,
+                trimester_id: selectedTrimester?.id,
                 competence_1: competenceData.competence_1 || '',
                 competence_2: competenceData.competence_2 || ''
             };
@@ -176,7 +221,7 @@ const Competences = () => {
         } finally {
             setSaving(prev => ({ ...prev, [key]: false }));
         }
-    };
+    }, [selectedTrimester?.id, competences]);
 
     if (loading) {
         return (
@@ -264,7 +309,18 @@ const Competences = () => {
             ) : (
                 <Row>
                     <Col>
-                        <Accordion defaultActiveKey="0">
+                        <Accordion
+                            activeKey={activeAccordionKey}
+                            onSelect={(key) => {
+                                console.log('🎯 Accordion onSelect:', key, 'current:', activeAccordionKey);
+                                // Empêcher la fermeture : si on clique sur l'item déjà ouvert, on ne fait rien
+                                if (key === null || key === activeAccordionKey) {
+                                    console.log('⛔ Empêcher la fermeture de l\'accordion');
+                                    return; // Ne rien faire, garder ouvert
+                                }
+                                setActiveAccordionKey(key);
+                            }}
+                        >
                             {classes.map((classInfo, classIndex) => (
                                 <Accordion.Item eventKey={String(classIndex)} key={classInfo.id}>
                                     <Accordion.Header>

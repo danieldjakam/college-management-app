@@ -972,11 +972,22 @@ class BulletinService
         // Au lieu de faire 15 requêtes SQL pendant le rendering HTML (ligne 2800 dans prepareAPCBulletinHTML)
         $subjectIds = collect($bulletinData['subjects'])->pluck('subject_id')->filter()->toArray();
 
+        \Log::info('📚 Loading competences for subjects', [
+            'subjectIds' => $subjectIds,
+            'trimester_id' => $trimester->id,
+            'student_id' => $studentId
+        ]);
+
         $competencesData = [];
         if (!empty($subjectIds)) {
             $competences = \App\Models\SubjectCompetence::whereIn('class_series_subject_id', $subjectIds)
                 ->where('trimester_id', $trimester->id)
                 ->get();
+
+            \Log::info('✅ Competences loaded from DB', [
+                'count' => $competences->count(),
+                'data' => $competences->toArray()
+            ]);
 
             foreach ($competences as $comp) {
                 $competencesData[$comp->class_series_subject_id] = [
@@ -985,6 +996,8 @@ class BulletinService
                 ];
             }
         }
+
+        \Log::info('📦 Competences data prepared', ['competencesData' => $competencesData]);
 
         $bulletinData['competences_preloaded'] = $competencesData;
 
@@ -1118,6 +1131,39 @@ class BulletinService
         }
         \Log::info('✅ Pre-calculated subject min-max for ALL subjects');
 
+        // 🚀 CRITICAL: Charger les compétences personnalisées pour TOUTES les matières
+        $subjectIds = $subjects->pluck('id')->toArray();
+        $competencesData = [];
+
+        if (!empty($subjectIds)) {
+            \Log::info('📚 Loading custom competences for subjects', [
+                'subjectIds' => $subjectIds,
+                'trimester_id' => $trimester->id
+            ]);
+
+            $competences = \App\Models\SubjectCompetence::whereIn('class_series_subject_id', $subjectIds)
+                ->where('trimester_id', $trimester->id)
+                ->get();
+
+            \Log::info('✅ Loaded custom competences from DB', [
+                'count' => $competences->count(),
+                'competences' => $competences->map(function($c) {
+                    return [
+                        'subject_id' => $c->class_series_subject_id,
+                        'comp1' => substr($c->competence_1 ?? '', 0, 50),
+                        'comp2' => substr($c->competence_2 ?? '', 0, 50)
+                    ];
+                })
+            ]);
+
+            foreach ($competences as $comp) {
+                $competencesData[$comp->class_series_subject_id] = [
+                    'competence_1' => $comp->competence_1 ?? '',
+                    'competence_2' => $comp->competence_2 ?? ''
+                ];
+            }
+        }
+
         // Maintenant, générer les bulletins pour CHAQUE étudiant en utilisant les données déjà chargées
         $allBulletinData = [];
 
@@ -1131,7 +1177,8 @@ class BulletinService
                     'total_points' => 0,
                     'total_coefficient' => 0,
                     'class_series' => $classSeries,
-                    'school_class' => $classSeries->schoolClass
+                    'school_class' => $classSeries->schoolClass,
+                    'competences_preloaded' => $competencesData // 🔥 AJOUT DES COMPÉTENCES
                 ];
 
                 // Calculer les notes pour chaque matière
@@ -1218,7 +1265,7 @@ class BulletinService
                             'nxc' => number_format($average * $coefficient, 2), // NXC = Moy × COEF
                             'teacher' => $teacherNames ?: 'Non assigné',
                             'subject_id' => $subject->id,
-                            'rank' => null,
+                            'rank' => $this->getTrimesterSubjectRankOptimized($student->id, $subject->id, $classTrimesterGrades),
                             'min' => $minMaxData['min'],
                             'max' => $minMaxData['max'],
                             'appreciation' => $this->getAppreciation($average),
@@ -1226,7 +1273,8 @@ class BulletinService
                             'competence' => $this->getCompetence($average, $cycleType, $sectionType),
                             'min_max' => $minMaxFormatted, // ✅ PRÉ-CALCULÉ
                             'cycle_type' => $cycleType,
-                            'section_type' => $sectionType
+                            'section_type' => $sectionType,
+                            'class_size' => $allStudents->count() // 🔧 FIX: Ajouter class_size pour fallback dans le template
                         ];
 
                         // 🎓 Ajouter les champs spécifiques selon le cycle
