@@ -2014,8 +2014,8 @@ class BulletinService
             $templateFile = 'bulletin_apc_anglophone.html';
         } elseif ($templateType === 'trimester' && $cycleType === 'premier' && $sectionType === 'francophone') {
             $templateFile = 'bulletin_apc_structure_finale.html';
-        } elseif ($sectionType === 'anglophone' && !$isAngloApc) {
-            // Use Anglophone templates (for other anglophone classes not in APC list)
+        } elseif ($sectionType === 'anglophone') {
+            // 🔧 FIX: Use Anglophone templates for ALL anglophone classes (APC or not, sequence or trimester)
             $templateFile = $forPdf ? 'cpbd_bulletin_anglophone_pdf.html' : 'cpbd_bulletin_anglophone.html';
         } elseif ($sectionType === 'technique') {
             // Use non-APC template for Technical sections (use same as 2nd cycle)
@@ -2557,8 +2557,14 @@ class BulletinService
         $classSize = count($subjects) > 0 && isset($subjects[0]['class_size']) ? $subjects[0]['class_size'] : 57;
 
         foreach ($subjects as $subject) {
-            // Pour DEUXIÈME CYCLE, utiliser 'average', sinon 'score'
-            $grade = ($cycleType === 'deuxieme') ? ($subject['average'] ?? null) : ($subject['score'] ?? null);
+            // 🔧 FIX: Pour bulletins de SÉQUENCE, toujours utiliser 'score' (même pour deuxième cycle)
+            // Pour bulletins de TRIMESTRE deuxième cycle, utiliser 'average'
+            if ($bulletinType === 'sequence') {
+                $grade = $subject['score'] ?? null;
+            } else {
+                // Trimester: use average for deuxième cycle, score for premier
+                $grade = ($cycleType === 'deuxieme') ? ($subject['average'] ?? null) : ($subject['score'] ?? null);
+            }
             $coef = $subject['coefficient'] ?? 1;
 
             // 🔧 FIX BUG #2: TOUJOURS ajouter le coefficient au total, même sans note
@@ -3060,8 +3066,17 @@ class BulletinService
             $subjectId = $subject['subject_id'] ?? null;
 
             // Calculate DS = (Seq1 + Seq2) / 2
-            // Use $subject['ds'] which contains the DS average (not $subject['score'] which is the final trimester grade)
-            $dsNote = is_numeric($subject['ds'] ?? 0) ? (float)$subject['ds'] : 0; // This is (Seq1 + Seq2) / 2
+            // 🔧 FIX: Support both Premier Cycle (ds) and Deuxième Cycle (sequence1, sequence2) structures
+            $dsNote = 0;
+            if (isset($subject['ds'])) {
+                // Premier Cycle: Use pre-calculated DS
+                $dsNote = is_numeric($subject['ds']) ? (float)$subject['ds'] : 0;
+            } elseif (isset($subject['sequence1']) || isset($subject['sequence2'])) {
+                // Deuxième Cycle (Anglophone): Calculate DS from individual sequences
+                $seq1 = is_numeric($subject['sequence1'] ?? 0) ? (float)$subject['sequence1'] : 0;
+                $seq2 = is_numeric($subject['sequence2'] ?? 0) ? (float)$subject['sequence2'] : 0;
+                $dsNote = ($seq1 + $seq2) / 2;
+            }
 
             // Get Composition grade
             $compositionNote = is_numeric($subject['composition'] ?? 0) ? (float)$subject['composition'] : 0;
