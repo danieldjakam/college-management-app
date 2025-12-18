@@ -2896,6 +2896,13 @@ class PaymentController extends Controller
                 </thead>
                 <tbody>";
 
+            // Initialiser les totaux par tranche
+            $trancheTotals = [];
+            foreach ($selectedTranches as $tranche) {
+                $trancheTotals[$tranche->id] = 0;
+            }
+            $grandTotal = 0;
+
             $counter = 1;
             foreach ($studentData as $data) {
                 $student = $data['student'];
@@ -2923,6 +2930,10 @@ class PaymentController extends Controller
                     $lastPaymentDate = $trancheData['last_payment_date'];
                     $validationDate = $trancheData['validation_date'] ?? null;
 
+                    // Accumuler les totaux
+                    $trancheTotals[$tranche->id] += $amount;
+                    $grandTotal += $amount;
+
                     if ($amount > 0) {
                         // Montant payé normalement
                         $dateStr = $validationDate
@@ -2944,6 +2955,26 @@ class PaymentController extends Controller
                 $html .= "</tr>";
                 $counter++;
             }
+
+            // Ajouter la ligne de TOTAL
+            $html .= "
+                    <tr style='background-color: #f0f0f0; font-weight: bold; font-size: 10px;'>
+                        <td colspan='3' style='text-align: right; padding-right: 10px;'>TOTAL</td>";
+
+            // Afficher le total de chaque tranche
+            foreach ($selectedTranches as $tranche) {
+                $totalAmount = $trancheTotals[$tranche->id];
+                $html .= "<td class='center' style='font-weight: bold; color: #000;'>" .
+                         $formatAmount($totalAmount) . " FCFA</td>";
+            }
+
+            $html .= "
+                    </tr>
+                    <tr style='background-color: #d0d0d0; font-weight: bold; font-size: 11px;'>
+                        <td colspan='3' style='text-align: right; padding-right: 10px;'>TOTAL GÉNÉRAL</td>
+                        <td colspan='" . count($selectedTranches) . "' class='center' style='font-weight: bold; color: #000;'>" .
+                         $formatAmount($grandTotal) . " FCFA</td>
+                    </tr>";
 
             $html .= "
                 </tbody>
