@@ -2995,40 +2995,48 @@ class BulletinService
         // Get class level and section
         $classLevel = '6'; // Default
         $classSection = 'A'; // Default
-        if ($student->schoolClass) {
-            // Extract level from class name (e.g., "6ème A" -> "6" or "FROM ONE" -> "1")
+
+        // 🔧 FIX: Use classSeries->name instead of schoolClass->name to get the full class name with section
+        $className = $student->classSeries->name ?? $student->schoolClass->name ?? '';
+
+        if ($className) {
+            // Extract level from class name (e.g., "6ème B" -> "6" or "FROM ONE" -> "1")
             if ($isAnglophone) {
                 // For Anglophone classes like "FORM ONE", "FORM TWO", etc.
-                $className = strtoupper($student->schoolClass->name);
-                if (stripos($className, 'ONE') !== false || stripos($className, '1') !== false) {
+                $classNameUpper = strtoupper($className);
+                if (stripos($classNameUpper, 'ONE') !== false || stripos($classNameUpper, '1') !== false) {
                     $classLevel = '1';
-                } elseif (stripos($className, 'TWO') !== false || stripos($className, '2') !== false) {
+                } elseif (stripos($classNameUpper, 'TWO') !== false || stripos($classNameUpper, '2') !== false) {
                     $classLevel = '2';
-                } elseif (stripos($className, 'THREE') !== false || stripos($className, '3') !== false) {
+                } elseif (stripos($classNameUpper, 'THREE') !== false || stripos($classNameUpper, '3') !== false) {
                     $classLevel = '3';
-                } elseif (stripos($className, 'FOUR') !== false || stripos($className, '4') !== false) {
+                } elseif (stripos($classNameUpper, 'FOUR') !== false || stripos($classNameUpper, '4') !== false) {
                     $classLevel = '4';
-                } elseif (stripos($className, 'FIVE') !== false || stripos($className, '5') !== false) {
+                } elseif (stripos($classNameUpper, 'FIVE') !== false || stripos($classNameUpper, '5') !== false) {
                     $classLevel = '5';
                 }
 
                 // Extract section (ARTS or SCIENCE)
-                if (stripos($className, 'ARTS') !== false) {
+                if (stripos($classNameUpper, 'ARTS') !== false) {
                     $classSection = 'ARTS';
-                } elseif (stripos($className, 'SCIENCE') !== false) {
+                } elseif (stripos($classNameUpper, 'SCIENCE') !== false) {
                     $classSection = 'SCIENCE';
                 } else {
                     $classSection = '';
                 }
             } else {
-                // For Francophone classes: Extract level from class name (e.g., "6ème A" -> "6")
-                preg_match('/(\d+)/', $student->schoolClass->name, $matches);
+                // For Francophone classes: Extract level from class name (e.g., "6ème B" -> "6")
+                preg_match('/(\d+)/', $className, $matches);
                 if (!empty($matches[1])) {
                     $classLevel = $matches[1];
                 }
-                // Extract section (last letter of class name)
-                preg_match('/([A-Z])$/', $student->schoolClass->name, $sectionMatches);
-                if (!empty($sectionMatches[1])) {
+                // Extract section from class name (supports: A, B, C, ALL, ESP, etc.)
+                // Match uppercase letters at the end: "6ème B" -> "B", "4ème ALL" -> "ALL", "4ème ESP" -> "ESP"
+                if (preg_match('/\s([A-Z]+)\s*$/', $className, $sectionMatches)) {
+                    // Found section with space before it
+                    $classSection = $sectionMatches[1];
+                } elseif (preg_match('/([A-Z]+)$/', $className, $sectionMatches)) {
+                    // Found section at the end without space
                     $classSection = $sectionMatches[1];
                 }
             }
