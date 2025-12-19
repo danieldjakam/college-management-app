@@ -5,11 +5,11 @@ import secureApi from '../../utils/api';
 import { host } from '../../utils/fetch';
 
 const HonorRoll = () => {
-  // Filtres
+  // Filtres - Données originales complètes
   const [sections, setSections] = useState([]);
-  const [levels, setLevels] = useState([]);
-  const [classes, setClasses] = useState([]);
-  const [series, setSeries] = useState([]);
+  const [allLevels, setAllLevels] = useState([]);
+  const [allClasses, setAllClasses] = useState([]);
+  const [allSeries, setAllSeries] = useState([]);
   const [trimesters, setTrimesters] = useState([]);
 
   // Sélections
@@ -35,33 +35,24 @@ const HonorRoll = () => {
     fetchFilters();
   }, []);
 
-  // Cascade filters: Section → Level
+  // Reset dependent filters when parent changes
   useEffect(() => {
     if (selectedSection) {
-      const filteredLevels = levels.filter(l => l.section_id === parseInt(selectedSection));
-      setLevels(filteredLevels.length > 0 ? filteredLevels : levels);
       setSelectedLevel('');
       setSelectedClass('');
       setSelectedSeries('');
     }
   }, [selectedSection]);
 
-  // Cascade filters: Level → Class
   useEffect(() => {
     if (selectedLevel) {
-      const filteredClasses = classes.filter(c => c.level_id === parseInt(selectedLevel));
-      setClasses(filteredClasses.length > 0 ? filteredClasses : classes);
       setSelectedClass('');
       setSelectedSeries('');
     }
   }, [selectedLevel]);
 
-  // Cascade filters: Class → Series
   useEffect(() => {
     if (selectedClass) {
-      const filteredSeries = series.filter(s => s.class_id === parseInt(selectedClass));
-      console.log('Filtering series for class:', selectedClass, 'Found:', filteredSeries);
-      setSeries(filteredSeries.length > 0 ? filteredSeries : series);
       setSelectedSeries('');
     }
   }, [selectedClass]);
@@ -75,9 +66,9 @@ const HonorRoll = () => {
       const data = response;
 
       setSections(data.sections || []);
-      setLevels(data.levels || []);
-      setClasses(data.classes || []);
-      setSeries(data.series || []);
+      setAllLevels(data.levels || []);
+      setAllClasses(data.classes || []);
+      setAllSeries(data.series || []);
       setTrimesters(data.trimesters || []);
 
       // Sélectionner le premier trimestre par défaut
@@ -442,7 +433,7 @@ const HonorRoll = () => {
                   disabled={!selectedSection}
                 >
                   <option value="">Tous les niveaux</option>
-                  {levels
+                  {allLevels
                     .filter(l => !selectedSection || l.section_id === parseInt(selectedSection))
                     .map((level) => (
                       <option key={level.id} value={level.id}>
@@ -464,7 +455,7 @@ const HonorRoll = () => {
                   disabled={!selectedLevel}
                 >
                   <option value="">Toutes les classes</option>
-                  {classes
+                  {allClasses
                     .filter(c => !selectedLevel || c.level_id === parseInt(selectedLevel))
                     .map((cls) => (
                       <option key={cls.id} value={cls.id}>
@@ -486,7 +477,7 @@ const HonorRoll = () => {
                   disabled={!selectedClass}
                 >
                   <option value="">Toutes les séries</option>
-                  {series
+                  {allSeries
                     .filter(s => !selectedClass || s.class_id === parseInt(selectedClass))
                     .map((ser) => (
                       <option key={ser.id} value={ser.id}>
