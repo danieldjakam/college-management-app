@@ -580,9 +580,9 @@ const AppContent = () => {
               <Route
                 path="/school-classes"
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRoles={["admin", "principal", "id_card_manager"]}>
                     <SchoolClasses />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
 

@@ -612,6 +612,11 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               href: "/id-card-manager/dashboard",
               icon: <HouseHeartFill />,
             },
+            {
+              name: "Classes",
+              href: "/school-classes",
+              icon: <HouseHeartFill />,
+            },
           ],
         },
         {
