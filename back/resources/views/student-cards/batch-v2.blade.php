@@ -76,27 +76,27 @@
         /* Colonne 2 (droite) */
         .card-wrapper:nth-child(2) {
             top: 0mm;
-            left: 93.6mm;
+            left: 104.4mm;
         }
 
         .card-wrapper:nth-child(4) {
             top: 62mm;
-            left: 93.6mm;
+            left: 104.4mm;
         }
 
         .card-wrapper:nth-child(6) {
             top: 124mm;
-            left: 93.6mm;
+            left: 104.4mm;
         }
 
         .card-wrapper:nth-child(8) {
             top: 186mm;
-            left: 93.6mm;
+            left: 104.4mm;
         }
 
         .card-wrapper:nth-child(10) {
             top: 248mm;
-            left: 93.6mm;
+            left: 104.4mm;
         }
 
         .card {
