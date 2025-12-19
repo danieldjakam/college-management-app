@@ -156,56 +156,14 @@
         /* Informations élève - VALEURS SEULEMENT */
         .student-info {
             position: absolute;
-
-            top: {
-                    {
-                    $settings['info_top'] ?? '20.5'
-                }
-            }
-
-            mm;
-
-            left: {
-                    {
-                    $settings['info_left'] ?? '33'
-                }
-            }
-
-            mm;
-
-            font-size: {
-                    {
-                    $settings['info_font_size'] ?? '4.5'
-                }
-            }
-
-            pt;
-
-            line-height: {
-                    {
-                    $settings['info_line_height'] ?? '3.8'
-                }
-            }
-
-            mm;
-
-            letter-spacing: {
-                    {
-                    $settings['info_letter_spacing'] ?? '0'
-                }
-            }
-
-            px;
+            top: {{ $settings['info_top'] ?? '20.5' }}mm;
+            left: {{ $settings['info_left'] ?? '33' }}mm;
+            font-size: {{ $settings['info_font_size'] ?? '4.5' }}pt;
+            line-height: {{ $settings['info_line_height'] ?? '3.8' }}mm;
+            letter-spacing: {{ $settings['info_letter_spacing'] ?? '0' }}px;
             color: #000;
             font-weight: 500;
-
-            max-width: {
-                    {
-                    $settings['info_max_width'] ?? '40'
-                }
-            }
-
-            mm;
+            max-width: {{ $settings['info_max_width'] ?? '40' }}mm;
         }
 
         .info-value {
@@ -219,39 +177,11 @@
         /* QR Code - en bas au centre */
         .qr-code {
             position: absolute;
-
-            bottom: {
-                    {
-                    $settings['qr_bottom'] ?? '4'
-                }
-            }
-
-            mm;
-
-            left: calc(50% + {
-                        {
-                        $settings['qr_left_offset'] ?? '0'
-                    }
-                }
-
-                mm);
+            bottom: {{ $settings['qr_bottom'] ?? '4' }}mm;
+            left: calc(50% + {{ $settings['qr_left_offset'] ?? '0' }}mm);
             transform: translateX(-50%);
-
-            width: {
-                    {
-                    $settings['qr_width'] ?? '14'
-                }
-            }
-
-            mm;
-
-            height: {
-                    {
-                    $settings['qr_height'] ?? '14'
-                }
-            }
-
-            mm;
+            width: {{ $settings['qr_width'] ?? '14' }}mm;
+            height: {{ $settings['qr_height'] ?? '14' }}mm;
         }
 
         .qr-code img {

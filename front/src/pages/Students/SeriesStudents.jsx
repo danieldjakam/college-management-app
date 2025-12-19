@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Plus,
@@ -22,7 +22,8 @@ import {
     Image,
     CashCoin,
     Printer,
-    ArrowRightCircle
+    ArrowRightCircle,
+    FileEarmarkPdf
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import { useAuth } from '../../hooks/useAuth';
@@ -32,10 +33,12 @@ import ImportExportButton from '../../components/ImportExportButton';
 import StudentsExportButton from '../../components/StudentsExportButton';
 import BulkPhotoUpload from '../../components/BulkPhotoUpload';
 import StudentCardPrint from '../../components/StudentCardPrint';
+import StudentCard from '../../components/StudentCard';
 import StudentTransfer from '../../components/StudentTransfer';
 import StudentTransferWithinClass from '../../components/StudentTransferWithinClass';
 import StudentActionsDropdown from '../../components/StudentActionsDropdown';
 import Swal from 'sweetalert2';
+import html2canvas from 'html2canvas';
 import {
     DndContext,
     closestCenter,
@@ -281,6 +284,9 @@ const SeriesStudents = () => {
     // Import data
     const [importFile, setImportFile] = useState(null);
     const [selectedSchoolYear, setSelectedSchoolYear] = useState('');
+
+    // Ref pour le rendu hors écran des cartes
+    const cardContainerRef = useRef(null);
 
     useEffect(() => {
         loadStudents();
@@ -1155,7 +1161,7 @@ const SeriesStudents = () => {
             try {
                 setLoading(true);
                 const response = await secureApiEndpoints.students.sortAlphabetically(
-                    seriesId, 
+                    seriesId,
                     {} // school_year_id géré automatiquement par le backend
                 );
 
@@ -1173,6 +1179,369 @@ const SeriesStudents = () => {
             } finally {
                 setLoading(false);
             }
+        }
+    };
+
+    // Fonction utilitaire pour convertir une image en base64
+    const convertImageToBase64 = async (student) => {
+        try {
+            const defaultSvg = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjUwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0iI2NjYyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjQwIiBmaWxsPSIjNjY2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+UGFzIGRlIHBob3RvPC90ZXh0Pjwvc3ZnPg==';
+
+            // Si l'élève n'a pas de photo dans la base de données, retourner directement l'image par défaut
+            // Cela évite de faire un appel API inutile qui retournera 404
+            if (!student || !student.id || !student.photo) {
+                return defaultSvg;
+            }
+
+            // Utiliser la nouvelle route API pour récupérer la photo avec les bons headers CORS
+            const response = await fetch(`${host}/api/students/${student.id}/photo`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authService.getToken()}`,
+                    'Accept': 'image/*'
+                }
+            });
+
+            if (!response.ok) {
+                return defaultSvg;
+            }
+
+            // Convertir la réponse en blob puis en base64
+            const blob = await response.blob();
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = () => {
+                    console.error('Error reading blob as base64');
+                    resolve(defaultSvg);
+                };
+                reader.readAsDataURL(blob);
+            });
+
+        } catch (error) {
+            console.error('Error loading student photo:', error);
+            return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjUwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjUwMCIgZmlsbD0iI2NjYyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjQwIiBmaWxsPSIjNjY2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+UGFzIGRlIHBob3RvPC90ZXh0Pjwvc3ZnPg==';
+        }
+    };
+
+    // Fonction pour générer les cartes des élèves en PDF (10 par page - 2x5)
+    const generateStudentCardsPDF = async () => {
+        if (students.length === 0) {
+            Swal.fire({
+                title: 'Aucun élève',
+                text: 'Il n\'y a aucun élève dans cette classe.',
+                icon: 'warning'
+            });
+            return;
+        }
+
+        try {
+            setLoading(true);
+
+            // Compter les élèves avec photos pour info
+            const studentsWithPhotos = students.filter(s => s.photo).length;
+            const studentsWithoutPhotos = students.length - studentsWithPhotos;
+
+            console.log(`📊 Génération de ${students.length} cartes: ${studentsWithPhotos} avec photo, ${studentsWithoutPhotos} sans photo (API calls économisés: ${studentsWithoutPhotos})`);
+
+            Swal.fire({
+                title: 'Génération en cours...',
+                text: `Chargement des photos (${studentsWithPhotos} photo(s) à charger)...`,
+                icon: 'info',
+                showConfirmButton: false,
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // Précharger toutes les images en base64
+            // Optimisation: les élèves sans photo retournent immédiatement l'image par défaut sans appel API
+            const studentsWithBase64Photos = await Promise.all(
+                students.map(async (student, index) => {
+                    const photoBase64 = await convertImageToBase64(student);
+
+                    // Mettre à jour la progression tous les 10 étudiants
+                    if ((index + 1) % 10 === 0 || index === students.length - 1) {
+                        Swal.update({
+                            text: `Chargement des photos... ${index + 1}/${students.length}`
+                        });
+                    }
+
+                    return {
+                        ...student,
+                        photoBase64
+                    };
+                })
+            );
+
+            Swal.update({
+                text: `Génération des cartes pour ${students.length} élève(s)...`
+            });
+
+            // Importer jsPDF dynamiquement
+            const { jsPDF } = await import('jspdf');
+
+            const cardDataUrls = [];
+
+            // Générer chaque carte et la convertir en image
+            for (let i = 0; i < studentsWithBase64Photos.length; i++) {
+                const student = studentsWithBase64Photos[i];
+
+                // Enrichir les données de l'élève
+                const enrichedStudent = {
+                    ...student,
+                    class_series: series,
+                    current_class: series?.name
+                };
+
+                // Créer un conteneur temporaire pour cette carte
+                const cardElement = document.createElement('div');
+                cardElement.style.position = 'absolute';
+                cardElement.style.left = '-9999px';
+                cardElement.style.top = '-9999px';
+                cardElement.style.width = '1920px';
+                cardElement.style.height = '1080px';
+                cardElement.className = 'student-card-temp';
+                document.body.appendChild(cardElement);
+
+                // Générer le QR code pour l'élève
+                const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent('STUDENT_ID_' + student.id)}&margin=0`;
+
+                // Template basé sur "PERSONNEL (1).png"
+                const cardHtml = `
+                    <div style="width: 1920px; height: 1080px; position: relative; background: #F5F1E8; font-family: Arial, sans-serif; overflow: hidden;">
+                        <!-- Cercles de couleur aux coins -->
+                        <div style="position: absolute; top: -150px; left: -150px; width: 300px; height: 300px; background: #2D7F3E; border-radius: 50%; opacity: 0.8;"></div>
+                        <div style="position: absolute; top: -150px; right: -150px; width: 300px; height: 300px; background: #E53935; border-radius: 50%; opacity: 0.8;"></div>
+                        <div style="position: absolute; bottom: -150px; left: -150px; width: 300px; height: 300px; background: #FFC107; border-radius: 50%; opacity: 0.8;"></div>
+
+                        <!-- En-tête République du Cameroun -->
+                        <div style="text-align: center; padding-top: 20px; margin-bottom: 15px;">
+                            <div style="font-size: 42px; font-weight: bold; color: #000; letter-spacing: 2px;">
+                                🇨🇲 RÉPUBLIQUE DU CAMEROUN 🇨🇲
+                            </div>
+                            <div style="font-size: 38px; font-weight: bold; color: #000; margin-top: 5px; letter-spacing: 1px;">
+                                PAIX – TRAVAIL – PATRIE
+                            </div>
+                        </div>
+
+                        <!-- Corps principal -->
+                        <div style="display: flex; padding: 0 60px; margin-top: 30px;">
+                            <!-- Colonne gauche: Logo + Infos -->
+                            <div style="flex: 1; padding-right: 40px;">
+                                <!-- Logo CPBD -->
+                                <div style="display: flex; align-items: center; margin-bottom: 25px;">
+                                    <div style="width: 120px; height: 120px; background: white; border: 3px solid #7B2D8E; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 20px; font-size: 18px; font-weight: bold; color: #7B2D8E;">
+                                        CPBD
+                                    </div>
+                                    <div style="font-size: 32px; font-weight: bold; font-style: italic; line-height: 1.2;">
+                                        Collège Polyvalent<br>
+                                        Bilingue de Douala
+                                    </div>
+                                </div>
+
+                                <!-- Titre CARTE SCOLAIRE -->
+                                <div style="font-size: 90px; font-weight: bold; color: #000; margin: 30px 0 40px 0; line-height: 1;">
+                                    CARTE<br>SCOLAIRE
+                                </div>
+
+                                <!-- Champs d'information -->
+                                <div style="font-size: 32px; line-height: 1.8; color: #000;">
+                                    <div style="display: flex; margin-bottom: 12px;">
+                                        <span style="font-weight: bold; min-width: 280px;">NOM:</span>
+                                        <span>${(student.last_name || '').toUpperCase()}</span>
+                                    </div>
+                                    <div style="display: flex; margin-bottom: 12px;">
+                                        <span style="font-weight: bold; min-width: 280px;">PRÉNOM:</span>
+                                        <span>${student.first_name || ''}</span>
+                                    </div>
+                                    <div style="display: flex; margin-bottom: 12px;">
+                                        <span style="font-weight: bold; min-width: 280px;">MATRICULE:</span>
+                                        <span>${student.student_number || student.matricule || ''}</span>
+                                    </div>
+                                    <div style="display: flex; margin-bottom: 12px;">
+                                        <span style="font-weight: bold; min-width: 280px;">CLASSE:</span>
+                                        <span>${series?.name || ''}</span>
+                                    </div>
+                                    <div style="display: flex; margin-bottom: 12px;">
+                                        <span style="font-weight: bold; min-width: 280px;">NÉ(E) LE:</span>
+                                        <span>${student.date_of_birth ? new Date(student.date_of_birth).toLocaleDateString('fr-FR') : ''}</span>
+                                    </div>
+                                    <div style="display: flex; margin-bottom: 12px;">
+                                        <span style="font-weight: bold; min-width: 280px;">PARENT/TUTEUR:</span>
+                                        <span style="font-size: 28px;">${student.parent_name || ''}</span>
+                                    </div>
+                                    <div style="display: flex; margin-bottom: 12px;">
+                                        <span style="font-weight: bold; min-width: 280px;">ANNÉE SCOLAIRE:</span>
+                                        <span>${schoolYear?.name || new Date().getFullYear() + '-' + (new Date().getFullYear() + 1)}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Colonne droite: Photo circulaire -->
+                            <div style="flex: 0 0 550px; display: flex; align-items: center; justify-content: center; margin-top: 80px;">
+                                <div style="width: 500px; height: 500px; border-radius: 50%; border: 8px solid #2D7F3E; overflow: hidden; background: linear-gradient(to bottom, #87CEEB 0%, #87CEEB 60%, #90EE90 60%, #228B22 100%); display: flex; align-items: center; justify-content: center;">
+                                    <img src="${student.photoBase64}"
+                                         style="width: 100%; height: 100%; object-fit: cover;"
+                                         crossorigin="anonymous" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Footer -->
+                        <div style="position: absolute; bottom: 40px; left: 60px; right: 60px; display: flex; justify-content: space-between; align-items: flex-end;">
+                            <!-- Coordonnées -->
+                            <div style="font-size: 26px; line-height: 1.5; color: #000;">
+                                <div style="margin-bottom: 5px;">Phone: +237678469398 / +237688552219</div>
+                                <div style="margin-bottom: 5px; font-weight: bold;">website: www.cpbd-douala.com</div>
+                                <div style="display: flex; align-items: center;">
+                                    <span style="font-size: 40px; margin-right: 10px;">📍</span>
+                                    <span style="font-weight: bold;">YASSA ENTRÉE PLANET VOYAGE</span>
+                                </div>
+                            </div>
+
+                            <!-- QR Code + Signature -->
+                            <div style="text-align: center;">
+                                <div style="font-size: 28px; font-weight: bold; margin-bottom: 10px;">SCAN ME</div>
+                                <div style="width: 220px; height: 220px; border: 3px solid #000; border-radius: 10px; padding: 10px; background: white; margin-bottom: 15px;">
+                                    <img src="${qrCodeUrl}" style="width: 100%; height: 100%; object-fit: contain;" />
+                                </div>
+                                <div style="font-size: 24px; font-weight: bold; line-height: 1.3;">
+                                    Signature<br>Directeur
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                cardElement.innerHTML = cardHtml;
+
+                // Attendre que le DOM soit mis à jour (réduit à 50ms pour plus de rapidité)
+                await new Promise(resolve => setTimeout(resolve, 50));
+
+                // Convertir en canvas
+                const canvas = await html2canvas(cardElement, {
+                    scale: 1,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: null,
+                    width: 1920,
+                    height: 1080,
+                    logging: false
+                });
+
+                const dataUrl = canvas.toDataURL('image/png', 0.95);
+                cardDataUrls.push(dataUrl);
+
+                // Nettoyer
+                document.body.removeChild(cardElement);
+
+                // Mettre à jour la progression
+                if ((i + 1) % 5 === 0 || i === studentsWithBase64Photos.length - 1) {
+                    Swal.update({
+                        text: `Génération en cours... ${i + 1}/${studentsWithBase64Photos.length} cartes`
+                    });
+                }
+            }
+
+            // Créer le PDF avec les cartes
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4',
+            });
+
+            const pageWidth = 210; // A4 width in mm
+            const pageHeight = 297; // A4 height in mm
+
+            // Calculer les dimensions basées sur le ratio 1920x1080 (16:9)
+            const cardRatio = 1920 / 1080; // Ratio largeur/hauteur = 1.778
+
+            // Calculer les dimensions pour 10 cartes par page (2x5 - 2 colonnes, 5 lignes)
+            const reducedMargin = 5;
+            const reducedSpacing = 3;
+
+            const availableHeight = pageHeight - 2 * reducedMargin - 4 * reducedSpacing;
+            const availableWidth = pageWidth - 2 * reducedMargin - reducedSpacing;
+
+            const cardHeight = availableHeight / 5; // 5 lignes par page
+            const cardWidth = availableWidth / 2; // 2 colonnes par page
+
+            // Vérifier si le ratio 1920x1080 peut être respecté
+            const targetCardWidth = cardHeight * cardRatio;
+
+            let finalCardWidth, finalCardHeight;
+            if (targetCardWidth <= cardWidth) {
+                finalCardWidth = targetCardWidth;
+                finalCardHeight = cardHeight;
+            } else {
+                finalCardWidth = cardWidth;
+                finalCardHeight = cardWidth / cardRatio;
+            }
+
+            // Positions pour 10 cartes par page (grille 2x5)
+            const centerOffsetX = (pageWidth - (2 * finalCardWidth + reducedSpacing)) / 2;
+            const centerOffsetY = (pageHeight - (5 * finalCardHeight + 4 * reducedSpacing)) / 2;
+
+            const positions = [
+                // Ligne 1
+                { x: centerOffsetX, y: centerOffsetY },
+                { x: centerOffsetX + finalCardWidth + reducedSpacing, y: centerOffsetY },
+                // Ligne 2
+                { x: centerOffsetX, y: centerOffsetY + finalCardHeight + reducedSpacing },
+                { x: centerOffsetX + finalCardWidth + reducedSpacing, y: centerOffsetY + finalCardHeight + reducedSpacing },
+                // Ligne 3
+                { x: centerOffsetX, y: centerOffsetY + 2 * (finalCardHeight + reducedSpacing) },
+                { x: centerOffsetX + finalCardWidth + reducedSpacing, y: centerOffsetY + 2 * (finalCardHeight + reducedSpacing) },
+                // Ligne 4
+                { x: centerOffsetX, y: centerOffsetY + 3 * (finalCardHeight + reducedSpacing) },
+                { x: centerOffsetX + finalCardWidth + reducedSpacing, y: centerOffsetY + 3 * (finalCardHeight + reducedSpacing) },
+                // Ligne 5
+                { x: centerOffsetX, y: centerOffsetY + 4 * (finalCardHeight + reducedSpacing) },
+                { x: centerOffsetX + finalCardWidth + reducedSpacing, y: centerOffsetY + 4 * (finalCardHeight + reducedSpacing) },
+            ];
+
+            // Ajouter les cartes au PDF
+            for (let i = 0; i < cardDataUrls.length; i++) {
+                // Nouvelle page après chaque 10 cartes
+                if (i > 0 && i % 10 === 0) {
+                    pdf.addPage();
+                }
+
+                const positionIndex = i % 10;
+                const position = positions[positionIndex];
+
+                pdf.addImage(
+                    cardDataUrls[i],
+                    'PNG',
+                    position.x,
+                    position.y,
+                    finalCardWidth,
+                    finalCardHeight
+                );
+            }
+
+            // Télécharger le PDF
+            const filename = `cartes_eleves_${series?.name?.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+            pdf.save(filename);
+
+            Swal.fire({
+                title: 'Succès !',
+                html: `PDF généré avec succès !<br>${cardDataUrls.length} carte(s) sur ${Math.ceil(cardDataUrls.length / 10)} page(s) A4<br>Format: 10 cartes par page (2×5)`,
+                icon: 'success',
+                timer: 3000
+            });
+
+        } catch (error) {
+            console.error('Erreur génération PDF:', error);
+            Swal.fire({
+                title: 'Erreur',
+                text: `Erreur lors de la génération du PDF: ${error.message}`,
+                icon: 'error'
+            });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -1389,7 +1758,7 @@ const SeriesStudents = () => {
                                     </button>
                                     {/* {hasCustomOrder && ( */}
                                         <button
-                                            className="btn btn-warning"
+                                            className="btn btn-warning me-2"
                                             onClick={handleSortAlphabetically}
                                             title="Reclasser par ordre alphabétique"
                                         >
@@ -1397,6 +1766,15 @@ const SeriesStudents = () => {
                                             Ordre alphabétique
                                         </button>
                                     {/* )} */}
+                                    <button
+                                        className="btn btn-danger"
+                                        onClick={generateStudentCardsPDF}
+                                        title="Télécharger les cartes des élèves en PDF (10 par page)"
+                                        disabled={loading || students.length === 0}
+                                    >
+                                        <FileEarmarkPdf size={16} className="me-1" />
+                                        Cartes PDF
+                                    </button>
                                 </div>
                             </div>
                         </div>

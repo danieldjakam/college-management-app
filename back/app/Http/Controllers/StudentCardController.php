@@ -169,6 +169,19 @@ class StudentCardController extends Controller
         $parentContact = $student->parent_contact ??
                         ($student->parent ? $student->parent->contact : 'N/A');
 
+        // Préparer le chemin de la photo pour DomPDF (chemin absolu local)
+        $photoPath = null;
+        if ($student->photo) {
+            // Utiliser storage_path pour obtenir le chemin absolu local
+            $photoPath = storage_path('app/public/' . $student->photo);
+
+            // Vérifier si le fichier existe
+            if (!file_exists($photoPath)) {
+                \Log::warning("Photo introuvable pour l'élève {$student->id}: {$photoPath}");
+                $photoPath = null;
+            }
+        }
+
         return [
             'student' => $student,
             'matricule' => $student->matricule,
@@ -178,7 +191,7 @@ class StudentCardController extends Controller
             'date_naissance' => $student->date_of_birth ?
                                Carbon::parse($student->date_of_birth)->format('d/m/Y') : 'N/A',
             'parent_contact' => $parentContact,
-            'photo_url' => $student->photo_url,
+            'photo_url' => $photoPath, // Chemin absolu local pour DomPDF
             'qr_code' => $qrCode,
             'qr_data' => $qrData,
             'card_number' => $student->matricule,

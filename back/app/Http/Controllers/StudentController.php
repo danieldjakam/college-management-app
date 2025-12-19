@@ -2365,4 +2365,56 @@ class StudentController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Récupérer la photo d'un étudiant avec les headers CORS appropriés
+     */
+    public function getPhoto($id)
+    {
+        try {
+            $student = Student::findOrFail($id);
+
+            if (!$student->photo) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune photo disponible pour cet étudiant'
+                ], 404);
+            }
+
+            // Construire le chemin complet de l'image
+            $path = storage_path('app/public/' . $student->photo);
+
+            if (!file_exists($path)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Fichier photo introuvable'
+                ], 404);
+            }
+
+            // Lire le contenu du fichier
+            $file = file_get_contents($path);
+            $type = mime_content_type($path);
+
+            // Retourner l'image avec les headers CORS appropriés
+            return response($file)
+                ->header('Content-Type', $type)
+                ->header('Access-Control-Allow-Origin', '*')
+                ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+                ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+                ->header('Cache-Control', 'public, max-age=3600');
+
+        } catch (\Exception $e) {
+            \Log::error('Error fetching student photo', [
+                'student_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération de la photo',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

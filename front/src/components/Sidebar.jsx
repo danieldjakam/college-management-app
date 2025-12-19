@@ -167,6 +167,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: 'Surveillants Généraux', href: '/supervisor-assignments', icon: <PersonCircle/> },
             { name: "Générateur de Cartes", href: "/card-generator", icon: <QrCode /> },
             { name: "Badges Personnel PDF", href: "/bulk-staff-cards", icon: <CreditCard /> },
+            { name: "Configuration Cartes Élèves", href: "/id-card-manager/settings", icon: <GearFill /> },
             { name: "Profil", href: "/profile", icon: <PersonCircle /> },
             { name: "Paramètres", href: "/settings", icon: <GearFill /> },
           ],

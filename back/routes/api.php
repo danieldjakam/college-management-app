@@ -469,6 +469,9 @@ Route::middleware('auth:api')->group(function () {
         // Carte scolaire
         Route::get('/{id}/card', [StudentController::class, 'generateStudentCard']);
 
+        // Servir les photos avec CORS headers
+        Route::get('/{id}/photo', [StudentController::class, 'getPhoto']);
+
         Route::post('/', [StudentController::class, 'store']);
         Route::put('/{student}', [StudentController::class, 'update']);
         Route::patch('/{student}/status', [StudentController::class, 'updateStatus']);

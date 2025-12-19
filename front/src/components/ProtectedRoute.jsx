@@ -121,12 +121,12 @@ export const AccountantRoute = ({ children, fallbackPath = "/" }) => {
 };
 
 /**
- * Composant pour les routes réservées au gestionnaire de cartes d'identité
+ * Composant pour les routes réservées au gestionnaire de cartes d'identité et admin
  */
 export const IdCardManagerRoute = ({ children, fallbackPath = "/" }) => {
   return (
     <ProtectedRoute
-      requiredRoles={["id_card_manager"]}
+      requiredRoles={["admin", "id_card_manager"]}
       fallbackPath={fallbackPath}
     >
       {children}
