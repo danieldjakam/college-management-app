@@ -3180,10 +3180,26 @@ class BulletinService
         // $nbAverages = $this->getNumberOfAverages($trimester->id, $student->class_series_id);
         // $successRate = $this->getSuccessRate($trimester->id, $student->class_series_id);
 
-        // Additional data
-        $replacements['abs_non_just'] = '0';
-        $replacements['abs_just'] = '0';
-        $replacements['delays'] = '0';
+        // 🔧 FIX: Récupérer les vraies données de discipline depuis student_discipline
+        $disciplineData = \App\Models\StudentDiscipline::where('student_id', $student->id)
+            ->where('trimester_id', $trimester->id)
+            ->first();
+
+        // Si des données de discipline existent, les utiliser
+        if ($disciplineData) {
+            $replacements['discipline_delays_justified'] = $disciplineData->delays_justified ?? 0;
+            $replacements['discipline_delays_unjustified'] = $disciplineData->delays_unjustified ?? 0;
+            $replacements['discipline_exclusion_days'] = $disciplineData->exclusion_days ?? 0;
+            $replacements['abs_just'] = $disciplineData->absences_justified ?? 0;
+            $replacements['abs_non_just'] = $disciplineData->absences_unjustified ?? 0;
+        } else {
+            // Pas de données → afficher 0
+            $replacements['discipline_delays_justified'] = 0;
+            $replacements['discipline_delays_unjustified'] = 0;
+            $replacements['discipline_exclusion_days'] = 0;
+            $replacements['abs_just'] = 0;
+            $replacements['abs_non_just'] = 0;
+        }
 
         // 🔥 Récupérer les statistiques de classe depuis le cache (créé lors du ranking)
         $classStats = Cache::get("class_stats_{$student->class_series_id}_trim{$trimester->id}");
