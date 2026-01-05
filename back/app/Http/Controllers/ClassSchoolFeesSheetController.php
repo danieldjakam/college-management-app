@@ -138,6 +138,9 @@ class ClassSchoolFeesSheetController extends Controller
     public function downloadClassFeesPDF($classId)
     {
         try {
+            // Récupérer la classe série pour obtenir le bon nom de fichier
+            $classSeries = \App\Models\ClassSeries::with(['schoolClass.level.section'])->findOrFail($classId);
+
             // Récupérer les données
             $response = $this->getClassFeesData($classId);
             $responseData = json_decode($response->content(), true);
@@ -172,8 +175,14 @@ class ClassSchoolFeesSheetController extends Controller
             $pdf = Pdf::loadView('pdf.class-fees-sheet', $pdfData);
             $pdf->setPaper('A4', 'landscape');
 
-            // Nom du fichier
-            $className = str_replace(' ', '_', $data['class']['name']);
+            // Nom du fichier - utiliser le nom de la série plutôt que le nom complet pour éviter les doublons
+            // Par exemple, au lieu de "FORM FIVE (ARTS) FORM FIVE (ARTS) A", on prend juste "FORM FIVE (ARTS) A"
+            $className = $classSeries->name ?? $classSeries->code ?? 'classe_' . $classSeries->id;
+
+            // Nettoyer les espaces et caractères spéciaux pour les noms de fichiers
+            $className = str_replace(' ', '_', $className);
+            $className = preg_replace('/[^A-Za-z0-9_\-]/', '_', $className);
+
             $fileName = 'Fiche_Scolarite_' . $className . '_' . now()->format('Y-m-d') . '.pdf';
 
             // Retourner le PDF
