@@ -210,6 +210,7 @@ class PaymentController extends Controller
             'payment_date' => 'required|date',
             'versement_date' => 'required|date',
             'apply_global_discount' => 'nullable|boolean',
+            'newcomer_discount_reason' => 'nullable|string|max:1000',
         ]);
 
         if ($validator->fails()) {
@@ -239,8 +240,20 @@ class PaymentController extends Controller
             // Déterminer le type de paiement et calculer les réductions/bourses
             $paymentType = 'normal'; // Par défaut
 
+            // Réduction "nouveau élève" (arrivée 2e/3e trimestre) : elle n'est pas liée à la date limite,
+            // et s'applique sur la scolarité uniquement (toutes tranches sauf inscription).
+            $newcomerDiscountService = new \App\Services\NewcomerSchoolFeeDiscountService();
+            $newcomerRatio = $newcomerDiscountService->getReductionRatio($student);
+            $hasNewcomerDiscount = $newcomerRatio > 0;
+
             // Vérification de sécurité : un étudiant ne peut pas avoir à la fois une bourse ET une réduction
             $hasScholarship = $this->discountCalculatorService->getClassScholarship($student) !== null;
+
+            // IMPORTANT: ne pas cumuler réduction "nouveau" et réduction "date limite"
+            // Si l'élève a une réduction nouveau (T2/T3), on ignore la demande de réduction globale.
+            if ($hasNewcomerDiscount) {
+                $request->merge(['apply_global_discount' => false]);
+            }
 
             // Si le frontend demande explicitement une réduction globale
             if ($request->apply_global_discount === true) {
@@ -288,6 +301,27 @@ class PaymentController extends Controller
             $discountResult = [];
             $scholarshipInfo = [];
 
+            // Calculer la réduction "nouveau" sur la partie scolarité restante (hors inscription)
+            // On utilise le statut actuel (tranches + paiements existants) pour ne réduire que le reste.
+            $newcomerDiscountAmountTotal = 0;
+            if ($hasNewcomerDiscount) {
+                foreach ($paymentStatus->tranche_status as $ts) {
+                    // tranche_status contient déjà les infos par tranche
+                    // On ne réduit pas l'inscription: on se base sur order=1
+                    $order = $ts['tranche']['order'] ?? null;
+                    if ((int) $order === 1) {
+                        continue;
+                    }
+
+                    $required = (float) ($ts['required_amount'] ?? 0);
+                    $paid = (float) ($ts['paid_amount'] ?? 0);
+                    $remaining = max(0.0, $required - $paid);
+
+                    // Réduction sur le montant restant uniquement
+                    $newcomerDiscountAmountTotal += round($remaining * $newcomerRatio, 0);
+                }
+            }
+
             switch ($paymentType) {
                 case 'scholarship':
                     // Cas avec bourse
@@ -322,9 +356,11 @@ class PaymentController extends Controller
                     // Cas normal
                     $discountResult = [
                         'final_amount' => $request->amount,
-                        'has_reduction' => false,
-                        'reduction_amount' => 0,
-                        'discount_reason' => null
+                        'has_reduction' => $hasNewcomerDiscount && $newcomerDiscountAmountTotal > 0,
+                        'reduction_amount' => $hasNewcomerDiscount ? $newcomerDiscountAmountTotal : 0,
+                        'discount_reason' => $hasNewcomerDiscount
+                            ? (trim((string) $request->newcomer_discount_reason) ?: (new \App\Services\NewcomerSchoolFeeDiscountService())->buildDefaultReason($student))
+                            : null
                     ];
                     $scholarshipInfo = [
                         'has_scholarship' => false,
@@ -417,6 +453,8 @@ class PaymentController extends Controller
     {
         $remainingAmountToAllocate = $payment->total_amount;
 
+        $effectiveAmountService = new \App\Services\TrancheEffectiveAmountService();
+
         $existingPayments = Payment::forStudent($student->id)
             ->forYear($workingYear->id)
             ->where('id', '!=', $payment->id)
@@ -427,7 +465,8 @@ class PaymentController extends Controller
         foreach ($paymentTranches as $tranche) {
             if ($remainingAmountToAllocate <= 0) break;
 
-            $requiredAmount = $tranche->getAmountForStudent($student, false, $payment->has_reduction, true);
+            // Montant effectif à payer (intègre la réduction "nouveau" si applicable, et n'affecte jamais l'inscription)
+            $requiredAmount = $effectiveAmountService->getEffectiveRequired($tranche, $student);
             if ($requiredAmount <= 0) continue;
 
             $previouslyPaid = 0;
@@ -453,7 +492,11 @@ class PaymentController extends Controller
                 'is_fully_paid' => $newTotalAmount >= $requiredAmount,
                 'required_amount_at_time' => $requiredAmount,
                 'was_reduced' => $payment->has_reduction,
-                'reduction_context' => $payment->has_reduction ? "Réduction appliquée sur le paiement global" : null
+                'reduction_context' => $payment->has_reduction
+                    ? ((($student->student_status ?? null) === 'new' && !empty($student->arrival_trimester))
+                        ? "Réduction nouvel élève (T{$student->arrival_trimester})"
+                        : "Réduction appliquée")
+                    : null
             ]);
 
             $remainingAmountToAllocate -= $allocatedAmount;
@@ -988,10 +1031,24 @@ class PaymentController extends Controller
 
         // Informations sur les avantages
         $benefitInfo = '';
+        $benefitReason = null;
+
         if ($payment->has_scholarship && $payment->scholarship_amount > 0) {
             $benefitInfo = "Bourse: " . $formatAmount($payment->scholarship_amount) . " FCFA";
         } elseif ($payment->has_reduction && $payment->reduction_amount > 0) {
-            $benefitInfo = "Réduction: " . $formatAmount($payment->reduction_amount) . " FCFA";
+            $isNewcomerDiscount = ($student->student_status ?? null) === 'new' && !empty($student->arrival_trimester);
+
+            if ($isNewcomerDiscount) {
+                $benefitInfo = "Réduction nouvel élève (T{$student->arrival_trimester}): " . $formatAmount($payment->reduction_amount) . " FCFA";
+                $benefitReason = $student->newcomer_discount_reason ?: $payment->discount_reason;
+            } else {
+                $benefitInfo = "Réduction: " . $formatAmount($payment->reduction_amount) . " FCFA";
+                $benefitReason = $payment->discount_reason;
+            }
+        }
+
+        if ($benefitReason) {
+            $benefitInfo .= " - " . $benefitReason;
         }
 
 
@@ -1867,10 +1924,24 @@ class PaymentController extends Controller
 
         // Informations sur les avantages
         $benefitInfo = '';
+        $benefitReason = null;
+
         if ($payment->has_scholarship && $payment->scholarship_amount > 0) {
             $benefitInfo = "Bourse: " . $formatAmount($payment->scholarship_amount) . " FCFA";
         } elseif ($payment->has_reduction && $payment->reduction_amount > 0) {
-            $benefitInfo = "Réduction: " . $formatAmount($payment->reduction_amount) . " FCFA";
+            $isNewcomerDiscount = ($student->student_status ?? null) === 'new' && !empty($student->arrival_trimester);
+
+            if ($isNewcomerDiscount) {
+                $benefitInfo = "Réduction nouvel élève (T{$student->arrival_trimester}): " . $formatAmount($payment->reduction_amount) . " FCFA";
+                $benefitReason = $student->newcomer_discount_reason ?: $payment->discount_reason;
+            } else {
+                $benefitInfo = "Réduction: " . $formatAmount($payment->reduction_amount) . " FCFA";
+                $benefitReason = $payment->discount_reason;
+            }
+        }
+
+        if ($benefitReason) {
+            $benefitInfo .= " - " . $benefitReason;
         }
 
         // Créer le contenu du reçu une seule fois pour réutilisation
@@ -3345,10 +3416,24 @@ class PaymentController extends Controller
 
         // Informations sur les avantages
         $benefitInfo = '';
+        $benefitReason = null;
+
         if ($payment->has_scholarship && $payment->scholarship_amount > 0) {
             $benefitInfo = "🎓 Bourse: " . $formatAmount($payment->scholarship_amount) . " FCFA";
         } elseif ($payment->has_reduction && $payment->reduction_amount > 0) {
-            $benefitInfo = "💰 Réduction: " . $formatAmount($payment->reduction_amount) . " FCFA";
+            $isNewcomerDiscount = ($student->student_status ?? null) === 'new' && !empty($student->arrival_trimester);
+
+            if ($isNewcomerDiscount) {
+                $benefitInfo = "💰 Réduction nouvel élève (T{$student->arrival_trimester}): " . $formatAmount($payment->reduction_amount) . " FCFA";
+                $benefitReason = $student->newcomer_discount_reason ?: $payment->discount_reason;
+            } else {
+                $benefitInfo = "💰 Réduction: " . $formatAmount($payment->reduction_amount) . " FCFA";
+                $benefitReason = $payment->discount_reason;
+            }
+        }
+
+        if ($benefitReason) {
+            $benefitInfo .= " - " . $benefitReason;
         }
 
         // Génération des détails de paiement simplifiés

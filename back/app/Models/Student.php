@@ -41,6 +41,8 @@ class Student extends Model
         'status',
         'is_new',
         'student_status',
+        'arrival_trimester',
+        'newcomer_discount_reason',
         'registration_fee'
     ];
 
@@ -48,6 +50,7 @@ class Student extends Model
         'date_of_birth' => 'date',
         'birthday' => 'date',
         'is_new' => 'boolean',
+        'arrival_trimester' => 'integer',
         'is_active' => 'boolean',
         'has_scholarship_enabled' => 'boolean'
     ];

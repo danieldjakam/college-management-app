@@ -677,15 +677,13 @@ class PVService
 
         // Vérifier si c'est un PV de trimestre
         if (isset($evaluation->is_trimester_pv) && $evaluation->is_trimester_pv) {
-            // PV de trimestre avec formule selon le cycle
-            if ($cycleType === 'deuxieme') {
-                $evaluationType = "Trimestre {$evaluation->trimester->number} (Moy = (Seq1 + Seq2 + Compo) / 3)";
+            // PV de trimestre avec formule uniformisée pour tous les cycles
+            if ($evaluation->trimester->number == 3) {
+                // Trimestre 3: Composition uniquement pour tous les cycles
+                $evaluationType = "Trimestre {$evaluation->trimester->number} (Composition uniquement)";
             } else {
-                if ($evaluation->trimester->number == 3) {
-                    $evaluationType = "Trimestre {$evaluation->trimester->number} (Composition uniquement)";
-                } else {
-                    $evaluationType = "Trimestre {$evaluation->trimester->number} (Moy = (DS + Compo) / 2)";
-                }
+                // Trimestres 1 et 2: Formule uniforme pour tous les cycles
+                $evaluationType = "Trimestre {$evaluation->trimester->number} (Moy = (DS + Compo) / 2 où DS = (Seq1 + Seq2) / 2)";
             }
         } elseif ($evaluation->sequence) {
             // PV de séquence ou composition

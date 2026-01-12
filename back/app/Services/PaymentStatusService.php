@@ -8,6 +8,7 @@ use App\Models\PaymentTranche;
 use App\Models\SchoolSetting;
 use App\Models\Payment;
 use Carbon\Carbon;
+use App\Services\NewcomerSchoolFeeDiscountService;
 
 class PaymentStatusService
 {
@@ -152,6 +153,11 @@ class PaymentStatusService
 
         $paidPerTranche = [];
         $discountPerTranche = [];
+
+        // Réduction spécifique "nouveau élève" (2e/3e trimestre) : s'applique sur toutes les tranches SAUF inscription
+        $newcomerDiscountService = new NewcomerSchoolFeeDiscountService();
+        $newcomerRatio = $newcomerDiscountService->getReductionRatio($student);
+        $hasNewcomerDiscount = $newcomerRatio > 0;
         
         // CORRECTION: Calculer la bourse totale réelle des paiements existants
         $totalActualScholarship = 0;
@@ -226,6 +232,13 @@ class PaymentStatusService
             $requiredAmount = $tranche->getAmountForStudent($student, false, false, false); // Montants NORMAUX
             if ($requiredAmount <= 0) continue;
 
+            // Appliquer la réduction "nouveau" sur toutes les tranches sauf l'inscription (order=1)
+            // On la traite comme une réduction (rabais) dans les champs "global_discount_*" pour compatibilité frontend.
+            $newcomerDiscountAmount = 0;
+            if ($hasNewcomerDiscount && (int) $tranche->order !== 1) {
+                $newcomerDiscountAmount = round($requiredAmount * $newcomerRatio, 0);
+            }
+
             $paidAmount = $paidPerTranche[$tranche->id] ?? 0;
             $trancheRemaining = max(0, $requiredAmount - $paidAmount);
             
@@ -252,8 +265,9 @@ class PaymentStatusService
                 $isFullyPaid = $remainingAmount == 0;
             }
             
-            $globalDiscountAmount = 0;
-            $hasGlobalDiscount = false;
+            // Réduction globale (ancienne logique) OU réduction "nouveau" (nouvelle logique)
+            $globalDiscountAmount = $newcomerDiscountAmount;
+            $hasGlobalDiscount = $newcomerDiscountAmount > 0;
             
             // Gérer les cas spéciaux seulement si pas de bourse réelle
             if ($totalActualScholarship == 0) {
@@ -284,10 +298,18 @@ class PaymentStatusService
                         $remainingAmount = 0;
                         $isFullyPaid = true;
                     } else {
-                        $hasGlobalDiscount = false;
-                        $globalDiscountAmount = 0;
-                        $remainingAmount = max(0, $requiredAmount - $paidAmount);
-                        $isFullyPaid = $paidAmount >= $requiredAmount;
+                        // Si pas de réduction globale enregistrée, on garde éventuellement la réduction "nouveau" déjà calculée
+                        // et on recalcule le reste à payer en tenant compte de cette réduction.
+                        if ($hasGlobalDiscount && $globalDiscountAmount > 0) {
+                            $effectiveRequired = max(0, $requiredAmount - $globalDiscountAmount);
+                            $remainingAmount = max(0, $effectiveRequired - $paidAmount);
+                            $isFullyPaid = ($paidAmount + $globalDiscountAmount) >= $requiredAmount;
+                        } else {
+                            $hasGlobalDiscount = false;
+                            $globalDiscountAmount = 0;
+                            $remainingAmount = max(0, $requiredAmount - $paidAmount);
+                            $isFullyPaid = $paidAmount >= $requiredAmount;
+                        }
                     }
                 }
             }
@@ -305,7 +327,9 @@ class PaymentStatusService
                 'scholarship_amount' => $scholarshipAmount,
                 'has_global_discount' => $hasGlobalDiscount,
                 'global_discount_amount' => $globalDiscountAmount,
-                'discount_percentage' => $hasGlobalDiscount ? $discountPercentage : 0,
+                // Pour compatibilité, on met un % uniquement pour l'ancienne réduction globale.
+                // La réduction "nouveau" est en fraction (1/3, 2/3) et sera visible via global_discount_amount.
+                'discount_percentage' => ($hasGlobalDiscount && !$hasNewcomerDiscount) ? $discountPercentage : 0,
                 // Propriétés par défaut pour compatibilité
                 'is_physical_only' => false,
                 'is_optional' => false,
@@ -327,7 +351,7 @@ class PaymentStatusService
             if ($hasScholarship) {
                 $effectiveRequired = max(0, $requiredAmount - $scholarshipAmount);
             } elseif ($hasGlobalDiscount) {
-                $effectiveRequired = $requiredAmount - $globalDiscountAmount;
+                $effectiveRequired = max(0, $requiredAmount - $globalDiscountAmount);
             }
             $totalEffectiveRequired += $effectiveRequired;
         }
@@ -450,6 +474,11 @@ class PaymentStatusService
         $discountCalculator = new \App\Services\DiscountCalculatorService();
         $reductionResult = $discountCalculator->calculateAmountsWithLastTrancheReduction($student, $paymentTranches);
 
+        // Réduction "nouveau élève" (2e/3e trimestre) appliquée sur toutes les tranches sauf inscription
+        $newcomerDiscountService = new NewcomerSchoolFeeDiscountService();
+        $newcomerRatio = $newcomerDiscountService->getReductionRatio($student);
+        $hasNewcomerDiscount = $newcomerRatio > 0;
+
         // Calculer ce qui a été payé par tranche
         $paidPerTranche = [];
         foreach ($existingPayments as $payment) {
@@ -472,8 +501,17 @@ class PaymentStatusService
 
             $paidAmount = $paidPerTranche[$tranche->id] ?? 0;
             
-            // Utiliser le montant réduit pour calculer ce qui reste à payer
-            $remainingAmount = max(0, $reducedAmount - $paidAmount);
+            // Appliquer la réduction "nouveau" sur le montant normal (affichage) uniquement pour calculer le montant effectif.
+            // Note: Ici, $reducedAmount correspond à la réduction globale (10%) potentielle.
+            $newcomerDiscountAmount = 0;
+            if ($hasNewcomerDiscount && (int) $tranche->order !== 1) {
+                $newcomerDiscountAmount = round($normalAmount * $newcomerRatio, 0);
+            }
+
+            $effectiveRequiredAmount = max(0, $reducedAmount - $newcomerDiscountAmount);
+
+            // Utiliser le montant effectif pour calculer ce qui reste à payer
+            $remainingAmount = max(0, $effectiveRequiredAmount - $paidAmount);
 
             // Calculer les informations de bourse pour cette tranche
             $scholarshipAmount = 0;
@@ -490,17 +528,17 @@ class PaymentStatusService
                 'tranche_name' => $tranche->name,
                 'tranche_order' => $tranche->order,
                 'required_amount' => $normalAmount, // Montant normal pour affichage
-                'effective_required_amount' => $reducedAmount, // Montant effectif à payer
+                'effective_required_amount' => $effectiveRequiredAmount, // Montant effectif à payer
                 'paid_amount' => $paidAmount,
                 'remaining_amount' => $remainingAmount,
                 'is_fully_paid' => $remainingAmount <= 0,
-                'reduction_applied' => $reductionApplied,
-                'has_reduction' => $reductionApplied > 0,
-                'reduction_percentage' => $normalAmount > 0 ? round(($reductionApplied / $normalAmount) * 100, 2) : 0,
+                'reduction_applied' => ($reductionApplied + $newcomerDiscountAmount),
+                'has_reduction' => ($reductionApplied + $newcomerDiscountAmount) > 0,
+                'reduction_percentage' => $normalAmount > 0 ? round((($reductionApplied + $newcomerDiscountAmount) / $normalAmount) * 100, 2) : 0,
                 // Propriétés pour compatibilité frontend
-                'has_global_discount' => $reductionApplied > 0,
-                'global_discount_amount' => $reductionApplied,
-                'discount_percentage' => $normalAmount > 0 ? round(($reductionApplied / $normalAmount) * 100, 2) : 0,
+                'has_global_discount' => ($reductionApplied + $newcomerDiscountAmount) > 0,
+                'global_discount_amount' => ($reductionApplied + $newcomerDiscountAmount),
+                'discount_percentage' => $normalAmount > 0 ? round((($reductionApplied + $newcomerDiscountAmount) / $normalAmount) * 100, 2) : 0,
                 // Propriétés de bourse
                 'has_scholarship' => $hasScholarship,
                 'scholarship_amount' => $scholarshipAmount,
@@ -519,7 +557,7 @@ class PaymentStatusService
 
             $totalRequired += $normalAmount;
             $totalPaid += $paidAmount;
-            $totalEffectiveRequired += $reducedAmount;
+            $totalEffectiveRequired += $effectiveRequiredAmount;
         }
 
         return [

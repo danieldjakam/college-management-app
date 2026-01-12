@@ -11,6 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Idempotent: si la table existe déjà (cas fréquent en dev/prod avec import DB), ne pas échouer.
+        if (Schema::hasTable('daily_attendance_states')) {
+            return;
+        }
+
         Schema::create('daily_attendance_states', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('class_series_id');

@@ -11,6 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Idempotent: si la table existe déjà, ne pas échouer
+        if (Schema::hasTable('merged_bulletin_p_d_f_s')) {
+            return;
+        }
+
         Schema::create('merged_bulletin_p_d_f_s', function (Blueprint $table) {
             $table->id();
             $table->foreignId('class_series_id')->constrained('class_series')->onDelete('cascade');

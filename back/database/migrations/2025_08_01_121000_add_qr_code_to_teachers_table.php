@@ -11,6 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Idempotent: éviter les erreurs si la colonne existe déjà
+        if (Schema::hasColumn('teachers', 'qr_code')) {
+            return;
+        }
+
         Schema::table('teachers', function (Blueprint $table) {
             $table->string('qr_code')->nullable()->unique()->after('user_id');
             $table->time('expected_arrival_time')->default('08:00:00')->after('qr_code');

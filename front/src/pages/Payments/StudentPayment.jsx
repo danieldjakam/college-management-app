@@ -1269,6 +1269,24 @@ const StudentPayment = () => {
         </Alert>
       )}
 
+      {/* Réduction "nouveau élève" (T2/T3) */}
+      {student?.student_status === 'new' && student?.arrival_trimester && (
+        <Alert variant="info" className="mb-3">
+          <strong>Réduction scolarité (nouveau élève)</strong>
+          <div>
+            Arrivée : <strong>{student.arrival_trimester}e trimestre</strong>
+            {" "}- réduction automatique sur la scolarité (inscription non réduite).
+          </div>
+          {student.newcomer_discount_reason && (
+            <div className="mt-1">
+              <small>
+                <em>Motif : {student.newcomer_discount_reason}</em>
+              </small>
+            </div>
+          )}
+        </Alert>
+      )}
+
       {/* Interface épurée - pas d'info sur les réductions au chargement initial */}
 
       {/* Summary Cards */}
@@ -1410,8 +1428,9 @@ const StudentPayment = () => {
                               status.global_discount_amount > 0 && (
                                 <div className="text-success">
                                   <small>
-                                    Avec réduction ({status.discount_percentage}
-                                    %):{" "}
+                                    {status.discount_percentage > 0
+                                      ? `Avec réduction (${status.discount_percentage}%) : `
+                                      : "Réduction appliquée : "}{" "}
                                     {formatAmount(
                                       parseFloat(status.required_amount) -
                                         parseFloat(
@@ -1452,7 +1471,9 @@ const StudentPayment = () => {
                                     {formatAmount(
                                       status.global_discount_amount
                                     )}{" "}
-                                    ({status.discount_percentage}%)
+                                    {status.discount_percentage > 0 && (
+                                      <>({status.discount_percentage}%)</>
+                                    )}
                                     <br />={" "}
                                     {formatAmount(
                                       parseFloat(status.paid_amount) +
@@ -1515,7 +1536,7 @@ const StudentPayment = () => {
                                   0 && (
                                   <div className="text-success">
                                     <small>
-                                      (Avec réduction:{" "}
+                                      (Avec réduction appliquée:{" "}
                                       {formatAmount(
                                         Math.max(
                                           0,

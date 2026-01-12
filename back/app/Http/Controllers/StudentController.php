@@ -321,6 +321,9 @@ class StudentController extends Controller
             'mother_phone' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:500',
             'class_series_id' => 'required|integer|exists:class_series,id',
+            'student_status' => 'nullable|in:new,old',
+            'arrival_trimester' => 'nullable|integer|in:2,3',
+            'newcomer_discount_reason' => 'nullable|string|max:1000',
             'photo' => 'nullable|image|mimes:jpeg,jpg,png,gif|max:5120' // 5MB max
         ]);
 
@@ -351,6 +354,20 @@ class StudentController extends Controller
             $studentData['school_year_id'] = $workingYear->id;
             $studentData['order'] = $maxOrder + 1; // Ajouter à la fin par défaut
             $studentData['is_active'] = true;
+
+            // Valeurs par défaut / normalisation pour la réduction "nouveau" (T2/T3)
+            if (empty($studentData['student_status'])) {
+                $studentData['student_status'] = 'old';
+            }
+
+            // Si l'élève n'est pas nouveau, on vide les infos de réduction
+            if (($studentData['student_status'] ?? 'old') !== 'new') {
+                $studentData['arrival_trimester'] = null;
+                $studentData['newcomer_discount_reason'] = null;
+            }
+
+            // Si nouveau mais trimestre non renseigné, on laisse null (pas de réduction automatique)
+            // Motif: texte libre (optionnel)
             
             // Convertir les chaînes boolean en vrais boolean
             if (isset($studentData['has_scholarship_enabled'])) {
@@ -380,10 +397,26 @@ class StudentController extends Controller
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
+
+            // Logger l'erreur pour faciliter le diagnostic (ex: colonne manquante si migration non exécutée)
+            \Log::error('Error creating student', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'payload' => $request->except(['photo']),
+            ]);
+
+            $msg = $e->getMessage();
+            $friendly = 'Erreur lors de la création de l\'élève';
+
+            // Message plus clair si les colonnes de réduction n'existent pas encore (migration non exécutée)
+            if (str_contains($msg, 'Unknown column') && (str_contains($msg, 'arrival_trimester') || str_contains($msg, 'newcomer_discount_reason'))) {
+                $friendly = "Migration manquante: exécutez 'php artisan migrate' pour ajouter les champs de réduction (arrival_trimester, newcomer_discount_reason).";
+            }
+
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la création de l\'élève',
-                'error' => $e->getMessage()
+                'message' => $friendly,
+                'error' => $msg
             ], 500);
         }
     }
@@ -407,6 +440,9 @@ class StudentController extends Controller
             'address' => 'nullable|string|max:500',
             'class_series_id' => 'required|exists:class_series,id',
             'school_year_id' => 'nullable|exists:school_years,id', // Optionnel lors de la modification
+            'student_status' => 'nullable|in:new,old',
+            'arrival_trimester' => 'nullable|integer|in:2,3',
+            'newcomer_discount_reason' => 'nullable|string|max:1000',
             'is_active' => 'boolean',
             'photo' => 'nullable|image|mimes:jpeg,jpg,png,gif|max:5120' // 5MB max
         ]);
@@ -421,6 +457,13 @@ class StudentController extends Controller
 
         try {
             $updateData = $request->except(['photo']);
+
+            // Normalisation pour la réduction "nouveau" (T2/T3)
+            $status = $updateData['student_status'] ?? $student->student_status ?? 'old';
+            if ($status !== 'new') {
+                $updateData['arrival_trimester'] = null;
+                $updateData['newcomer_discount_reason'] = null;
+            }
 
             // Si school_year_id n'est pas fourni, utiliser l'année de l'étudiant existant ou l'année courante
             if (!isset($updateData['school_year_id']) || empty($updateData['school_year_id'])) {
@@ -488,6 +531,9 @@ class StudentController extends Controller
             'address' => 'nullable|string|max:500',
             'class_series_id' => 'required|exists:class_series,id',
             'school_year_id' => 'nullable|exists:school_years,id', // Make nullable for update
+            'student_status' => 'nullable|in:new,old',
+            'arrival_trimester' => 'nullable|integer|in:2,3',
+            'newcomer_discount_reason' => 'nullable|string|max:1000',
             'is_active' => 'nullable|boolean',
             'photo' => 'nullable|image|mimes:jpeg,jpg,png,gif|max:5120' // 5MB max
         ]);
@@ -503,6 +549,13 @@ class StudentController extends Controller
 
         try {
             $updateData = $request->except(['photo']);
+
+            // Normalisation pour la réduction "nouveau" (T2/T3)
+            $status = $updateData['student_status'] ?? $student->student_status ?? 'old';
+            if ($status !== 'new') {
+                $updateData['arrival_trimester'] = null;
+                $updateData['newcomer_discount_reason'] = null;
+            }
 
             // Si school_year_id n'est pas fourni, utiliser l'année de travail de l'utilisateur
             if (empty($updateData['school_year_id'])) {
@@ -1166,7 +1219,9 @@ class StudentController extends Controller
     public function updateStatus(Request $request, Student $student)
     {
         $validator = Validator::make($request->all(), [
-            'student_status' => 'required|in:new,old'
+            'student_status' => 'required|in:new,old',
+            'arrival_trimester' => 'nullable|integer|in:2,3',
+            'newcomer_discount_reason' => 'nullable|string|max:1000',
         ]);
 
         if ($validator->fails()) {
@@ -1178,9 +1233,20 @@ class StudentController extends Controller
         }
 
         try {
-            $student->update([
-                'student_status' => $request->student_status
-            ]);
+            $data = [
+                'student_status' => $request->student_status,
+            ];
+
+            // Si statut = old, on efface les infos de réduction
+            if ($request->student_status !== 'new') {
+                $data['arrival_trimester'] = null;
+                $data['newcomer_discount_reason'] = null;
+            } else {
+                $data['arrival_trimester'] = $request->arrival_trimester;
+                $data['newcomer_discount_reason'] = $request->newcomer_discount_reason;
+            }
+
+            $student->update($data);
 
             return response()->json([
                 'success' => true,

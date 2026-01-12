@@ -272,6 +272,8 @@ const SeriesStudents = () => {
         address: '',
         class_series_id: seriesId,
         student_status: 'new',
+        arrival_trimester: '',
+        newcomer_discount_reason: '',
         has_scholarship_enabled: false,
     });
     
@@ -451,11 +453,18 @@ const SeriesStudents = () => {
                 // Ajouter tous les champs du formulaire 
                 Object.keys(finalFormData).forEach(key => {
                     const value = finalFormData[key];
+
+                    // Champs à toujours envoyer (même vides) pour permettre l'effacement côté backend
+                    const alwaysSend = ['student_status', 'arrival_trimester', 'newcomer_discount_reason'];
+
                     // S'assurer que les valeurs ne sont pas undefined ou null
                     if (value !== undefined && value !== null && value !== '') {
                         formDataToSend.append(key, String(value));
-                    } else if (['first_name', 'last_name', 'date_of_birth', 'place_of_birth', 'gender', 'parent_name', 'class_series_id'].includes(key)) {
-                        // Pour les champs requis, utiliser une chaîne vide si la valeur est manquante
+                    } else if (
+                        ['first_name', 'last_name', 'date_of_birth', 'place_of_birth', 'gender', 'parent_name', 'class_series_id'].includes(key) ||
+                        alwaysSend.includes(key)
+                    ) {
+                        // Pour les champs requis (et ceux à effacer), envoyer une chaîne vide
                         formDataToSend.append(key, '');
                     }
                 });
@@ -661,6 +670,8 @@ const SeriesStudents = () => {
             address: student.address || '',
             class_series_id: seriesId,
             student_status: student.student_status || 'new',
+            arrival_trimester: student.arrival_trimester ? String(student.arrival_trimester) : '',
+            newcomer_discount_reason: student.newcomer_discount_reason || '',
             has_scholarship_enabled: student.has_scholarship_enabled || false,
             // school_year_id géré automatiquement par le backend
         });
@@ -1560,6 +1571,8 @@ const SeriesStudents = () => {
             address: '',
             class_series_id: seriesId,
             student_status: 'new',
+            arrival_trimester: '',
+            newcomer_discount_reason: '',
             has_scholarship_enabled: false,
             // school_year_id géré automatiquement par le backend
         });
@@ -2148,13 +2161,43 @@ const SeriesStudents = () => {
                                                 <select
                                                     className="form-select"
                                                     value={formData.student_status || 'new'}
-                                                    onChange={(e) => setFormData({...formData, student_status: e.target.value})}
+                                                    onChange={(e) => {
+                                                        const newStatus = e.target.value;
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            student_status: newStatus,
+                                                            // Si on passe en "ancien", on efface les infos de réduction
+                                                            ...(newStatus !== 'new'
+                                                                ? { arrival_trimester: '', newcomer_discount_reason: '' }
+                                                                : {}),
+                                                        }));
+                                                    }}
                                                 >
                                                     <option value="new">Nouveau élève</option>
                                                     <option value="old">Ancien élève</option>
                                                 </select>
                                             </div>
                                         </div>
+
+                                        {/* Réduction scolarité (nouveau élève) */}
+                                        {(formData.student_status || 'new') === 'new' && (
+                                            <>
+                                                <div className="col-md-4">
+                                                    <div className="mb-3">
+                                                        <label className="form-label">Trimestre d'arrivée (pour réduction)</label>
+                                                        <select
+                                                            className="form-select"
+                                                            value={formData.arrival_trimester || ''}
+                                                            onChange={(e) => setFormData({ ...formData, arrival_trimester: e.target.value })}
+                                                        >
+                                                            <option value="">Aucun</option>
+                                                            <option value="2">2e trimestre (réduction 1/3 scolarité)</option>
+                                                            <option value="3">3e trimestre (réduction 2/3 scolarité)</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
                                         <div className="col-md-4">
                                             <div className="mb-3">
                                                 <label className="form-label">Nom du parent *</label>
@@ -2229,6 +2272,20 @@ const SeriesStudents = () => {
                                             onChange={(e) => setFormData({...formData, address: e.target.value})}
                                         />
                                     </div>
+
+                                    {/* Motif réduction (texte libre) */}
+                                    {(formData.student_status || 'new') === 'new' && (
+                                        <div className="mb-3">
+                                            <label className="form-label">Motif réduction scolarité (texte libre)</label>
+                                            <textarea
+                                                className="form-control"
+                                                rows="2"
+                                                value={formData.newcomer_discount_reason || ''}
+                                                onChange={(e) => setFormData({ ...formData, newcomer_discount_reason: e.target.value })}
+                                                placeholder="Ex: Nouveau élève arrivé au 2e trimestre..."
+                                            />
+                                        </div>
+                                    )}
                                     
                                     <div className="mb-3">
                                         <div className="form-check">
