@@ -131,6 +131,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           items: [
             { name: "Inventaire", href: "/inventory", icon: <Archive /> },
             { name: "Documents", href: "/documents", icon: <FolderFill /> },
+            { name: "Réductions", href: "/manual-discounts", icon: <CashCoin /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
             { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
           ],
@@ -215,6 +216,11 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               href: "/payments/documentary-fees",
               icon: <FileTextFill />,
             },
+            {
+              name: "Réductions",
+              href: "/manual-discounts",
+              icon: <CashCoin />,
+            },
           ],
         },
         {
@@ -265,7 +271,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
       ];
-    } else if (userRole === "accountant" || userRole === "comptable_superieur") {
+    } else if (userRole === "accountant" || userRole === "comptable" || userRole === "comptable_superieur") {
       return [
         {
           title: "Comptabilité",
@@ -273,6 +279,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
             { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
             { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
+            { name: "Réductions", href: "/manual-discounts", icon: <CashCoin /> },
           ],
         },
         {
@@ -287,7 +294,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         {
           title: "Présences",
           items: [
-            ...((userRole === "comptable_superieur" || userRole === "accountant") ? [
+            ...((userRole === "comptable_superieur" || userRole === "accountant" || userRole === "comptable") ? [
             { name: "Appel Manuel Classes", href: "/manual-attendance", icon: <ListCheck /> },
             { name: "Suivi Présences Élèves", href: "/student-attendance-tracking", icon: <ClipboardCheckFill /> },
             { name: "Rapports Présence Étudiants", href: "/attendance-reports", icon: <FileTextFill /> },
@@ -323,7 +330,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               href: "/payments/documentary-fees",
               icon: <FileTextFill />,
             },
-            ...((userRole === "comptable_superieur" || userRole === "accountant") ? [
+            ...((userRole === "comptable_superieur" || userRole === "accountant" || userRole === "comptable") ? [
               {
                 name: "Gestion des Paiements",
                 href: "/payment-management",
@@ -653,7 +660,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
   const getUserDisplayName = () => {
     if (isLoading || !user) return "";
 
-    if (user.role === "admin" || user.role === "accountant" || user.role === "comptable_superieur") {
+    if (user.role === "admin" || user.role === "accountant" || user.role === "comptable" || user.role === "comptable_superieur") {
       return user.username || user.name || "";
     } else {
       return user.name || "";
@@ -667,6 +674,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
       case "admin":
         return "Administrateur";
       case "accountant":
+      case "comptable":
         return "Comptable";
       case "comptable_superieur":
         return "Comptable Supérieur";

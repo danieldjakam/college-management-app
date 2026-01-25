@@ -918,6 +918,23 @@ export const secureApiEndpoints = {
         setUserWorkingYear: (yearId) => secureApi.post('/school-years/set-user-working-year', { school_year_id: yearId })
     },
 
+    // === MANUAL DISCOUNTS (Module Réductions) ===
+    manualDiscounts: {
+        list: (params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/manual-discounts${queryString ? '?' + queryString : ''}`);
+        },
+        getForStudent: (studentId, params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.get(`/manual-discounts/student/${studentId}${queryString ? '?' + queryString : ''}`);
+        },
+        upsert: (data) => secureApi.post('/manual-discounts', data),
+        deleteForStudent: (studentId, params = {}) => {
+            const queryString = new URLSearchParams(params).toString();
+            return secureApi.delete(`/manual-discounts/student/${studentId}${queryString ? '?' + queryString : ''}`);
+        },
+    },
+
     // === PAYMENTS ===
     // payments: {
     // },

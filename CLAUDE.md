@@ -196,6 +196,13 @@ flutter build ios              # Build iOS app (requires Mac)
 - Class lists with photos
 - Bulletin exports (PDF per student or bulk)
 - Excel/CSV exports for all entities
+- **Student ID Cards** - Generate school identity cards with:
+  - Student photo (3x4 cm), school logo, QR code
+  - Student info: matricule, class, date of birth, parent contact
+  - Cameroon flag and national motto at top
+  - Standard credit card format (85.6 mm × 54 mm)
+  - Individual or batch generation (10 cards per A4 page)
+  - QR code contains student verification data
 
 ## API Structure
 
@@ -211,6 +218,7 @@ flutter build ios              # Build iOS app (requires Mac)
 - `/classes/*` - Class/section/series/level management
 - `/subjects/*` - Subject and curriculum management
 - `/payments/*` - Payment processing, receipts, reports
+- `/manual-discounts/*` - Individual student manual discounts (NEW)
 - `/evaluations/*` - Evaluation and grade management
 - `/sequences/*`, `/trimesters/*` - Academic period management
 - `/bulletins/*` - Bulletin generation and preview
@@ -239,6 +247,11 @@ flutter build ios              # Build iOS app (requires Mac)
 - `back/GROUPES_MATIERES_README.md` - Subject group technical documentation
 - `back/QUEUE_WHATSAPP_README.md` - WhatsApp queue system documentation
 - `back/DEPLOIEMENT_PRODUCTION.md` - Production deployment guide
+- `DESIGN_CARTE_IDENTITE.md` - Student ID card design specifications
+- `GUIDE_ENSEIGNANT_SAISIE_NOTES.md` - Teacher guide for grade entry
+- `OPTIMISATIONS_PERFORMANCE_BULLETINS.md` - Bulletin generation performance optimization guide
+- `SOLUTION_BATCH_GENERATION.md` - Batch bulletin generation solution
+- `CORRECTION_BOURSES_MULTIPLES.md` - Fix for multiple scholarships bug
 - `others/CLAUDE.md` - Legacy project documentation (contains old Node.js backend info)
 
 ## Critical Business Logic
@@ -665,11 +678,26 @@ curl -X PUT "http://localhost:8000/api/subject-groups/groups/1" \
 ### Payment System Logic
 - **Base Amount**: Set per class (e.g., 150,000 FCFA)
 - **Reductions**: Class-level scholarships (percentage-based) or individual scholarships
+- **Manual Discounts**: Fixed amount reductions applied to individual students (NEW)
+  - Applied only to schooling fees (never inscription)
+  - Distributed across tranches starting from the last tranche (descending order)
+  - Managed via `student_manual_discounts` table
+  - Admin can set fixed discount amount with reason (e.g., "Réduction exceptionnelle - 50000 FCFA")
 - **Tranches**: Payments split into installments (e.g., 1st tranche, 2nd tranche)
 - **Redistribution**: When a payment is made, amount is distributed across fee types (inscription, schooling, documentary, transport) proportionally
 - **Transfers**: When student moves between classes, payments follow with recalculation
 
-Key files: `back/app/Http/Controllers/PaymentController.php`, `back/app/Services/PaymentStatusService.php`
+**Priority of Discounts**:
+1. Class-level scholarship (percentage on base amount)
+2. Individual student scholarship (percentage)
+3. Manual discount (fixed amount applied after percentages)
+
+Key files:
+- `back/app/Http/Controllers/PaymentController.php` - Payment processing
+- `back/app/Services/PaymentStatusService.php` - Payment status calculation
+- `back/app/Services/ManualDiscountService.php` - Manual discount logic (NEW)
+- `back/app/Http/Controllers/StudentManualDiscountController.php` - Manual discount CRUD (NEW)
+- `front/src/pages/ManualDiscounts/ManualDiscounts.jsx` - Manual discount UI (NEW)
 
 ### Teacher Assignment System
 Teachers are assigned to class-subject combinations via `teacher_assignments`:
@@ -679,6 +707,44 @@ Teachers are assigned to class-subject combinations via `teacher_assignments`:
 - Teachers see only their assigned classes and subjects in grade entry
 
 Key files: `back/app/Http/Controllers/TeacherAssignmentController.php`
+
+### Student ID Card System
+Generate professional school identity cards with Cameroon national branding:
+
+**Design Specifications**:
+- **Format**: 85.6 mm × 54 mm (standard credit card size)
+- **Layout**: Landscape orientation, single-sided (recto only)
+- **Colors**: Cameroon flag colors (green #009639, red #CE1126, yellow #FCD116)
+- **Elements**:
+  - Top banner: Cameroon flag + "RÉPUBLIQUE DU CAMEROUN - PAIX TRAVAIL PATRIE"
+  - Student photo: 3x4 cm on left side
+  - School logo: Top right corner
+  - Student information: Name, matricule, class, date of birth, parent contact, school year
+  - QR code: 2.5x2.5 cm at bottom center (contains verification data)
+  - Signature zone: Bottom right for school director
+
+**Technical Implementation**:
+- Uses DomPDF (already installed) with Blade template
+- QR code generated with `simplesoftwareio/simple-qrcode` package
+- QR data includes: student info, verification URL, school logo URL
+- Storage: `storage/app/student-cards/`
+- Database table: `student_cards` (tracks generation history)
+
+**Generation Options**:
+1. Individual card (1 per A4 page for plastification)
+2. Batch mode (10 cards per A4 page - 2 columns × 5 rows)
+3. Class-wide generation with single PDF download
+
+**Security Features**:
+- Unique matricule on each card
+- QR code with encrypted timestamp
+- Online verification via unique URL
+- Watermark with school logo (subtle background)
+
+Key files:
+- Design spec: `DESIGN_CARTE_IDENTITE.md` (detailed visual layout)
+- Backend routes: `/api/student-cards/*` (when implemented)
+- Template location (planned): `back/resources/views/student-cards/template.blade.php`
 
 ## Common Development Workflows
 
@@ -925,6 +991,26 @@ Update API endpoint in mobile app service files (check `mobile/lib/` directory)
 - Run `flutter clean && flutter pub get`
 - Check iOS pods: `cd ios && pod install && cd ..`
 - Verify Flutter version: `flutter doctor`
+
+### Manual Discount Issues
+
+**Problem: Manual discount not reflected in payment calculation**
+- Verify discount exists: `StudentManualDiscount::where('student_id', $id)->where('school_year_id', $yearId)->first()`
+- Check discount is applied AFTER percentage scholarships
+- Ensure discount amount doesn't exceed total schooling fees
+- Manual discounts only apply to schooling fees (inscription excluded)
+- Check `ManualDiscountService::distributeAcrossTranches()` logs
+
+**Problem: Discount distribution incorrect across tranches**
+- Verify tranches are sorted by descending order (last tranche first)
+- Check that inscription tranche is excluded from discount distribution
+- Ensure `required` amount per tranche is positive
+- Manual discount applies to unpaid balance, not total fees
+
+**Problem: Multiple discounts conflicting**
+- Application order: (1) Class scholarship % → (2) Individual scholarship % → (3) Manual discount fixed amount
+- Verify no duplicate manual discounts for same student+year combination
+- Check unique constraint on `student_manual_discounts` table: `['student_id', 'school_year_id']`
 
 ## Testing
 

@@ -322,6 +322,40 @@ class PaymentController extends Controller
                 }
             }
 
+            // Réduction manuelle (module Réductions): montant fixe sur la scolarité (hors inscription)
+            $manualDiscountService = new \App\Services\ManualDiscountService();
+            $manualDiscount = $manualDiscountService->getManualDiscountForStudent($student, $workingYear);
+            $manualDiscountAmountTotal = 0;
+            $manualDiscountReason = null;
+            if ($manualDiscount && $manualDiscount->amount > 0) {
+                $manualDiscountReason = $manualDiscount->reason;
+
+                $remainingManualToApply = (float) $manualDiscount->amount;
+                $sorted = $paymentStatus->tranche_status;
+                usort($sorted, function ($a, $b) {
+                    return ((int)($b['tranche']['order'] ?? 0)) <=> ((int)($a['tranche']['order'] ?? 0));
+                });
+
+                foreach ($sorted as $ts) {
+                    if ($remainingManualToApply <= 0) break;
+                    $order = (int)($ts['tranche']['order'] ?? 0);
+                    if ($order === 1) continue;
+
+                    $required = (float) ($ts['required_amount'] ?? 0);
+                    $paid = (float) ($ts['paid_amount'] ?? 0);
+                    $remaining = max(0.0, $required - $paid);
+
+                    $apply = min($remainingManualToApply, $remaining);
+                    $manualDiscountAmountTotal += $apply;
+                    $remainingManualToApply -= $apply;
+                }
+            }
+
+            // Ne pas cumuler réduction manuelle et réduction "date limite" (même principe de non-cumul)
+            if ($manualDiscountAmountTotal > 0) {
+                $request->merge(['apply_global_discount' => false]);
+            }
+
             switch ($paymentType) {
                 case 'scholarship':
                     // Cas avec bourse
@@ -354,13 +388,23 @@ class PaymentController extends Controller
 
                 default:
                     // Cas normal
+                    $hasAnyManualOrNewcomer = ($newcomerDiscountAmountTotal > 0) || ($manualDiscountAmountTotal > 0);
+                    $totalReductionAmount = (float) $newcomerDiscountAmountTotal + (float) $manualDiscountAmountTotal;
+
+                    $reasonParts = [];
+                    if ($newcomerDiscountAmountTotal > 0) {
+                        $reasonParts[] = trim((string) $request->newcomer_discount_reason)
+                            ?: (new \App\Services\NewcomerSchoolFeeDiscountService())->buildDefaultReason($student);
+                    }
+                    if ($manualDiscountAmountTotal > 0) {
+                        $reasonParts[] = $manualDiscountReason ? ("Réduction manuelle: " . $manualDiscountReason) : "Réduction manuelle appliquée";
+                    }
+
                     $discountResult = [
                         'final_amount' => $request->amount,
-                        'has_reduction' => $hasNewcomerDiscount && $newcomerDiscountAmountTotal > 0,
-                        'reduction_amount' => $hasNewcomerDiscount ? $newcomerDiscountAmountTotal : 0,
-                        'discount_reason' => $hasNewcomerDiscount
-                            ? (trim((string) $request->newcomer_discount_reason) ?: (new \App\Services\NewcomerSchoolFeeDiscountService())->buildDefaultReason($student))
-                            : null
+                        'has_reduction' => $hasAnyManualOrNewcomer,
+                        'reduction_amount' => $hasAnyManualOrNewcomer ? $totalReductionAmount : 0,
+                        'discount_reason' => $hasAnyManualOrNewcomer ? implode(' | ', array_filter($reasonParts)) : null
                     ];
                     $scholarshipInfo = [
                         'has_scholarship' => false,
@@ -466,7 +510,7 @@ class PaymentController extends Controller
             if ($remainingAmountToAllocate <= 0) break;
 
             // Montant effectif à payer (intègre la réduction "nouveau" si applicable, et n'affecte jamais l'inscription)
-            $requiredAmount = $effectiveAmountService->getEffectiveRequired($tranche, $student);
+            $requiredAmount = $effectiveAmountService->getEffectiveRequired($tranche, $student, $workingYear, $paymentTranches);
             if ($requiredAmount <= 0) continue;
 
             $previouslyPaid = 0;

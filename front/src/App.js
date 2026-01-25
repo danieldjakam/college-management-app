@@ -164,6 +164,7 @@ import StudentDiscipline from "./pages/Admin/StudentDiscipline";
 // Parent Pages
 import ParentLogin from "./pages/Parent/ParentLogin";
 import ParentDashboard from "./pages/Parent/ParentDashboard";
+import ManualDiscounts from "./pages/ManualDiscounts/ManualDiscounts";
 
 // ID Card Manager Pages
 import IdCardManagerDashboard from "./pages/IdCardManager/IdCardManagerDashboard";
@@ -765,6 +766,15 @@ const AppContent = () => {
                   <AccountantRoute>
                     <ParamsCompt />
                   </AccountantRoute>
+                }
+              />
+
+              <Route
+                path="/manual-discounts"
+                element={
+                  <ProtectedRoute>
+                    <ManualDiscounts />
+                  </ProtectedRoute>
                 }
               />
 

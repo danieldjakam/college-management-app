@@ -25,6 +25,11 @@ class CheckRole
             }
         }
 
+        // Normaliser et dédupliquer (évite les doublons après modifications)
+        $allowedRoles = array_values(array_unique(array_filter(array_map(function ($r) {
+            return trim((string) $r);
+        }, $allowedRoles))));
+
         // Log pour déboguer l'authentification
         \Log::info('CheckRole middleware', [
             'authenticated' => auth()->check(),
@@ -42,6 +47,17 @@ class CheckRole
         }
 
         $userRole = auth()->user()->role;
+
+        // Alias: comptable = accountant
+        if ($userRole === 'comptable') {
+            $userRole = 'accountant';
+        }
+
+        // Si la route autorise accountant, le rôle comptable doit aussi passer.
+        // (Le mapping ci-dessus suffit, mais on garde aussi la compatibilité inverse.)
+        if (in_array('accountant', $allowedRoles) && !in_array('comptable', $allowedRoles)) {
+            $allowedRoles[] = 'comptable';
+        }
 
         if (!in_array($userRole, $allowedRoles)) {
             return response()->json([

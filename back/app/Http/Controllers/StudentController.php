@@ -2253,11 +2253,19 @@ class StudentController extends Controller
     /**
      * Redistribuer les payment_details sur les paiements existants
      * Stratégie: Créer des payment_details proportionnels aux montants payés
+     *
+     * CORRECTION BUG TRANSFERT: Maintenant calcule correctement le cumul des paiements par tranche
      */
     private function redistributePaymentDetails($payments, $newAllocation)
     {
         if (empty($newAllocation)) {
             return;
+        }
+
+        // CORRECTION: Tracker le total cumulé payé pour chaque tranche
+        $trancheCumulativeTotals = [];
+        foreach ($newAllocation as $allocation) {
+            $trancheCumulativeTotals[$allocation['tranche_id']] = 0;
         }
 
         // Stratégie simple: Répartir séquentiellement sur les paiements dans l'ordre chronologique
@@ -2287,24 +2295,41 @@ class StudentController extends Controller
                 $amountToAllocate = min($remainingInPayment, $remainingInCurrentTranche);
 
                 if ($amountToAllocate > 0) {
+                    $trancheId = $currentTranche['tranche_id'];
+
+                    // CORRECTION: Récupérer le montant déjà payé pour cette tranche AVANT ce payment_detail
+                    $previousAmount = $trancheCumulativeTotals[$trancheId];
+
+                    // CORRECTION: Calculer le nouveau total cumulé pour cette tranche
+                    $newTotalAmount = $previousAmount + $amountToAllocate;
+
+                    // CORRECTION: Vérifier si la tranche est maintenant complète
+                    $isFullyPaid = ($newTotalAmount >= $currentTranche['required_amount']);
+
                     PaymentDetail::create([
                         'payment_id' => $payment->id,
-                        'payment_tranche_id' => $currentTranche['tranche_id'],
+                        'payment_tranche_id' => $trancheId,
                         'amount_allocated' => $amountToAllocate,
-                        'previous_amount' => 0,
-                        'new_total_amount' => $amountToAllocate,
-                        'is_fully_paid' => $currentTranche['is_fully_paid'] && ($amountToAllocate == $remainingInCurrentTranche),
+                        'previous_amount' => $previousAmount,  // CORRECTION: Montant déjà payé avant
+                        'new_total_amount' => $newTotalAmount,  // CORRECTION: Cumul total maintenant
+                        'is_fully_paid' => $isFullyPaid,  // CORRECTION: Basé sur le montant requis
                         'required_amount_at_time' => $currentTranche['required_amount'],
                         'was_reduced' => false
                     ]);
 
+                    // CORRECTION: Mettre à jour le cumul pour cette tranche
+                    $trancheCumulativeTotals[$trancheId] = $newTotalAmount;
+
                     $remainingInPayment -= $amountToAllocate;
                     $remainingInCurrentTranche -= $amountToAllocate;
 
-                    \Log::info('Created payment detail', [
+                    \Log::info('Created payment detail (CORRECTED)', [
                         'payment_id' => $payment->id,
                         'tranche' => $currentTranche['tranche_name'],
-                        'amount' => $amountToAllocate,
+                        'amount_allocated' => $amountToAllocate,
+                        'previous_amount' => $previousAmount,
+                        'new_total_amount' => $newTotalAmount,
+                        'is_fully_paid' => $isFullyPaid,
                         'remaining_in_payment' => $remainingInPayment,
                         'remaining_in_tranche' => $remainingInCurrentTranche
                     ]);

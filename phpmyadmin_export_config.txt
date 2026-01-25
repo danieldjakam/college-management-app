@@ -1,0 +1,176 @@
+=============================================================
+📋 CONFIGURATION PHPMYADMIN POUR EXPORT SANS TIMEOUT
+=============================================================
+
+⚠️ IMPORTANT : Utilisez ces paramètres pour éviter le timeout lors de l'export
+
+=============================================================
+1️⃣ MÉTHODE D'EXPORTATION
+=============================================================
+☑️ Sélectionner : "Personnalisée, afficher toutes les options possibles"
+
+
+=============================================================
+2️⃣ FORMAT
+=============================================================
+☑️ Sélectionner : "SQL"
+
+
+=============================================================
+3️⃣ TABLES
+=============================================================
+☑️ Cliquer sur : "Tout sélectionner"
+
+
+=============================================================
+4️⃣ SORTIE (LE PLUS IMPORTANT!)
+=============================================================
+☑️ COCHER : "Enregistrer la sortie vers un fichier"
+
+☐ DÉCOCHER : "Renommer les bases de données/tables/colonnes exportées"
+☐ DÉCOCHER : "Utiliser l'instruction LOCK TABLES"
+☐ DÉCOCHER : "Voir la sortie en texte"
+
+📦 Compression : Sélectionner "gzippé" (au lieu de "Aucun(e)")
+
+🔥 CRITIQUE : ☑️ COCHER : "Exporter les tables en fichiers séparés"
+   (Cette option réduit drastiquement le risque de timeout!)
+
+📏 Ignorer les tables de plus de : 50 Mio
+   (Pour ignorer les tables trop volumineuses comme telescope_entries)
+
+
+=============================================================
+5️⃣ OPTIONS SPÉCIFIQUES AU FORMAT
+=============================================================
+☐ DÉCOCHER : "Afficher les commentaires"
+☐ DÉCOCHER : "Inclure un horodatage de création"
+☐ DÉCOCHER : "Afficher les relations de clés étrangères"
+☐ DÉCOCHER : "Afficher les types MIME"
+☐ DÉCOCHER : "Utiliser le mode transactionnel"
+☑️ COCHER : "Désactiver la vérification des clés étrangères"
+☐ DÉCOCHER : "Exporter les vues comme des tables"
+☐ DÉCOCHER : "Exporter les métadonnées"
+
+Compatibilité : "NONE"
+
+
+=============================================================
+6️⃣ OPTIONS DE CRÉATION D'OBJETS
+=============================================================
+☐ DÉCOCHER : "Ajouter une instruction CREATE DATABASE / USE"
+☑️ COCHER : "Ajouter une instruction DROP TABLE / VIEW / PROCEDURE / FUNCTION / EVENT / TRIGGER"
+☑️ COCHER : "Ajouter une instruction CREATE TABLE"
+☐ DÉCOCHER : "IF NOT EXISTS"
+☑️ COCHER : "Valeur de AUTO_INCREMENT"
+☐ DÉCOCHER : "Ajouter une instruction CREATE VIEW"
+☐ DÉCOCHER : "Ajouter une instruction CREATE PROCEDURE / FUNCTION / EVENT"
+☐ DÉCOCHER : "Ajouter une instruction CREATE TRIGGER"
+☑️ COCHER : "Entourer les noms des tables et des colonnes par des guillemets obliques"
+
+
+=============================================================
+7️⃣ OPTIONS DE CRÉATION DE DONNÉES
+=============================================================
+☐ DÉCOCHER : "Tronquer la table avant d'insérer"
+☐ DÉCOCHER : "Instructions INSERT DELAYED"
+☐ DÉCOCHER : "Instructions INSERT IGNORE"
+
+Fonction : "INSERT"
+
+Syntaxe : Sélectionner "insérer des lignes multiples avec chaque instruction INSERT"
+   ☑️ Par exemple : INSERT INTO tbl_name VALUES (1,2,3), (4,5,6), (7,8,9)
+
+⚙️ Taille maximale de la requête générée : 10000
+   (Réduire de 50000 à 10000 pour éviter les timeouts)
+
+☑️ COCHER : "Décharger les colonnes binaires en format hexadécimal"
+☑️ COCHER : "Décharger les colonnes TIMESTAMP en UTC"
+
+
+=============================================================
+8️⃣ TABLES À IGNORER (Optionnel mais recommandé)
+=============================================================
+Si vous avez l'option "Ignorer les tables", ignorez ces tables temporaires :
+
+❌ telescope_entries
+❌ telescope_entries_tags
+❌ telescope_monitoring
+❌ cache
+❌ cache_locks
+❌ sessions
+❌ jobs
+❌ job_batches
+❌ failed_jobs
+
+Ces tables se régénèrent automatiquement et peuvent être TRÈS volumineuses.
+
+
+=============================================================
+9️⃣ LANCER L'EXPORT
+=============================================================
+Cliquez sur le bouton "Exporter" en bas de page.
+
+✅ Vous obtiendrez un fichier ZIP contenant plusieurs fichiers .sql.gz
+✅ Chaque table sera dans un fichier séparé
+✅ L'export sera beaucoup plus rapide (pas de timeout global)
+
+
+=============================================================
+📥 RÉSULTAT ATTENDU
+=============================================================
+Nom du fichier : c0admin.sql.zip
+Contenu : Plusieurs fichiers .sql.gz (un par table)
+Taille : Environ 70-90% plus petit que l'original grâce à la compression
+
+
+=============================================================
+🔄 RESTAURATION
+=============================================================
+Pour restaurer le backup :
+
+1. Décompressez le fichier ZIP
+2. Décompressez chaque .sql.gz
+3. Importez chaque .sql dans phpMyAdmin OU via ligne de commande :
+
+   for file in *.sql; do
+       mysql -u root -p c0admin < "$file"
+   done
+
+
+=============================================================
+⚡ SI ÇA TIMEOUT QUAND MÊME
+=============================================================
+Exportez en plusieurs fois par groupes de tables :
+
+📦 Groupe 1 - Configuration (10-15 tables) :
+   academic_periods, school_settings, school_years, sequences,
+   trimesters, sections, levels, subjects, etc.
+
+📦 Groupe 2 - Utilisateurs et structure (10 tables) :
+   users, teachers, students, school_classes, departments, etc.
+
+📦 Groupe 3 - Notes (3 tables) :
+   evaluations, grades, bulletin_generations
+
+📦 Groupe 4 - Paiements (5 tables) :
+   payments, payment_details, payment_tranches, etc.
+
+📦 Groupe 5 - Présences (5 tables) :
+   attendances, student_attendances, teacher_attendances, etc.
+
+📦 Groupe 6 - Autres tables restantes
+
+
+=============================================================
+✅ CHECKLIST FINALE
+=============================================================
+☑️ Compression : gzippé
+☑️ Exporter en fichiers séparés : OUI
+☑️ Taille max requête : 10000
+☑️ Mode transactionnel : NON
+☑️ Ignorer tables > 50 Mio : OUI
+☑️ Tables temporaires ignorées
+
+BONNE CHANCE ! 🚀
+=============================================================

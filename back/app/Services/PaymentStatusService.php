@@ -9,6 +9,7 @@ use App\Models\SchoolSetting;
 use App\Models\Payment;
 use Carbon\Carbon;
 use App\Services\NewcomerSchoolFeeDiscountService;
+use App\Services\ManualDiscountService;
 
 class PaymentStatusService
 {
@@ -63,10 +64,10 @@ class PaymentStatusService
         
         if ($hasAnyReduction) {
             // Utiliser la logique de réduction par dernières tranches
-            $trancheDetails = $this->calculateTrancheDetailsWithLastTrancheReduction($student, $paymentTranches, $existingPayments);
+            $trancheDetails = $this->calculateTrancheDetailsWithLastTrancheReduction($student, $schoolYear, $paymentTranches, $existingPayments);
         } else {
             // Par défaut, afficher les montants normaux
-            $trancheDetails = $this->calculateTrancheDetails($student, $paymentTranches, $existingPayments);
+            $trancheDetails = $this->calculateTrancheDetails($student, $schoolYear, $paymentTranches, $existingPayments);
         }
         
         // CORRECTION: Calculer la bourse totale réelle depuis les paiements existants
@@ -144,7 +145,7 @@ class PaymentStatusService
             ->get();
     }
 
-    private function calculateTrancheDetails(Student $student, $paymentTranches, $existingPayments)
+    private function calculateTrancheDetails(Student $student, SchoolYear $schoolYear, $paymentTranches, $existingPayments)
     {
         $trancheStatus = [];
         $totalRequired = 0;
@@ -158,6 +159,20 @@ class PaymentStatusService
         $newcomerDiscountService = new NewcomerSchoolFeeDiscountService();
         $newcomerRatio = $newcomerDiscountService->getReductionRatio($student);
         $hasNewcomerDiscount = $newcomerRatio > 0;
+
+        // Réduction manuelle (montant fixe) répartie sur les dernières tranches (hors inscription)
+        $manualDiscountService = new ManualDiscountService();
+        $manualDiscountAmount = $manualDiscountService->getManualDiscountAmount($student, $schoolYear);
+        $manualDiscountMap = [];
+        if ($manualDiscountAmount > 0) {
+            $rows = [];
+            foreach ($paymentTranches as $t) {
+                $req = (float) $t->getAmountForStudent($student, false, false, false);
+                if ($req <= 0) continue;
+                $rows[] = ['tranche' => $t, 'required' => $req];
+            }
+            $manualDiscountMap = $manualDiscountService->distributeAcrossTranches($manualDiscountAmount, $rows);
+        }
         
         // CORRECTION: Calculer la bourse totale réelle des paiements existants
         $totalActualScholarship = 0;
@@ -239,6 +254,8 @@ class PaymentStatusService
                 $newcomerDiscountAmount = round($requiredAmount * $newcomerRatio, 0);
             }
 
+            $manualDiscountOnTranche = (float) ($manualDiscountMap[$tranche->id] ?? 0);
+
             $paidAmount = $paidPerTranche[$tranche->id] ?? 0;
             $trancheRemaining = max(0, $requiredAmount - $paidAmount);
             
@@ -266,8 +283,8 @@ class PaymentStatusService
             }
             
             // Réduction globale (ancienne logique) OU réduction "nouveau" (nouvelle logique)
-            $globalDiscountAmount = $newcomerDiscountAmount;
-            $hasGlobalDiscount = $newcomerDiscountAmount > 0;
+            $globalDiscountAmount = $newcomerDiscountAmount + $manualDiscountOnTranche;
+            $hasGlobalDiscount = $globalDiscountAmount > 0;
             
             // Gérer les cas spéciaux seulement si pas de bourse réelle
             if ($totalActualScholarship == 0) {
@@ -463,7 +480,7 @@ class PaymentStatusService
     /**
      * Nouvelle méthode qui calcule les détails des tranches avec la logique de réduction par dernières tranches
      */
-    private function calculateTrancheDetailsWithLastTrancheReduction(Student $student, $paymentTranches, $existingPayments)
+    private function calculateTrancheDetailsWithLastTrancheReduction(Student $student, SchoolYear $schoolYear, $paymentTranches, $existingPayments)
     {
         $trancheStatus = [];
         $totalRequired = 0;
@@ -478,6 +495,20 @@ class PaymentStatusService
         $newcomerDiscountService = new NewcomerSchoolFeeDiscountService();
         $newcomerRatio = $newcomerDiscountService->getReductionRatio($student);
         $hasNewcomerDiscount = $newcomerRatio > 0;
+
+        // Réduction manuelle (montant fixe) répartie sur les dernières tranches (hors inscription)
+        $manualDiscountService = new ManualDiscountService();
+        $manualDiscountAmount = $manualDiscountService->getManualDiscountAmount($student, $schoolYear);
+        $manualDiscountMap = [];
+        if ($manualDiscountAmount > 0) {
+            $rows = [];
+            foreach ($paymentTranches as $t) {
+                $req = (float) $t->getAmountForStudent($student, false, false, false);
+                if ($req <= 0) continue;
+                $rows[] = ['tranche' => $t, 'required' => $req];
+            }
+            $manualDiscountMap = $manualDiscountService->distributeAcrossTranches($manualDiscountAmount, $rows);
+        }
 
         // Calculer ce qui a été payé par tranche
         $paidPerTranche = [];
@@ -508,7 +539,9 @@ class PaymentStatusService
                 $newcomerDiscountAmount = round($normalAmount * $newcomerRatio, 0);
             }
 
-            $effectiveRequiredAmount = max(0, $reducedAmount - $newcomerDiscountAmount);
+            $manualDiscountOnTranche = (float) ($manualDiscountMap[$tranche->id] ?? 0);
+
+            $effectiveRequiredAmount = max(0, $reducedAmount - $newcomerDiscountAmount - $manualDiscountOnTranche);
 
             // Utiliser le montant effectif pour calculer ce qui reste à payer
             $remainingAmount = max(0, $effectiveRequiredAmount - $paidAmount);
@@ -532,13 +565,13 @@ class PaymentStatusService
                 'paid_amount' => $paidAmount,
                 'remaining_amount' => $remainingAmount,
                 'is_fully_paid' => $remainingAmount <= 0,
-                'reduction_applied' => ($reductionApplied + $newcomerDiscountAmount),
-                'has_reduction' => ($reductionApplied + $newcomerDiscountAmount) > 0,
-                'reduction_percentage' => $normalAmount > 0 ? round((($reductionApplied + $newcomerDiscountAmount) / $normalAmount) * 100, 2) : 0,
+                'reduction_applied' => ($reductionApplied + $newcomerDiscountAmount + $manualDiscountOnTranche),
+                'has_reduction' => ($reductionApplied + $newcomerDiscountAmount + $manualDiscountOnTranche) > 0,
+                'reduction_percentage' => $normalAmount > 0 ? round((($reductionApplied + $newcomerDiscountAmount + $manualDiscountOnTranche) / $normalAmount) * 100, 2) : 0,
                 // Propriétés pour compatibilité frontend
-                'has_global_discount' => ($reductionApplied + $newcomerDiscountAmount) > 0,
-                'global_discount_amount' => ($reductionApplied + $newcomerDiscountAmount),
-                'discount_percentage' => $normalAmount > 0 ? round((($reductionApplied + $newcomerDiscountAmount) / $normalAmount) * 100, 2) : 0,
+                'has_global_discount' => ($reductionApplied + $newcomerDiscountAmount + $manualDiscountOnTranche) > 0,
+                'global_discount_amount' => ($reductionApplied + $newcomerDiscountAmount + $manualDiscountOnTranche),
+                'discount_percentage' => $normalAmount > 0 ? round((($reductionApplied + $newcomerDiscountAmount + $manualDiscountOnTranche) / $normalAmount) * 100, 2) : 0,
                 // Propriétés de bourse
                 'has_scholarship' => $hasScholarship,
                 'scholarship_amount' => $scholarshipAmount,
