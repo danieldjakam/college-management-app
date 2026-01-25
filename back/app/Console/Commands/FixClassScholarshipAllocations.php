@@ -269,15 +269,31 @@ class FixClassScholarshipAllocations extends Command
                     }
 
                     if (!$dryRun) {
-                        PaymentDetail::create([
-                            'payment_id' => $lastPayment->id,
-                            'payment_tranche_id' => $tranche->id,
-                            'amount_allocated' => $amountToAllocate,
-                            'previous_amount' => $alreadyPaid,
-                            'new_total_amount' => $alreadyPaid + $amountToAllocate,
-                            'required_amount_at_time' => $requiredAmount,
-                            'is_fully_paid' => (($alreadyPaid + $amountToAllocate) >= $requiredAmount)
-                        ]);
+                        // Vérifier si un payment_detail existe déjà pour ce payment et cette tranche
+                        $existingDetail = PaymentDetail::where('payment_id', $lastPayment->id)
+                            ->where('payment_tranche_id', $tranche->id)
+                            ->first();
+
+                        if ($existingDetail) {
+                            // Mettre à jour le payment_detail existant
+                            $existingDetail->update([
+                                'amount_allocated' => $existingDetail->amount_allocated + $amountToAllocate,
+                                'new_total_amount' => $alreadyPaid + $amountToAllocate,
+                                'required_amount_at_time' => $requiredAmount,
+                                'is_fully_paid' => (($alreadyPaid + $amountToAllocate) >= $requiredAmount)
+                            ]);
+                        } else {
+                            // Créer un nouveau payment_detail
+                            PaymentDetail::create([
+                                'payment_id' => $lastPayment->id,
+                                'payment_tranche_id' => $tranche->id,
+                                'amount_allocated' => $amountToAllocate,
+                                'previous_amount' => $alreadyPaid,
+                                'new_total_amount' => $alreadyPaid + $amountToAllocate,
+                                'required_amount_at_time' => $requiredAmount,
+                                'is_fully_paid' => (($alreadyPaid + $amountToAllocate) >= $requiredAmount)
+                            ]);
+                        }
                     }
 
                     $remainingToAllocate -= $amountToAllocate;
