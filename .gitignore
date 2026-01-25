@@ -11,3 +11,6 @@
 
 # Fichiers de base de données (exports SQL)
 *.sql
+*.sql.gz
+backup_*.sql.gz
+export_*.sql
