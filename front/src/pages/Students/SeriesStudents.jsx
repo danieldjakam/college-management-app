@@ -385,11 +385,11 @@ const SeriesStudents = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
         // Validation côté client
         const requiredFields = ['first_name', 'last_name', 'date_of_birth', 'place_of_birth', 'gender', 'parent_name'];
         const missingFields = requiredFields.filter(field => !formData[field] || formData[field].trim() === '');
-        
+
         if (missingFields.length > 0) {
             setError(`Champs obligatoires manquants: ${missingFields.map(field => {
                 const labels = {
@@ -404,9 +404,16 @@ const SeriesStudents = () => {
             }).join(', ')}`);
             return;
         }
-        
+
+        // VALIDATION : Motif obligatoire si trimestre 2 ou 3
+        if ((formData.arrival_trimester === '2' || formData.arrival_trimester === '3') &&
+            (!formData.newcomer_discount_reason || formData.newcomer_discount_reason.trim() === '')) {
+            setError('Le motif de réduction est obligatoire pour les élèves arrivés au trimestre 2 ou 3');
+            return;
+        }
+
         // L'année scolaire est maintenant gérée automatiquement par le backend
-        
+
         if (!seriesId) {
             setError('Série de classe manquante');
             return;
@@ -2184,16 +2191,19 @@ const SeriesStudents = () => {
                                             <>
                                                 <div className="col-md-4">
                                                     <div className="mb-3">
-                                                        <label className="form-label">Trimestre d'arrivée (pour réduction)</label>
+                                                        <label className="form-label">Trimestre d'arrivée (pour réduction manuelle)</label>
                                                         <select
                                                             className="form-select"
                                                             value={formData.arrival_trimester || ''}
                                                             onChange={(e) => setFormData({ ...formData, arrival_trimester: e.target.value })}
                                                         >
                                                             <option value="">Aucun</option>
-                                                            <option value="2">2e trimestre (réduction 1/3 scolarité)</option>
-                                                            <option value="3">3e trimestre (réduction 2/3 scolarité)</option>
+                                                            <option value="2">2e trimestre</option>
+                                                            <option value="3">3e trimestre</option>
                                                         </select>
+                                                        <small className="text-muted">
+                                                            Le montant de réduction sera saisi manuellement lors du paiement
+                                                        </small>
                                                     </div>
                                                 </div>
                                             </>
@@ -2273,17 +2283,28 @@ const SeriesStudents = () => {
                                         />
                                     </div>
 
-                                    {/* Motif réduction (texte libre) */}
+                                    {/* Motif réduction (texte libre) - OBLIGATOIRE si trimestre 2 ou 3 */}
                                     {(formData.student_status || 'new') === 'new' && (
                                         <div className="mb-3">
-                                            <label className="form-label">Motif réduction scolarité (texte libre)</label>
+                                            <label className="form-label">
+                                                Motif réduction scolarité (texte libre)
+                                                {(formData.arrival_trimester === '2' || formData.arrival_trimester === '3') && (
+                                                    <span className="text-danger"> *</span>
+                                                )}
+                                            </label>
                                             <textarea
                                                 className="form-control"
                                                 rows="2"
                                                 value={formData.newcomer_discount_reason || ''}
                                                 onChange={(e) => setFormData({ ...formData, newcomer_discount_reason: e.target.value })}
                                                 placeholder="Ex: Nouveau élève arrivé au 2e trimestre..."
+                                                required={(formData.arrival_trimester === '2' || formData.arrival_trimester === '3')}
                                             />
+                                            {(formData.arrival_trimester === '2' || formData.arrival_trimester === '3') && (
+                                                <small className="text-danger">
+                                                    Le motif est obligatoire pour les arrivées au trimestre 2 ou 3
+                                                </small>
+                                            )}
                                         </div>
                                     )}
                                     

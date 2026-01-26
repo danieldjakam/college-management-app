@@ -211,6 +211,7 @@ class PaymentController extends Controller
             'versement_date' => 'required|date',
             'apply_global_discount' => 'nullable|boolean',
             'newcomer_discount_reason' => 'nullable|string|max:1000',
+            'newcomer_discount_amount' => 'nullable|numeric|min:0', // Montant de réduction saisi manuellement
         ]);
 
         if ($validator->fails()) {
@@ -240,11 +241,15 @@ class PaymentController extends Controller
             // Déterminer le type de paiement et calculer les réductions/bourses
             $paymentType = 'normal'; // Par défaut
 
-            // Réduction "nouveau élève" (arrivée 2e/3e trimestre) : elle n'est pas liée à la date limite,
-            // et s'applique sur la scolarité uniquement (toutes tranches sauf inscription).
-            $newcomerDiscountService = new \App\Services\NewcomerSchoolFeeDiscountService();
-            $newcomerRatio = $newcomerDiscountService->getReductionRatio($student);
-            $hasNewcomerDiscount = $newcomerRatio > 0;
+            // Réduction "nouveau élève" (arrivée 2e/3e trimestre) : SAISIE MANUELLE
+            // Le calcul automatique est désactivé. L'utilisateur saisit le montant manuellement lors du paiement.
+            $hasNewcomerDiscount = false;
+            if ($request->has('newcomer_discount_amount') && $request->newcomer_discount_amount > 0) {
+                // Vérifier que l'élève est bien un nouveau élève avec trimestre d'arrivée 2 ou 3
+                if ($student->student_status === 'new' && in_array($student->arrival_trimester, [2, 3])) {
+                    $hasNewcomerDiscount = true;
+                }
+            }
 
             // Vérification de sécurité : un étudiant ne peut pas avoir à la fois une bourse ET une réduction
             $hasScholarship = $this->discountCalculatorService->getClassScholarship($student) !== null;
@@ -301,24 +306,30 @@ class PaymentController extends Controller
             $discountResult = [];
             $scholarshipInfo = [];
 
-            // Calculer la réduction "nouveau" sur la partie scolarité restante (hors inscription)
-            // On utilise le statut actuel (tranches + paiements existants) pour ne réduire que le reste.
+            // NOUVELLE LOGIQUE : Réduction "nouveau" MANUELLE
+            // L'utilisateur saisit directement le montant total de réduction à appliquer
             $newcomerDiscountAmountTotal = 0;
             if ($hasNewcomerDiscount) {
+                // Utiliser le montant saisi manuellement par l'utilisateur
+                $newcomerDiscountAmountTotal = (float) $request->newcomer_discount_amount;
+
+                // Vérifier que le montant ne dépasse pas le total restant sur la scolarité (hors inscription)
+                $maxScholarshipReduction = 0;
                 foreach ($paymentStatus->tranche_status as $ts) {
-                    // tranche_status contient déjà les infos par tranche
-                    // On ne réduit pas l'inscription: on se base sur order=1
                     $order = $ts['tranche']['order'] ?? null;
                     if ((int) $order === 1) {
-                        continue;
+                        continue; // Ignorer l'inscription
                     }
-
                     $required = (float) ($ts['required_amount'] ?? 0);
                     $paid = (float) ($ts['paid_amount'] ?? 0);
                     $remaining = max(0.0, $required - $paid);
+                    $maxScholarshipReduction += $remaining;
+                }
 
-                    // Réduction sur le montant restant uniquement
-                    $newcomerDiscountAmountTotal += round($remaining * $newcomerRatio, 0);
+                // Limiter le montant de réduction au maximum possible
+                if ($newcomerDiscountAmountTotal > $maxScholarshipReduction) {
+                    \Log::warning("Newcomer discount amount ({$newcomerDiscountAmountTotal}) exceeds max ({$maxScholarshipReduction}). Capping.");
+                    $newcomerDiscountAmountTotal = $maxScholarshipReduction;
                 }
             }
 
@@ -445,13 +456,23 @@ class PaymentController extends Controller
                 'amount' => $request->amount
             ]);
 
+            // Distribuer la réduction newcomer manuelle sur les tranches (hors inscription)
+            $newcomerDiscountMap = [];
+            if ($newcomerDiscountAmountTotal > 0) {
+                $newcomerDiscountMap = $this->distributeNewcomerDiscountAcrossTranches(
+                    $newcomerDiscountAmountTotal,
+                    $paymentStatus->payment_tranches,
+                    $student
+                );
+            }
+
             // Allouer le paiement selon le type
             if ($paymentType === 'global_discount') {
                 \Log::info('Using global discount allocation');
-                $this->allocatePaymentToTranchesWithLastTrancheDiscount($payment, $student, $workingYear, $paymentStatus->payment_tranches);
+                $this->allocatePaymentToTranchesWithLastTrancheDiscount($payment, $student, $workingYear, $paymentStatus->payment_tranches, $newcomerDiscountMap);
             } else {
                 \Log::info('Using normal allocation');
-                $this->allocatePaymentToTranches($payment, $student, $workingYear, $paymentStatus->payment_tranches);
+                $this->allocatePaymentToTranches($payment, $student, $workingYear, $paymentStatus->payment_tranches, $newcomerDiscountMap);
             }
 
             DB::commit();
@@ -493,7 +514,87 @@ class PaymentController extends Controller
         }
     }
 
-    private function allocatePaymentToTranches(Payment $payment, Student $student, SchoolYear $workingYear, $paymentTranches)
+    /**
+     * Distribue le montant de réduction newcomer sur les tranches de scolarité (hors inscription)
+     * Retourne un map: tranche_id => montant de réduction à appliquer
+     */
+    private function distributeNewcomerDiscountAcrossTranches(float $totalDiscountAmount, $paymentTranches, Student $student): array
+    {
+        $discountMap = [];
+
+        // Collecter les tranches de scolarité (hors inscription = order 1)
+        $schoolingTranches = [];
+        foreach ($paymentTranches as $tranche) {
+            if ((int) $tranche->order === 1) {
+                continue; // Ignorer l'inscription
+            }
+            $normalAmount = (float) $tranche->getAmountForStudent($student, false, false, false);
+            if ($normalAmount > 0) {
+                $schoolingTranches[] = [
+                    'tranche' => $tranche,
+                    'normal_amount' => $normalAmount
+                ];
+            }
+        }
+
+        if (empty($schoolingTranches) || $totalDiscountAmount <= 0) {
+            return [];
+        }
+
+        // Calculer le total des montants de scolarité
+        $totalSchooling = array_sum(array_column($schoolingTranches, 'normal_amount'));
+
+        if ($totalSchooling <= 0) {
+            return [];
+        }
+
+        // Distribuer proportionnellement avec ARRONDI à 1000 FCFA
+        $remainingDiscount = $totalDiscountAmount;
+        $tempDiscounts = [];
+
+        // 1ère passe : calculer les montants proportionnels arrondis
+        foreach ($schoolingTranches as $index => $item) {
+            $tranche = $item['tranche'];
+            $normalAmount = $item['normal_amount'];
+
+            // Proportionnellement au montant normal
+            $proportion = $normalAmount / $totalSchooling;
+            $rawDiscount = $totalDiscountAmount * $proportion;
+
+            // Arrondir au millier le plus proche (1000 FCFA)
+            $roundedDiscount = round($rawDiscount / 1000) * 1000;
+
+            // Ne pas dépasser le montant normal de la tranche
+            $roundedDiscount = min($roundedDiscount, $normalAmount);
+
+            $tempDiscounts[$tranche->id] = $roundedDiscount;
+        }
+
+        // 2ème passe : ajuster pour que le total corresponde exactement
+        $currentTotal = array_sum($tempDiscounts);
+        $difference = $totalDiscountAmount - $currentTotal;
+
+        if ($difference != 0) {
+            // Ajuster sur la dernière tranche
+            $lastTranche = end($schoolingTranches)['tranche'];
+            $tempDiscounts[$lastTranche->id] += $difference;
+
+            // Vérifier qu'on ne dépasse pas le montant normal
+            $maxForLastTranche = end($schoolingTranches)['normal_amount'];
+            $tempDiscounts[$lastTranche->id] = min($tempDiscounts[$lastTranche->id], $maxForLastTranche);
+        }
+
+        // Assigner les montants finaux
+        foreach ($tempDiscounts as $trancheId => $amount) {
+            $discountMap[$trancheId] = $amount;
+        }
+
+        \Log::info('Newcomer discount distribution map', $discountMap);
+
+        return $discountMap;
+    }
+
+    private function allocatePaymentToTranches(Payment $payment, Student $student, SchoolYear $workingYear, $paymentTranches, array $newcomerDiscountMap = [])
     {
         $remainingAmountToAllocate = $payment->total_amount;
 
@@ -509,8 +610,15 @@ class PaymentController extends Controller
         foreach ($paymentTranches as $tranche) {
             if ($remainingAmountToAllocate <= 0) break;
 
-            // Montant effectif à payer (intègre la réduction "nouveau" si applicable, et n'affecte jamais l'inscription)
+            // Montant effectif à payer (intègre les réductions manuelles du module)
             $requiredAmount = $effectiveAmountService->getEffectiveRequired($tranche, $student, $workingYear, $paymentTranches);
+
+            // Appliquer la réduction newcomer manuelle si elle existe pour cette tranche
+            $newcomerDiscountForThisTranche = $newcomerDiscountMap[$tranche->id] ?? 0;
+            if ($newcomerDiscountForThisTranche > 0) {
+                $requiredAmount = max(0, $requiredAmount - $newcomerDiscountForThisTranche);
+            }
+
             if ($requiredAmount <= 0) continue;
 
             $previouslyPaid = 0;
@@ -544,6 +652,50 @@ class PaymentController extends Controller
             ]);
 
             $remainingAmountToAllocate -= $allocatedAmount;
+        }
+
+        // Si réduction newcomer appliquée, créer des payment_details avec amount=0 pour les tranches non payées
+        // afin de stocker le montant réduit pour le calcul du statut
+        if (!empty($newcomerDiscountMap)) {
+            foreach ($paymentTranches as $tranche) {
+                // Vérifier si cette tranche a déjà un payment_detail dans ce paiement
+                $alreadyHasDetail = PaymentDetail::where('payment_id', $payment->id)
+                    ->where('payment_tranche_id', $tranche->id)
+                    ->exists();
+
+                if ($alreadyHasDetail) {
+                    continue; // Déjà traité dans la boucle principale
+                }
+
+                // Si cette tranche a une réduction newcomer mais n'a pas été payée, créer un detail avec amount=0
+                $newcomerDiscountForThisTranche = $newcomerDiscountMap[$tranche->id] ?? 0;
+                if ($newcomerDiscountForThisTranche > 0) {
+                    $requiredAmount = $effectiveAmountService->getEffectiveRequired($tranche, $student, $workingYear, $paymentTranches);
+                    $reducedAmount = max(0, $requiredAmount - $newcomerDiscountForThisTranche);
+
+                    $previouslyPaid = 0;
+                    foreach ($existingPayments as $existingPayment) {
+                        $detail = $existingPayment->paymentDetails->where('payment_tranche_id', $tranche->id)->first();
+                        if ($detail) {
+                            $previouslyPaid = $detail->new_total_amount;
+                        }
+                    }
+
+                    PaymentDetail::create([
+                        'payment_id' => $payment->id,
+                        'payment_tranche_id' => $tranche->id,
+                        'amount_allocated' => 0, // Aucun montant alloué maintenant
+                        'previous_amount' => $previouslyPaid,
+                        'new_total_amount' => $previouslyPaid, // Pas de changement
+                        'is_fully_paid' => false,
+                        'required_amount_at_time' => $reducedAmount, // Montant RÉDUIT stocké
+                        'was_reduced' => true,
+                        'reduction_context' => "Réduction nouvel élève (T{$student->arrival_trimester})"
+                    ]);
+
+                    \Log::info("Created payment_detail with 0 amount for tranche {$tranche->name} with reduced amount {$reducedAmount}");
+                }
+            }
         }
     }
 
@@ -722,7 +874,7 @@ class PaymentController extends Controller
     /**
      * Nouvelle méthode : Allouer le paiement aux tranches avec réduction appliquée sur les dernières tranches
      */
-    private function allocatePaymentToTranchesWithLastTrancheDiscount(Payment $payment, Student $student, SchoolYear $workingYear, $paymentTranches)
+    private function allocatePaymentToTranchesWithLastTrancheDiscount(Payment $payment, Student $student, SchoolYear $workingYear, $paymentTranches, array $newcomerDiscountMap = [])
     {
         $remainingAmountToAllocate = $payment->total_amount;
         $schoolSettings = \App\Models\SchoolSetting::getSettings();
@@ -758,6 +910,12 @@ class PaymentController extends Controller
             $normalAmount = $trancheData['normal_amount'];
             $reducedAmount = $trancheData['reduced_amount'];
             $reductionApplied = $trancheData['reduction_applied'];
+
+            // Appliquer la réduction newcomer manuelle si elle existe pour cette tranche
+            $newcomerDiscountForThisTranche = $newcomerDiscountMap[$tranche->id] ?? 0;
+            if ($newcomerDiscountForThisTranche > 0) {
+                $reducedAmount = max(0, $reducedAmount - $newcomerDiscountForThisTranche);
+            }
 
             if ($reducedAmount <= 0) continue;
 

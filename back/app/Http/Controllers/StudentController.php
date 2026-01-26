@@ -323,8 +323,10 @@ class StudentController extends Controller
             'class_series_id' => 'required|integer|exists:class_series,id',
             'student_status' => 'nullable|in:new,old',
             'arrival_trimester' => 'nullable|integer|in:2,3',
-            'newcomer_discount_reason' => 'nullable|string|max:1000',
+            'newcomer_discount_reason' => 'required_if:arrival_trimester,2,3|nullable|string|max:1000',
             'photo' => 'nullable|image|mimes:jpeg,jpg,png,gif|max:5120' // 5MB max
+        ], [
+            'newcomer_discount_reason.required_if' => 'Le motif de réduction est obligatoire pour les élèves arrivés au trimestre 2 ou 3'
         ]);
 
         if ($validator->fails()) {
@@ -442,9 +444,11 @@ class StudentController extends Controller
             'school_year_id' => 'nullable|exists:school_years,id', // Optionnel lors de la modification
             'student_status' => 'nullable|in:new,old',
             'arrival_trimester' => 'nullable|integer|in:2,3',
-            'newcomer_discount_reason' => 'nullable|string|max:1000',
+            'newcomer_discount_reason' => 'required_if:arrival_trimester,2,3|nullable|string|max:1000',
             'is_active' => 'boolean',
             'photo' => 'nullable|image|mimes:jpeg,jpg,png,gif|max:5120' // 5MB max
+        ], [
+            'newcomer_discount_reason.required_if' => 'Le motif de réduction est obligatoire pour les élèves arrivés au trimestre 2 ou 3'
         ]);
 
         if ($validator->fails()) {
@@ -533,9 +537,11 @@ class StudentController extends Controller
             'school_year_id' => 'nullable|exists:school_years,id', // Make nullable for update
             'student_status' => 'nullable|in:new,old',
             'arrival_trimester' => 'nullable|integer|in:2,3',
-            'newcomer_discount_reason' => 'nullable|string|max:1000',
+            'newcomer_discount_reason' => 'required_if:arrival_trimester,2,3|nullable|string|max:1000',
             'is_active' => 'nullable|boolean',
             'photo' => 'nullable|image|mimes:jpeg,jpg,png,gif|max:5120' // 5MB max
+        ], [
+            'newcomer_discount_reason.required_if' => 'Le motif de réduction est obligatoire pour les élèves arrivés au trimestre 2 ou 3'
         ]);
 
         if ($validator->fails()) {

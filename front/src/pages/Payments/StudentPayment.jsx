@@ -94,11 +94,14 @@ const StudentPayment = () => {
     is_rame_physical: false,
     rame_choice: "none", // Par défaut: ne pas payer la RAME
     apply_discount: false, // Nouvelle option pour appliquer la réduction
+    newcomer_discount_amount: "", // Réduction manuelle pour nouveaux élèves (T2/T3)
   });
 
   // États pour la gestion de la réduction dans le modal
   const [modalDiscountInfo, setModalDiscountInfo] = useState(null);
   const [isCheckingDiscount, setIsCheckingDiscount] = useState(false);
+  const [newcomerDiscountAlreadyApplied, setNewcomerDiscountAlreadyApplied] = useState(false);
+  const [appliedNewcomerDiscountAmount, setAppliedNewcomerDiscountAmount] = useState(0);
 
   useEffect(() => {
     loadStudentPaymentInfo();
@@ -186,6 +189,24 @@ const StudentPayment = () => {
 
       if (response.success) {
         setPaymentHistory(response.data);
+
+        // Détecter si une réduction newcomer a déjà été appliquée
+        const newcomerPayment = response.data.find(payment =>
+          payment.has_reduction &&
+          payment.reduction_amount > 0 &&
+          payment.discount_reason &&
+          (payment.discount_reason.toLowerCase().includes('nouveau élève') ||
+           payment.discount_reason.toLowerCase().includes('nouvel élève') ||
+           payment.discount_reason.toLowerCase().includes('trimestre'))
+        );
+
+        if (newcomerPayment) {
+          setNewcomerDiscountAlreadyApplied(true);
+          setAppliedNewcomerDiscountAmount(newcomerPayment.reduction_amount);
+        } else {
+          setNewcomerDiscountAlreadyApplied(false);
+          setAppliedNewcomerDiscountAmount(0);
+        }
       }
     } catch (error) {
       console.error("Error loading payment history:", error);
@@ -201,6 +222,7 @@ const StudentPayment = () => {
       amount: "",
       apply_discount: false,
       versement_date: new Date().toISOString().split("T")[0],
+      newcomer_discount_amount: "", // Réinitialiser la réduction manuelle
     }));
   };
 
@@ -726,6 +748,11 @@ const StudentPayment = () => {
         apply_global_discount: paymentForm.apply_discount, // Indiquer au backend d'appliquer la réduction
       };
 
+      // Ajouter la réduction manuelle pour nouveaux élèves (T2/T3)
+      if (student?.student_status === 'new' && student?.arrival_trimester && paymentForm.newcomer_discount_amount) {
+        paymentData.newcomer_discount_amount = parseFloat(paymentForm.newcomer_discount_amount);
+      }
+
       const response = await secureApiEndpoints.payments.create(paymentData);
 
       if (response.success) {
@@ -743,6 +770,7 @@ const StudentPayment = () => {
           is_rame_physical: false,
           rame_choice: "none",
           apply_discount: false,
+          newcomer_discount_amount: "", // Réinitialiser la réduction manuelle
         });
         setModalDiscountInfo(null);
 
@@ -1246,6 +1274,7 @@ const StudentPayment = () => {
                     amount: "",
                     apply_discount: false,
                     versement_date: new Date().toISOString().split("T")[0],
+                    newcomer_discount_amount: "", // Réinitialiser la réduction manuelle
                   }));
                 }}
               >
@@ -1269,22 +1298,52 @@ const StudentPayment = () => {
         </Alert>
       )}
 
-      {/* Réduction "nouveau élève" (T2/T3) */}
+      {/* Réduction "nouveau élève" (T2/T3) - Affichage selon statut */}
       {student?.student_status === 'new' && student?.arrival_trimester && (
-        <Alert variant="info" className="mb-3">
-          <strong>Réduction scolarité (nouveau élève)</strong>
-          <div>
-            Arrivée : <strong>{student.arrival_trimester}e trimestre</strong>
-            {" "}- réduction automatique sur la scolarité (inscription non réduite).
-          </div>
-          {student.newcomer_discount_reason && (
-            <div className="mt-1">
-              <small>
-                <em>Motif : {student.newcomer_discount_reason}</em>
+        newcomerDiscountAlreadyApplied ? (
+          // Réduction déjà appliquée - Message informatif
+          <Alert variant="success" className="mb-3">
+            <strong>✅ Réduction scolarité (nouveau élève) - Déjà appliquée</strong>
+            <div className="mt-2">
+              <div>
+                Arrivée : <strong>{student.arrival_trimester}e trimestre</strong>
+              </div>
+              {student.newcomer_discount_reason && (
+                <div className="mt-1">
+                  <small>
+                    <em>Motif : {student.newcomer_discount_reason}</em>
+                  </small>
+                </div>
+              )}
+              <div className="mt-2">
+                <strong>Réduction appliquée :</strong> {formatAmount(appliedNewcomerDiscountAmount)} FCFA
+              </div>
+              <small className="text-muted d-block mt-1">
+                La réduction a été distribuée sur les tranches de scolarité. Vous pouvez consulter le détail dans le statut ci-dessous.
               </small>
             </div>
-          )}
-        </Alert>
+          </Alert>
+        ) : (
+          // Réduction pas encore appliquée - Demande de saisie manuelle
+          <Alert variant="warning" className="mb-3">
+            <strong>⚠️ Réduction scolarité (nouveau élève) - SAISIE MANUELLE REQUISE</strong>
+            <div>
+              Arrivée : <strong>{student.arrival_trimester}e trimestre</strong>
+            </div>
+            {student.newcomer_discount_reason && (
+              <div className="mt-1">
+                <small>
+                  <em>Motif : {student.newcomer_discount_reason}</em>
+                </small>
+              </div>
+            )}
+            <div className="mt-2 p-2" style={{backgroundColor: '#fff3cd', borderRadius: '5px', border: '1px solid #ffc107'}}>
+              <strong>⚡ Action requise :</strong> Vous devez saisir <strong>MANUELLEMENT</strong> le montant de réduction dans le champ ci-dessous.
+              <br />
+              <small className="text-muted">La réduction ne sera PAS calculée automatiquement.</small>
+            </div>
+          </Alert>
+        )
       )}
 
       {/* Interface épurée - pas d'info sur les réductions au chargement initial */}
@@ -1876,6 +1935,63 @@ const StudentPayment = () => {
             </Row>
 
             {/* Anciennes sections de réduction supprimées - maintenant intégrées dans la logique de date */}
+
+            {/* Champ de saisie MANUELLE pour réduction nouveaux élèves (T2/T3) - Si pas encore appliquée */}
+            {student?.student_status === 'new' && student?.arrival_trimester && !newcomerDiscountAlreadyApplied && (
+              <Row className="mb-3">
+                <Col>
+                  <Alert variant="info" className="mb-2">
+                    <strong>💡 Réduction pour nouvel élève (Trimestre {student.arrival_trimester})</strong>
+                    <div className="mt-1">
+                      <small>
+                        Motif : <em>{student.newcomer_discount_reason || "Non spécifié"}</em>
+                      </small>
+                    </div>
+                  </Alert>
+                  <Form.Group>
+                    <Form.Label>
+                      Montant de réduction à appliquer ({schoolSettings.currency || "FCFA"})
+                      <span className="text-danger"> *</span>
+                    </Form.Label>
+                    <Form.Control
+                      type="number"
+                      min="0"
+                      max={totals.remaining}
+                      step="1"
+                      value={paymentForm.newcomer_discount_amount}
+                      onChange={(e) =>
+                        setPaymentForm({
+                          ...paymentForm,
+                          newcomer_discount_amount: e.target.value,
+                        })
+                      }
+                      placeholder="Ex: 50000"
+                      required
+                    />
+                    <Form.Text className="text-muted">
+                      ⚠️ Saisissez le montant TOTAL de réduction à appliquer sur la scolarité (pas de calcul automatique)
+                    </Form.Text>
+                  </Form.Group>
+                </Col>
+              </Row>
+            )}
+
+            {/* Message si réduction déjà appliquée */}
+            {student?.student_status === 'new' && student?.arrival_trimester && newcomerDiscountAlreadyApplied && (
+              <Row className="mb-3">
+                <Col>
+                  <Alert variant="success" className="mb-2">
+                    <strong>✅ Réduction déjà appliquée</strong>
+                    <div className="mt-1">
+                      <small>
+                        Une réduction de <strong>{formatAmount(appliedNewcomerDiscountAmount)} FCFA</strong> a déjà été appliquée pour cet élève.
+                        Vous ne pouvez pas appliquer une nouvelle réduction newcomer.
+                      </small>
+                    </div>
+                  </Alert>
+                </Col>
+              </Row>
+            )}
 
             <Row>
               <Col md={6}>

@@ -7,23 +7,14 @@ use App\Models\Student;
 class NewcomerSchoolFeeDiscountService
 {
     /**
-     * Retourne le ratio de reduction (0, 1/3, 2/3) pour la scolarite selon le trimestre d'arrivee.
-     * - Trim 2 => reduction 1/3
-     * - Trim 3 => reduction 2/3
+     * Retourne le ratio de reduction pour la scolarite selon le trimestre d'arrivee.
+     * DÉSACTIVÉ : Le calcul automatique (1/3, 2/3) est désactivé.
+     * La réduction doit être saisie MANUELLEMENT au moment du paiement.
      */
     public function getReductionRatio(Student $student): float
     {
-        if (!$student->isNew()) {
-            return 0.0;
-        }
-
-        $trimester = (int) ($student->arrival_trimester ?? 0);
-
-        return match ($trimester) {
-            2 => 1 / 3,
-            3 => 2 / 3,
-            default => 0.0,
-        };
+        // MODIFICATION : Retourne toujours 0 car la réduction est maintenant MANUELLE
+        return 0.0;
     }
 
     public function hasNewcomerDiscount(Student $student): bool
@@ -49,17 +40,18 @@ class NewcomerSchoolFeeDiscountService
 
     /**
      * Construit un texte standard (modifiable) pour expliquer la reduction.
+     * MODIFIÉ : Ne mentionne plus le ratio car la réduction est saisie manuellement.
      */
     public function buildDefaultReason(Student $student): ?string
     {
-        $ratio = $this->getReductionRatio($student);
-        if ($ratio <= 0) {
+        // Si l'élève n'a pas de trimestre d'arrivée, pas de motif
+        if (!$student->arrival_trimester) {
             return null;
         }
 
         $trimester = (int) $student->arrival_trimester;
-        $ratioStr = $trimester === 2 ? '1/3' : '2/3';
 
-        return "Nouveau élève (arrivée T{$trimester}) : réduction {$ratioStr} sur scolarité (inscription non réduite).";
+        // Construire un motif simple sans mentionner de pourcentage
+        return "Nouveau élève - Arrivée au trimestre {$trimester} (réduction sur scolarité uniquement)";
     }
 }

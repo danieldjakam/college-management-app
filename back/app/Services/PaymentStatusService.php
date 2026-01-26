@@ -155,10 +155,10 @@ class PaymentStatusService
         $paidPerTranche = [];
         $discountPerTranche = [];
 
-        // Réduction spécifique "nouveau élève" (2e/3e trimestre) : s'applique sur toutes les tranches SAUF inscription
-        $newcomerDiscountService = new NewcomerSchoolFeeDiscountService();
-        $newcomerRatio = $newcomerDiscountService->getReductionRatio($student);
-        $hasNewcomerDiscount = $newcomerRatio > 0;
+        // Réduction spécifique "nouveau élève" (2e/3e trimestre) : LECTURE depuis les paiements existants
+        // La réduction est maintenant saisie MANUELLEMENT, donc on la lit depuis les payment_details
+        $newcomerDiscountPerTranche = []; // tranche_id => montant total de réduction newcomer
+        $totalNewcomerDiscountApplied = 0;
 
         // Réduction manuelle (montant fixe) répartie sur les dernières tranches (hors inscription)
         $manualDiscountService = new ManualDiscountService();
@@ -174,13 +174,19 @@ class PaymentStatusService
             $manualDiscountMap = $manualDiscountService->distributeAcrossTranches($manualDiscountAmount, $rows);
         }
         
-        // CORRECTION: Calculer la bourse totale réelle des paiements existants
+        // CORRECTION: Calculer la bourse totale réelle des paiements existants + réductions newcomer
         $totalActualScholarship = 0;
         foreach ($existingPayments as $payment) {
             if ($payment->has_scholarship && $payment->scholarship_amount > 0) {
                 $totalActualScholarship += $payment->scholarship_amount;
             }
-            
+
+            // Détecter si ce paiement a une réduction newcomer
+            $isNewcomerReduction = $payment->has_reduction && $payment->reduction_amount > 0 &&
+                (strpos($payment->discount_reason, 'Nouveau élève') !== false ||
+                 strpos($payment->discount_reason, 'nouvel élève') !== false ||
+                 strpos($payment->discount_reason, 'trimestre') !== false);
+
             foreach ($payment->paymentDetails as $detail) {
                 if (!isset($paidPerTranche[$detail->payment_tranche_id])) {
                     $paidPerTranche[$detail->payment_tranche_id] = 0;
@@ -188,19 +194,34 @@ class PaymentStatusService
                         'has_discount' => false,
                         'discount_amount' => 0
                     ];
+                    $newcomerDiscountPerTranche[$detail->payment_tranche_id] = 0;
                 }
                 $paidPerTranche[$detail->payment_tranche_id] += $detail->amount_allocated;
-                
-                // Vérifier si ce détail a une réduction globale
+
+                // Si c'est une réduction newcomer, calculer la réduction appliquée sur cette tranche
+                if ($isNewcomerReduction) {
+                    // Récupérer la tranche pour calculer le montant normal
+                    $tranche = $detail->paymentTranche;
+                    if ($tranche) {
+                        $normalAmount = (float) $tranche->getAmountForStudent($student, false, false, false);
+                        $reducedAmount = (float) $detail->required_amount_at_time;
+                        $discountForThisTranche = max(0, $normalAmount - $reducedAmount);
+
+                        $newcomerDiscountPerTranche[$detail->payment_tranche_id] += $discountForThisTranche;
+                        $totalNewcomerDiscountApplied += $discountForThisTranche;
+                    }
+                }
+
+                // Vérifier si ce détail a une réduction globale (date limite)
                 if ($detail->was_reduced && (strpos($detail->reduction_context, 'Réduction globale') !== false || strpos($detail->reduction_context, 'Nouvelle réduction') !== false)) {
                     $schoolSettings = \App\Models\SchoolSetting::getSettings();
                     $discountPercentage = $schoolSettings->reduction_percentage ?? 0;
-                    
+
                     // Le montant normal est calculé à partir du montant réduit stocké
                     $reducedAmount = $detail->required_amount_at_time;
                     $normalAmount = round($reducedAmount / (1 - $discountPercentage / 100), 0);
                     $discountAmount = $normalAmount - $reducedAmount;
-                    
+
                     $discountPerTranche[$detail->payment_tranche_id] = [
                         'has_discount' => true,
                         'discount_amount' => $discountAmount
@@ -247,12 +268,9 @@ class PaymentStatusService
             $requiredAmount = $tranche->getAmountForStudent($student, false, false, false); // Montants NORMAUX
             if ($requiredAmount <= 0) continue;
 
-            // Appliquer la réduction "nouveau" sur toutes les tranches sauf l'inscription (order=1)
-            // On la traite comme une réduction (rabais) dans les champs "global_discount_*" pour compatibilité frontend.
-            $newcomerDiscountAmount = 0;
-            if ($hasNewcomerDiscount && (int) $tranche->order !== 1) {
-                $newcomerDiscountAmount = round($requiredAmount * $newcomerRatio, 0);
-            }
+            // Appliquer la réduction "nouveau" depuis les paiements existants
+            // Cette réduction a été saisie manuellement lors du paiement et distribuée sur les tranches
+            $newcomerDiscountAmount = (float) ($newcomerDiscountPerTranche[$tranche->id] ?? 0);
 
             $manualDiscountOnTranche = (float) ($manualDiscountMap[$tranche->id] ?? 0);
 
@@ -345,8 +363,8 @@ class PaymentStatusService
                 'has_global_discount' => $hasGlobalDiscount,
                 'global_discount_amount' => $globalDiscountAmount,
                 // Pour compatibilité, on met un % uniquement pour l'ancienne réduction globale.
-                // La réduction "nouveau" est en fraction (1/3, 2/3) et sera visible via global_discount_amount.
-                'discount_percentage' => ($hasGlobalDiscount && !$hasNewcomerDiscount) ? $discountPercentage : 0,
+                // La réduction "nouveau" est maintenant manuelle et sera visible via global_discount_amount.
+                'discount_percentage' => ($hasGlobalDiscount && $newcomerDiscountAmount == 0) ? $discountPercentage : 0,
                 // Propriétés par défaut pour compatibilité
                 'is_physical_only' => false,
                 'is_optional' => false,
@@ -491,10 +509,9 @@ class PaymentStatusService
         $discountCalculator = new \App\Services\DiscountCalculatorService();
         $reductionResult = $discountCalculator->calculateAmountsWithLastTrancheReduction($student, $paymentTranches);
 
-        // Réduction "nouveau élève" (2e/3e trimestre) appliquée sur toutes les tranches sauf inscription
-        $newcomerDiscountService = new NewcomerSchoolFeeDiscountService();
-        $newcomerRatio = $newcomerDiscountService->getReductionRatio($student);
-        $hasNewcomerDiscount = $newcomerRatio > 0;
+        // Réduction "nouveau élève" : LECTURE depuis les paiements existants
+        $newcomerDiscountPerTranche = []; // tranche_id => montant total de réduction newcomer
+        $totalNewcomerDiscountApplied = 0;
 
         // Réduction manuelle (montant fixe) répartie sur les dernières tranches (hors inscription)
         $manualDiscountService = new ManualDiscountService();
@@ -510,14 +527,35 @@ class PaymentStatusService
             $manualDiscountMap = $manualDiscountService->distributeAcrossTranches($manualDiscountAmount, $rows);
         }
 
-        // Calculer ce qui a été payé par tranche
+        // Calculer ce qui a été payé par tranche + les réductions newcomer appliquées
         $paidPerTranche = [];
         foreach ($existingPayments as $payment) {
+            // Détecter si ce paiement a une réduction newcomer
+            $isNewcomerReduction = $payment->has_reduction && $payment->reduction_amount > 0 &&
+                (strpos($payment->discount_reason, 'Nouveau élève') !== false ||
+                 strpos($payment->discount_reason, 'nouvel élève') !== false ||
+                 strpos($payment->discount_reason, 'trimestre') !== false);
+
             foreach ($payment->paymentDetails as $detail) {
                 if (!isset($paidPerTranche[$detail->payment_tranche_id])) {
                     $paidPerTranche[$detail->payment_tranche_id] = 0;
+                    $newcomerDiscountPerTranche[$detail->payment_tranche_id] = 0;
                 }
                 $paidPerTranche[$detail->payment_tranche_id] += $detail->amount_allocated;
+
+                // Si c'est une réduction newcomer, calculer la réduction appliquée sur cette tranche
+                if ($isNewcomerReduction) {
+                    // Récupérer la tranche pour calculer le montant normal
+                    $tranche = $detail->paymentTranche;
+                    if ($tranche) {
+                        $normalAmount = (float) $tranche->getAmountForStudent($student, false, false, false);
+                        $reducedAmount = (float) $detail->required_amount_at_time;
+                        $discountForThisTranche = max(0, $normalAmount - $reducedAmount);
+
+                        $newcomerDiscountPerTranche[$detail->payment_tranche_id] += $discountForThisTranche;
+                        $totalNewcomerDiscountApplied += $discountForThisTranche;
+                    }
+                }
             }
         }
 
@@ -531,13 +569,9 @@ class PaymentStatusService
             if ($normalAmount <= 0) continue;
 
             $paidAmount = $paidPerTranche[$tranche->id] ?? 0;
-            
-            // Appliquer la réduction "nouveau" sur le montant normal (affichage) uniquement pour calculer le montant effectif.
-            // Note: Ici, $reducedAmount correspond à la réduction globale (10%) potentielle.
-            $newcomerDiscountAmount = 0;
-            if ($hasNewcomerDiscount && (int) $tranche->order !== 1) {
-                $newcomerDiscountAmount = round($normalAmount * $newcomerRatio, 0);
-            }
+
+            // Appliquer la réduction "nouveau" depuis les paiements existants
+            $newcomerDiscountAmount = (float) ($newcomerDiscountPerTranche[$tranche->id] ?? 0);
 
             $manualDiscountOnTranche = (float) ($manualDiscountMap[$tranche->id] ?? 0);
 
