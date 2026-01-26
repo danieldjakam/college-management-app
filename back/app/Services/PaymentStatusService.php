@@ -163,15 +163,18 @@ class PaymentStatusService
         // Réduction manuelle (montant fixe) répartie sur les dernières tranches (hors inscription)
         $manualDiscountService = new ManualDiscountService();
         $manualDiscountAmount = $manualDiscountService->getManualDiscountAmount($student, $schoolYear);
+        \Log::info("Manual discount amount for student {$student->id}: {$manualDiscountAmount}");
         $manualDiscountMap = [];
         if ($manualDiscountAmount > 0) {
             $rows = [];
             foreach ($paymentTranches as $t) {
                 $req = (float) $t->getAmountForStudent($student, false, false, false);
+                \Log::info("Tranche {$t->name} (order {$t->order}): required = {$req}");
                 if ($req <= 0) continue;
                 $rows[] = ['tranche' => $t, 'required' => $req];
             }
             $manualDiscountMap = $manualDiscountService->distributeAcrossTranches($manualDiscountAmount, $rows);
+            \Log::info("Manual discount map: " . json_encode($manualDiscountMap));
         }
         
         // CORRECTION: Calculer la bourse totale réelle des paiements existants + réductions newcomer
@@ -273,6 +276,7 @@ class PaymentStatusService
             $newcomerDiscountAmount = (float) ($newcomerDiscountPerTranche[$tranche->id] ?? 0);
 
             $manualDiscountOnTranche = (float) ($manualDiscountMap[$tranche->id] ?? 0);
+            \Log::info("Tranche {$tranche->name}: manualDiscountOnTranche = {$manualDiscountOnTranche}");
 
             $paidAmount = $paidPerTranche[$tranche->id] ?? 0;
             $trancheRemaining = max(0, $requiredAmount - $paidAmount);
@@ -305,19 +309,22 @@ class PaymentStatusService
             $hasGlobalDiscount = $globalDiscountAmount > 0;
             
             // Gérer les cas spéciaux seulement si pas de bourse réelle
+            \Log::info("Tranche {$tranche->name}: totalActualScholarship={$totalActualScholarship}, hasGlobalReduction=" . ($hasGlobalReduction ? 'true' : 'false'));
             if ($totalActualScholarship == 0) {
                 // Fallback vers bourse configurée si pas de bourse réelle
                 if ($scholarship && $scholarship->payment_tranche_id == $tranche->id && $discountCalculator->isEligibleForScholarship(now())) {
                     // Cas avec bourse configurée (si pas de bourse réelle payée)
                     $scholarshipAmount = $scholarship->amount;
                     $hasScholarship = true;
-                    
+
                     // Calculer le restant en tenant compte de la bourse
                     $effectiveRequired = max(0, $requiredAmount - $scholarshipAmount);
                     $remainingAmount = max(0, $effectiveRequired - $paidAmount);
                     $isFullyPaid = ($paidAmount + $scholarshipAmount) >= $requiredAmount;
+                    \Log::info("Tranche {$tranche->name}: PATH = scholarship");
                 } elseif ($hasGlobalReduction) {
                     // L'étudiant a fait un paiement intégral avec réduction globale
+                    \Log::info("Tranche {$tranche->name}: PATH = hasGlobalReduction, setting remainingAmount=0");
                     $hasGlobalDiscount = true;
                     $globalDiscountAmount = round($requiredAmount * ($discountPercentage / 100), 0);
                     $remainingAmount = 0;
@@ -325,20 +332,29 @@ class PaymentStatusService
                 } else {
                     // Utiliser les informations de réduction stockées pour cette tranche spécifique
                     $discountInfo = $discountPerTranche[$tranche->id] ?? ['has_discount' => false, 'discount_amount' => 0];
-                    
+                    \Log::info("Tranche {$tranche->name}: discountInfo=" . json_encode($discountInfo));
+
                     if ($discountInfo['has_discount']) {
+                        // CORRECTION: Ne pas considérer la tranche comme entièrement payée automatiquement
+                        // Il faut calculer le montant effectif requis après TOUTES les réductions
+                        $globalDiscountAmount = $discountInfo['discount_amount'] + $newcomerDiscountAmount + $manualDiscountOnTranche;
                         $hasGlobalDiscount = true;
-                        $globalDiscountAmount = $discountInfo['discount_amount'];
-                        // Si une réduction globale a été appliquée, la tranche est considérée comme payée intégralement
-                        $remainingAmount = 0;
-                        $isFullyPaid = true;
+
+                        // Calculer le montant effectif requis après toutes les réductions
+                        $effectiveRequired = max(0, $requiredAmount - $globalDiscountAmount);
+                        $remainingAmount = max(0, $effectiveRequired - $paidAmount);
+                        $isFullyPaid = ($paidAmount + $globalDiscountAmount) >= $requiredAmount;
+
+                        \Log::info("Tranche {$tranche->name}: requiredAmount={$requiredAmount}, globalDiscountAmount={$globalDiscountAmount}, effectiveRequired={$effectiveRequired}, paidAmount={$paidAmount}, remainingAmount={$remainingAmount}");
                     } else {
                         // Si pas de réduction globale enregistrée, on garde éventuellement la réduction "nouveau" déjà calculée
                         // et on recalcule le reste à payer en tenant compte de cette réduction.
+                        \Log::info("Tranche {$tranche->name}: PATH = else/if hasGlobalDiscount");
                         if ($hasGlobalDiscount && $globalDiscountAmount > 0) {
                             $effectiveRequired = max(0, $requiredAmount - $globalDiscountAmount);
                             $remainingAmount = max(0, $effectiveRequired - $paidAmount);
                             $isFullyPaid = ($paidAmount + $globalDiscountAmount) >= $requiredAmount;
+                            \Log::info("Tranche {$tranche->name}: requiredAmount={$requiredAmount}, globalDiscountAmount={$globalDiscountAmount}, effectiveRequired={$effectiveRequired}, paidAmount={$paidAmount}, remainingAmount={$remainingAmount}");
                         } else {
                             $hasGlobalDiscount = false;
                             $globalDiscountAmount = 0;
@@ -516,15 +532,18 @@ class PaymentStatusService
         // Réduction manuelle (montant fixe) répartie sur les dernières tranches (hors inscription)
         $manualDiscountService = new ManualDiscountService();
         $manualDiscountAmount = $manualDiscountService->getManualDiscountAmount($student, $schoolYear);
+        \Log::info("Manual discount amount for student {$student->id}: {$manualDiscountAmount}");
         $manualDiscountMap = [];
         if ($manualDiscountAmount > 0) {
             $rows = [];
             foreach ($paymentTranches as $t) {
                 $req = (float) $t->getAmountForStudent($student, false, false, false);
+                \Log::info("Tranche {$t->name} (order {$t->order}): required = {$req}");
                 if ($req <= 0) continue;
                 $rows[] = ['tranche' => $t, 'required' => $req];
             }
             $manualDiscountMap = $manualDiscountService->distributeAcrossTranches($manualDiscountAmount, $rows);
+            \Log::info("Manual discount map: " . json_encode($manualDiscountMap));
         }
 
         // Calculer ce qui a été payé par tranche + les réductions newcomer appliquées

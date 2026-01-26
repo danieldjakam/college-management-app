@@ -103,9 +103,13 @@ const StudentPayment = () => {
   const [newcomerDiscountAlreadyApplied, setNewcomerDiscountAlreadyApplied] = useState(false);
   const [appliedNewcomerDiscountAmount, setAppliedNewcomerDiscountAmount] = useState(0);
 
+  // État pour la réduction employé (manuelle)
+  const [employeeDiscount, setEmployeeDiscount] = useState(null);
+
   useEffect(() => {
     loadStudentPaymentInfo();
     loadPaymentHistory();
+    loadEmployeeDiscount();
   }, [studentId]);
 
   const loadStudentPaymentInfo = async () => {
@@ -210,6 +214,20 @@ const StudentPayment = () => {
       }
     } catch (error) {
       console.error("Error loading payment history:", error);
+    }
+  };
+
+  const loadEmployeeDiscount = async () => {
+    try {
+      const response = await secureApiEndpoints.manualDiscounts.getForStudent(studentId);
+      if (response.success && response.data) {
+        setEmployeeDiscount(response.data);
+      } else {
+        setEmployeeDiscount(null);
+      }
+    } catch (error) {
+      console.error("Error loading employee discount:", error);
+      setEmployeeDiscount(null);
     }
   };
 
@@ -1346,6 +1364,28 @@ const StudentPayment = () => {
         )
       )}
 
+      {/* Alerte Réduction Employé */}
+      {employeeDiscount && employeeDiscount.amount > 0 && (
+        <Alert variant="info" className="mb-3">
+          <strong>💼 Réduction Employé Appliquée</strong>
+          <div className="mt-2">
+            <div>
+              <strong>Montant :</strong> {formatAmount(employeeDiscount.amount)} FCFA
+            </div>
+            {employeeDiscount.reason && (
+              <div className="mt-1">
+                <strong>Motif :</strong> <em>{employeeDiscount.reason}</em>
+              </div>
+            )}
+          </div>
+          <div className="mt-2">
+            <small className="text-muted">
+              Cette réduction est appliquée automatiquement aux frais de scolarité (hors inscription) et apparaît dans le statut de paiement ci-dessous.
+            </small>
+          </div>
+        </Alert>
+      )}
+
       {/* Interface épurée - pas d'info sur les réductions au chargement initial */}
 
       {/* Summary Cards */}
@@ -1583,29 +1623,12 @@ const StudentPayment = () => {
                             ) : status.has_global_discount &&
                               status.global_discount_amount > 0 ? (
                               <>
-                                {formatAmount(
-                                  Math.max(
-                                    0,
-                                    parseFloat(status.remaining_amount) -
-                                      parseFloat(status.global_discount_amount)
-                                  )
-                                )}
-                                {parseFloat(status.remaining_amount) -
-                                  parseFloat(status.global_discount_amount) >
-                                  0 && (
+                                {/* CORRECTION: remaining_amount inclut déjà toutes les réductions calculées par le backend */}
+                                {formatAmount(Math.max(0, parseFloat(status.remaining_amount)))}
+                                {parseFloat(status.remaining_amount) > 0 && (
                                   <div className="text-success">
                                     <small>
-                                      (Avec réduction appliquée:{" "}
-                                      {formatAmount(
-                                        Math.max(
-                                          0,
-                                          parseFloat(status.remaining_amount) -
-                                            parseFloat(
-                                              status.global_discount_amount
-                                            )
-                                        )
-                                      )}
-                                      )
+                                      (Avec réduction de {formatAmount(status.global_discount_amount)} appliquée)
                                     </small>
                                   </div>
                                 )}

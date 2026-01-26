@@ -9,7 +9,8 @@ import {
     CashCoin,
     Eye,
     ArrowLeftRight,
-    CardChecklist
+    CardChecklist,
+    Percent
 } from 'react-bootstrap-icons';
 
 const StudentActionsDropdown = ({
@@ -22,6 +23,7 @@ const StudentActionsDropdown = ({
     onDelete,
     onViewPayments,
     onViewStudent,
+    onApplyEmployeeDiscount,
     userRole
 }) => {
     return (
@@ -51,12 +53,23 @@ const StudentActionsDropdown = ({
                 </Dropdown.Item>
                 {/* Paiements (pour les comptables/admins) */}
                 {(userRole === 'secretaire' || userRole === 'comptable_superieur' || userRole === 'accountant' || userRole === 'admin') && (
-                    <Dropdown.Item 
+                    <Dropdown.Item
                         onClick={() => onViewPayments?.(student)}
                         className="d-flex align-items-center"
                     >
                         <CashCoin size={16} className="me-2 text-success" />
                         Voir paiements
+                    </Dropdown.Item>
+                )}
+
+                {/* Réduction employé (pour comptables/admins) */}
+                {(userRole === 'comptable_superieur' || userRole === 'accountant' || userRole === 'admin') && (
+                    <Dropdown.Item
+                        onClick={() => onApplyEmployeeDiscount?.(student)}
+                        className="d-flex align-items-center"
+                    >
+                        <Percent size={16} className="me-2 text-warning" />
+                        Réduction employé
                     </Dropdown.Item>
                 )}
 

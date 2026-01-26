@@ -86,7 +86,7 @@ const StudentPhoto = ({ student, size = 40, className = "" }) => {
 };
 
 // Composant pour les éléments sortables
-const SortableStudent = ({ student, handleEdit, handleDelete, handlePrintCard, handlePreviewCard, handleTransferStudent, handleTransferWithinClass, handleViewStudent, handleViewPayments, handleStatusChange, navigate, userRole }) => {
+const SortableStudent = ({ student, handleEdit, handleDelete, handlePrintCard, handlePreviewCard, handleTransferStudent, handleTransferWithinClass, handleViewStudent, handleViewPayments, handleApplyEmployeeDiscount, handleStatusChange, navigate, userRole }) => {
     const {
         attributes,
         listeners,
@@ -210,6 +210,7 @@ const SortableStudent = ({ student, handleEdit, handleDelete, handlePrintCard, h
                     onDelete={handleDelete}
                     onViewPayments={handleViewPayments}
                     onViewStudent={handleViewStudent}
+                    onApplyEmployeeDiscount={handleApplyEmployeeDiscount}
                     userRole={userRole}
                 />
             </td>
@@ -253,9 +254,16 @@ const SeriesStudents = () => {
     const [showTransferModal, setShowTransferModal] = useState(false);
     const [showTransferWithinClassModal, setShowTransferWithinClassModal] = useState(false);
     const [showStudentsListModal, setShowStudentsListModal] = useState(false);
+    const [showEmployeeDiscountModal, setShowEmployeeDiscountModal] = useState(false);
     const [selectedStudent, setSelectedStudent] = useState(null);
     const [newStudentForCard, setNewStudentForCard] = useState(null);
     const [studentToTransfer, setStudentToTransfer] = useState(null);
+
+    // Employee discount form state
+    const [employeeDiscountForm, setEmployeeDiscountForm] = useState({
+        amount: '',
+        reason: ''
+    });
     
     // Form data
     const [formData, setFormData] = useState({
@@ -645,6 +653,68 @@ const SeriesStudents = () => {
     const handleViewPayments = (student) => {
         // Naviguer vers la page des paiements de l'élève
         navigate(`/student-payment/${student.id}`);
+    };
+
+    const handleApplyEmployeeDiscount = (student) => {
+        setSelectedStudent(student);
+        setEmployeeDiscountForm({ amount: '', reason: '' });
+        setShowEmployeeDiscountModal(true);
+    };
+
+    const handleSubmitEmployeeDiscount = async () => {
+        // Validation
+        if (!employeeDiscountForm.amount || parseFloat(employeeDiscountForm.amount) <= 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Erreur',
+                text: 'Veuillez saisir un montant valide'
+            });
+            return;
+        }
+
+        if (!employeeDiscountForm.reason || employeeDiscountForm.reason.trim() === '') {
+            Swal.fire({
+                icon: 'error',
+                title: 'Erreur',
+                text: 'Le motif est obligatoire'
+            });
+            return;
+        }
+
+        try {
+            const data = {
+                student_id: selectedStudent.id,
+                amount: parseFloat(employeeDiscountForm.amount),
+                reason: employeeDiscountForm.reason.trim()
+            };
+
+            const response = await secureApiEndpoints.manualDiscounts.upsert(data);
+
+            if (response.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Succès',
+                    text: 'Réduction employé appliquée avec succès',
+                    timer: 2000
+                });
+
+                setShowEmployeeDiscountModal(false);
+                setEmployeeDiscountForm({ amount: '', reason: '' });
+                setSelectedStudent(null);
+
+                // Recharger la liste des étudiants
+                loadStudents();
+            } else {
+                throw new Error(response.message || 'Erreur lors de l\'enregistrement');
+            }
+        } catch (error) {
+            console.error('Error applying employee discount:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Erreur',
+                text: error.message || 'Erreur lors de l\'application de la réduction'
+            });
+        }
     };
 
     const handleEdit = (student) => {
@@ -1902,6 +1972,7 @@ const SeriesStudents = () => {
                                                     onDelete={handleDelete}
                                                     onViewPayments={handleViewPayments}
                                                     onViewStudent={handleViewStudent}
+                                                    onApplyEmployeeDiscount={handleApplyEmployeeDiscount}
                                                     userRole={user?.role}
                                                 />
                                             </div>
@@ -1951,6 +2022,7 @@ const SeriesStudents = () => {
                                                             handleTransferWithinClass={handleTransferWithinClass}
                                                             handleViewStudent={handleViewStudent}
                                                             handleViewPayments={handleViewPayments}
+                                                            handleApplyEmployeeDiscount={handleApplyEmployeeDiscount}
                                                             handleStatusChange={handleStatusChange}
                                                             navigate={navigate}
                                                             userRole={user?.role}
@@ -2502,6 +2574,95 @@ const SeriesStudents = () => {
                     }}
                     onTransferSuccess={handleTransferSuccess}
                 />
+            )}
+
+            {/* Modal Réduction employé */}
+            {showEmployeeDiscountModal && selectedStudent && (
+                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                    <div className="modal-dialog modal-dialog-centered">
+                        <div className="modal-content">
+                            <div className="modal-header bg-warning bg-opacity-10">
+                                <h5 className="modal-title">
+                                    <span className="text-warning me-2">💰</span>
+                                    Réduction employé - {selectedStudent.first_name} {selectedStudent.last_name}
+                                </h5>
+                                <button
+                                    type="button"
+                                    className="btn-close"
+                                    onClick={() => {
+                                        setShowEmployeeDiscountModal(false);
+                                        setEmployeeDiscountForm({ amount: '', reason: '' });
+                                        setSelectedStudent(null);
+                                    }}
+                                ></button>
+                            </div>
+                            <div className="modal-body">
+                                <div className="alert alert-info">
+                                    <small>
+                                        <strong>Information :</strong> Cette réduction sera appliquée aux frais de scolarité uniquement (pas à l'inscription).
+                                    </small>
+                                </div>
+
+                                <div className="mb-3">
+                                    <label className="form-label">
+                                        Montant de la réduction (FCFA) <span className="text-danger">*</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        className="form-control"
+                                        placeholder="Ex: 50000"
+                                        min="0"
+                                        step="1000"
+                                        value={employeeDiscountForm.amount}
+                                        onChange={(e) => setEmployeeDiscountForm({
+                                            ...employeeDiscountForm,
+                                            amount: e.target.value
+                                        })}
+                                    />
+                                </div>
+
+                                <div className="mb-3">
+                                    <label className="form-label">
+                                        Motif de la réduction <span className="text-danger">*</span>
+                                    </label>
+                                    <textarea
+                                        className="form-control"
+                                        rows="3"
+                                        placeholder="Ex: Réduction employé - Parent travaillant à l'établissement"
+                                        value={employeeDiscountForm.reason}
+                                        onChange={(e) => setEmployeeDiscountForm({
+                                            ...employeeDiscountForm,
+                                            reason: e.target.value
+                                        })}
+                                    />
+                                    <small className="text-muted">
+                                        Le motif apparaîtra sur les reçus et dans l'historique de paiement.
+                                    </small>
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() => {
+                                        setShowEmployeeDiscountModal(false);
+                                        setEmployeeDiscountForm({ amount: '', reason: '' });
+                                        setSelectedStudent(null);
+                                    }}
+                                >
+                                    Annuler
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-warning"
+                                    onClick={handleSubmitEmployeeDiscount}
+                                >
+                                    Appliquer la réduction
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Modal Liste des élèves */}
