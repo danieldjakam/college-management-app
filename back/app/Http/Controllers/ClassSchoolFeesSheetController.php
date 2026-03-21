@@ -11,6 +11,7 @@ use App\Models\StudentScholarship;
 use App\Models\StudentDiscount;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
+use App\Services\ManualDiscountService;
 
 class ClassSchoolFeesSheetController extends Controller
 {
@@ -37,6 +38,14 @@ class ClassSchoolFeesSheetController extends Controller
             $montantTotalClasse = DB::table('class_payment_amounts')
                 ->where('class_id', $classSeries->class_id)
                 ->sum('amount') ?? 0;
+
+            // Récupérer l'année scolaire courante
+            $schoolYear = \App\Models\SchoolYear::where('is_current', true)->first()
+                ?? \App\Models\SchoolYear::where('is_active', true)->first();
+
+            // Service pour les bourses de classe
+            $discountCalculator = new \App\Services\DiscountCalculatorService();
+            $manualDiscountService = new ManualDiscountService();
 
             // Préparer les données des élèves avec leurs paiements
             $studentsData = [];
@@ -76,7 +85,25 @@ class ClassSchoolFeesSheetController extends Controller
                     ->get();
 
                 $rabais = $payments->sum('reduction_amount') ?? 0;
-                $bourse = $payments->sum('scholarship_amount') ?? 0;
+                $bourse = $payments->sum(function ($payment) {
+                    return ($payment->has_scholarship && $payment->scholarship_amount > 0) ? $payment->scholarship_amount : 0;
+                });
+
+                // Si pas de bourse dans les paiements, vérifier la bourse de classe configurée
+                if ($bourse == 0) {
+                    $classScholarship = $discountCalculator->getClassScholarship($student);
+                    if ($classScholarship && $discountCalculator->isEligibleForScholarship(now())) {
+                        $bourse = $classScholarship->amount;
+                    }
+                }
+
+                // Ajouter la réduction manuelle (rabais fixe)
+                if ($schoolYear) {
+                    $manualDiscount = $manualDiscountService->getManualDiscountAmount($student, $schoolYear);
+                    if ($manualDiscount > 0) {
+                        $rabais += $manualDiscount;
+                    }
+                }
 
                 // Calculer le total payé (somme de toutes les tranches)
                 $totalPaye = array_sum($tranchesData);

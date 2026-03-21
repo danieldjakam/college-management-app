@@ -4105,7 +4105,13 @@ HTML;
 
             // Si c'est un comptable ou comptable supérieur, supprimer réellement le paiement
             if (in_array(Auth::user()->role, ['comptable_superieur', 'accountant'])) {
+                $studentId = $payment->student_id;
+                $schoolYearId = $payment->school_year_id;
+
                 $payment->delete();
+
+                // Redistribuer les payment_details des paiements restants
+                $this->redistributeRemainingPayments($studentId, $schoolYearId);
 
                 DB::commit();
 
@@ -4116,6 +4122,9 @@ HTML;
             } else {
                 // Pour les autres, juste annuler
                 $payment->cancel(Auth::id(), $request->cancellation_reason);
+
+                // Redistribuer les payment_details des paiements restants
+                $this->redistributeRemainingPayments($payment->student_id, $payment->school_year_id);
 
                 DB::commit();
 
@@ -4134,6 +4143,116 @@ HTML;
                 'message' => 'Erreur lors de l\'annulation du paiement'
             ], 500);
         }
+    }
+
+    /**
+     * Redistribuer les payment_details de tous les paiements restants d'un élève
+     * après suppression/annulation d'un paiement.
+     * Recalcule la répartition dans l'ordre chronologique des paiements.
+     */
+    private function redistributeRemainingPayments(int $studentId, int $schoolYearId)
+    {
+        $student = Student::with('classSeries.schoolClass')->find($studentId);
+        if (!$student) return;
+
+        $schoolYear = SchoolYear::find($schoolYearId);
+        if (!$schoolYear) return;
+
+        // Récupérer les paiements actifs triés par date
+        $payments = Payment::forStudent($studentId)
+            ->forYear($schoolYearId)
+            ->where('is_rame_physical', false)
+            ->whereIn('status', ['pending', 'validated', 'completed'])
+            ->with('paymentDetails')
+            ->orderBy('payment_date', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        if ($payments->isEmpty()) return;
+
+        // Récupérer les tranches ordonnées
+        $paymentTranches = PaymentTranche::active()->ordered()
+            ->with(['classPaymentAmounts' => function ($query) use ($student) {
+                if ($student->classSeries && $student->classSeries->schoolClass) {
+                    $query->where('class_id', $student->classSeries->schoolClass->id);
+                }
+            }])
+            ->get();
+
+        // Service pour les montants effectifs (avec réductions manuelles)
+        $effectiveAmountService = new \App\Services\TrancheEffectiveAmountService();
+
+        // Calculer les montants requis par tranche
+        $requiredPerTranche = [];
+        foreach ($paymentTranches as $tranche) {
+            $required = $effectiveAmountService->getEffectiveRequired($tranche, $student, $schoolYear, $paymentTranches);
+            if ($required > 0) {
+                $requiredPerTranche[$tranche->id] = $required;
+            }
+        }
+
+        // Supprimer tous les payment_details existants des paiements restants
+        $paymentIds = $payments->pluck('id')->toArray();
+        PaymentDetail::whereIn('payment_id', $paymentIds)->delete();
+
+        // Redistribuer chaque paiement dans l'ordre chronologique
+        $cumulativePaidPerTranche = [];
+        foreach ($paymentTranches as $tranche) {
+            $cumulativePaidPerTranche[$tranche->id] = 0;
+        }
+
+        // Générer les IDs manuellement (la table n'a pas d'AUTO_INCREMENT)
+        $nextId = (int) DB::table('payment_details')->max('id') + 1;
+
+        foreach ($payments as $payment) {
+            $remainingToAllocate = (float) $payment->total_amount;
+
+            // Détecter les réductions newcomer stockées sur ce paiement
+            $isNewcomerReduction = $payment->has_reduction && $payment->reduction_amount > 0 &&
+                ($payment->discount_reason && (
+                    strpos($payment->discount_reason, 'Nouveau élève') !== false ||
+                    strpos($payment->discount_reason, 'nouvel élève') !== false ||
+                    strpos($payment->discount_reason, 'trimestre') !== false
+                ));
+
+            foreach ($paymentTranches as $tranche) {
+                if ($remainingToAllocate <= 0) break;
+
+                $required = $requiredPerTranche[$tranche->id] ?? 0;
+                if ($required <= 0) continue;
+
+                $alreadyPaid = $cumulativePaidPerTranche[$tranche->id] ?? 0;
+                $remainingForTranche = max(0, $required - $alreadyPaid);
+                if ($remainingForTranche <= 0) continue;
+
+                $allocatedAmount = min($remainingToAllocate, $remainingForTranche);
+
+                DB::table('payment_details')->insert([
+                    'id' => $nextId++,
+                    'payment_id' => $payment->id,
+                    'payment_tranche_id' => $tranche->id,
+                    'amount_allocated' => $allocatedAmount,
+                    'previous_amount' => $alreadyPaid,
+                    'new_total_amount' => $alreadyPaid + $allocatedAmount,
+                    'is_fully_paid' => ($alreadyPaid + $allocatedAmount) >= $required,
+                    'required_amount_at_time' => $required,
+                    'was_reduced' => $isNewcomerReduction || $payment->has_reduction ? 1 : 0,
+                    'reduction_context' => $isNewcomerReduction
+                        ? ($payment->discount_reason ?? 'Réduction nouvel élève')
+                        : ($payment->has_reduction ? 'Réduction appliquée' : null),
+                    'created_at' => $payment->payment_date,
+                    'updated_at' => now(),
+                ]);
+
+                $cumulativePaidPerTranche[$tranche->id] += $allocatedAmount;
+                $remainingToAllocate -= $allocatedAmount;
+            }
+        }
+
+        Log::info("Redistribution des paiements effectuée pour l'élève #{$studentId}", [
+            'payments_count' => count($payments),
+            'cumulative_per_tranche' => $cumulativePaidPerTranche,
+        ]);
     }
 
     /**
