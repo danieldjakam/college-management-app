@@ -12,6 +12,7 @@ use App\Models\ClassScholarship;
 use App\Models\Section;
 use App\Models\SchoolYear;
 use App\Models\SchoolSetting;
+use App\Services\ManualDiscountService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -384,6 +385,10 @@ class ReportsController extends Controller
                 $totalReductions += $payment->reduction_amount ?? 0;
             }
 
+            // 3. Ajouter les réductions manuelles
+            $manualDiscountService = new ManualDiscountService();
+            $totalReductions += $manualDiscountService->getManualDiscountAmount($student, $workingYear);
+
             // Total des "paiements virtuels" (bourses + réductions RÉELLES)
             $totalVirtualPayments = $totalScholarships + $totalReductions;
 
@@ -465,6 +470,13 @@ class ReportsController extends Controller
                 ->where('school_year_id', $schoolYearId)
                 ->whereNotNull('validation_date')
                 ->sum('reduction_amount') ?? 0;
+
+            // Ajouter les réductions manuelles
+            $workingYearObj = SchoolYear::find($schoolYearId);
+            if ($workingYearObj) {
+                $manualDiscountService = new ManualDiscountService();
+                $reductions += $manualDiscountService->getManualDiscountAmount($student, $workingYearObj);
+            }
 
             // Montant attendu = base - bourses - réductions
             $expectedAmount = $baseAmount - $scholarships - $reductions;
@@ -599,6 +611,11 @@ class ReportsController extends Controller
                     ->sum('reduction_amount');
 
                 $totalReductions = $paymentsWithReductions;
+
+                // 3. Ajouter les réductions manuelles
+                $manualDiscountService = new ManualDiscountService();
+                $totalReductions += $manualDiscountService->getManualDiscountAmount($student, $workingYear);
+
                 $studentTotalReductions = $totalReductions; // Pour compatibilité avec le code existant
 
                 // Le montant requis effectif = montant normal - bourses - réductions
@@ -804,6 +821,10 @@ class ReportsController extends Controller
                 if ($endDate) $paymentsWithReductions->where('payment_date', '<=', $endDate);
 
                 $totalReductions = $paymentsWithReductions->where('reduction_amount', '>', 0)->sum('reduction_amount');
+
+                // 3. Ajouter les réductions manuelles
+                $manualDiscountService = new ManualDiscountService();
+                $totalReductions += $manualDiscountService->getManualDiscountAmount($student, $workingYear);
 
                 // Calculer pour chaque tranche
                 foreach ($tranches as $tranche) {
@@ -1184,6 +1205,11 @@ class ReportsController extends Controller
         if ($endDate) $paymentsQuery->where('payment_date', '<=', $endDate);
 
         $totalReductions = $paymentsQuery->sum('reduction_amount') ?? 0;
+
+        // 3. Vérifier les réductions manuelles (student_manual_discounts)
+        $manualDiscountService = new ManualDiscountService();
+        $manualDiscount = $manualDiscountService->getManualDiscountAmount($student, $workingYear);
+        $totalReductions += $manualDiscount;
 
         return [
             'scholarships' => $totalScholarships,
@@ -3172,6 +3198,12 @@ class ReportsController extends Controller
                         $totalReductions += $payment->reduction_amount ?? 0;
                     }
 
+                    // Ajouter les réductions manuelles
+                    if ($student) {
+                        $manualDiscountService = new ManualDiscountService();
+                        $totalReductions += $manualDiscountService->getManualDiscountAmount($student, $workingYear);
+                    }
+
                     // Total payé = espèces + bourses + réductions
                     $totalPaid = $studentData['montant_total'] + $totalScholarships + $totalReductions;
                     $resteAPayer = max(0, $totalRequired - $totalPaid);
@@ -3661,6 +3693,10 @@ class ReportsController extends Controller
                     }
                 }
 
+                // Ajouter les réductions manuelles
+                $manualDiscountService = new ManualDiscountService();
+                $amounts['rabais'] += $manualDiscountService->getManualDiscountAmount($student, $workingYear);
+
                 $totalPaye = array_sum(array_slice($amounts, 0, 4)); // inscription + tranches
                 $resteAPayer = $this->calculateRemainingAmount($student, $workingYear, $totalPaye);
 
@@ -3725,14 +3761,10 @@ class ReportsController extends Controller
      */
     private function calculateRemainingAmount($student, $workingYear, $totalPaid)
     {
-        // Cette fonction devrait calculer le montant total dû basé sur la classe/série
-        // Pour le moment, retournons une valeur par défaut
-        // À adapter selon la logique métier de votre application
+        // Calculer le montant requis réel depuis les tranches de paiement
+        $result = $this->calculateStudentTotalRequired($student, $workingYear, PaymentTranche::where('is_active', true)->orderBy('order')->get());
 
-        // Exemple de calcul basique (à personnaliser)
-        $expectedTotal = 500000; // Exemple: 500,000 FCFA par année
-
-        return max(0, $expectedTotal - $totalPaid);
+        return max(0, $result['effective_required'] - $totalPaid);
     }
 
     /**
@@ -3863,6 +3895,11 @@ class ReportsController extends Controller
                         ->where('school_year_id', $workingYear->id)
                         ->where('has_reduction', true)
                         ->sum('reduction_amount');
+
+                    // Ajouter les réductions manuelles
+                    $manualDiscountService = new ManualDiscountService();
+                    $studentRabais += $manualDiscountService->getManualDiscountAmount($student, $workingYear);
+
                     $rabais += $studentRabais;
                 }
 
@@ -5245,6 +5282,10 @@ class ReportsController extends Controller
                                 $rabais += $studentRequired * 0.1;
                             }
                         }
+
+                        // Ajouter les réductions manuelles aux rabais
+                        $manualDiscountService = new ManualDiscountService();
+                        $rabais += $manualDiscountService->getManualDiscountAmount($student, $workingYear);
 
                         $realisation += $studentPaid;
                         $insPercu += $studentInscription;
