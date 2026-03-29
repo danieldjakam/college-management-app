@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Form, Alert, Badge, Card, Table, Row, Col, Tabs, Tab } from 'react-bootstrap';
-import { PlusCircle, PersonFill, JournalBookmarkFill, Trash2, Calendar, KeyFill, Eye, EyeSlash } from 'react-bootstrap-icons';
+import { PlusCircle, PersonFill, JournalBookmarkFill, Trash2, Calendar, KeyFill, Eye, EyeSlash, Download, FileEarmarkPdf } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
+import { host } from '../../utils/fetch';
 import Swal from 'sweetalert2';
 
 const TeacherAssignmentManagement = () => {
@@ -27,6 +28,9 @@ const TeacherAssignmentManagement = () => {
     const [showCredentialsModal, setShowCredentialsModal] = useState(false);
     const [credentialsData, setCredentialsData] = useState({ username: '', password: '' });
     const [showPassword, setShowPassword] = useState(false);
+    const [showDownloadModal, setShowDownloadModal] = useState(false);
+    const [downloadData, setDownloadData] = useState({ default_password: '', login_url: 'http://admin.cpb-douala.com' });
+    const [downloading, setDownloading] = useState(false);
 
     useEffect(() => {
         loadInitialData();
@@ -351,6 +355,50 @@ const TeacherAssignmentManagement = () => {
         }
     };
 
+    const handleDownloadCredentialsPDF = async (e) => {
+        e.preventDefault();
+        setDownloading(true);
+
+        try {
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            const response = await fetch(`${host}/api/teacher-assignments/download-credentials-pdf`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/pdf',
+                },
+                body: JSON.stringify({
+                    default_password: downloadData.default_password || null,
+                    login_url: downloadData.login_url || null,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => null);
+                throw new Error(errorData?.message || `Erreur ${response.status}`);
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `Identifiants_Enseignants_${new Date().toISOString().split('T')[0]}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(link);
+
+            setShowDownloadModal(false);
+            Swal.fire('Succès!', 'PDF des identifiants téléchargé avec succès', 'success');
+        } catch (error) {
+            console.error('Erreur téléchargement PDF:', error);
+            Swal.fire('Erreur', error.message || 'Erreur lors du téléchargement', 'error');
+        } finally {
+            setDownloading(false);
+        }
+    };
+
     const getTeacherAssignments = (teacherId) => {
         console.log(`🔍 Looking for assignments for teacher ${teacherId}. Total assignments in state: ${assignments.length}`);
         if (assignments.length > 0) {
@@ -406,8 +454,15 @@ const TeacherAssignmentManagement = () => {
                     <p className="text-muted">Gérez les affectations des enseignants aux matières configurées et désignez les professeurs principaux</p>
                 </div>
                 <div className="d-flex gap-2">
-                    <Button 
-                        variant="success" 
+                    <Button
+                        variant="outline-danger"
+                        onClick={() => setShowDownloadModal(true)}
+                    >
+                        <FileEarmarkPdf className="me-2" />
+                        PDF Identifiants
+                    </Button>
+                    <Button
+                        variant="success"
                         onClick={handleShowMainTeacherModal}
                     >
                         <PlusCircle className="me-2" />
@@ -826,6 +881,69 @@ const TeacherAssignmentManagement = () => {
                         >
                             <PersonFill className="me-2" />
                             Désigner
+                        </Button>
+                    </Modal.Footer>
+                </Form>
+            </Modal>
+
+            {/* Modal téléchargement PDF identifiants */}
+            <Modal show={showDownloadModal} onHide={() => setShowDownloadModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <FileEarmarkPdf className="me-2" />
+                        Télécharger les identifiants
+                    </Modal.Title>
+                </Modal.Header>
+                <Form onSubmit={handleDownloadCredentialsPDF}>
+                    <Modal.Body>
+                        <Form.Group className="mb-3">
+                            <Form.Label>Mot de passe par défaut</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={downloadData.default_password}
+                                onChange={(e) => setDownloadData(prev => ({ ...prev, default_password: e.target.value }))}
+                                placeholder="Ex: cpb2026"
+                            />
+                            <Form.Text className="text-muted">
+                                Si renseigné, ce mot de passe sera appliqué à TOUS les comptes enseignants et affiché dans le PDF.
+                            </Form.Text>
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label>Lien de connexion</Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={downloadData.login_url}
+                                onChange={(e) => setDownloadData(prev => ({ ...prev, login_url: e.target.value }))}
+                                placeholder="http://admin.cpb-douala.com"
+                            />
+                        </Form.Group>
+
+                        <Alert variant="warning">
+                            <strong>Attention :</strong> Si vous renseignez un mot de passe par défaut, il sera appliqué à tous les enseignants qui ont un compte.
+                            Laissez vide pour simplement exporter la liste des noms d'utilisateur sans modifier les mots de passe.
+                        </Alert>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="secondary" onClick={() => setShowDownloadModal(false)}>
+                            Annuler
+                        </Button>
+                        <Button
+                            variant="danger"
+                            type="submit"
+                            disabled={downloading}
+                        >
+                            {downloading ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" />
+                                    Génération...
+                                </>
+                            ) : (
+                                <>
+                                    <Download className="me-2" />
+                                    Télécharger PDF
+                                </>
+                            )}
                         </Button>
                     </Modal.Footer>
                 </Form>

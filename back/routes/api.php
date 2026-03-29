@@ -792,6 +792,9 @@ Route::middleware('auth:api')->group(function () {
 
         // Route pour modifier les identifiants de connexion d'un enseignant
         Route::put('/teacher/{teacher}/update-credentials', [TeacherAssignmentController::class, 'updateCredentials'])->middleware(['role:admin,principal,secretaire']);
+
+        // Route pour télécharger le PDF des identifiants
+        Route::post('/download-credentials-pdf', [TeacherAssignmentController::class, 'downloadCredentialsPDF'])->middleware(['role:admin,principal,secretaire']);
     });
 
     // Routes pour les professeurs principaux

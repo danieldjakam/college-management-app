@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class TeacherAssignmentController extends Controller
 {
@@ -670,6 +671,70 @@ class TeacherAssignmentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la mise à jour des identifiants',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Télécharger le PDF des identifiants de connexion des enseignants
+     */
+    public function downloadCredentialsPDF(Request $request)
+    {
+        try {
+            $defaultPassword = $request->default_password;
+
+            $teachers = Teacher::where('is_active', true)
+                ->with('user')
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->get();
+
+            // Si un mot de passe par défaut est fourni, l'appliquer à tous les enseignants qui ont un compte
+            if ($defaultPassword) {
+                $hashedPassword = Hash::make($defaultPassword);
+                foreach ($teachers as $teacher) {
+                    if ($teacher->user) {
+                        $teacher->user->update(['password' => $hashedPassword]);
+                    }
+                }
+            }
+
+            $teachersData = $teachers->map(function ($teacher) use ($defaultPassword) {
+                return [
+                    'full_name' => $teacher->full_name,
+                    'phone_number' => $teacher->phone_number,
+                    'username' => $teacher->user?->username,
+                    'has_account' => !!$teacher->user,
+                    'password_display' => $defaultPassword ?: null,
+                ];
+            })->toArray();
+
+            $schoolSettings = DB::table('school_settings')->first();
+
+            $pdfData = [
+                'teachers' => $teachersData,
+                'school_name' => $schoolSettings->school_name ?? 'COLLEGE POLYVALENT BILINGUE DE DOUALA',
+                'date_generation' => now()->format('d/m/Y H:i'),
+                'default_password' => $defaultPassword,
+                'login_url' => $request->login_url ?? 'http://admin.cpb-douala.com',
+            ];
+
+            $pdf = Pdf::loadView('pdf.teacher-credentials', $pdfData);
+            $pdf->setPaper('A4', 'portrait');
+
+            $fileName = 'Identifiants_Enseignants_' . now()->format('Y-m-d') . '.pdf';
+
+            return $pdf->download($fileName);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur génération PDF identifiants', [
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du PDF',
                 'error' => $e->getMessage()
             ], 500);
         }
