@@ -789,6 +789,9 @@ Route::middleware('auth:api')->group(function () {
         // Routes pour envoyer récapitulatif WhatsApp
         Route::post('/teacher/{teacher}/send-summary', [TeacherAssignmentController::class, 'sendAssignmentsSummary'])->middleware(['role:admin,principal,secretaire']);
         Route::post('/send-summary-by-phone', [TeacherAssignmentController::class, 'sendAssignmentsSummaryByPhone'])->middleware(['role:admin,principal,secretaire']);
+
+        // Route pour modifier les identifiants de connexion d'un enseignant
+        Route::put('/teacher/{teacher}/update-credentials', [TeacherAssignmentController::class, 'updateCredentials'])->middleware(['role:admin,principal,secretaire']);
     });
 
     // Routes pour les professeurs principaux

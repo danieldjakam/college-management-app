@@ -11,6 +11,7 @@ use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class TeacherAssignmentController extends Controller
 {
@@ -540,6 +541,135 @@ class TeacherAssignmentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'envoi du récapitulatif',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Modifier les identifiants de connexion d'un enseignant (username/password)
+     */
+    public function updateCredentials(Teacher $teacher, Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'username' => 'nullable|string|min:3',
+                'password' => 'nullable|string|min:4',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Données invalides',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            if (!$request->username && !$request->password) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Veuillez fournir un nom d\'utilisateur ou un mot de passe à modifier'
+                ], 422);
+            }
+
+            $user = $teacher->user;
+
+            // Si pas de compte utilisateur, en créer un
+            if (!$user) {
+                if (!$request->username || !$request->password) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Cet enseignant n\'a pas de compte. Veuillez fournir un nom d\'utilisateur ET un mot de passe pour créer le compte.',
+                        'needs_creation' => true
+                    ], 422);
+                }
+
+                // Vérifier unicité du username
+                $existing = \App\Models\User::where('username', $request->username)->first();
+                if ($existing) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Ce nom d\'utilisateur est déjà utilisé par un autre compte'
+                    ], 422);
+                }
+
+                $user = \App\Models\User::create([
+                    'username' => $request->username,
+                    'password' => Hash::make($request->password),
+                    'role' => 'teacher',
+                    'name' => $teacher->full_name,
+                    'email' => $teacher->email,
+                    'contact' => $teacher->phone_number,
+                    'is_active' => true,
+                ]);
+
+                $teacher->update(['user_id' => $user->id]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Compte créé avec succès pour ' . $teacher->full_name,
+                    'data' => [
+                        'teacher_id' => $teacher->id,
+                        'user_id' => $user->id,
+                        'username' => $user->username,
+                        'created' => true,
+                    ]
+                ], 201);
+            }
+
+            $updates = [];
+            $changes = [];
+
+            if ($request->username && $request->username !== $user->username) {
+                // Vérifier l'unicité du username
+                $existing = \App\Models\User::where('username', $request->username)
+                    ->where('id', '!=', $user->id)
+                    ->first();
+
+                if ($existing) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Ce nom d\'utilisateur est déjà utilisé par un autre compte'
+                    ], 422);
+                }
+
+                $updates['username'] = $request->username;
+                $changes[] = 'nom d\'utilisateur';
+            }
+
+            if ($request->password) {
+                $updates['password'] = Hash::make($request->password);
+                $changes[] = 'mot de passe';
+            }
+
+            if (empty($updates)) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Aucune modification détectée'
+                ]);
+            }
+
+            $user->update($updates);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Identifiants mis à jour avec succès (' . implode(' et ', $changes) . ')',
+                'data' => [
+                    'teacher_id' => $teacher->id,
+                    'user_id' => $user->id,
+                    'username' => $user->username,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur mise à jour identifiants enseignant', [
+                'teacher_id' => $teacher->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour des identifiants',
                 'error' => $e->getMessage()
             ], 500);
         }

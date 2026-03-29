@@ -1166,7 +1166,8 @@ export const secureApiEndpoints = {
         create: (data) => secureApi.post('/teacher-assignments', data),
         delete: (id) => secureApi.delete(`/teacher-assignments/${id}`),
         toggleStatus: (id) => secureApi.post(`/teacher-assignments/${id}/toggle-status`),
-        bulkAssign: (teacherId, data) => secureApi.post(`/teacher-assignments/teacher/${teacherId}/bulk-assign`, data)
+        bulkAssign: (teacherId, data) => secureApi.post(`/teacher-assignments/teacher/${teacherId}/bulk-assign`, data),
+        updateCredentials: (teacherId, data) => secureApi.put(`/teacher-assignments/teacher/${teacherId}/update-credentials`, data)
     },
 
     // === MAIN TEACHERS ===

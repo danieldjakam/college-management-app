@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Modal, Form, Alert, Badge, Card, Table, Row, Col, Tabs, Tab } from 'react-bootstrap';
-import { PlusCircle, PersonFill, JournalBookmarkFill, Trash2, Calendar } from 'react-bootstrap-icons';
+import { PlusCircle, PersonFill, JournalBookmarkFill, Trash2, Calendar, KeyFill, Eye, EyeSlash } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import Swal from 'sweetalert2';
 
@@ -24,6 +24,9 @@ const TeacherAssignmentManagement = () => {
         class_series_id: ''
     });
     const [activeTab, setActiveTab] = useState('assignments');
+    const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+    const [credentialsData, setCredentialsData] = useState({ username: '', password: '' });
+    const [showPassword, setShowPassword] = useState(false);
 
     useEffect(() => {
         loadInitialData();
@@ -74,7 +77,7 @@ const TeacherAssignmentManagement = () => {
         try {
             setLoading(true);
             const [teachersRes, schoolYearsRes, seriesSubjectsRes] = await Promise.all([
-                secureApiEndpoints.teachers.getAll({ active: true }),
+                secureApiEndpoints.teachers.getAll({ active: true, with_details: true }),
                 secureApiEndpoints.schoolYears.getActiveYears(),
                 secureApiEndpoints.seriesSubjects.getAll({ active: true })
             ]);
@@ -284,6 +287,70 @@ const TeacherAssignmentManagement = () => {
         }
     };
 
+    const handleShowCredentialsModal = (teacher) => {
+        setSelectedTeacher(teacher);
+        setCredentialsData({
+            username: teacher.user?.username || '',
+            password: ''
+        });
+        setShowPassword(false);
+        setShowCredentialsModal(true);
+    };
+
+    const handleUpdateCredentials = async (e) => {
+        e.preventDefault();
+
+        if (!selectedTeacher) return;
+
+        const hasUser = !!selectedTeacher.user;
+        const data = {};
+
+        if (!hasUser) {
+            // Création de compte : username et password obligatoires
+            if (!credentialsData.username || !credentialsData.password) {
+                Swal.fire('Erreur', 'Le nom d\'utilisateur et le mot de passe sont obligatoires pour créer un compte', 'error');
+                return;
+            }
+            data.username = credentialsData.username;
+            data.password = credentialsData.password;
+        } else {
+            // Mise à jour : au moins un champ modifié
+            if (credentialsData.username && credentialsData.username !== selectedTeacher.user?.username) {
+                data.username = credentialsData.username;
+            }
+            if (credentialsData.password) {
+                data.password = credentialsData.password;
+            }
+
+            if (!data.username && !data.password) {
+                Swal.fire('Info', 'Aucune modification détectée', 'info');
+                return;
+            }
+        }
+
+        try {
+            const response = await secureApiEndpoints.teacherAssignments.updateCredentials(selectedTeacher.id, data);
+
+            if (response.success) {
+                Swal.fire('Succès!', response.message, 'success');
+                setShowCredentialsModal(false);
+                // Mettre à jour le user localement
+                const newUsername = data.username || selectedTeacher.user?.username;
+                setTeachers(prev => prev.map(t =>
+                    t.id === selectedTeacher.id
+                        ? { ...t, user: { ...(t.user || {}), id: response.data?.user_id, username: newUsername } }
+                        : t
+                ));
+            } else {
+                Swal.fire('Erreur', response.message || 'Erreur lors de la mise à jour', 'error');
+            }
+        } catch (error) {
+            console.error('Erreur mise à jour identifiants:', error);
+            const errorMessage = error.message || error.response?.data?.message || 'Une erreur est survenue';
+            Swal.fire('Erreur', errorMessage, 'error');
+        }
+    };
+
     const getTeacherAssignments = (teacherId) => {
         console.log(`🔍 Looking for assignments for teacher ${teacherId}. Total assignments in state: ${assignments.length}`);
         if (assignments.length > 0) {
@@ -407,20 +474,37 @@ const TeacherAssignmentManagement = () => {
                                                             )}
                                                         </div>
                                                     </div>
-                                                    <Button
-                                                        variant="outline-primary"
-                                                        size="sm"
-                                                        onClick={() => handleShowAssignModal(teacher)}
-                                                    >
-                                                        <PlusCircle size={14} className="me-1" />
-                                                        Affecter
-                                                    </Button>
+                                                    <div className="d-flex gap-1">
+                                                        <Button
+                                                            variant="outline-warning"
+                                                            size="sm"
+                                                            onClick={() => handleShowCredentialsModal(teacher)}
+                                                            title="Modifier identifiants"
+                                                        >
+                                                            <KeyFill size={14} />
+                                                        </Button>
+                                                        <Button
+                                                            variant="outline-primary"
+                                                            size="sm"
+                                                            onClick={() => handleShowAssignModal(teacher)}
+                                                        >
+                                                            <PlusCircle size={14} className="me-1" />
+                                                            Affecter
+                                                        </Button>
+                                                    </div>
                                                 </Card.Header>
                                                 <Card.Body>
                                                     <div className="mb-2">
                                                         <small className="text-muted">
                                                             <strong>Téléphone:</strong> {teacher.phone_number}
                                                         </small>
+                                                        {teacher.user?.username && (
+                                                            <div>
+                                                                <small className="text-muted">
+                                                                    <strong>Utilisateur:</strong> {teacher.user.username}
+                                                                </small>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     
                                                     {/* Affectations matières */}
@@ -587,6 +671,88 @@ const TeacherAssignmentManagement = () => {
                         >
                             <PlusCircle className="me-2" />
                             Affecter
+                        </Button>
+                    </Modal.Footer>
+                </Form>
+            </Modal>
+
+            {/* Modal modification/création identifiants */}
+            <Modal show={showCredentialsModal} onHide={() => setShowCredentialsModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <KeyFill className="me-2" />
+                        {selectedTeacher?.user
+                            ? `Identifiants de ${selectedTeacher?.full_name || `${selectedTeacher?.last_name} ${selectedTeacher?.first_name}`}`
+                            : `Créer un compte pour ${selectedTeacher?.full_name || `${selectedTeacher?.last_name} ${selectedTeacher?.first_name}`}`
+                        }
+                    </Modal.Title>
+                </Modal.Header>
+                <Form onSubmit={handleUpdateCredentials}>
+                    <Modal.Body>
+                        {!selectedTeacher?.user && (
+                            <Alert variant="warning" className="mb-3">
+                                Cet enseignant n'a pas encore de compte utilisateur. Remplissez les champs ci-dessous pour lui en créer un.
+                            </Alert>
+                        )}
+
+                        <Form.Group className="mb-3">
+                            <Form.Label>Nom d'utilisateur <span className="text-danger">*</span></Form.Label>
+                            <Form.Control
+                                type="text"
+                                value={credentialsData.username}
+                                onChange={(e) => setCredentialsData(prev => ({ ...prev, username: e.target.value }))}
+                                placeholder="Nom d'utilisateur"
+                                minLength={3}
+                                required={!selectedTeacher?.user}
+                            />
+                            {selectedTeacher?.user && (
+                                <Form.Text className="text-muted">
+                                    Actuel : <strong>{selectedTeacher?.user?.username}</strong>
+                                </Form.Text>
+                            )}
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                            <Form.Label>
+                                {selectedTeacher?.user ? 'Nouveau mot de passe' : 'Mot de passe'}
+                                {!selectedTeacher?.user && <span className="text-danger"> *</span>}
+                            </Form.Label>
+                            <div className="d-flex gap-2">
+                                <Form.Control
+                                    type={showPassword ? 'text' : 'password'}
+                                    value={credentialsData.password}
+                                    onChange={(e) => setCredentialsData(prev => ({ ...prev, password: e.target.value }))}
+                                    placeholder={selectedTeacher?.user ? 'Laisser vide pour ne pas changer' : 'Mot de passe'}
+                                    minLength={4}
+                                    required={!selectedTeacher?.user}
+                                />
+                                <Button
+                                    variant="outline-secondary"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    type="button"
+                                >
+                                    {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
+                                </Button>
+                            </div>
+                        </Form.Group>
+
+                        <Alert variant="info" className="mb-0">
+                            {selectedTeacher?.user
+                                ? 'Vous pouvez modifier le nom d\'utilisateur, le mot de passe, ou les deux.'
+                                : 'Un compte avec le rôle "enseignant" sera créé automatiquement.'
+                            }
+                        </Alert>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button variant="secondary" onClick={() => setShowCredentialsModal(false)}>
+                            Annuler
+                        </Button>
+                        <Button
+                            variant={selectedTeacher?.user ? 'warning' : 'success'}
+                            type="submit"
+                        >
+                            <KeyFill className="me-2" />
+                            {selectedTeacher?.user ? 'Enregistrer' : 'Créer le compte'}
                         </Button>
                     </Modal.Footer>
                 </Form>
