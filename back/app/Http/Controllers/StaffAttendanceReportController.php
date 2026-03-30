@@ -50,11 +50,9 @@ class StaffAttendanceReportController extends Controller
             $status = $request->get('status');
 
             // Construire la requête de base pour les utilisateurs personnel
-            $staffQuery = User::whereIn('role', [
-                'teacher', 'accountant', 'admin', 'secretaire',
-                'surveillant_general', 'comptable_superieur',
-                'vacataire', 'semi_permanent'  // AJOUT DES VACATAIRES
-            ]);
+            // Inclure tous les rôles du personnel (pas les parents/élèves)
+            $staffQuery = User::whereNotIn('role', ['parent', 'student'])
+                ->where('is_active', true);
 
             if ($role) {
                 $staffQuery->where('role', $role);
@@ -1589,21 +1587,27 @@ class StaffAttendanceReportController extends Controller
         $year = $request->input('year', now()->year);
         $format = $request->input('format', 'json');
 
-        // Récupérer tous les utilisateurs permanents (teachers, accountant, admin, secretaire, surveillant_general, comptable_superieur)
-        $staffUsers = User::whereIn('role', ['teacher', 'accountant', 'admin', 'secretaire', 'surveillant_general', 'comptable_superieur'])
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get();
-
-        $staffIds = $staffUsers->pluck('id')->toArray();
-
-        // Récupérer toutes les présences du mois
-        $attendances = StaffAttendance::whereIn('user_id', $staffIds)
-            ->whereYear('attendance_date', $year)
+        // Récupérer toutes les présences du mois (sans filtre de rôle)
+        $attendances = StaffAttendance::whereYear('attendance_date', $year)
             ->whereMonth('attendance_date', $month)
             ->orderBy('attendance_date')
             ->orderBy('scanned_at')
             ->get();
+
+        // Récupérer tous les utilisateurs actifs qui ont des enregistrements de présence ce mois
+        $staffIdsWithAttendance = $attendances->pluck('user_id')->unique()->toArray();
+
+        $staffUsers = User::where('is_active', true)
+            ->where(function ($query) use ($staffIdsWithAttendance) {
+                // Inclure les utilisateurs avec des présences ce mois
+                $query->whereIn('id', $staffIdsWithAttendance)
+                    // Ou les utilisateurs avec un rôle de personnel (pour afficher aussi ceux à 0%)
+                    ->orWhereIn('role', ['teacher', 'accountant', 'admin', 'secretaire', 'surveillant_general', 'comptable_superieur', 'principal', 'censeur', 'bibliothecaire', 'reprographe', 'surveillant_secteur', 'supervisor']);
+            })
+            ->orderBy('name')
+            ->get();
+
+        $staffIds = $staffUsers->pluck('id')->toArray();
 
         // Calculer les jours ouvrables du mois
         $startDate = Carbon::create($year, $month, 1);
