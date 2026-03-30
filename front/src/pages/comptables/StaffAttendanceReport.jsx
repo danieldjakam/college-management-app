@@ -16,7 +16,9 @@ import {
     People,
     Clock,
     BarChart,
-    Download
+    Download,
+    Search,
+    XCircle
 } from 'react-bootstrap-icons';
 import { secureApi } from '../../utils/apiMigration';
 import Swal from 'sweetalert2';
@@ -26,6 +28,11 @@ const StaffAttendanceReport = () => {
     const [loading, setLoading] = useState(false);
     const [reportData, setReportData] = useState(null);
     const [generating, setGenerating] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const filteredStaff = reportData?.staff?.filter(employee =>
+        employee.name?.toLowerCase().includes(searchTerm.toLowerCase())
+    ) || [];
 
     const loadReport = async () => {
         try {
@@ -135,7 +142,7 @@ const StaffAttendanceReport = () => {
             <Card className="mb-4">
                 <Card.Body>
                     <Row>
-                        <Col md={6}>
+                        <Col md={4}>
                             <Form.Group>
                                 <Form.Label>
                                     <Calendar className="me-2" />
@@ -148,7 +155,30 @@ const StaffAttendanceReport = () => {
                                 />
                             </Form.Group>
                         </Col>
-                        <Col md={6} className="d-flex align-items-end">
+                        <Col md={4}>
+                            <Form.Group>
+                                <Form.Label>
+                                    <Search className="me-2" />
+                                    Rechercher un employé
+                                </Form.Label>
+                                <div className="position-relative">
+                                    <Form.Control
+                                        type="text"
+                                        placeholder="Nom de l'employé..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                    {searchTerm && (
+                                        <XCircle
+                                            className="position-absolute"
+                                            style={{ right: '10px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#999' }}
+                                            onClick={() => setSearchTerm('')}
+                                        />
+                                    )}
+                                </div>
+                            </Form.Group>
+                        </Col>
+                        <Col md={4} className="d-flex align-items-end">
                             <Button
                                 variant="primary"
                                 onClick={loadReport}
@@ -202,7 +232,7 @@ const StaffAttendanceReport = () => {
                 <Card>
                     <Card.Header style={{ background: '#007bff', color: 'white' }}>
                         <h5 className="mb-0">
-                            Calendrier Mensuel - {reportData.monthName} {reportData.year} ({reportData.staff.length} employés)
+                            Calendrier Mensuel - {reportData.monthName} {reportData.year} ({filteredStaff.length}{searchTerm ? `/${reportData.staff.length}` : ''} employé{filteredStaff.length > 1 ? 's' : ''})
                         </h5>
                     </Card.Header>
                     <Card.Body>
@@ -225,7 +255,7 @@ const StaffAttendanceReport = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {reportData.staff.map((employee, empIdx) => (
+                                    {filteredStaff.map((employee, empIdx) => (
                                         <tr key={`emp-${employee.id || empIdx}`}>
                                             <td style={{ position: 'sticky', left: 0, background: '#f8f9fa', fontWeight: 'bold' }}>
                                                 {employee.name}
@@ -265,6 +295,11 @@ const StaffAttendanceReport = () => {
                             </Table>
                         </div>
 
+                        {filteredStaff.length === 0 && reportData.staff.length > 0 && (
+                            <Alert variant="warning" className="text-center">
+                                Aucun employé trouvé pour "{searchTerm}"
+                            </Alert>
+                        )}
                         {reportData.staff.length === 0 && (
                             <Alert variant="info" className="text-center">
                                 Aucun personnel trouvé pour cette période
