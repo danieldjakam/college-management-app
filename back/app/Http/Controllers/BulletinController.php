@@ -860,7 +860,7 @@ class BulletinController extends Controller
                 'trimesters' => $trimesters,
                 'current_sequence' => $currentSequence,
                 'current_trimester' => $currentTrimester,
-                'school_year' => date('Y') . '/' . (date('Y') + 1)
+                'school_year' => \App\Models\SchoolYear::where('is_active', true)->value('name') ?? (date('Y') . '/' . (date('Y') + 1))
             ]
         ]);
     }

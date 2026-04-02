@@ -532,7 +532,7 @@ class BulletinService
             'class_name' => $student->classSeries->name ?? $student->schoolClass->name ?? 'N/A',
             'class_size' => $student->classSeries ? $student->classSeries->students()->count() : 57,
             'sequence_number' => $sequenceNumber,
-            'school_year' => date('Y') . '/' . (date('Y') + 1),
+            'school_year' => $currentSchoolYear ? $currentSchoolYear->name : (date('Y') . '/' . (date('Y') + 1)),
             'subjects_rows' => ''
         ];
 
@@ -763,7 +763,7 @@ class BulletinService
             'class_name' => $student->classSeries->name ?? $student->schoolClass->name ?? 'N/A',
             'class_size' => $student->classSeries ? $student->classSeries->students()->count() : 57,
             'trimester_number' => $trimesterNumber,
-            'school_year' => date('Y') . '/' . (date('Y') + 1),
+            'school_year' => $currentSchoolYear ? $currentSchoolYear->name : (date('Y') . '/' . (date('Y') + 1)),
             'subjects_rows' => ''
         ];
 
@@ -2125,6 +2125,11 @@ class BulletinService
         // DEBUG: Log pour tracer le problème
         // \Log::info("DEBUG prepareTemplateData: templateType=$templateType, sectionType=$sectionType, trimester=" . ($trimester ? $trimester->number : 'null') . ", sequence=" . ($sequence ? $sequence->number : 'null'));
 
+        // Get current school year from cache
+        $currentSchoolYear = \Cache::remember('current_school_year', 3600, function () {
+            return \App\Models\SchoolYear::where('is_active', true)->first();
+        });
+
         // Get school settings and logo
         $schoolSettings = \App\Models\SchoolSetting::first();
         $logoBase64 = '';
@@ -2172,7 +2177,7 @@ class BulletinService
             'bulletin_period' => $bulletinPeriod,
             // Maintenir la compatibilité avec les anciens templates
             'evaluation_number' => $sequence ? $sequence->number : ($trimester ? $trimester->number : '1'),
-            'school_year' => date('Y') . '/' . (date('Y') + 1),
+            'school_year' => $currentSchoolYear ? $currentSchoolYear->name : (date('Y') . '/' . (date('Y') + 1)),
             'total_general' => number_format((float)($data['total_points'] ?? 0), 2),
             'total_coef' => number_format((float)($data['total_coefficient'] ?? 0), 2),
             'evaluation_average' => number_format((float)($data['average'] ?? 0), 2),
@@ -2991,6 +2996,11 @@ class BulletinService
         $student = $data['student'];
         $trimester = $data['trimester'];
 
+        // Get current school year from cache
+        $currentSchoolYear = \Cache::remember('current_school_year', 3600, function () {
+            return \App\Models\SchoolYear::where('is_active', true)->first();
+        });
+
         // 🌐 Detect if this is Anglophone section for translations
         $sectionType = $this->determineSectionType($student);
         $isAnglophone = ($sectionType === 'anglophone');
@@ -3072,7 +3082,7 @@ class BulletinService
             'class_size' => $classSize,
             'main_teacher' => $mainTeacher,
             'parent_info' => $parentInfo,
-            'school_year' => date('Y') . '/' . (date('Y') + 1),
+            'school_year' => $currentSchoolYear ? $currentSchoolYear->name : (date('Y') . '/' . (date('Y') + 1)),
         ];
 
         // Generate subjects HTML
