@@ -2878,6 +2878,19 @@ class BulletinService
      * @param string $sectionType
      * @return string
      */
+    protected function getTrimesterTitle($trimester, $isAnglophone = false)
+    {
+        $number = $trimester ? $trimester->number : 1;
+
+        if ($isAnglophone) {
+            $ordinals = [1 => 'FIRST', 2 => 'SECOND', 3 => 'THIRD'];
+            return ($ordinals[$number] ?? 'FIRST') . ' TERM REPORT CARD';
+        }
+
+        $ordinals = [1 => 'PREMIER', 2 => 'DEUXIÈME', 3 => 'TROISIÈME'];
+        return 'BULLETIN SCOLAIRE DU ' . ($ordinals[$number] ?? 'PREMIER') . ' TRIMESTRE';
+    }
+
     protected function getMainTeacher($student, $sectionType = 'francophone')
     {
         if (!$student->class_series_id) {
@@ -3083,6 +3096,7 @@ class BulletinService
             'main_teacher' => $mainTeacher,
             'parent_info' => $parentInfo,
             'school_year' => $currentSchoolYear ? $currentSchoolYear->name : (date('Y') . '/' . (date('Y') + 1)),
+            'trimester_title' => $this->getTrimesterTitle($trimester, $isAnglophone),
         ];
 
         // Generate subjects HTML
