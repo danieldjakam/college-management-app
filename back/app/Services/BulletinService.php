@@ -2356,9 +2356,17 @@ class BulletinService
         // Group subjects by type (simulate the groups from the example)
         $subjectGroups = $this->groupSubjectsByType($data['subjects']);
 
+        // Get trimester number for dynamic column headers
+        $trimesterNumber = null;
+        if (isset($data['trimester_number'])) {
+            $trimesterNumber = (int) $data['trimester_number'];
+        } elseif (isset($data['trimester']) && is_object($data['trimester'])) {
+            $trimesterNumber = (int) $data['trimester']->number;
+        }
+
         $groupsHtml = '';
         foreach ($subjectGroups as $groupName => $subjects) {
-            $groupsHtml .= $this->renderSubjectGroup($groupName, $subjects, $forPdf, $bulletinType);
+            $groupsHtml .= $this->renderSubjectGroup($groupName, $subjects, $forPdf, $bulletinType, $trimesterNumber);
         }
 
         // Replace the {{#each subject_groups}}...{{/each}} block
@@ -2449,7 +2457,7 @@ class BulletinService
     /**
      * Render a single subject group
      */
-    protected function renderSubjectGroup($groupName, $subjects, $forPdf = false, $bulletinType = 'sequence')
+    protected function renderSubjectGroup($groupName, $subjects, $forPdf = false, $bulletinType = 'sequence', $trimesterNumber = null)
     {
         // Déterminer le type de cycle et de section à partir des matières
         $cycleType = 'premier'; // Par défaut
@@ -2458,6 +2466,11 @@ class BulletinService
             $cycleType = $subjects[0]['cycle_type'] ?? 'premier';
             $sectionType = $subjects[0]['section_type'] ?? 'francophone';
         }
+
+        // Calculer les numéros de séquences selon le trimestre
+        $trimNum = $trimesterNumber ?? 1;
+        $seq1Num = ($trimNum - 1) * 2 + 1; // Trim 1 → Seq 1, Trim 2 → Seq 3, Trim 3 → Seq 5
+        $seq2Num = ($trimNum - 1) * 2 + 2; // Trim 1 → Seq 2, Trim 2 → Seq 4, Trim 3 → Seq 6
 
         // Forcer Deuxième Cycle pour les sections techniques et anglophones
         if ($sectionType === 'technique' || $sectionType === 'anglophone') {
@@ -2490,10 +2503,11 @@ class BulletinService
                 // 🎓 DEUXIÈME CYCLE: 11 colonnes avec Sequence 1 et Sequence 2 séparées
                 if ($sectionType === 'anglophone') {
                     // English headers for Anglophone section
+                    $ordinalEn = [1 => '1st', 2 => '2nd', 3 => '3rd', 4 => '4th', 5 => '5th', 6 => '6th'];
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 15%;">SUBJECT</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">1st Sequence</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">2nd Sequence</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">1st Term Exam</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">' . ($ordinalEn[$seq1Num] ?? $seq1Num . 'th') . ' Sequence</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">' . ($ordinalEn[$seq2Num] ?? $seq2Num . 'th') . ' Sequence</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">' . ($ordinalEn[$trimNum] ?? $trimNum . 'th') . ' Term Exam</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Avg./20</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">COEF.</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
@@ -2504,9 +2518,9 @@ class BulletinService
                 } else {
                     // French headers for Francophone section
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 15%;">DISCIPLINE</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Sequence 1</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Sequence 2</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Compo1</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Sequence ' . $seq1Num . '</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Sequence ' . $seq2Num . '</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Compo' . $trimNum . '</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Moy./20</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">COEF.</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
@@ -2520,8 +2534,8 @@ class BulletinService
                 if ($sectionType === 'anglophone') {
                     // English headers for Anglophone section
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 20%;">SUBJECT</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">CA1</th>'; // CA = Continuous Assessment
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Exam1</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">CA' . $trimNum . '</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Exam' . $trimNum . '</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Avg</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">COEF.</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
@@ -2531,8 +2545,8 @@ class BulletinService
                 } else {
                     // French headers for Francophone section
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 20%;">DISCIPLINE</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">DS1</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Compo1</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">DS' . $trimNum . '</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Compo' . $trimNum . '</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Moy</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">COEF.</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
