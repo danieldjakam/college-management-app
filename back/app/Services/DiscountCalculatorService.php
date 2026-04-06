@@ -274,13 +274,13 @@ class DiscountCalculatorService
         $totalReduction = round($totalAmount * ($discountPercentage / 100), 0);
         $remainingReduction = $totalReduction;
 
-        // Trier les tranches par ordre décroissant (dernière → première)
+        // Trier les tranches par ordre croissant (première → dernière)
         $sortedIndices = array_keys($trancheAmounts);
         usort($sortedIndices, function($a, $b) use ($trancheAmounts) {
-            return $trancheAmounts[$b]['tranche']->order <=> $trancheAmounts[$a]['tranche']->order;
+            return $trancheAmounts[$a]['tranche']->order <=> $trancheAmounts[$b]['tranche']->order;
         });
 
-        // Appliquer la réduction depuis les dernières tranches
+        // Appliquer la réduction depuis la première tranche de scolarité
         foreach ($sortedIndices as $index) {
             if ($remainingReduction <= 0) break;
 
