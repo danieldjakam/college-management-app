@@ -1183,13 +1183,9 @@ class PaymentController extends Controller
             $discountAmount = $tranche['has_global_discount'] ? $tranche['global_discount_amount'] : 0;
             $scholarshipAmount = $tranche['has_scholarship'] ? $tranche['scholarship_amount'] : 0;
 
-            // Calculer le reste effectif après bourses/réductions
+            // Le reste est déjà calculé correctement par PaymentStatusService
+            // (réductions et bourses déjà prises en compte dans remaining_amount)
             $effectiveRemaining = $trancheRemaining;
-            if ($scholarshipAmount > 0) {
-                $effectiveRemaining = max(0, $trancheRemaining - $scholarshipAmount);
-            } elseif ($discountAmount > 0) {
-                $effectiveRemaining = max(0, $trancheRemaining - $discountAmount);
-            }
 
             // Déterminer le statut de paiement de la tranche
             $trancheStatus = '';
@@ -2076,13 +2072,9 @@ class PaymentController extends Controller
             $discountAmount = $tranche['has_global_discount'] ? $tranche['global_discount_amount'] : 0;
             $scholarshipAmount = $tranche['has_scholarship'] ? $tranche['scholarship_amount'] : 0;
 
-            // Calculer le reste effectif après bourses/réductions
+            // Le reste est déjà calculé correctement par PaymentStatusService
+            // (réductions et bourses déjà prises en compte dans remaining_amount)
             $effectiveRemaining = $trancheRemaining;
-            if ($scholarshipAmount > 0) {
-                // $effectiveRemaining = max(0, $trancheRemaining - $scholarshipAmount);
-            } elseif ($discountAmount > 0) {
-                $effectiveRemaining = max(0, $trancheRemaining - $discountAmount);
-            }
 
             // Déterminer le statut de paiement de la tranche
             $trancheStatus = '';
