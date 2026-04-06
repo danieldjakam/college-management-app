@@ -218,6 +218,22 @@ const TrimesterAcademicView = ({
                                                     {new Date(trimester.start_date).toLocaleDateString()} -
                                                     {new Date(trimester.end_date).toLocaleDateString()}
                                                 </small>
+                                                {!trimester.is_current && onActivateTrimester && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline-success"
+                                                        onClick={() => onActivateTrimester(trimester.id)}
+                                                    >
+                                                        <Play className="me-1" size={12} />
+                                                        Activer
+                                                    </Button>
+                                                )}
+                                                {trimester.is_current && (
+                                                    <Badge bg="success">
+                                                        <CheckCircle className="me-1" size={12} />
+                                                        Actif
+                                                    </Badge>
+                                                )}
                                             </div>
                                         </Card.Footer>
                                     </Card>

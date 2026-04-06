@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     Container, Row, Col, Card, Table, Badge, Form, Button,
-    Spinner, Alert, Accordion, ProgressBar, InputGroup
+    Spinner, Alert, ProgressBar, InputGroup
 } from 'react-bootstrap';
 import {
     FileEarmarkPdf, Search, CheckCircleFill,
@@ -134,6 +134,11 @@ const GradeTracking = () => {
 
     return (
         <Container fluid className="py-3">
+            <style>{`
+                details > summary::-webkit-details-marker { display: none; }
+                details > summary { list-style: none; }
+                details[open] > summary { border-bottom: 1px solid rgba(0,0,0,.125); }
+            `}</style>
             <Row className="mb-3">
                 <Col>
                     <h4 className="mb-0">Suivi de la Saisie des Notes</h4>
@@ -237,16 +242,16 @@ const GradeTracking = () => {
                     Aucun enseignant trouvé pour les critères sélectionnés.
                 </Alert>
             ) : (
-                <Accordion>
-                    {filteredTeachers.map((teacher, index) => {
+                <div>
+                    {filteredTeachers.map((teacher) => {
                         const pct = teacher.summary.total > 0
                             ? Math.round((teacher.summary.complete / teacher.summary.total) * 100)
                             : 0;
 
                         return (
-                            <Accordion.Item key={teacher.teacher_id} eventKey={index.toString()}>
-                                <Accordion.Header>
-                                    <div className="d-flex justify-content-between align-items-center w-100 me-3">
+                            <details key={teacher.teacher_id} className="card mb-2">
+                                <summary className="card-header py-2" style={{ cursor: 'pointer', listStyle: 'none' }}>
+                                    <div className="d-flex justify-content-between align-items-center">
                                         <div>
                                             <PersonFill className="me-2 text-primary" />
                                             <strong>{teacher.full_name}</strong>
@@ -270,52 +275,50 @@ const GradeTracking = () => {
                                             </Badge>
                                         </div>
                                     </div>
-                                </Accordion.Header>
-                                <Accordion.Body className="p-0">
-                                    <Table striped hover size="sm" className="mb-0">
-                                        <thead>
-                                            <tr>
-                                                <th>Classe</th>
-                                                <th>Matière</th>
-                                                <th className="text-center">Effectif</th>
-                                                <th className="text-center">Notes saisies</th>
-                                                <th className="text-center">Progression</th>
-                                                <th className="text-center">Statut</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {teacher.assignments.map((assignment, i) => {
-                                                const assignPct = assignment.total_students > 0
-                                                    ? Math.round((assignment.grades_entered / assignment.total_students) * 100)
-                                                    : 0;
-                                                return (
-                                                    <tr key={i}>
-                                                        <td>{assignment.class_name}</td>
-                                                        <td>{assignment.subject_name}</td>
-                                                        <td className="text-center">{assignment.total_students}</td>
-                                                        <td className="text-center">
-                                                            {assignment.grades_entered} / {assignment.total_students}
-                                                        </td>
-                                                        <td className="text-center">
-                                                            <ProgressBar
-                                                                now={assignPct}
-                                                                variant={getProgressVariant(assignPct)}
-                                                                style={{ height: '6px' }}
-                                                            />
-                                                        </td>
-                                                        <td className="text-center">
-                                                            {getStatusBadge(assignment.status)}
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </Table>
-                                </Accordion.Body>
-                            </Accordion.Item>
+                                </summary>
+                                <Table striped hover size="sm" className="mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Classe</th>
+                                            <th>Matière</th>
+                                            <th className="text-center">Effectif</th>
+                                            <th className="text-center">Notes saisies</th>
+                                            <th className="text-center">Progression</th>
+                                            <th className="text-center">Statut</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {teacher.assignments.map((assignment, i) => {
+                                            const assignPct = assignment.total_students > 0
+                                                ? Math.round((assignment.grades_entered / assignment.total_students) * 100)
+                                                : 0;
+                                            return (
+                                                <tr key={i}>
+                                                    <td>{assignment.class_name}</td>
+                                                    <td>{assignment.subject_name}</td>
+                                                    <td className="text-center">{assignment.total_students}</td>
+                                                    <td className="text-center">
+                                                        {assignment.grades_entered} / {assignment.total_students}
+                                                    </td>
+                                                    <td className="text-center">
+                                                        <ProgressBar
+                                                            now={assignPct}
+                                                            variant={getProgressVariant(assignPct)}
+                                                            style={{ height: '6px' }}
+                                                        />
+                                                    </td>
+                                                    <td className="text-center">
+                                                        {getStatusBadge(assignment.status)}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </Table>
+                            </details>
                         );
                     })}
-                </Accordion>
+                </div>
             )}
         </Container>
     );
