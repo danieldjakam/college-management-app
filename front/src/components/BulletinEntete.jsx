@@ -22,7 +22,8 @@ const BulletinEntete = ({student, currentClass, actualExam}) => {
         'Decembre'
     ]
     
-    const date = new Date(student.birthday).getDate() + ' '+ months[new Date(student.birthday).getMonth()] + " " + new Date(student.birthday).getUTCFullYear()
+    const birthDate = new Date(student.birthday + 'T00:00:00');
+    const date = birthDate.getDate() + ' '+ months[birthDate.getMonth()] + " " + birthDate.getFullYear()
     return <div>
             <table className='table2'style={{ width: '100%', display: 'flex', justifyContent: 'space-evenly'}} >
                 <thead style={{ width: '100%', display: 'flex', justifyContent: 'space-evenly'}}>

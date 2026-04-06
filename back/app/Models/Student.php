@@ -47,8 +47,8 @@ class Student extends Model
     ];
 
     protected $casts = [
-        'date_of_birth' => 'date',
-        'birthday' => 'date',
+        'date_of_birth' => 'date:Y-m-d',
+        'birthday' => 'date:Y-m-d',
         'is_new' => 'boolean',
         'arrival_trimester' => 'integer',
         'is_active' => 'boolean',
