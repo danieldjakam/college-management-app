@@ -60,6 +60,7 @@ use App\Http\Controllers\BusController;
 use App\Http\Controllers\CompetenceController;
 use App\Http\Controllers\StudentCardController;
 use App\Http\Controllers\HonorRollController;
+use App\Http\Controllers\GradeTrackingController;
 
 
 // Routes d'authentification
@@ -795,6 +796,12 @@ Route::middleware('auth:api')->group(function () {
 
         // Route pour télécharger le PDF des identifiants
         Route::post('/download-credentials-pdf', [TeacherAssignmentController::class, 'downloadCredentialsPDF'])->middleware(['role:admin,principal,secretaire']);
+    });
+
+    // Routes pour le suivi de la saisie des notes
+    Route::prefix('grade-tracking')->group(function () {
+        Route::get('/', [GradeTrackingController::class, 'index'])->middleware(['role:admin,principal,secretaire,comptable_superieur']);
+        Route::post('/download-pdf', [GradeTrackingController::class, 'downloadPDF'])->middleware(['role:admin,principal,secretaire,comptable_superieur']);
     });
 
     // Routes pour les professeurs principaux

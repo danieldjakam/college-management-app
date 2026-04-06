@@ -159,6 +159,7 @@ import MarkSheetGeneration from "./pages/MarkSheets/MarkSheetGeneration";
 import SubjectGroups from "./pages/Admin/SubjectGroups";
 import SubjectGroupsManagement from "./pages/Admin/SubjectGroupsManagement";
 import HonorRoll from "./pages/Admin/HonorRoll";
+import GradeTracking from "./pages/Admin/GradeTracking";
 import StudentDiscipline from "./pages/Admin/StudentDiscipline";
 
 // Parent Pages
@@ -533,6 +534,14 @@ const AppContent = () => {
                 }
               />
 
+              <Route
+                path="/admin/grade-tracking"
+                element={
+                  <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire', 'comptable_superieur']}>
+                    <GradeTracking />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/admin/subject-groups"
                 element={
