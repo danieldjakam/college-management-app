@@ -501,6 +501,11 @@ Route::middleware('auth:api')->group(function () {
         // Prévisualiser la carte d'un élève
         Route::post('/student/{studentId}/preview', [StudentCardController::class, 'previewCard']);
 
+        // Génération async avec progression
+        Route::post('/class/{classId}/generate-async', [StudentCardController::class, 'generateClassCardsAsync']);
+        Route::get('/progress/{progressKey}', [StudentCardController::class, 'getProgress']);
+        Route::get('/download/{progressKey}', [StudentCardController::class, 'downloadGeneratedCards']);
+
         // Vérifier une carte via QR Code (route publique pour scan)
         Route::get('/verify/{matricule}', [StudentCardController::class, 'verifyCard'])->withoutMiddleware(['role:admin,principal,secretaire,id_card_manager']);
     });

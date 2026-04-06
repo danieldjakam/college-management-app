@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
+use App\Jobs\GenerateStudentCards;
 use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
@@ -284,5 +286,108 @@ class StudentCardController extends Controller
                 'message' => 'Erreur lors de la vérification.'
             ], 500);
         }
+    }
+
+    /**
+     * Lancer la génération en arrière-plan (async)
+     */
+    public function generateClassCardsAsync(Request $request, $classId)
+    {
+        try {
+            $request->validate([
+                'academic_year' => 'required|string',
+            ]);
+
+            $class = SchoolClass::findOrFail($classId);
+            $studentCount = $class->students()->where('students.is_active', true)->count();
+
+            if ($studentCount === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun élève actif dans cette classe.'
+                ], 404);
+            }
+
+            $progressKey = "card_progress_{$classId}_" . time();
+
+            // Initialiser la progression
+            Cache::put($progressKey, [
+                'current' => 0,
+                'total' => $studentCount,
+                'percentage' => 0,
+                'status' => 'queued',
+                'message' => "En file d'attente ({$studentCount} élèves)...",
+                'started_at' => now()->toDateTimeString(),
+            ], 900);
+
+            // Dispatcher le job
+            GenerateStudentCards::dispatch(
+                $classId,
+                $request->academic_year,
+                $progressKey
+            )->onQueue('default');
+
+            return response()->json([
+                'success' => true,
+                'progress_key' => $progressKey,
+                'total_students' => $studentCount,
+                'message' => 'Génération lancée en arrière-plan',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lancement génération cartes: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Vérifier la progression de la génération
+     */
+    public function getProgress($progressKey)
+    {
+        $progress = Cache::get($progressKey);
+
+        if (!$progress) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Aucune progression trouvée.',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'progress' => $progress,
+        ]);
+    }
+
+    /**
+     * Télécharger le PDF généré
+     */
+    public function downloadGeneratedCards($progressKey)
+    {
+        $progress = Cache::get($progressKey);
+
+        if (!$progress || $progress['status'] !== 'completed' || empty($progress['file_path'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Le fichier n\'est pas encore prêt.',
+            ], 404);
+        }
+
+        $fullPath = storage_path('app/public/' . $progress['file_path']);
+
+        if (!file_exists($fullPath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Fichier introuvable.',
+            ], 404);
+        }
+
+        return response()->download($fullPath, $progress['file_name'], [
+            'Content-Type' => 'application/pdf',
+        ]);
     }
 }
