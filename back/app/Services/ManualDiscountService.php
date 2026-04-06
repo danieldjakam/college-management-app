@@ -23,7 +23,7 @@ class ManualDiscountService
 
     /**
      * Répartit la réduction (montant fixe) sur les tranches éligibles (toutes sauf inscription),
-     * en commençant par la dernière tranche (order décroissant).
+     * en commençant par la première tranche de scolarité (order croissant).
      *
      * @param array $trancheRows array of ['tranche' => PaymentTranche, 'required' => float]
      * @return array keyed by tranche_id => discount_amount
@@ -33,9 +33,9 @@ class ManualDiscountService
         $remaining = max(0.0, $discountAmount);
         $map = [];
 
-        // Trier par order décroissant
+        // Trier par order croissant (1ère tranche d'abord)
         usort($trancheRows, function ($a, $b) {
-            return ((int)$b['tranche']->order) <=> ((int)$a['tranche']->order);
+            return ((int)$a['tranche']->order) <=> ((int)$b['tranche']->order);
         });
 
         foreach ($trancheRows as $row) {
