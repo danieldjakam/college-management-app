@@ -88,6 +88,20 @@ class BulletinController extends Controller
             ];
         }
 
+        // Check annual bulletin (available for ALL classes)
+        $existing = BulletinGeneration::byStudent($studentId)
+            ->byPeriod('annual', 'annual')
+            ->first();
+
+        $availableBulletins[] = [
+            'type' => 'annual',
+            'identifier' => 'annual',
+            'name' => 'Bulletin Annuel',
+            'available' => true,
+            'generated' => $existing ? true : false,
+            'file_path' => $existing ? $existing->file_path : null
+        ];
+
         return response()->json([
             'student' => $student,
             'bulletins' => $availableBulletins
@@ -161,6 +175,14 @@ class BulletinController extends Controller
                 $trimesterNumber = (int) str_replace('trim', '', $request->period_identifier);
                 $bulletinData = $this->bulletinService->generateTrimesterBulletinData($trimesterNumber, $request->student_id);
                 $filename = "bulletin_trimestre_{$trimesterNumber}_{$request->student_id}_" . now()->format('Y-m-d') . ".pdf";
+            } elseif ($request->bulletin_type === 'annual') {
+                // Use APC or non-APC annual method based on class type
+                if ($this->bulletinService->isApcClass($student)) {
+                    $bulletinData = $this->bulletinService->generateAnnualBulletinData($request->student_id);
+                } else {
+                    $bulletinData = $this->bulletinService->generateAnnualBulletinDataNonApc($request->student_id);
+                }
+                $filename = "bulletin_annuel_{$request->student_id}_" . now()->format('Y-m-d') . ".pdf";
             }
 
             if (!$bulletinData) {
@@ -282,6 +304,8 @@ class BulletinController extends Controller
         if ($periodType === 'sequence') {
             $sequenceNumber = (int) str_replace('seq', '', $periodIdentifier);
             return $this->bulletinService->generateSequenceBulletinData($sequenceNumber, $studentId);
+        } elseif ($periodType === 'annual') {
+            return $this->bulletinService->generateAnnualBulletinData($studentId);
         } else {
             $trimesterNumber = (int) str_replace('trim', '', $periodIdentifier);
             return $this->bulletinService->generateTrimesterBulletinData($trimesterNumber, $studentId);
@@ -629,6 +653,40 @@ class BulletinController extends Controller
                     $studentsWithStatus[] = $studentData;
                 }
 
+                // Annual bulletin available for ALL classes (APC and non-APC)
+                $isEndOfCycle = true;
+
+                // Add annual bulletin status for end-of-cycle classes
+                if ($isEndOfCycle) {
+                    foreach ($studentsWithStatus as &$studentData) {
+                        $bulletin = $allBulletins->get($studentData['id'], collect())
+                            ->where('period_type', 'annual')
+                            ->where('period_identifier', 'annual')
+                            ->first();
+
+                        // Annual completion = average of 3 trimester completions
+                        $trimCompletions = [];
+                        for ($t = 1; $t <= 3; $t++) {
+                            $trimCompletions[] = $studentData['bulletins']["trimester_{$t}"]['completion_percentage'] ?? 0;
+                        }
+                        $annualCompletion = count($trimCompletions) > 0 ? array_sum($trimCompletions) / count($trimCompletions) : 0;
+
+                        $studentData['bulletins']['annual'] = [
+                            'type' => 'annual',
+                            'identifier' => 'annual',
+                            'name' => 'Annuel',
+                            'completion_percentage' => round($annualCompletion),
+                            'is_generated' => $bulletin ? true : false,
+                            'bulletin_id' => $bulletin ? $bulletin->id : null,
+                            'generated_at' => $bulletin ? $bulletin->generated_at : null,
+                            'status' => 'current',
+                            'can_preview' => true,
+                            'is_archived' => false
+                        ];
+                    }
+                    unset($studentData);
+                }
+
                 // Informations pour le sélecteur de période
                 $availablePeriods = $this->getAvailablePeriods();
 
@@ -637,7 +695,8 @@ class BulletinController extends Controller
                     'series' => $series,
                     'students' => $studentsWithStatus,
                     'available_periods' => $availablePeriods,
-                    'current_view_period' => $viewPeriod ?: 'current'
+                    'current_view_period' => $viewPeriod ?: 'current',
+                    'is_end_of_cycle' => $isEndOfCycle
                 ];
             },
             $viewPeriod // Passer la période au cache pour créer une clé unique

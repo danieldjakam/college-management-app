@@ -155,6 +155,13 @@ class BulletinService
     {
         \Log::info("🎓 DEUXIÈME CYCLE: calculating trimester grade for trimester={$trimester}, student={$studentId}, subject={$subjectId}");
 
+        // Trimestre 3: Composition uniquement (pas de séquences 5/6 dans cet établissement)
+        if ($trimester == 3) {
+            $compositionGrade = $this->getCompositionGrade(3, $studentId, $subjectId);
+            \Log::info("🎓 DEUXIÈME CYCLE T3: Composition seule = " . ($compositionGrade ?? 'null'));
+            return $compositionGrade;
+        }
+
         // Récupérer les 2 séquences du trimestre
         $sequences = $this->getSequencesForTrimester($trimester);
         \Log::info("🎓 Sequences found: " . $sequences->pluck('number')->join(','));
@@ -375,7 +382,7 @@ class BulletinService
      * Get sequences for a trimester
      * 🚀 OPTIMIZED: Results are cached in memory to avoid repeated SQL queries
      */
-    protected function getSequencesForTrimester($trimester)
+    public function getSequencesForTrimester($trimester)
     {
         // Vérifier le cache d'abord
         if (isset($this->sequencesCache[$trimester])) {
@@ -808,14 +815,18 @@ class BulletinService
 
                 // Si au moins une note existe, on calcule la moyenne en remplaçant les nulls par 0.00
                 if ($gradesForAverage->isNotEmpty()) {
-                    $seq1 = $sequenceGrades[0] ?? 0.00;
-                    $seq2 = $sequenceGrades[1] ?? 0.00;
-                    $comp = $compositionGrade ?? 0.00;
+                    if ($trimesterNumber == 3) {
+                        // Trimestre 3: Composition uniquement (pas de séquences)
+                        $trimesterGrade = $compositionGrade;
+                    } else {
+                        $seq1 = $sequenceGrades[0] ?? 0.00;
+                        $seq2 = $sequenceGrades[1] ?? 0.00;
+                        $comp = $compositionGrade ?? 0.00;
 
-                    // 🔧 FORMULE UNIQUE POUR TOUTES LES SECTIONS 2ÈME CYCLE
-                    // DS = (Seq1 + Seq2) / 2, puis M/20 = (DS + Compo) / 2 (50% + 50%)
-                    $ds = ($seq1 + $seq2) / 2;
-                    $trimesterGrade = ($ds + $comp) / 2;
+                        // DS = (Seq1 + Seq2) / 2, puis M/20 = (DS + Compo) / 2 (50% + 50%)
+                        $ds = ($seq1 + $seq2) / 2;
+                        $trimesterGrade = ($ds + $comp) / 2;
+                    }
                 }
 
                 // Logging uniforme pour toutes les sections
@@ -1960,7 +1971,7 @@ class BulletinService
     /**
      * Detect section type (Francophone/Anglophone/Technique) from student
      */
-    protected function determineSectionType($student)
+    public function determineSectionType($student)
     {
         $sectionName = $student->schoolClass->level->section->name ?? '';
 
@@ -2017,6 +2028,29 @@ class BulletinService
         // For Anglophone and Technical sections, force Deuxième Cycle logic
         if ($sectionType === 'anglophone' || $sectionType === 'technique') {
             $cycleType = 'deuxieme';
+        }
+
+        // Use annual template based on class type
+        if ($templateType === 'annual') {
+            // Non-APC annual bulletin (2nd cycle, technique, anglophone non-APC)
+            if (!empty($data['is_non_apc_annual'])) {
+                $templateFile = 'cpbd_bulletin_annuel_pdf.html';
+                $templatePath = resource_path('views/bulletins/' . $templateFile);
+                if (!file_exists($templatePath)) {
+                    throw new \Exception("Template file not found: {$templatePath}");
+                }
+                $html = file_get_contents($templatePath);
+                return $this->prepareNonApcAnnualBulletinHTML($html, $data);
+            }
+
+            // APC annual bulletin
+            $templateFile = 'bulletin_apc_annuel.html';
+            $templatePath = resource_path('views/bulletins/' . $templateFile);
+            if (!file_exists($templatePath)) {
+                throw new \Exception("Template file not found: {$templatePath}");
+            }
+            $html = file_get_contents($templatePath);
+            return $this->prepareAnnualBulletinHTML($html, $data);
         }
 
         // Use APC template for:
@@ -2226,8 +2260,33 @@ class BulletinService
             'discipline_warning_conduct' => $data['discipline']['warning_conduct'] ?? 0,
             'discipline_warning_work' => $data['discipline']['warning_work'] ?? 0,
             'discipline_detention_hours' => $data['discipline']['detention_hours'] ?? 0,
-            'discipline_exclusion_days' => $data['discipline']['exclusion_days'] ?? 0
+            'discipline_exclusion_days' => $data['discipline']['exclusion_days'] ?? 0,
+            // Formule dynamique selon le trimestre
+            'formula_text' => $this->getFormulaText($trimester, $sectionType),
         ];
+    }
+
+    protected function getFormulaText($trimester, $sectionType = 'francophone')
+    {
+        $trimesterNumber = $trimester ? $trimester->number : null;
+
+        if ($sectionType === 'anglophone') {
+            if ($trimesterNumber == 3) {
+                return '<h4>Grading formula:</h4>'
+                     . '<div class="formula-text"><strong>Term Average (Avg./20)</strong> = Composition (direct score)</div>';
+            }
+            return '<h4>Grading formula:</h4>'
+                 . '<div class="formula-text"><strong>CA (Continuous Assessment)</strong> = (Sequence 1 + Sequence 2) / 2</div>'
+                 . '<div class="formula-text"><strong>Term Average (Avg./20)</strong> = (CA + Composition) / 2 = <strong>50% CA + 50% Composition</strong></div>';
+        }
+
+        if ($trimesterNumber == 3) {
+            return '<h4>Formule de calcul des moyennes:</h4>'
+                 . '<div class="formula-text"><strong>Moyenne Trimestre (Moy./20)</strong> = Composition (note directe)</div>';
+        }
+        return '<h4>Formule de calcul des moyennes:</h4>'
+             . '<div class="formula-text"><strong>DS (Devoir Surveill&eacute;)</strong> = (S&eacute;quence 1 + S&eacute;quence 2) / 2</div>'
+             . '<div class="formula-text"><strong>Moyenne Trimestre (Moy./20)</strong> = (DS + Composition) / 2 = <strong>50% DS + 50% Composition</strong></div>';
     }
 
     /**
@@ -3577,7 +3636,7 @@ class BulletinService
     /**
      * Determine cycle type based on student's class
      */
-    protected function determineCycleType($student)
+    public function determineCycleType($student)
     {
         if (!$student) {
             return 'premier'; // Par défaut
@@ -3700,6 +3759,1075 @@ class BulletinService
             'class_average' => array_sum($studentAverages) / count($studentAverages),
             'class_size' => $students->count()
         ];
+    }
+
+    /**
+     * Check if a student's class is an APC class (Premier Cycle or Anglophone APC)
+     * Annual bulletins are ONLY for APC classes
+     */
+    public function isApcClass($student)
+    {
+        if (!$student) return false;
+
+        $cycleType = $this->determineCycleType($student);
+        $sectionType = $this->determineSectionType($student);
+
+        // Francophone Premier Cycle (6ème, 5ème, 4ème, 3ème)
+        if ($cycleType === 'premier' && $sectionType === 'francophone') {
+            return true;
+        }
+
+        // Anglophone APC (Form One to Form Five)
+        if ($sectionType === 'anglophone' && $this->isAngloApcClass($student)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Generate annual bulletin data for a student
+     * Annual = average of 3 trimesters per subject
+     * Only for end-of-cycle classes (3ème, Terminale)
+     */
+    public function generateAnnualBulletinData($studentId)
+    {
+        $student = Student::with([
+            'schoolClass',
+            'classSeries',
+        ])->find($studentId);
+
+        if (!$student) return null;
+
+        // Verify this is an APC class (Premier Cycle or Anglophone APC)
+        if (!$this->isApcClass($student)) {
+            return null;
+        }
+
+        $cycleType = $this->determineCycleType($student);
+        $sectionType = $this->determineSectionType($student);
+
+        if ($sectionType === 'anglophone' || $sectionType === 'technique') {
+            $cycleType = 'deuxieme';
+        }
+
+        $currentSchoolYear = \Cache::remember('current_school_year', 3600, function () {
+            return \App\Models\SchoolYear::where('is_active', true)->first();
+        });
+        $schoolYearId = $currentSchoolYear ? $currentSchoolYear->id : null;
+
+        $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)
+            ->with([
+                'subject',
+                'teachers' => function ($query) use ($schoolYearId) {
+                    $query->wherePivot('is_active', true);
+                    if ($schoolYearId) {
+                        $query->wherePivot('school_year_id', $schoolYearId);
+                    }
+                }
+            ])
+            ->get();
+
+        $classStudentIds = Student::where('class_series_id', $student->class_series_id)->pluck('id');
+        $classSize = $classStudentIds->count();
+
+        // ===== BULK PRELOAD: Load ALL grades for the entire class in ONE query =====
+        $allGrades = Grade::whereIn('student_id', $classStudentIds)
+            ->whereIn('trimester_id', [1, 2, 3])
+            ->get();
+
+        // Index grades by student_id -> sequence_id -> class_series_subject_id
+        $gradeIndex = [];
+        foreach ($allGrades as $g) {
+            $gradeIndex[$g->student_id][$g->sequence_id][$g->class_series_subject_id][] = $g;
+        }
+
+        // Preload sequence IDs and composition sequence IDs
+        $seqMap = [];
+        $compMap = [];
+        for ($t = 1; $t <= 2; $t++) {
+            $seqs = $this->getSequencesForTrimester($t);
+            $seqMap[$t] = $seqs->pluck('id')->toArray();
+        }
+        $seqMap[3] = [];
+        for ($t = 1; $t <= 3; $t++) {
+            $comp = \App\Models\Sequence::where('is_composition', true)
+                ->where('trimester_id', $t)->first();
+            $compMap[$t] = $comp ? $comp->id : null;
+        }
+
+        // Build subject_id -> [class_series_subject_ids] map for composition lookup
+        $subjectIdMap = [];
+        foreach ($subjects as $ss) {
+            $subjectIdMap[$ss->subject_id][] = $ss->id;
+        }
+
+        // Helper: get score/20 from a grade object
+        $scoreOn20 = function ($grade) {
+            if ($grade->score === null || $grade->max_score === null) return null;
+            return round(((float)$grade->score / (float)$grade->max_score) * 20, 2);
+        };
+
+        // Helper: get grade for student+sequence+subject from index
+        $getGradeFromIndex = function ($sid, $seqId, $cssId) use (&$gradeIndex, $scoreOn20) {
+            if (!isset($gradeIndex[$sid][$seqId][$cssId])) return ['score' => null, 'is_absent' => false];
+            foreach ($gradeIndex[$sid][$seqId][$cssId] as $g) {
+                if ($g->score !== null) return ['score' => $scoreOn20($g), 'is_absent' => false];
+            }
+            foreach ($gradeIndex[$sid][$seqId][$cssId] as $g) {
+                if ($g->is_absent) return ['score' => null, 'is_absent' => true];
+            }
+            return ['score' => null, 'is_absent' => false];
+        };
+
+        // Helper: get composition grade
+        $getCompGrade = function ($sid, $trimester, $cssId) use (&$gradeIndex, &$compMap, &$subjects, &$subjectIdMap, $scoreOn20) {
+            $compSeqId = $compMap[$trimester] ?? null;
+            if (!$compSeqId) return null;
+            if (isset($gradeIndex[$sid][$compSeqId][$cssId])) {
+                foreach ($gradeIndex[$sid][$compSeqId][$cssId] as $g) {
+                    if ($g->score !== null) return $scoreOn20($g);
+                }
+                foreach ($gradeIndex[$sid][$compSeqId][$cssId] as $g) {
+                    if ($g->is_absent) return 'ABS';
+                }
+            }
+            $css = $subjects->firstWhere('id', $cssId);
+            if ($css && isset($subjectIdMap[$css->subject_id])) {
+                foreach ($subjectIdMap[$css->subject_id] as $altCssId) {
+                    if ($altCssId == $cssId) continue;
+                    if (isset($gradeIndex[$sid][$compSeqId][$altCssId])) {
+                        foreach ($gradeIndex[$sid][$compSeqId][$altCssId] as $g) {
+                            if ($g->score !== null) return $scoreOn20($g);
+                        }
+                    }
+                }
+            }
+            return null;
+        };
+
+        // Helper: calculate trimester grade from preloaded data
+        $calcTrimGrade = function ($sid, $trimester, $cssId) use (&$seqMap, $getGradeFromIndex, $getCompGrade, $cycleType) {
+            if ($trimester == 3) {
+                $comp = $getCompGrade($sid, 3, $cssId);
+                return ($comp !== null && $comp !== 'ABS') ? (float)$comp : null;
+            }
+            $seqIds = $seqMap[$trimester] ?? [];
+            $seq1Grade = isset($seqIds[0]) ? $getGradeFromIndex($sid, $seqIds[0], $cssId) : ['score' => null, 'is_absent' => false];
+            $seq2Grade = isset($seqIds[1]) ? $getGradeFromIndex($sid, $seqIds[1], $cssId) : ['score' => null, 'is_absent' => false];
+            $compGrade = $getCompGrade($sid, $trimester, $cssId);
+            $s1 = $seq1Grade['score'];
+            $s2 = $seq2Grade['score'];
+            $cg = ($compGrade !== null && $compGrade !== 'ABS') ? (float)$compGrade : null;
+            $notesPresentes = 0;
+            if ($s1 !== null) $notesPresentes++;
+            if ($s2 !== null) $notesPresentes++;
+            if ($cg !== null) $notesPresentes++;
+            if ($notesPresentes === 0) return null;
+            $finalS1 = $s1 ?? 0.0;
+            $finalS2 = $s2 ?? 0.0;
+            $finalComp = $cg ?? 0.0;
+            $ds = ($finalS1 + $finalS2) / 2;
+            return ($ds + $finalComp) / 2;
+        };
+
+        // ===== STEP 1: Calculate annual averages + per-subject averages for ALL students =====
+        $classAnnualAverages = [];
+        $subjectAnnualAverages = []; // subject_id => [student_id => avg]
+
+        foreach ($classStudentIds as $sid) {
+            $studentTotal = 0;
+            $studentCoef = 0;
+
+            foreach ($subjects as $seriesSubject) {
+                $trimGrades = [];
+                $hasAnyGrade = false;
+
+                for ($t = 1; $t <= 3; $t++) {
+                    $grade = $calcTrimGrade($sid, $t, $seriesSubject->id);
+                    if ($grade !== null) {
+                        $trimGrades[$t] = (float)$grade;
+                        $hasAnyGrade = true;
+                    }
+                }
+
+                if ($hasAnyGrade) {
+                    $t1 = $trimGrades[1] ?? 0;
+                    $t2 = $trimGrades[2] ?? 0;
+                    $t3 = $trimGrades[3] ?? 0;
+                    $annualAvg = ($t1 + $t2 + $t3) / 3;
+                    $coef = (float)$seriesSubject->coefficient;
+                    $studentTotal += $annualAvg * $coef;
+                    $studentCoef += $coef;
+
+                    $subjectAnnualAverages[$seriesSubject->id][$sid] = $annualAvg;
+                }
+            }
+
+            if ($studentCoef > 0) {
+                $classAnnualAverages[$sid] = $studentTotal / $studentCoef;
+            }
+        }
+
+        // Sort for ranking
+        arsort($classAnnualAverages);
+        $rank = null;
+        $currentRank = 0;
+        $previousAvg = null;
+        foreach ($classAnnualAverages as $sid => $avg) {
+            $currentRank++;
+            if ($avg !== $previousAvg) {
+                $assignedRank = $currentRank;
+            }
+            if ($sid == $studentId) {
+                $rank = $assignedRank;
+            }
+            $previousAvg = $avg;
+        }
+
+        $bulletinData = [
+            'student' => $student,
+            'bulletin_type' => 'annual',
+            'subjects' => [],
+            'student_first_name' => $student->first_name,
+            'student_last_name' => $student->last_name,
+            'student_id' => $student->id,
+            'student_birth_date' => $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : ($student->birthday ?? 'N/A'),
+            'student_matricule' => $student->matricule ?? $student->student_number ?? 'N/A',
+            'class_name' => $student->classSeries->name ?? $student->schoolClass->name ?? 'N/A',
+            'class_size' => $classSize,
+            'school_year' => $currentSchoolYear ? $currentSchoolYear->name : (date('Y') . '/' . (date('Y') + 1)),
+        ];
+
+        $totalPoints = 0;
+        $totalCoefficient = 0;
+
+        // ===== STEP 2: Build subject data for current student =====
+        foreach ($subjects as $seriesSubject) {
+            if (!isset($subjectAnnualAverages[$seriesSubject->id][$studentId])) {
+                continue; // No grades for this student in this subject
+            }
+
+            $annualAvg = $subjectAnnualAverages[$seriesSubject->id][$studentId];
+            $coef = (float)$seriesSubject->coefficient;
+            $total = $annualAvg * $coef;
+            $totalPoints += $total;
+            $totalCoefficient += $coef;
+
+            // Get trimester grades for display
+            $trimGrades = [];
+            for ($t = 1; $t <= 3; $t++) {
+                $grade = $calcTrimGrade($studentId, $t, $seriesSubject->id);
+                if ($grade !== null) {
+                    $trimGrades[$t] = (float)$grade;
+                }
+            }
+
+            // Min/max from precomputed subject averages
+            $subjectAvgs = array_values($subjectAnnualAverages[$seriesSubject->id] ?? []);
+            $minMax = '[0.00 - 0.00]';
+            if (!empty($subjectAvgs)) {
+                $minMax = '[' . number_format(min($subjectAvgs), 2) . ' - ' . number_format(max($subjectAvgs), 2) . ']';
+            }
+
+            $teacherName = 'N/A';
+            if ($seriesSubject->teachers->isNotEmpty()) {
+                $teacher = $seriesSubject->teachers->first();
+                $teacherName = strtoupper(($teacher->first_name ?? '') . ' ' . ($teacher->last_name ?? ''));
+            }
+
+            $bulletinData['subjects'][] = [
+                'name' => $seriesSubject->subject->name ?? 'N/A',
+                'subject_id' => $seriesSubject->subject_id,
+                'class_series_subject_id' => $seriesSubject->id,
+                'teacher' => $teacherName,
+                'trim1' => isset($trimGrades[1]) ? number_format($trimGrades[1], 2) : '0.00',
+                'trim2' => isset($trimGrades[2]) ? number_format($trimGrades[2], 2) : '0.00',
+                'trim3' => isset($trimGrades[3]) ? number_format($trimGrades[3], 2) : '0.00',
+                'annual_average' => $annualAvg,
+                'coefficient' => $coef,
+                'total' => $total,
+                'min_max' => $minMax,
+            ];
+        }
+
+        $generalAverage = $totalCoefficient > 0 ? $totalPoints / $totalCoefficient : 0;
+
+        $bulletinData['total_general'] = $totalPoints;
+        $bulletinData['total_coefficient'] = $totalCoefficient;
+        $bulletinData['general_average'] = $generalAverage;
+        $bulletinData['rank'] = $rank;
+
+        // Class statistics
+        $allAverages = array_values($classAnnualAverages);
+        if (!empty($allAverages)) {
+            sort($allAverages);
+            $bulletinData['class_min'] = min($allAverages);
+            $bulletinData['class_max'] = max($allAverages);
+            $bulletinData['class_average'] = array_sum($allAverages) / count($allAverages);
+            $bulletinData['nb_averages'] = count(array_filter($allAverages, fn($a) => $a >= 10));
+            $bulletinData['success_rate'] = count($allAverages) > 0
+                ? (count(array_filter($allAverages, fn($a) => $a >= 10)) / count($allAverages)) * 100
+                : 0;
+        } else {
+            $bulletinData['class_min'] = 0;
+            $bulletinData['class_max'] = 0;
+            $bulletinData['class_average'] = 0;
+            $bulletinData['nb_averages'] = 0;
+            $bulletinData['success_rate'] = 0;
+        }
+
+        return $bulletinData;
+    }
+
+    /**
+     * Generate annual bulletin data for NON-APC classes (2nd cycle, technique, anglophone non-APC)
+     * Includes individual sequence grades (EV1-EV6) + 3 compositions + annual average
+     */
+    public function generateAnnualBulletinDataNonApc($studentId)
+    {
+        $student = Student::with([
+            'schoolClass',
+            'classSeries',
+        ])->find($studentId);
+
+        if (!$student) return null;
+
+        $cycleType = $this->determineCycleType($student);
+        $sectionType = $this->determineSectionType($student);
+
+        if ($sectionType === 'anglophone' || $sectionType === 'technique') {
+            $cycleType = 'deuxieme';
+        }
+
+        $currentSchoolYear = \Cache::remember('current_school_year', 3600, function () {
+            return \App\Models\SchoolYear::where('is_active', true)->first();
+        });
+        $schoolYearId = $currentSchoolYear ? $currentSchoolYear->id : null;
+
+        $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)
+            ->with([
+                'subject',
+                'teachers' => function ($query) use ($schoolYearId) {
+                    $query->wherePivot('is_active', true);
+                    if ($schoolYearId) {
+                        $query->wherePivot('school_year_id', $schoolYearId);
+                    }
+                }
+            ])
+            ->get();
+
+        $classStudentIds = Student::where('class_series_id', $student->class_series_id)->pluck('id');
+        $classSize = $classStudentIds->count();
+
+        $mainTeacher = $this->getMainTeacher($student, $sectionType);
+
+        // ===== BULK PRELOAD: Load ALL grades for the entire class in ONE query =====
+        $allGrades = Grade::whereIn('student_id', $classStudentIds)
+            ->whereIn('trimester_id', [1, 2, 3])
+            ->get();
+
+        // Index grades by student_id -> sequence_id -> class_series_subject_id
+        $gradeIndex = [];
+        foreach ($allGrades as $g) {
+            $gradeIndex[$g->student_id][$g->sequence_id][$g->class_series_subject_id][] = $g;
+        }
+
+        // Preload sequence IDs and composition sequence IDs
+        $seqMap = []; // trimester -> [seq1_id, seq2_id]
+        $compMap = []; // trimester -> composition_sequence_id
+        for ($t = 1; $t <= 2; $t++) {
+            $seqs = $this->getSequencesForTrimester($t);
+            $seqMap[$t] = $seqs->pluck('id')->toArray();
+        }
+        $seqMap[3] = []; // T3 has no regular sequences
+        for ($t = 1; $t <= 3; $t++) {
+            $comp = \App\Models\Sequence::where('is_composition', true)
+                ->where('trimester_id', $t)->first();
+            $compMap[$t] = $comp ? $comp->id : null;
+        }
+
+        // Build subject_id -> [class_series_subject_ids] map for composition lookup
+        $subjectIdMap = [];
+        foreach ($subjects as $ss) {
+            $subjectIdMap[$ss->subject_id][] = $ss->id;
+        }
+
+        // Helper: get score/20 from a grade object
+        $scoreOn20 = function ($grade) {
+            if ($grade->score === null || $grade->max_score === null) return null;
+            return round(((float)$grade->score / (float)$grade->max_score) * 20, 2);
+        };
+
+        // Helper: get best grade for student+sequence+subject from index
+        $getGradeFromIndex = function ($sid, $seqId, $cssId) use (&$gradeIndex, $scoreOn20) {
+            if (!isset($gradeIndex[$sid][$seqId][$cssId])) return ['score' => null, 'is_absent' => false];
+            foreach ($gradeIndex[$sid][$seqId][$cssId] as $g) {
+                if ($g->score !== null) return ['score' => $scoreOn20($g), 'is_absent' => false];
+            }
+            // Check absent
+            foreach ($gradeIndex[$sid][$seqId][$cssId] as $g) {
+                if ($g->is_absent) return ['score' => null, 'is_absent' => true];
+            }
+            return ['score' => null, 'is_absent' => false];
+        };
+
+        // Helper: get composition grade for student+trimester+subject (handles subject_id matching)
+        $getCompGrade = function ($sid, $trimester, $cssId) use (&$gradeIndex, &$compMap, &$subjects, &$subjectIdMap, $scoreOn20) {
+            $compSeqId = $compMap[$trimester] ?? null;
+            if (!$compSeqId) return null;
+
+            // Direct lookup first
+            if (isset($gradeIndex[$sid][$compSeqId][$cssId])) {
+                foreach ($gradeIndex[$sid][$compSeqId][$cssId] as $g) {
+                    if ($g->score !== null) return $scoreOn20($g);
+                }
+                foreach ($gradeIndex[$sid][$compSeqId][$cssId] as $g) {
+                    if ($g->is_absent) return 'ABS';
+                }
+            }
+
+            // Fallback: look for same subject_id in other class_series_subject entries
+            $css = $subjects->firstWhere('id', $cssId);
+            if ($css && isset($subjectIdMap[$css->subject_id])) {
+                foreach ($subjectIdMap[$css->subject_id] as $altCssId) {
+                    if ($altCssId == $cssId) continue;
+                    if (isset($gradeIndex[$sid][$compSeqId][$altCssId])) {
+                        foreach ($gradeIndex[$sid][$compSeqId][$altCssId] as $g) {
+                            if ($g->score !== null) return $scoreOn20($g);
+                        }
+                        foreach ($gradeIndex[$sid][$compSeqId][$altCssId] as $g) {
+                            if ($g->is_absent) return 'ABS';
+                        }
+                    }
+                }
+            }
+
+            return null;
+        };
+
+        // Helper: calculate trimester grade from preloaded data
+        $calcTrimGrade = function ($sid, $trimester, $cssId) use (&$seqMap, $getGradeFromIndex, $getCompGrade, $cycleType) {
+            if ($trimester == 3) {
+                $comp = $getCompGrade($sid, 3, $cssId);
+                return ($comp !== null && $comp !== 'ABS') ? (float)$comp : null;
+            }
+
+            $seqIds = $seqMap[$trimester] ?? [];
+            $seq1Grade = isset($seqIds[0]) ? $getGradeFromIndex($sid, $seqIds[0], $cssId) : ['score' => null, 'is_absent' => false];
+            $seq2Grade = isset($seqIds[1]) ? $getGradeFromIndex($sid, $seqIds[1], $cssId) : ['score' => null, 'is_absent' => false];
+            $compGrade = $getCompGrade($sid, $trimester, $cssId);
+
+            $s1 = $seq1Grade['score'];
+            $s2 = $seq2Grade['score'];
+            $cg = ($compGrade !== null && $compGrade !== 'ABS') ? (float)$compGrade : null;
+
+            // Count present notes
+            $notesPresentes = 0;
+            if ($s1 !== null) $notesPresentes++;
+            if ($s2 !== null) $notesPresentes++;
+            if ($cg !== null) $notesPresentes++;
+
+            if ($notesPresentes === 0) return null;
+
+            $finalS1 = $s1 ?? 0.0;
+            $finalS2 = $s2 ?? 0.0;
+            $finalComp = $cg ?? 0.0;
+
+            // DS = (Seq1 + Seq2) / 2, M/20 = (DS + Compo) / 2
+            $ds = ($finalS1 + $finalS2) / 2;
+            return ($ds + $finalComp) / 2;
+        };
+
+        // ===== STEP 1: Calculate annual averages for ALL students (ranking) =====
+        $classAnnualAverages = [];
+
+        foreach ($classStudentIds as $sid) {
+            $studentTotal = 0;
+            $studentCoef = 0;
+
+            foreach ($subjects as $seriesSubject) {
+                $trimGrades = [];
+                $hasAnyGrade = false;
+
+                for ($t = 1; $t <= 3; $t++) {
+                    $grade = $calcTrimGrade($sid, $t, $seriesSubject->id);
+                    if ($grade !== null) {
+                        $trimGrades[$t] = (float)$grade;
+                        $hasAnyGrade = true;
+                    }
+                }
+
+                if ($hasAnyGrade) {
+                    $t1 = $trimGrades[1] ?? 0;
+                    $t2 = $trimGrades[2] ?? 0;
+                    $t3 = $trimGrades[3] ?? 0;
+                    $annualAvg = ($t1 + $t2 + $t3) / 3;
+                    $coef = (float)$seriesSubject->coefficient;
+                    $studentTotal += $annualAvg * $coef;
+                    $studentCoef += $coef;
+                }
+            }
+
+            if ($studentCoef > 0) {
+                $classAnnualAverages[$sid] = $studentTotal / $studentCoef;
+            }
+        }
+
+        // Sort for ranking
+        arsort($classAnnualAverages);
+        $rank = null;
+        $currentRank = 0;
+        $previousAvg = null;
+        foreach ($classAnnualAverages as $sid => $avg) {
+            $currentRank++;
+            if ($avg !== $previousAvg) {
+                $assignedRank = $currentRank;
+            }
+            if ($sid == $studentId) {
+                $rank = $assignedRank;
+            }
+            $previousAvg = $avg;
+        }
+
+        $bulletinData = [
+            'student' => $student,
+            'bulletin_type' => 'annual',
+            'is_non_apc_annual' => true,
+            'subjects' => [],
+            'student_first_name' => $student->first_name,
+            'student_last_name' => $student->last_name,
+            'student_id' => $student->id,
+            'student_birth_date' => $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : ($student->birthday ?? 'N/A'),
+            'student_matricule' => $student->matricule ?? $student->student_number ?? 'N/A',
+            'class_name' => $student->classSeries->name ?? $student->schoolClass->name ?? 'N/A',
+            'class_size' => $classSize,
+            'school_year' => $currentSchoolYear ? $currentSchoolYear->name : (date('Y') . '/' . (date('Y') + 1)),
+            'main_teacher' => $mainTeacher,
+            'section_type' => $sectionType,
+            'cycle_type' => $cycleType,
+        ];
+
+        $totalPoints = 0;
+        $totalCoefficient = 0;
+
+        // ===== STEP 2: Build subject data for current student (EV1-EV6 + Compo1-3) =====
+        $seqTotals = [1 => 0, 2 => 0, 3 => 0, 4 => 0, 5 => 0, 6 => 0];
+        $seqCoefs = [1 => 0, 2 => 0, 3 => 0, 4 => 0, 5 => 0, 6 => 0];
+        $compTotals = [1 => 0, 2 => 0, 3 => 0];
+        $compCoefs = [1 => 0, 2 => 0, 3 => 0];
+        $trimTotals = [1 => 0, 2 => 0, 3 => 0];
+        $trimCoefs = [1 => 0, 2 => 0, 3 => 0];
+
+        foreach ($subjects as $seriesSubject) {
+            $trimGrades = [];
+            $hasAnyGrade = false;
+            $coef = (float)$seriesSubject->coefficient;
+
+            $ev = [1 => '-', 2 => '-', 3 => '-', 4 => '-', 5 => '-', 6 => '-'];
+            $comp = [1 => '-', 2 => '-', 3 => '-'];
+
+            // EV1-EV4 from sequences of T1 and T2
+            for ($t = 1; $t <= 2; $t++) {
+                $seqIds = $seqMap[$t] ?? [];
+                $seqIdx1 = ($t - 1) * 2 + 1;
+                $seqIdx2 = $seqIdx1 + 1;
+
+                if (isset($seqIds[0])) {
+                    $g = $getGradeFromIndex($studentId, $seqIds[0], $seriesSubject->id);
+                    if ($g['score'] !== null) {
+                        $ev[$seqIdx1] = number_format((float)$g['score'], 2);
+                        $hasAnyGrade = true;
+                        $seqTotals[$seqIdx1] += (float)$g['score'] * $coef;
+                        $seqCoefs[$seqIdx1] += $coef;
+                    } elseif ($g['is_absent']) {
+                        $ev[$seqIdx1] = 'ABS';
+                    }
+                }
+                if (isset($seqIds[1])) {
+                    $g = $getGradeFromIndex($studentId, $seqIds[1], $seriesSubject->id);
+                    if ($g['score'] !== null) {
+                        $ev[$seqIdx2] = number_format((float)$g['score'], 2);
+                        $hasAnyGrade = true;
+                        $seqTotals[$seqIdx2] += (float)$g['score'] * $coef;
+                        $seqCoefs[$seqIdx2] += $coef;
+                    } elseif ($g['is_absent']) {
+                        $ev[$seqIdx2] = 'ABS';
+                    }
+                }
+            }
+            // T3 has no sequences (EV5, EV6 stay as '-')
+
+            // Compositions
+            for ($t = 1; $t <= 3; $t++) {
+                $cg = $getCompGrade($studentId, $t, $seriesSubject->id);
+                if ($cg !== null) {
+                    $comp[$t] = ($cg === 'ABS') ? 'ABS' : number_format((float)$cg, 2);
+                    if ($cg !== 'ABS') {
+                        $hasAnyGrade = true;
+                        $compTotals[$t] += (float)$cg * $coef;
+                        $compCoefs[$t] += $coef;
+                    }
+                }
+
+                $trimGrade = $calcTrimGrade($studentId, $t, $seriesSubject->id);
+                if ($trimGrade !== null) {
+                    $trimGrades[$t] = (float)$trimGrade;
+                    $trimTotals[$t] += (float)$trimGrade * $coef;
+                    $trimCoefs[$t] += $coef;
+                }
+            }
+
+            if (!$hasAnyGrade) {
+                continue;
+            }
+
+            $t1 = $trimGrades[1] ?? 0;
+            $t2 = $trimGrades[2] ?? 0;
+            $t3 = $trimGrades[3] ?? 0;
+            $annualAvg = ($t1 + $t2 + $t3) / 3;
+
+            $total = $annualAvg * $coef;
+            $totalPoints += $total;
+            $totalCoefficient += $coef;
+
+            $competence = 'NA (Non Acquise)';
+            if ($annualAvg >= 16) $competence = 'A+ (Expert)';
+            elseif ($annualAvg >= 14) $competence = 'A (Acquise)';
+            elseif ($annualAvg >= 10) $competence = 'ECA (En Cours)';
+
+            $teacherName = 'N/A';
+            if ($seriesSubject->teachers->isNotEmpty()) {
+                $teacher = $seriesSubject->teachers->first();
+                $teacherName = strtoupper(($teacher->first_name ?? '') . ' ' . ($teacher->last_name ?? ''));
+            }
+
+            $bulletinData['subjects'][] = [
+                'name' => $seriesSubject->subject->name ?? 'N/A',
+                'subject_id' => $seriesSubject->subject_id,
+                'class_series_subject_id' => $seriesSubject->id,
+                'teacher' => $teacherName,
+                'ev1' => $ev[1], 'ev2' => $ev[2],
+                'comp1' => $comp[1],
+                'ev3' => $ev[3], 'ev4' => $ev[4],
+                'comp2' => $comp[2],
+                'ev5' => $ev[5], 'ev6' => $ev[6],
+                'comp3' => $comp[3],
+                'annual_average' => $annualAvg,
+                'coefficient' => $coef,
+                'total' => $total,
+                'competence' => $competence,
+            ];
+        }
+
+        $generalAverage = $totalCoefficient > 0 ? $totalPoints / $totalCoefficient : 0;
+
+        $bulletinData['total_general'] = $totalPoints;
+        $bulletinData['total_coefficient'] = $totalCoefficient;
+        $bulletinData['general_average'] = $generalAverage;
+        $bulletinData['rank'] = $rank;
+
+        // Class statistics
+        $allAverages = array_values($classAnnualAverages);
+        if (!empty($allAverages)) {
+            $bulletinData['class_min'] = min($allAverages);
+            $bulletinData['class_max'] = max($allAverages);
+            $bulletinData['class_average'] = array_sum($allAverages) / count($allAverages);
+            $bulletinData['first_average'] = max($allAverages);
+            $bulletinData['last_average'] = min($allAverages);
+        } else {
+            $bulletinData['class_min'] = 0;
+            $bulletinData['class_max'] = 0;
+            $bulletinData['class_average'] = 0;
+            $bulletinData['first_average'] = 0;
+            $bulletinData['last_average'] = 0;
+        }
+
+        // ===== STEP 3: Travail annuel =====
+        $travailAnnuel = [];
+        foreach ([1, 2] as $t) {
+            $s1 = ($t - 1) * 2 + 1;
+            $s2 = $s1 + 1;
+            $travailAnnuel[] = ['label' => "Moyenne EV{$s1}", 'avg' => $seqCoefs[$s1] > 0 ? number_format($seqTotals[$s1] / $seqCoefs[$s1], 2) : '-', 'rank' => '-'];
+            $travailAnnuel[] = ['label' => "Moyenne EV{$s2}", 'avg' => $seqCoefs[$s2] > 0 ? number_format($seqTotals[$s2] / $seqCoefs[$s2], 2) : '-', 'rank' => '-'];
+            $travailAnnuel[] = ['label' => "Moyenne compo Trim{$t}", 'avg' => $compCoefs[$t] > 0 ? number_format($compTotals[$t] / $compCoefs[$t], 2) : '-', 'rank' => '-'];
+            $travailAnnuel[] = ['label' => "Moyenne trimestre {$t}", 'avg' => $trimCoefs[$t] > 0 ? number_format($trimTotals[$t] / $trimCoefs[$t], 2) : '-', 'rank' => '-', 'bold' => true];
+        }
+        // T3: no EV5/EV6
+        $travailAnnuel[] = ['label' => 'Moyenne EV5', 'avg' => '-', 'rank' => '-'];
+        $travailAnnuel[] = ['label' => 'Moyenne EV6', 'avg' => '-', 'rank' => '-'];
+        $travailAnnuel[] = ['label' => 'Moyenne compo Trim3', 'avg' => $compCoefs[3] > 0 ? number_format($compTotals[3] / $compCoefs[3], 2) : '-', 'rank' => '-'];
+        $travailAnnuel[] = ['label' => 'Moyenne trimestre 3', 'avg' => $trimCoefs[3] > 0 ? number_format($trimTotals[3] / $trimCoefs[3], 2) : '-', 'rank' => '-', 'bold' => true];
+        $travailAnnuel[] = ['label' => 'Moyenne annuelle', 'avg' => number_format($generalAverage, 2), 'rank' => $rank ? $rank . 'e' : '-', 'bold' => true, 'is_annual' => true];
+        $travailAnnuel[] = ['label' => "Tableau d'honneur", 'avg' => $generalAverage >= 12 ? 'Oui' : 'Non', 'rank' => '', 'colspan' => true];
+
+        $bulletinData['travail_annuel'] = $travailAnnuel;
+
+        // Appreciation
+        if ($generalAverage >= 16) $bulletinData['general_appreciation'] = 'Excellent';
+        elseif ($generalAverage >= 14) $bulletinData['general_appreciation'] = 'Très Bien';
+        elseif ($generalAverage >= 12) $bulletinData['general_appreciation'] = 'Bien';
+        elseif ($generalAverage >= 10) $bulletinData['general_appreciation'] = 'Assez Bien';
+        elseif ($generalAverage >= 8) $bulletinData['general_appreciation'] = 'Passable';
+        else $bulletinData['general_appreciation'] = 'Insuffisant';
+
+        return $bulletinData;
+    }
+
+    /**
+     * Prepare annual APC bulletin HTML from template
+     */
+    /**
+     * Prepare non-APC annual bulletin HTML from template
+     */
+    protected function prepareNonApcAnnualBulletinHTML($html, $data)
+    {
+        $student = $data['student'];
+        $sectionType = $data['section_type'] ?? 'francophone';
+
+        // Logo
+        $logoBase64 = '';
+        $logoPath = public_path('assets/images/logo.png');
+        if (!file_exists($logoPath)) {
+            $logoPath = public_path('assets/logo.png');
+        }
+        if (file_exists($logoPath)) {
+            $logoBase64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
+        }
+
+        // Simple placeholders
+        $replacements = [
+            '{{logo_base64}}' => $logoBase64,
+            '{{school_year}}' => $data['school_year'] ?? '',
+            '{{student_name}}' => strtoupper(($data['student_first_name'] ?? '') . ' ' . ($data['student_last_name'] ?? '')),
+            '{{student_number}}' => $data['student_matricule'] ?? 'N/A',
+            '{{birth_date}}' => $data['student_birth_date'] ?? 'N/A',
+            '{{class_name}}' => $data['class_name'] ?? 'N/A',
+            '{{class_size}}' => $data['class_size'] ?? 0,
+            '{{main_teacher}}' => $data['main_teacher'] ?? 'N/A',
+            '{{is_repeater_checked}}' => ($student->is_repeater ?? false) ? 'checkbox-filled' : '',
+            '{{is_not_repeater_checked}}' => ($student->is_repeater ?? false) ? '' : 'checkbox-filled',
+            '{{class_average}}' => number_format($data['class_average'] ?? 0, 2),
+            '{{first_average}}' => number_format($data['first_average'] ?? 0, 2),
+            '{{last_average}}' => number_format($data['last_average'] ?? 0, 2),
+            '{{general_appreciation}}' => $data['general_appreciation'] ?? 'N/A',
+            '{{appreciation_color}}' => ($data['general_average'] ?? 0) >= 10 ? '#27ae60' : '#e74c3c',
+            '{{current_year}}' => date('Y'),
+        ];
+
+        foreach ($replacements as $key => $value) {
+            $html = str_replace($key, $value, $html);
+        }
+
+        // Generate subject groups HTML
+        $subjectGroups = $this->groupSubjectsByType($data['subjects']);
+        $groupColors = ['A' => '#3b82f6', 'B' => '#10b981', 'C' => '#f59e0b', 'D' => '#8b5cf6'];
+        $groupsHtml = '';
+
+        foreach ($subjectGroups as $groupName => $subjects) {
+            if (empty($subjects)) continue;
+
+            // Extract group code from name
+            $groupCode = '';
+            if (preg_match('/GROUPE\s+([A-D])/i', $groupName, $m)) {
+                $groupCode = $m[1];
+            }
+            $color = $groupColors[$groupCode] ?? 'black';
+
+            $groupsHtml .= '<div class="group-header" style="color: ' . $color . ';">' . htmlspecialchars($groupName) . '</div>';
+            $groupsHtml .= '<table class="subjects-table"><thead><tr>';
+            $groupsHtml .= '<th style="width:12%; text-align:left; padding-left:3px;">DISCIPLINES</th>';
+            $groupsHtml .= '<th style="width:5%;">EV1</th><th style="width:5%;">EV2</th>';
+            $groupsHtml .= '<th style="width:5%;">Compo<br>Trim1</th>';
+            $groupsHtml .= '<th style="width:5%;">EV3</th><th style="width:5%;">EV4</th>';
+            $groupsHtml .= '<th style="width:5%;">Compo<br>Trim2</th>';
+            $groupsHtml .= '<th style="width:5%;">EV5</th><th style="width:5%;">EV6</th>';
+            $groupsHtml .= '<th style="width:5%;">Compo<br>Trim3</th>';
+            $groupsHtml .= '<th style="width:7%;">Moyenne<br>Annuelle</th>';
+            $groupsHtml .= '<th style="width:4%;">Coef</th><th style="width:6%;">Total</th>';
+            $groupsHtml .= '<th style="width:12%;">Comp&eacute;tences/Signature</th>';
+            $groupsHtml .= '</tr></thead><tbody>';
+
+            $groupTotalPoints = 0;
+            $groupTotalCoef = 0;
+
+            foreach ($subjects as $subject) {
+                $avg = $subject['annual_average'] ?? 0;
+                $avgClass = $avg >= 10 ? 'moy-above-average' : 'moy-below-average';
+
+                $groupsHtml .= '<tr>';
+                $groupsHtml .= '<td class="subject-name">' . htmlspecialchars(strtoupper($subject['name'])) . '</td>';
+                $groupsHtml .= '<td>' . ($subject['ev1'] ?? '-') . '</td>';
+                $groupsHtml .= '<td>' . ($subject['ev2'] ?? '-') . '</td>';
+                $groupsHtml .= '<td>' . ($subject['comp1'] ?? '-') . '</td>';
+                $groupsHtml .= '<td>' . ($subject['ev3'] ?? '-') . '</td>';
+                $groupsHtml .= '<td>' . ($subject['ev4'] ?? '-') . '</td>';
+                $groupsHtml .= '<td>' . ($subject['comp2'] ?? '-') . '</td>';
+                $groupsHtml .= '<td>' . ($subject['ev5'] ?? '-') . '</td>';
+                $groupsHtml .= '<td>' . ($subject['ev6'] ?? '-') . '</td>';
+                $groupsHtml .= '<td>' . ($subject['comp3'] ?? '-') . '</td>';
+                $groupsHtml .= '<td class="' . $avgClass . '">' . number_format($avg, 2) . '</td>';
+                $groupsHtml .= '<td>' . number_format($subject['coefficient'], 2) . '</td>';
+                $groupsHtml .= '<td>' . number_format($subject['total'], 2) . '</td>';
+                $groupsHtml .= '<td style="font-size:6pt;">' . ($subject['competence'] ?? '') . '</td>';
+                $groupsHtml .= '</tr>';
+
+                $groupTotalPoints += $subject['total'];
+                $groupTotalCoef += $subject['coefficient'];
+            }
+
+            // Group total row
+            $groupAvg = $groupTotalCoef > 0 ? $groupTotalPoints / $groupTotalCoef : 0;
+            $groupsHtml .= '<tr class="total-row">';
+            $groupsHtml .= '<td class="subject-name">TOTAL</td>';
+            $groupsHtml .= '<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
+            $groupsHtml .= '<td>' . number_format($groupAvg, 2) . '</td>';
+            $groupsHtml .= '<td>' . number_format($groupTotalCoef, 2) . '</td>';
+            $groupsHtml .= '<td>' . number_format($groupTotalPoints, 2) . '</td>';
+            $groupsHtml .= '<td style="font-size:6pt;">Moy Gpe: ' . number_format($groupAvg, 2) . '</td>';
+            $groupsHtml .= '</tr></tbody></table>';
+        }
+
+        $html = str_replace('{{subject_groups_html}}', $groupsHtml, $html);
+
+        // Generate travail annuel rows
+        $travailHtml = '';
+        foreach ($data['travail_annuel'] ?? [] as $row) {
+            $isBold = !empty($row['bold']);
+            $isAnnual = !empty($row['is_annual']);
+            $isColspan = !empty($row['colspan']);
+
+            $trClass = $isBold ? ' class="travail-bold"' : '';
+            $travailHtml .= '<tr' . $trClass . '>';
+
+            if ($isBold) {
+                $travailHtml .= '<td class="travail-label"><strong>' . $row['label'] . '</strong></td>';
+                if ($isAnnual) {
+                    $avgColor = ((float)str_replace(',', '.', $row['avg'])) >= 10 ? '#27ae60' : '#e74c3c';
+                    $travailHtml .= '<td style="color:' . $avgColor . ';"><strong>' . $row['avg'] . '</strong></td>';
+                } else {
+                    $travailHtml .= '<td><strong>' . $row['avg'] . '</strong></td>';
+                }
+                $travailHtml .= '<td><strong>' . $row['rank'] . '</strong></td>';
+            } elseif ($isColspan) {
+                $travailHtml .= '<td class="travail-label">' . $row['label'] . '</td>';
+                $travailHtml .= '<td colspan="2">' . $row['avg'] . '</td>';
+            } else {
+                $travailHtml .= '<td class="travail-label">' . $row['label'] . '</td>';
+                $travailHtml .= '<td>' . $row['avg'] . '</td>';
+                $travailHtml .= '<td>' . $row['rank'] . '</td>';
+            }
+
+            $travailHtml .= '</tr>';
+        }
+
+        $html = str_replace('{{travail_annuel_rows}}', $travailHtml, $html);
+
+        return $html;
+    }
+
+    protected function prepareAnnualBulletinHTML($html, $data)
+    {
+        $student = $data['student'];
+        $sectionType = $this->determineSectionType($student);
+
+        $currentSchoolYear = \Cache::remember('current_school_year', 3600, function () {
+            return \App\Models\SchoolYear::where('is_active', true)->first();
+        });
+
+        // Get class level and section
+        $classLevel = '';
+        $classSection = '';
+        $className = $student->classSeries->name ?? $student->schoolClass->name ?? '';
+        if ($className) {
+            preg_match('/(\d+)/', $className, $matches);
+            if (!empty($matches[1])) {
+                $classLevel = $matches[1];
+            }
+            if (preg_match('/\s([A-Z]+)\s*$/', $className, $sectionMatches)) {
+                $classSection = $sectionMatches[1];
+            } elseif (preg_match('/([A-Z]+)$/', $className, $sectionMatches)) {
+                $classSection = $sectionMatches[1];
+            }
+        }
+
+        $mainTeacher = $this->getMainTeacher($student, $sectionType);
+
+        // Get parent info
+        $parentInfo = 'N/A';
+        if ($student->parent_name) {
+            $parentInfo = $student->parent_name;
+            if ($student->parent_phone) {
+                $parentInfo .= ' - Tel: ' . $student->parent_phone;
+            }
+        }
+
+        $classSize = $data['class_size'] ?? 0;
+
+        // Student photo
+        $studentPhoto = '<div class="photo-box">Photo</div>';
+        if ($student->photo) {
+            $photoPath = storage_path('app/public/' . $student->photo);
+            if (file_exists($photoPath)) {
+                $photoData = base64_encode(file_get_contents($photoPath));
+                $photoExt = pathinfo($photoPath, PATHINFO_EXTENSION);
+                $studentPhoto = '<div class="photo-box"><img src="data:image/' . $photoExt . ';base64,' . $photoData . '" alt="Photo"></div>';
+            }
+        }
+
+        // Is repeater
+        $isRepeater = ($student->is_repeater ?? false) ? 'Oui' : 'Non';
+
+        $replacements = [
+            'student_name' => strtoupper($student->last_name . ' ' . $student->first_name),
+            'birth_date' => $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : ($student->birthday ?? 'N/A'),
+            'birth_place' => $student->place_of_birth ?? ($student->birthday_place ?? 'N/A'),
+            'gender' => $student->gender === 'M' ? 'Masculin' : 'Feminin',
+            'unique_id' => $student->matricule ?? $student->student_number ?? 'N/A',
+            'is_repeater' => $isRepeater,
+            'class_level' => $classLevel,
+            'class_section' => $classSection,
+            'class_size' => $classSize,
+            'main_teacher' => $mainTeacher,
+            'parent_info' => $parentInfo,
+            'school_year' => $currentSchoolYear ? $currentSchoolYear->name : (date('Y') . '/' . (date('Y') + 1)),
+            'student_photo' => $studentPhoto,
+        ];
+
+        // Generate subjects HTML
+        $subjectsHTML = '';
+        $totalGeneral = 0;
+        $totalCoef = 0;
+        $rowIndex = 0;
+
+        foreach ($data['subjects'] as $subject) {
+            $coef = (float)($subject['coefficient'] ?? 1);
+            $annualAvg = (float)($subject['annual_average'] ?? 0);
+            $total = $annualAvg * $coef;
+            $totalGeneral += $total;
+            $totalCoef += $coef;
+
+            $cote = $this->getCote($annualAvg);
+            $coteClass = $this->getCoteClass($cote);
+
+            // Appreciation based on annual average
+            $appreciation = '';
+            if ($annualAvg >= 14) {
+                $appreciation = 'Expert';
+            } elseif ($annualAvg >= 12) {
+                $appreciation = 'Acquise';
+            } elseif ($annualAvg >= 10) {
+                $appreciation = 'En Cours d\'Acquisition';
+            } else {
+                $appreciation = 'Non Acquise';
+            }
+
+            $rowClass = ($rowIndex % 2 === 1) ? ' class="row-even"' : '';
+
+            $subjectsHTML .= '<tr' . $rowClass . '>';
+            $subjectsHTML .= '<td class="subject-col"><b>' . htmlspecialchars($subject['name']) . '</b><br><span class="teacher-name">' . htmlspecialchars($subject['teacher'] ?? 'N/A') . '</span></td>';
+            $subjectsHTML .= '<td class="trim-col">' . $subject['trim1'] . '</td>';
+            $subjectsHTML .= '<td class="trim-col">' . $subject['trim2'] . '</td>';
+            $subjectsHTML .= '<td class="trim-col">' . $subject['trim3'] . '</td>';
+            $subjectsHTML .= '<td class="moy-col"><b>' . number_format($annualAvg, 2) . '</b></td>';
+            $subjectsHTML .= '<td class="coef-col">' . number_format($coef, 0) . '</td>';
+            $subjectsHTML .= '<td class="total-col">' . number_format($total, 2) . '</td>';
+            $subjectsHTML .= '<td class="cote-col ' . $coteClass . '"><b>' . $cote . '</b></td>';
+            $subjectsHTML .= '<td class="minmax-col">' . ($subject['min_max'] ?? '[0.00 - 0.00]') . '</td>';
+            $subjectsHTML .= '<td class="app-col">' . $appreciation . '</td>';
+            $subjectsHTML .= '</tr>';
+
+            $rowIndex++;
+        }
+
+        $replacements['subjects_html'] = $subjectsHTML;
+
+        // General statistics
+        $generalAverage = $totalCoef > 0 ? $totalGeneral / $totalCoef : 0;
+        $replacements['total_general'] = number_format((float)$totalGeneral, 2);
+        $replacements['total_coef'] = $totalCoef;
+        $replacements['general_average'] = number_format((float)$generalAverage, 2);
+        $replacements['student_cote'] = $this->getCote($generalAverage);
+
+        // Decision du Conseil de Classe (automatic)
+        if ($generalAverage >= 10) {
+            $replacements['decision_promu'] = '<b style="color: #27ae60;">X</b>';
+            $replacements['decision_redouble'] = '';
+        } else {
+            $replacements['decision_promu'] = '';
+            $replacements['decision_redouble'] = '<b style="color: #e74c3c;">X</b>';
+        }
+        $replacements['decision_exclu'] = ''; // Always manual
+
+        // Discipline
+        $disciplineData = null;
+        // Sum discipline across 3 trimesters
+        $absNonJust = 0;
+        $absJust = 0;
+        $retards = 0;
+        $consignes = 0;
+        $avertissement = '';
+        $blame = '';
+        $exclusionDays = 0;
+        $exclusionDefinitive = '';
+
+        for ($t = 1; $t <= 3; $t++) {
+            $trimester = Trimester::where('number', $t)->first();
+            if ($trimester) {
+                $disc = \App\Models\StudentDiscipline::where('student_id', $student->id)
+                    ->where('trimester_id', $trimester->id)
+                    ->first();
+                if ($disc) {
+                    $absNonJust += $disc->absences_unjustified ?? 0;
+                    $absJust += $disc->absences_justified ?? 0;
+                    $retards += $disc->delays_justified ?? 0;
+                    $retards += $disc->delays_unjustified ?? 0;
+                    $consignes += $disc->consignes ?? 0;
+                    $exclusionDays += $disc->exclusion_days ?? 0;
+                }
+            }
+        }
+
+        $replacements['abs_non_just'] = $absNonJust;
+        $replacements['abs_just'] = $absJust;
+        $replacements['retards'] = $retards;
+        $replacements['consignes'] = $consignes;
+        $replacements['avertissement'] = $avertissement;
+        $replacements['blame'] = $blame;
+        $replacements['discipline_exclusion_days'] = $exclusionDays;
+        $replacements['exclusion_definitive'] = $exclusionDefinitive;
+
+        // Class profile
+        $classMin = $data['class_min'] ?? 0;
+        $classMax = $data['class_max'] ?? 0;
+        $replacements['class_average'] = number_format((float)($data['class_average'] ?? 0), 2);
+        $replacements['class_min_max'] = '[' . number_format((float)$classMin, 2) . ' - ' . number_format((float)$classMax, 2) . ']';
+        $replacements['nb_averages'] = $data['nb_averages'] ?? 0;
+        $replacements['success_rate'] = number_format((float)($data['success_rate'] ?? 0), 1);
+
+        // Detailed appreciation
+        $replacements['detailed_appreciation'] = $this->getDetailedAppreciation($generalAverage);
+
+        // Replace all placeholders
+        foreach ($replacements as $key => $value) {
+            $html = str_replace('{{' . $key . '}}', $value, $html);
+        }
+
+        // Replace Blade public_path() directive with base64 for DomPDF
+        $html = preg_replace_callback('/src=["\']?\{\{\s*public_path\([\'"](.+?)[\'"]\)\s*\}\}["\']?/', function ($matches) {
+            $imagePath = public_path($matches[1]);
+            if (file_exists($imagePath)) {
+                $imageData = base64_encode(file_get_contents($imagePath));
+                $imageType = pathinfo($imagePath, PATHINFO_EXTENSION);
+                return 'src="data:image/' . $imageType . ';base64,' . $imageData . '"';
+            }
+            return 'src=""';
+        }, $html);
+
+        // Remove any remaining placeholders
+        $html = preg_replace('/\{\{.*?\}\}/', '', $html);
+
+        return $html;
     }
 
     /**
@@ -3878,11 +5006,15 @@ class BulletinService
             });
 
             if ($gradesForAverage->isNotEmpty()) {
+                // Si pas de séquences (T3), composition seule
+                if ($sequences->isEmpty()) {
+                    return $compGrade;
+                }
+
                 $s1 = $seq1Grade ?? 0.00;
                 $s2 = $seq2Grade ?? 0.00;
                 $comp = $compGrade ?? 0.00;
 
-                // 🔧 FORMULE UNIQUE POUR TOUTES LES SECTIONS 2ÈME CYCLE
                 // DS = (Seq1 + Seq2) / 2, puis M/20 = (DS + Compo) / 2 (50% + 50%)
                 $ds = ($s1 + $s2) / 2;
                 return ($ds + $comp) / 2;

@@ -186,6 +186,13 @@ class GenerateBulletinBatch implements ShouldQueue
                             $trimesterNumber = (int) str_replace('trim', '', $this->periodIdentifier);
                             $bulletinData = $bulletinService->generateTrimesterBulletinData($trimesterNumber, $student->id);
                             $filename = "bulletin_trimestre_{$trimesterNumber}_{$student->id}_" . now()->format('Y-m-d') . ".pdf";
+                        } elseif ($this->bulletinType === 'annual') {
+                            if ($bulletinService->isApcClass($student)) {
+                                $bulletinData = $bulletinService->generateAnnualBulletinData($student->id);
+                            } else {
+                                $bulletinData = $bulletinService->generateAnnualBulletinDataNonApc($student->id);
+                            }
+                            $filename = "bulletin_annuel_{$student->id}_" . now()->format('Y-m-d') . ".pdf";
                         }
 
                         if (!$bulletinData) {

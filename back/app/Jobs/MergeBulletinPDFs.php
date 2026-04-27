@@ -10,13 +10,12 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use App\Models\BulletinGeneration;
 use App\Models\MergedBulletinPDF;
-use setasign\Fpdi\Fpdi;
 
 class MergeBulletinPDFs implements ShouldQueue
 {
     use Queueable, InteractsWithQueue, SerializesModels;
 
-    public $timeout = 600; // 10 minutes max
+    public $timeout = 600;
     public $tries = 1;
 
     protected $classSeriesId;
@@ -25,9 +24,6 @@ class MergeBulletinPDFs implements ShouldQueue
     protected $progressKey;
     protected $jobId;
 
-    /**
-     * Create a new job instance.
-     */
     public function __construct($classSeriesId, $periodType, $periodIdentifier, $jobId = null)
     {
         $this->classSeriesId = $classSeriesId;
@@ -37,30 +33,25 @@ class MergeBulletinPDFs implements ShouldQueue
         $this->progressKey = "merge_progress_{$this->jobId}";
     }
 
-    /**
-     * Execute the job.
-     */
     public function handle(): void
     {
         $startTime = microtime(true);
 
-        Log::info("🔄 Début de la fusion PDF", [
+        Log::info("Debut de la fusion PDF", [
             'class_series_id' => $this->classSeriesId,
             'period_type' => $this->periodType,
             'period_identifier' => $this->periodIdentifier
         ]);
 
-        // Mettre à jour la progression
         $this->updateProgress([
             'status' => 'processing',
-            'message' => 'Récupération des bulletins...',
+            'message' => 'Recuperation des bulletins...',
             'percentage' => 0,
             'current' => 0,
             'total' => 0
         ]);
 
         try {
-            // Récupérer tous les bulletins générés
             $bulletins = BulletinGeneration::where('period_type', $this->periodType)
                 ->where('period_identifier', $this->periodIdentifier)
                 ->whereHas('student', function($query) {
@@ -71,10 +62,10 @@ class MergeBulletinPDFs implements ShouldQueue
                 ->get();
 
             if ($bulletins->isEmpty()) {
-                throw new \Exception('Aucun bulletin trouvé pour cette classe et période');
+                throw new \Exception('Aucun bulletin trouve pour cette classe et periode');
             }
 
-            Log::info("📄 {$bulletins->count()} bulletins à fusionner");
+            Log::info("{$bulletins->count()} bulletins a fusionner");
 
             $this->updateProgress([
                 'status' => 'processing',
@@ -84,85 +75,59 @@ class MergeBulletinPDFs implements ShouldQueue
                 'total' => $bulletins->count()
             ]);
 
-            // Initialiser FPDI
-            $pdf = new Fpdi();
-            $processedCount = 0;
-
+            // Collecter les fichiers PDF existants
+            $pdfFiles = [];
             foreach ($bulletins as $bulletin) {
-                try {
-                    $filePath = storage_path('app/' . $bulletin->file_path);
-
-                    if (!file_exists($filePath)) {
-                        Log::warning("⚠️ Fichier PDF introuvable: {$filePath}");
-                        continue;
-                    }
-
-                    // Compter le nombre de pages du PDF source
-                    $pageCount = $pdf->setSourceFile($filePath);
-
-                    // Importer toutes les pages
-                    for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
-                        $tplId = $pdf->importPage($pageNo);
-                        $size = $pdf->getTemplateSize($tplId);
-
-                        // Ajouter une page avec les dimensions du template
-                        $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
-                        $pdf->useTemplate($tplId);
-                    }
-
-                    $processedCount++;
-
-                    // Mettre à jour la progression
-                    $percentage = 10 + (($processedCount / $bulletins->count()) * 80);
-                    $this->updateProgress([
-                        'status' => 'processing',
-                        'message' => "Fusion en cours... {$processedCount}/{$bulletins->count()}",
-                        'percentage' => round($percentage),
-                        'current' => $processedCount,
-                        'total' => $bulletins->count()
-                    ]);
-
-                } catch (\Exception $e) {
-                    Log::error("❌ Erreur lors de la fusion du PDF {$bulletin->id}: " . $e->getMessage());
+                $filePath = storage_path('app/' . $bulletin->file_path);
+                if (file_exists($filePath)) {
+                    $pdfFiles[] = $filePath;
+                } else {
+                    Log::warning("Fichier PDF introuvable: {$filePath}");
                 }
             }
 
-            if ($processedCount === 0) {
-                throw new \Exception('Aucun PDF n\'a pu être fusionné');
+            if (empty($pdfFiles)) {
+                throw new \Exception('Aucun PDF n\'a pu etre fusionne');
             }
 
             $this->updateProgress([
                 'status' => 'processing',
-                'message' => 'Génération du fichier final...',
-                'percentage' => 90,
-                'current' => $processedCount,
+                'message' => 'Generation du fichier final...',
+                'percentage' => 50,
+                'current' => count($pdfFiles),
                 'total' => $bulletins->count()
             ]);
 
-            // Générer le nom du fichier
+            // Generer le nom du fichier
             $filename = "bulletins_{$this->periodType}_{$this->periodIdentifier}_classe_{$this->classSeriesId}_" . now()->format('Y-m-d_His') . ".pdf";
-            $relativePath = "merged_bulletins/{$filename}";  // ✅ Supprimé "public/" pour éviter doublon
+            $relativePath = "merged_bulletins/{$filename}";
             $fullPath = storage_path('app/public/' . $relativePath);
 
-            // Créer le répertoire si nécessaire
             $directory = dirname($fullPath);
             if (!file_exists($directory)) {
                 mkdir($directory, 0755, true);
             }
 
-            // Sauvegarder le PDF fusionné
-            $pdf->Output('F', $fullPath);
+            // Fusionner avec pdfunite
+            $escapedFiles = array_map('escapeshellarg', $pdfFiles);
+            $escapedOutput = escapeshellarg($fullPath);
+            $command = 'pdfunite ' . implode(' ', $escapedFiles) . ' ' . $escapedOutput . ' 2>&1';
+            $output = shell_exec($command);
 
-            Log::info("✅ PDF fusionné créé: {$filename}");
+            if (!file_exists($fullPath)) {
+                Log::error("pdfunite echoue: " . ($output ?? 'pas de sortie'));
+                throw new \Exception('Echec de la fusion PDF: ' . ($output ?? 'pdfunite non disponible'));
+            }
 
-            // Enregistrer en base de données
+            Log::info("PDF fusionne cree: {$filename}");
+
             $mergedPdf = MergedBulletinPDF::create([
                 'class_series_id' => $this->classSeriesId,
                 'period_type' => $this->periodType,
                 'period_identifier' => $this->periodIdentifier,
                 'file_path' => $relativePath,
                 'filename' => $filename,
-                'bulletin_count' => $processedCount,
+                'bulletin_count' => count($pdfFiles),
                 'file_size' => filesize($fullPath),
                 'status' => 'completed'
             ]);
@@ -170,32 +135,29 @@ class MergeBulletinPDFs implements ShouldQueue
             $endTime = microtime(true);
             $duration = round($endTime - $startTime, 2);
 
-            Log::info("🎉 Fusion terminée en {$duration}s", [
-                'bulletins_fusionnés' => $processedCount,
+            Log::info("Fusion terminee en {$duration}s", [
+                'bulletins_fusionnes' => count($pdfFiles),
                 'fichier' => $filename
             ]);
 
-            // Marquer comme terminé
             $this->updateProgress([
                 'status' => 'completed',
-                'message' => "✅ {$processedCount} bulletins fusionnés avec succès !",
+                'message' => count($pdfFiles) . " bulletins fusionnes avec succes !",
                 'percentage' => 100,
-                'current' => $processedCount,
+                'current' => count($pdfFiles),
                 'total' => $bulletins->count(),
                 'file_id' => $mergedPdf->id,
                 'filename' => $filename,
                 'download_url' => "/api/bulletins/download-merged/{$mergedPdf->id}",
                 'duration' => $duration
-            ], 3600); // Garder 1 heure
+            ], 3600);
 
         } catch (\Exception $e) {
-            Log::error("❌ Erreur fatale lors de la fusion PDF: " . $e->getMessage(), [
-                'exception' => $e->getTraceAsString()
-            ]);
+            Log::error("Erreur fatale lors de la fusion PDF: " . $e->getMessage());
 
             $this->updateProgress([
                 'status' => 'failed',
-                'message' => "❌ Erreur: " . $e->getMessage(),
+                'message' => "Erreur: " . $e->getMessage(),
                 'percentage' => 0,
                 'error' => $e->getMessage()
             ], 3600);
@@ -204,17 +166,11 @@ class MergeBulletinPDFs implements ShouldQueue
         }
     }
 
-    /**
-     * Mettre à jour la progression dans le cache
-     */
     protected function updateProgress(array $data, int $ttl = 600)
     {
         \Cache::put($this->progressKey, $data, $ttl);
     }
 
-    /**
-     * Récupérer la clé de progression
-     */
     public function getProgressKey()
     {
         return $this->progressKey;

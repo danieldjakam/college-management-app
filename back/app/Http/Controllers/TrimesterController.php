@@ -14,7 +14,9 @@ class TrimesterController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = Trimester::with(['sequences', 'schoolYear']);
+            $query = Trimester::with(['sequences' => function ($q) {
+                $q->where('is_active', true)->orderBy('number');
+            }, 'schoolYear']);
 
             // Filtrer par année scolaire directement
             if ($request->has('school_year_id')) {

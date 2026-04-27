@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Bulletin Bilan Annuel - CPBD</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 8mm 6mm 6mm 6mm;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            font-size: 8pt;
+            line-height: 1.15;
+            color: #000;
+            background: white;
+            padding: 0px;
+        }
+
+        .bulletin-container {
+            width: 99%;
+            background: transparent;
+            border: 1px solid #000;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* HEADER */
+        .header {
+            background: #EFE9F3;
+            color: black;
+            padding: 3px 0;
+            text-align: center;
+        }
+        .school-info { display: table; width: 100%; margin-bottom: 2px; }
+        .school-left, .school-right {
+            display: table-cell; width: 32%; vertical-align: middle;
+            font-size: 7pt; padding: 2px 5px;
+        }
+        .school-left { text-align: center; }
+        .school-right { text-align: center; }
+        .school-left div, .school-right div { margin: 1px 0; line-height: 1.1; }
+        .school-center {
+            display: table-cell; width: 36%; text-align: center;
+            vertical-align: middle; padding: 2px;
+        }
+        .bulletin-title {
+            font-size: 11pt; font-weight: bold; margin: 3px 0; text-align: center;
+            letter-spacing: 1px;
+        }
+        .school-year {
+            font-size: 8pt; font-weight: bold; margin-bottom: 2px;
+        }
+
+        /* STUDENT INFO */
+        .student-info {
+            background: #EFE9F3; color: black;
+            padding: 3px 5px; margin-bottom: 2px; padding-left: 8%;
+        }
+        .student-info table { width: 100%; border-collapse: collapse; }
+        .student-info td {
+            padding: 1px 3px; font-size: 7.5pt; vertical-align: middle; line-height: 1.2;
+        }
+        .info-label { font-weight: bold; }
+        .checkbox {
+            display: inline-block; width: 9px; height: 9px;
+            border: 1px solid #000; margin: 0 2px; vertical-align: middle;
+        }
+        .checkbox-filled { background: #000; }
+
+        /* GROUP HEADER */
+        .group-header {
+            background: #EFE9F3; color: black; padding: 2px;
+            font-weight: bold; font-size: 7pt;
+            text-transform: uppercase; text-align: center;
+        }
+
+        /* GRADES TABLE */
+        .subjects-table {
+            width: 100%; border-collapse: collapse; font-size: 7pt;
+        }
+        .subjects-table th, .subjects-table td {
+            border: 1px solid #000; padding: 1.5px 2px;
+            text-align: center; vertical-align: middle; line-height: 1.1;
+        }
+        .subjects-table th {
+            background: #EFE9F3; color: black; font-weight: bold; font-size: 6.5pt;
+        }
+        .subject-name {
+            text-align: left !important; font-weight: 600; padding-left: 3px !important;
+            white-space: nowrap;
+        }
+        .total-row { background: transparent; font-weight: bold; }
+        .moy-above-average { color: #27ae60; font-weight: bold; }
+        .moy-below-average { color: #e74c3c; font-weight: bold; }
+
+        /* BOTTOM 3-COLUMN SECTION */
+        .bottom-section { display: table; width: 100%; margin-top: 3px; }
+        .bottom-left {
+            display: table-cell; width: 28%; vertical-align: top;
+            border: 1px solid #EFE9F3;
+        }
+        .bottom-center {
+            display: table-cell; width: 30%; vertical-align: top;
+            border: 1px solid #ddd;
+        }
+        .bottom-right {
+            display: table-cell; width: 42%; vertical-align: top;
+            border: 1px solid #ddd;
+        }
+
+        /* DISCIPLINE TABLE */
+        .disc-table { width: 100%; border-collapse: collapse; font-size: 6.5pt; }
+        .disc-table th, .disc-table td {
+            border: 1px solid #e0e0e0; padding: 1.5px 2px;
+            text-align: center; line-height: 1.1;
+        }
+        .disc-table th {
+            background: #EFE9F3; font-size: 6.5pt; font-weight: bold;
+        }
+        .disc-label {
+            text-align: left !important; padding-left: 3px !important; font-weight: 600;
+        }
+
+        /* PERFORMANCE SECTION */
+        .perf-header {
+            background: #EFE9F3; font-weight: bold; font-size: 7pt;
+            text-align: center; padding: 2px; color: black;
+        }
+        .stat-item {
+            display: table; width: 100%; padding: 1.5px 3px;
+            border-bottom: 1px solid #e0e0e0; font-size: 7pt;
+        }
+        .stat-label { display: table-cell; width: 65%; font-size: 7pt; }
+        .stat-value {
+            display: table-cell; width: 35%; font-weight: bold;
+            color: #333; text-align: right; font-size: 7pt;
+        }
+
+        /* TRAVAIL ANNUEL TABLE */
+        .travail-header {
+            background: #EFE9F3; font-weight: bold; font-size: 7pt;
+            text-align: center; padding: 2px; color: black;
+        }
+        .travail-table { width: 100%; border-collapse: collapse; font-size: 6.5pt; }
+        .travail-table th, .travail-table td {
+            border: 1px solid #e0e0e0; padding: 1.5px 2px;
+            text-align: center; line-height: 1.1;
+        }
+        .travail-table th { background: #EFE9F3; font-size: 6.5pt; font-weight: bold; }
+        .travail-label { text-align: left !important; padding-left: 3px !important; }
+        .travail-bold { font-weight: bold; background: transparent; }
+
+        /* OBSERVATIONS */
+        .observations {
+            background: transparent; padding: 3px; margin-top: 3px;
+            text-align: center; border: 1px solid #EFE9F3;
+        }
+        .observations h3 { margin-bottom: 2px; font-size: 8pt; }
+        .observations p { font-size: 9pt; }
+
+        /* DECISION DU CONSEIL */
+        .decision-section {
+            display: table; width: 100%;
+            border: 1px solid #000; border-top: 0;
+            font-size: 7pt;
+        }
+        .decision-left {
+            display: table-cell; width: 55%; padding: 3px 5px;
+            vertical-align: top; border-right: 1px solid #000;
+        }
+        .decision-right {
+            display: table-cell; width: 45%; padding: 3px 5px;
+            text-align: center; vertical-align: top;
+        }
+        .decision-title {
+            font-weight: bold; text-align: center; margin-bottom: 3px;
+            font-size: 8pt;
+        }
+        .decision-row { margin: 3px 0; line-height: 1.3; }
+
+        /* FOOTER */
+        .footer-notes {
+            margin-top: 2px; padding: 2px 4px;
+            border: 1px solid #000; font-size: 6.5pt;
+            display: table; width: 100%; line-height: 1.1;
+        }
+        .notes-left { display: table-cell; width: 65%; vertical-align: top; }
+        .note-row { margin-bottom: 1px; padding: 0px; }
+        .footer-signature {
+            display: table-cell; width: 35%; text-align: right;
+            font-size: 6.5pt; font-weight: bold; vertical-align: top;
+        }
+
+        /* Filigrane */
+        .watermark {
+            position: absolute;
+            top: 150px;
+            left: 50%;
+            width: 500px;
+            height: 500px;
+            margin-left: -250px;
+            opacity: 0.15;
+            z-index: 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Logo watermark en arrière-plan (filigrane) -->
+    <img src="{{logo_base64}}" alt="Logo Watermark" class="watermark">
+
+    <div class="bulletin-container">
+        <!-- HEADER -->
+        <div class="header">
+            <div class="school-info">
+                <div class="school-left">
+                    <div><strong>REPUBLIQUE DU CAMEROUN</strong></div>
+                    <div><strong>Paix - Travail - Patrie</strong></div>
+                    <div><strong>MINISTERE DES ENSEIGNEMENTS SECONDAIRES</strong></div>
+                    <div><strong>COLLEGE POLYVALENT BILINGUE DE DOUALA</strong></div>
+                    <div>B.P.: 4100 Douala T&eacute;l.: 233 43 25 47</div>
+                    <div>E-mail: info@cpbdyassa.com</div>
+                    <div>YASSA</div>
+                </div>
+                <div class="school-center">
+                    <img src="{{logo_base64}}" alt="Logo" style="width: 65px; height: 65px; display: block; margin: 0 auto;">
+                </div>
+                <div class="school-right">
+                    <div><strong>REPUBLIC OF CAMEROON</strong></div>
+                    <div><strong>Peace - Work - Fatherland</strong></div>
+                    <div><strong>MINISTRY OF SECONDARY EDUCATION</strong></div>
+                    <div><strong>BILINGUAL COMPREHENSIVE COLLEGE DLA</strong></div>
+                    <div>P.O. Box: 4100 Douala Phone: 233 43 25 47</div>
+                    <div>E-mail: info@cpbdyassa.com</div>
+                    <div>YASSA</div>
+                </div>
+            </div>
+            <div class="bulletin-title">BULLETIN BILAN ANNUEL</div>
+            <div class="school-year">ANNEE SCOLAIRE {{school_year}}</div>
+        </div>
+
+        <!-- STUDENT INFO -->
+        <div class="student-info">
+            <table>
+                <tr>
+                    <td class="info-label">Noms et Pr&eacute;noms :</td>
+                    <td colspan="3"><strong>{{student_name}}</strong></td>
+                    <td class="info-label">Matricule :</td>
+                    <td><strong>{{student_number}}</strong></td>
+                </tr>
+                <tr>
+                    <td class="info-label">Date et lieu de naissance :</td>
+                    <td>{{birth_date}}</td>
+                    <td class="info-label">Classe :</td>
+                    <td><strong>{{class_name}}</strong></td>
+                    <td>Effectif : <strong>{{class_size}}</strong></td>
+                    <td>Redoublant <span class="checkbox {{is_repeater_checked}}"></span> Non redoublant <span class="checkbox {{is_not_repeater_checked}}"></span></td>
+                </tr>
+                <tr>
+                    <td class="info-label">Nom Prof. Titulaire :</td>
+                    <td colspan="5">{{main_teacher}}</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- SUBJECT GROUPS (generated dynamically) -->
+        {{subject_groups_html}}
+
+        <!-- BOTTOM 3-COLUMN SECTION -->
+        <div class="bottom-section">
+            <!-- DISCIPLINE par trimestre -->
+            <div class="bottom-left">
+                <table class="disc-table">
+                    <thead>
+                        <tr><th colspan="5" style="font-size:7pt;">DISCIPLINE</th></tr>
+                        <tr>
+                            <th style="text-align:left; padding-left:3px; width:38%;">&nbsp;</th>
+                            <th style="width:14%;">T1</th><th style="width:14%;">T2</th>
+                            <th style="width:14%;">T3</th><th style="width:20%;">Annuel</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td class="disc-label">Conduite/Travail</td><td></td><td></td><td></td><td></td></tr>
+                        <tr><td class="disc-label">Retard Just (h)</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+                        <tr><td class="disc-label">Retard Non Just (h)</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+                        <tr><td class="disc-label">Abs. Just (h)</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+                        <tr><td class="disc-label">Abs. Non Just(h)</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+                        <tr><td class="disc-label">Avert. conduite</td><td></td><td></td><td></td><td></td></tr>
+                        <tr><td class="disc-label">Avert. travail</td><td></td><td></td><td></td><td></td></tr>
+                        <tr><td class="disc-label">Blame conduite</td><td></td><td></td><td></td><td></td></tr>
+                        <tr><td class="disc-label">Blame travail</td><td></td><td></td><td></td><td></td></tr>
+                        <tr><td class="disc-label">Consigne (h)</td><td></td><td></td><td></td><td></td></tr>
+                        <tr><td class="disc-label">Exclusion (jrs)</td><td></td><td></td><td></td><td></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- PERFORMANCE ANNUELLE -->
+            <div class="bottom-center">
+                <div class="perf-header">PERFORMANCE ANNUELLE DE LA CLASSE</div>
+                <div class="stat-item">
+                    <div class="stat-label">Moy G&eacute;n&eacute; Classe / Class average</div>
+                    <div class="stat-value">{{class_average}} / 20</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Moy. du Premier / First stud. Av.</div>
+                    <div class="stat-value">{{first_average}} / 20</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Moy. du Dernier / Last stud. Av.</div>
+                    <div class="stat-value">{{last_average}} / 20</div>
+                </div>
+                <div style="padding: 3px 4px; border-top: 1px solid #e0e0e0;">
+                    <div style="font-size: 6.5pt;">
+                        <strong>L&eacute;gende:</strong>
+                        <strong>A+ :</strong> Expert
+                        <strong>A :</strong> Acquise
+                        <strong>ECA :</strong> En Cours d'Acquisition
+                        <strong>NA :</strong> Non Acquise
+                    </div>
+                </div>
+            </div>
+
+            <!-- TRAVAIL ANNUEL DE L'ELEVE -->
+            <div class="bottom-right">
+                <div class="travail-header">TRAVAIL ANNUEL DE L'ELEVE</div>
+                <table class="travail-table">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left; padding-left:3px; width:50%;">Trimestre/s&eacute;quence</th>
+                            <th style="width:25%;">Moy/20</th>
+                            <th style="width:25%;">Rang / {{class_size}}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{travail_annuel_rows}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- APPRECIATION -->
+        <div class="observations">
+            <h3>APPRECIATIONS DU TRAVAIL ET OBSERVATIONS</h3>
+            <p><strong style="color: {{appreciation_color}};">{{general_appreciation}}</strong></p>
+        </div>
+
+        <!-- DECISION DU CONSEIL -->
+        <div class="decision-section">
+            <div class="decision-left">
+                <div class="decision-title">DECISION DU CONSEIL</div>
+                <div class="decision-row">Promu(e) en classe de : ________________________________</div>
+                <div class="decision-row">Admis(e) au rattrapage le : ________________________________</div>
+                <div class="decision-row">Admis(e) &agrave; redoubler la classe de : ________________________________</div>
+                <div class="decision-row">Exclusion d&eacute;finitive pour : ________________________________</div>
+            </div>
+            <div class="decision-right">
+                <div style="margin-bottom: 10px;">Fait &agrave; Douala, le ____/____/{{current_year}}</div>
+                <div style="margin-top: 20px; font-weight: bold;">Le Principal</div>
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <div class="footer-notes">
+            <div class="notes-left">
+                <div class="note-row"><strong>N.B.</strong> Il n'est d&eacute;livr&eacute; qu'un seul exemplaire de ce bulletin. L'&eacute;l&egrave;ve pourra se faire &eacute;tablir une copie certifi&eacute;e.</div>
+                <div class="note-row"><strong>N.B.</strong> Only one copy of this progress report is issued. The student can therefore make a certified copy of it.</div>
+            </div>
+            <div class="footer-signature"></div>
+        </div>
+    </div>
+</body>
+</html>

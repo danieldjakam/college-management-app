@@ -24,6 +24,7 @@ function BulletinManagementNew() {
   // Étudiants et statuts des bulletins
   const [studentsData, setStudentsData] = useState([]);
   const [selectedPeriodType, setSelectedPeriodType] = useState('all');
+  const [isEndOfCycle, setIsEndOfCycle] = useState(false);
   
   // Navigation temporelle
   const [availablePeriods, setAvailablePeriods] = useState([]);
@@ -183,11 +184,11 @@ function BulletinManagementNew() {
         const students = response.students || [];
         setStudentsData(students);
         setAvailablePeriods(response.available_periods || []);
-        
-        // 🔍 DEBUG: Vérifier les bulletins de HASSIM ACHTA
+        setIsEndOfCycle(response.is_end_of_cycle || false);
       } else {
         setStudentsData([]);
         setAvailablePeriods([]);
+        setIsEndOfCycle(false);
       }
     } catch (error) {
       console.error('Erreur étudiants:', error);
@@ -662,8 +663,8 @@ function BulletinManagementNew() {
       return;
     }
 
-    // ⚠️ Pour les SÉQUENCES: utiliser la génération un par un avec force=true
-    if (period.type === 'sequence') {
+    // ⚠️ Pour les SÉQUENCES et ANNUEL: utiliser la génération un par un avec force=true
+    if (period.type === 'sequence' || period.type === 'annual') {
       if (!window.confirm(`⚠️ ATTENTION : Régénérer TOUS les ${studentCount} bulletins pour ${period.label} ?\n\nCela remplacera les bulletins existants.`)) {
         return;
       }
@@ -1462,6 +1463,7 @@ function BulletinManagementNew() {
                     { type: 'sequence', identifier: 'seq4', label: 'Séquence 4', variant: 'outline-success' },
                     { type: 'trimester', identifier: 'trim2', label: 'Trimestre 2', variant: 'outline-success' },
                     { type: 'trimester', identifier: 'trim3', label: 'Trimestre 3', variant: 'outline-success' },
+                    ...(isEndOfCycle ? [{ type: 'annual', identifier: 'annual', label: 'ANNUEL', variant: 'outline-danger' }] : []),
                   ].map((period) => (
                     <Col md={3} key={period.identifier}>
                       <Button
@@ -1515,6 +1517,7 @@ function BulletinManagementNew() {
                     { type: 'sequence', identifier: 'seq4', label: 'Séquence 4', variant: 'outline-warning' },
                     { type: 'trimester', identifier: 'trim2', label: 'Trimestre 2', variant: 'outline-warning' },
                     { type: 'trimester', identifier: 'trim3', label: 'Trimestre 3', variant: 'outline-warning' },
+                    ...(isEndOfCycle ? [{ type: 'annual', identifier: 'annual', label: 'ANNUEL', variant: 'outline-danger' }] : []),
                   ].map((period) => (
                     <Col md={3} key={period.identifier}>
                       <Button
@@ -1568,6 +1571,7 @@ function BulletinManagementNew() {
                     { type: 'sequence', identifier: 'seq4', label: 'Séquence 4', variant: 'warning' },
                     { type: 'trimester', identifier: 'trim2', label: 'Trimestre 2', variant: 'success' },
                     { type: 'trimester', identifier: 'trim3', label: 'Trimestre 3', variant: 'success' },
+                    ...(isEndOfCycle ? [{ type: 'annual', identifier: 'annual', label: 'ANNUEL', variant: 'danger' }] : []),
                   ].map((period) => (
                     <Col md={3} key={`merge-${period.identifier}`}>
                       <Button
@@ -1629,6 +1633,7 @@ function BulletinManagementNew() {
                     { type: 'sequence', identifier: 'seq4', label: 'Séquence 4', variant: 'outline-primary' },
                     { type: 'trimester', identifier: 'trim2', label: 'Trimestre 2', variant: 'outline-success' },
                     { type: 'trimester', identifier: 'trim3', label: 'Trimestre 3', variant: 'outline-success' },
+                    ...(isEndOfCycle ? [{ type: 'annual', identifier: 'annual', label: 'ANNUEL', variant: 'outline-danger' }] : []),
                   ].map((period) => (
                     <Col md={3} key={period.identifier}>
                       <Button
@@ -1810,6 +1815,7 @@ function BulletinManagementNew() {
                           <th>Trim 2</th>
                           <th>Comp 3</th>
                           <th>Trim 3</th>
+                          {isEndOfCycle && <th style={{backgroundColor: '#f8d7da'}}>ANNUEL</th>}
                           <th>Actions</th>
                         </tr>
                       </thead>
@@ -2006,6 +2012,26 @@ function BulletinManagementNew() {
                                 </div>
                               )}
                             </td>
+
+                            {/* Annuel (end-of-cycle only) */}
+                            {isEndOfCycle && (
+                              <td style={{backgroundColor: '#fff5f5'}}>
+                                {student.bulletins.annual && (
+                                  <div className="d-flex flex-column align-items-start">
+                                    {getCompletionBadge(student.bulletins.annual)}
+                                    {student.bulletins.annual.completion_percentage > 0 && (
+                                      <ProgressBar
+                                        now={student.bulletins.annual.completion_percentage}
+                                        size="sm"
+                                        className="mt-1 w-100"
+                                        style={{height: '4px'}}
+                                        variant="danger"
+                                      />
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                            )}
 
                             {/* Actions */}
                             <td>

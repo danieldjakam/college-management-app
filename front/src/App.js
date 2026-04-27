@@ -154,6 +154,7 @@ import GradingScales from "./pages/GradingScales/GradingScales";
 // Admin Trimester & Sequence Management
 import TrimesterSequenceManagement from "./pages/Admin/TrimesterSequenceManagement";
 import BulletinManagement from "./pages/Admin/BulletinManagementNew";
+import LivretScolaire from "./pages/Admin/LivretScolaire";
 import PVGeneration from "./pages/PV/PVGeneration";
 import MarkSheetGeneration from "./pages/MarkSheets/MarkSheetGeneration";
 import SubjectGroups from "./pages/Admin/SubjectGroups";
@@ -514,6 +515,14 @@ const AppContent = () => {
                 element={
                   <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire', 'comptable_superieur']}>
                     <BulletinManagement />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/livret-scolaire"
+                element={
+                  <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire']}>
+                    <LivretScolaire />
                   </ProtectedRoute>
                 }
               />

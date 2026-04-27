@@ -125,6 +125,14 @@ class EvaluationController extends Controller
             // Récupérer les infos de la séquence pour compléter
             $sequence = Sequence::with('trimester')->find($request->sequence_id);
 
+            // Bloquer la création d'évaluations sur une séquence inactive
+            if ($sequence && !$sequence->is_active) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cette séquence n\'est pas active. Vous ne pouvez pas créer d\'évaluation.'
+                ], 403);
+            }
+
             // Récupérer le coefficient de la ClassSeriesSubject au lieu d'utiliser celui fourni
             $classSeriesSubject = \App\Models\ClassSeriesSubject::find($request->series_subject_id);
 

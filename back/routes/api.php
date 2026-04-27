@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\LivretScolaireController;
 use App\Http\Controllers\AdminDashboardController;
 use App\Http\Controllers\PrincipalDashboardController;
 use App\Http\Controllers\SectionController;
@@ -1435,6 +1436,28 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
 
     Route::delete('/merged/{mergedId}', [BulletinController::class, 'deleteMergedBulletin'])
         ->middleware(['role:admin,principal']);
+});
+
+// Routes pour le Livret Scolaire
+Route::middleware(['auth:api'])->prefix('livret-scolaire')->group(function () {
+    Route::get('/exam-classes', [LivretScolaireController::class, 'getExamClasses'])
+        ->middleware(['role:admin,principal,secretaire']);
+    Route::post('/exam-classes', [LivretScolaireController::class, 'setExamClasses'])
+        ->middleware(['role:admin,secretaire']);
+    Route::get('/class-data/{seriesId}', [LivretScolaireController::class, 'getClassLivretData'])
+        ->middleware(['role:admin,principal,secretaire']);
+    Route::post('/save-grades', [LivretScolaireController::class, 'saveAdjustedGrades'])
+        ->middleware(['role:admin,secretaire']);
+    Route::post('/generate', [LivretScolaireController::class, 'generateLivret'])
+        ->middleware(['role:admin,secretaire']);
+    Route::post('/batch-generate', [LivretScolaireController::class, 'batchGenerateLivrets'])
+        ->middleware(['role:admin,secretaire']);
+    Route::post('/generate-small-batch', [LivretScolaireController::class, 'generateSmallBatch'])
+        ->middleware(['role:admin,secretaire']);
+    Route::get('/download/{studentId}', [LivretScolaireController::class, 'downloadLivret'])
+        ->middleware(['role:admin,principal,secretaire']);
+    Route::post('/download-all', [LivretScolaireController::class, 'downloadAll'])
+        ->middleware(['role:admin,principal,secretaire']);
 });
 
 // Routes pour les PV (Procès-Verbaux)
