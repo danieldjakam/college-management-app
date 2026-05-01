@@ -108,15 +108,21 @@ class MergeBulletinPDFs implements ShouldQueue
                 mkdir($directory, 0755, true);
             }
 
-            // Fusionner avec pdfunite
-            $escapedFiles = array_map('escapeshellarg', $pdfFiles);
-            $escapedOutput = escapeshellarg($fullPath);
-            $command = 'pdfunite ' . implode(' ', $escapedFiles) . ' ' . $escapedOutput . ' 2>&1';
-            $output = shell_exec($command);
+            // Fusionner avec FPDI (PHP natif, pas de dependance externe)
+            $mergedPdf = new \setasign\Fpdi\Fpdi();
+            foreach ($pdfFiles as $file) {
+                $pageCount = $mergedPdf->setSourceFile($file);
+                for ($i = 1; $i <= $pageCount; $i++) {
+                    $templateId = $mergedPdf->importPage($i);
+                    $size = $mergedPdf->getTemplateSize($templateId);
+                    $mergedPdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                    $mergedPdf->useTemplate($templateId);
+                }
+            }
+            $mergedPdf->Output('F', $fullPath);
 
             if (!file_exists($fullPath)) {
-                Log::error("pdfunite echoue: " . ($output ?? 'pas de sortie'));
-                throw new \Exception('Echec de la fusion PDF: ' . ($output ?? 'pdfunite non disponible'));
+                throw new \Exception('Echec de la fusion PDF');
             }
 
             Log::info("PDF fusionne cree: {$filename}");

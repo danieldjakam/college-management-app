@@ -686,8 +686,8 @@ class LivretScolaireController extends Controller
 
         $students = Student::where('class_series_id', $seriesId)
             ->where('is_active', true)
-            ->orderBy('name')
-            ->orderBy('subname')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
             ->get();
 
         $pdfFiles = [];
@@ -712,13 +712,27 @@ class LivretScolaireController extends Controller
             mkdir($directory, 0755, true);
         }
 
-        $escapedFiles = array_map('escapeshellarg', $pdfFiles);
-        $escapedOutput = escapeshellarg($outputPath);
-        $command = 'pdfunite ' . implode(' ', $escapedFiles) . ' ' . $escapedOutput . ' 2>&1';
-        $output = shell_exec($command);
+        try {
+            $pdf = new \setasign\Fpdi\Fpdi();
+
+            foreach ($pdfFiles as $file) {
+                $pageCount = $pdf->setSourceFile($file);
+                for ($i = 1; $i <= $pageCount; $i++) {
+                    $templateId = $pdf->importPage($i);
+                    $size = $pdf->getTemplateSize($templateId);
+                    $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                    $pdf->useTemplate($templateId);
+                }
+            }
+
+            $pdf->Output('F', $outputPath);
+        } catch (\Exception $e) {
+            \Log::error('Erreur fusion livrets: ' . $e->getMessage());
+            return response()->json(['success' => false, 'error' => 'Echec de la fusion: ' . $e->getMessage()], 500);
+        }
 
         if (!file_exists($outputPath)) {
-            return response()->json(['success' => false, 'error' => 'Echec de la fusion: ' . ($output ?? '')], 500);
+            return response()->json(['success' => false, 'error' => 'Echec de la fusion du PDF'], 500);
         }
 
         return response()->json([
