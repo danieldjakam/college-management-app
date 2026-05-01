@@ -15,6 +15,7 @@ use App\Jobs\GenerateBulletinBatch;
 use App\Jobs\MergeBulletinPDFs;
 use App\Models\MergedBulletinPDF;
 use App\Models\ClassSeries;
+use App\Models\BulletinModification;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
@@ -187,6 +188,17 @@ class BulletinController extends Controller
 
             if (!$bulletinData) {
                 return response()->json(['error' => 'Unable to generate bulletin data'], 500);
+            }
+
+            // Apply manual modifications if any
+            $modification = BulletinModification::where('student_id', $request->student_id)
+                ->where('period_type', $request->bulletin_type)
+                ->where('period_identifier', $request->period_identifier)
+                ->first();
+
+            if ($modification) {
+                $modController = new BulletinModificationController($this->bulletinService);
+                $bulletinData = $modController->applyModifications($bulletinData, $modification->modifications, $request->bulletin_type);
             }
 
             // Vérifier si l'élève a des notes (rank ne doit pas être null)
@@ -954,12 +966,24 @@ class BulletinController extends Controller
                 return response()->json(['error' => 'Impossible de générer les données du bulletin'], 500);
             }
 
+            // Apply manual modifications if any
+            $modification = BulletinModification::where('student_id', $request->student_id)
+                ->where('period_type', $request->type)
+                ->where('period_identifier', $request->period_identifier)
+                ->first();
+
+            if ($modification) {
+                $modController = new BulletinModificationController($this->bulletinService);
+                $bulletinData = $modController->applyModifications($bulletinData, $modification->modifications, $request->type);
+            }
+
             $htmlContent = $this->bulletinService->renderBulletinTemplate($request->type, $bulletinData);
 
             return response()->json([
                 'success' => true,
                 'html' => $htmlContent,
-                'data' => $bulletinData
+                'data' => $bulletinData,
+                'has_modifications' => $modification !== null,
             ]);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -997,6 +1021,17 @@ class BulletinController extends Controller
 
             if (!$bulletinData) {
                 return response()->json(['error' => 'Impossible de générer les données du bulletin'], 500);
+            }
+
+            // Apply manual modifications if any
+            $modification = BulletinModification::where('student_id', $request->student_id)
+                ->where('period_type', $request->type)
+                ->where('period_identifier', $request->period_identifier)
+                ->first();
+
+            if ($modification) {
+                $modController = new BulletinModificationController($this->bulletinService);
+                $bulletinData = $modController->applyModifications($bulletinData, $modification->modifications, $request->type);
             }
 
             // Generate HTML content

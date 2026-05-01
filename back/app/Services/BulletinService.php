@@ -4239,22 +4239,66 @@ class BulletinService
             return ($ds + $finalComp) / 2;
         };
 
-        // ===== STEP 1: Calculate annual averages for ALL students (ranking) =====
+        // ===== STEP 1: Calculate annual + per-period averages for ALL students (ranking) =====
         $classAnnualAverages = [];
+        // Per-period averages: classSeqAvgs[seqIdx][studentId], classCompAvgs[trim][studentId], classTrimAvgs[trim][studentId]
+        $classSeqAvgs = [1 => [], 2 => [], 3 => [], 4 => []];
+        $classCompAvgs = [1 => [], 2 => [], 3 => []];
+        $classTrimAvgs = [1 => [], 2 => [], 3 => []];
 
         foreach ($classStudentIds as $sid) {
             $studentTotal = 0;
             $studentCoef = 0;
 
+            // Accumulators for per-period weighted averages
+            $sSeqTotals = [1 => 0, 2 => 0, 3 => 0, 4 => 0];
+            $sSeqCoefs = [1 => 0, 2 => 0, 3 => 0, 4 => 0];
+            $sCompTotals = [1 => 0, 2 => 0, 3 => 0];
+            $sCompCoefs = [1 => 0, 2 => 0, 3 => 0];
+            $sTrimTotals = [1 => 0, 2 => 0, 3 => 0];
+            $sTrimCoefs = [1 => 0, 2 => 0, 3 => 0];
+
             foreach ($subjects as $seriesSubject) {
                 $trimGrades = [];
                 $hasAnyGrade = false;
+                $coef = (float)$seriesSubject->coefficient;
 
+                // Collect sequence grades for this student
+                for ($t = 1; $t <= 2; $t++) {
+                    $sIds = $seqMap[$t] ?? [];
+                    $sIdx1 = ($t - 1) * 2 + 1;
+                    $sIdx2 = $sIdx1 + 1;
+
+                    if (isset($sIds[0])) {
+                        $g = $getGradeFromIndex($sid, $sIds[0], $seriesSubject->id);
+                        if ($g['score'] !== null) {
+                            $sSeqTotals[$sIdx1] += (float)$g['score'] * $coef;
+                            $sSeqCoefs[$sIdx1] += $coef;
+                        }
+                    }
+                    if (isset($sIds[1])) {
+                        $g = $getGradeFromIndex($sid, $sIds[1], $seriesSubject->id);
+                        if ($g['score'] !== null) {
+                            $sSeqTotals[$sIdx2] += (float)$g['score'] * $coef;
+                            $sSeqCoefs[$sIdx2] += $coef;
+                        }
+                    }
+                }
+
+                // Collect composition and trimester grades
                 for ($t = 1; $t <= 3; $t++) {
+                    $cg = $getCompGrade($sid, $t, $seriesSubject->id);
+                    if ($cg !== null && $cg !== 'ABS') {
+                        $sCompTotals[$t] += (float)$cg * $coef;
+                        $sCompCoefs[$t] += $coef;
+                    }
+
                     $grade = $calcTrimGrade($sid, $t, $seriesSubject->id);
                     if ($grade !== null) {
                         $trimGrades[$t] = (float)$grade;
                         $hasAnyGrade = true;
+                        $sTrimTotals[$t] += (float)$grade * $coef;
+                        $sTrimCoefs[$t] += $coef;
                     }
                 }
 
@@ -4263,7 +4307,6 @@ class BulletinService
                     $t2 = $trimGrades[2] ?? 0;
                     $t3 = $trimGrades[3] ?? 0;
                     $annualAvg = ($t1 + $t2 + $t3) / 3;
-                    $coef = (float)$seriesSubject->coefficient;
                     $studentTotal += $annualAvg * $coef;
                     $studentCoef += $coef;
                 }
@@ -4272,9 +4315,44 @@ class BulletinService
             if ($studentCoef > 0) {
                 $classAnnualAverages[$sid] = $studentTotal / $studentCoef;
             }
+
+            // Store per-period averages
+            for ($s = 1; $s <= 4; $s++) {
+                if ($sSeqCoefs[$s] > 0) {
+                    $classSeqAvgs[$s][$sid] = $sSeqTotals[$s] / $sSeqCoefs[$s];
+                }
+            }
+            for ($t = 1; $t <= 3; $t++) {
+                if ($sCompCoefs[$t] > 0) {
+                    $classCompAvgs[$t][$sid] = $sCompTotals[$t] / $sCompCoefs[$t];
+                }
+                if ($sTrimCoefs[$t] > 0) {
+                    $classTrimAvgs[$t][$sid] = $sTrimTotals[$t] / $sTrimCoefs[$t];
+                }
+            }
         }
 
-        // Sort for ranking
+        // Helper: compute rank for a student within an averages array
+        $computeRank = function ($studentId, $averages) {
+            if (!isset($averages[$studentId]) || empty($averages)) return null;
+            arsort($averages);
+            $currentRank = 0;
+            $previousAvg = null;
+            $assignedRank = null;
+            foreach ($averages as $sid => $avg) {
+                $currentRank++;
+                if ($avg !== $previousAvg) {
+                    $assignedRank = $currentRank;
+                }
+                if ($sid == $studentId) {
+                    return $assignedRank;
+                }
+                $previousAvg = $avg;
+            }
+            return null;
+        };
+
+        // Sort for annual ranking
         arsort($classAnnualAverages);
         $rank = null;
         $currentRank = 0;
@@ -4288,6 +4366,18 @@ class BulletinService
                 $rank = $assignedRank;
             }
             $previousAvg = $avg;
+        }
+
+        // Compute per-period ranks for the current student
+        $seqRanks = [];
+        for ($s = 1; $s <= 4; $s++) {
+            $seqRanks[$s] = $computeRank($studentId, $classSeqAvgs[$s]);
+        }
+        $compRanks = [];
+        $trimRanks = [];
+        for ($t = 1; $t <= 3; $t++) {
+            $compRanks[$t] = $computeRank($studentId, $classCompAvgs[$t]);
+            $trimRanks[$t] = $computeRank($studentId, $classTrimAvgs[$t]);
         }
 
         $bulletinData = [
@@ -4444,21 +4534,25 @@ class BulletinService
         }
 
         // ===== STEP 3: Travail annuel =====
+        $formatRank = function ($r) {
+            return $r ? $r . 'e' : '-';
+        };
+
         $travailAnnuel = [];
         foreach ([1, 2] as $t) {
             $s1 = ($t - 1) * 2 + 1;
             $s2 = $s1 + 1;
-            $travailAnnuel[] = ['label' => "Moyenne EV{$s1}", 'avg' => $seqCoefs[$s1] > 0 ? number_format($seqTotals[$s1] / $seqCoefs[$s1], 2) : '-', 'rank' => '-'];
-            $travailAnnuel[] = ['label' => "Moyenne EV{$s2}", 'avg' => $seqCoefs[$s2] > 0 ? number_format($seqTotals[$s2] / $seqCoefs[$s2], 2) : '-', 'rank' => '-'];
-            $travailAnnuel[] = ['label' => "Moyenne compo Trim{$t}", 'avg' => $compCoefs[$t] > 0 ? number_format($compTotals[$t] / $compCoefs[$t], 2) : '-', 'rank' => '-'];
-            $travailAnnuel[] = ['label' => "Moyenne trimestre {$t}", 'avg' => $trimCoefs[$t] > 0 ? number_format($trimTotals[$t] / $trimCoefs[$t], 2) : '-', 'rank' => '-', 'bold' => true];
+            $travailAnnuel[] = ['label' => "Moyenne EV{$s1}", 'avg' => $seqCoefs[$s1] > 0 ? number_format($seqTotals[$s1] / $seqCoefs[$s1], 2) : '-', 'rank' => $formatRank($seqRanks[$s1] ?? null)];
+            $travailAnnuel[] = ['label' => "Moyenne EV{$s2}", 'avg' => $seqCoefs[$s2] > 0 ? number_format($seqTotals[$s2] / $seqCoefs[$s2], 2) : '-', 'rank' => $formatRank($seqRanks[$s2] ?? null)];
+            $travailAnnuel[] = ['label' => "Moyenne compo Trim{$t}", 'avg' => $compCoefs[$t] > 0 ? number_format($compTotals[$t] / $compCoefs[$t], 2) : '-', 'rank' => $formatRank($compRanks[$t] ?? null)];
+            $travailAnnuel[] = ['label' => "Moyenne trimestre {$t}", 'avg' => $trimCoefs[$t] > 0 ? number_format($trimTotals[$t] / $trimCoefs[$t], 2) : '-', 'rank' => $formatRank($trimRanks[$t] ?? null), 'bold' => true];
         }
         // T3: no EV5/EV6
         $travailAnnuel[] = ['label' => 'Moyenne EV5', 'avg' => '-', 'rank' => '-'];
         $travailAnnuel[] = ['label' => 'Moyenne EV6', 'avg' => '-', 'rank' => '-'];
-        $travailAnnuel[] = ['label' => 'Moyenne compo Trim3', 'avg' => $compCoefs[3] > 0 ? number_format($compTotals[3] / $compCoefs[3], 2) : '-', 'rank' => '-'];
-        $travailAnnuel[] = ['label' => 'Moyenne trimestre 3', 'avg' => $trimCoefs[3] > 0 ? number_format($trimTotals[3] / $trimCoefs[3], 2) : '-', 'rank' => '-', 'bold' => true];
-        $travailAnnuel[] = ['label' => 'Moyenne annuelle', 'avg' => number_format($generalAverage, 2), 'rank' => $rank ? $rank . 'e' : '-', 'bold' => true, 'is_annual' => true];
+        $travailAnnuel[] = ['label' => 'Moyenne compo Trim3', 'avg' => $compCoefs[3] > 0 ? number_format($compTotals[3] / $compCoefs[3], 2) : '-', 'rank' => $formatRank($compRanks[3] ?? null)];
+        $travailAnnuel[] = ['label' => 'Moyenne trimestre 3', 'avg' => $trimCoefs[3] > 0 ? number_format($trimTotals[3] / $trimCoefs[3], 2) : '-', 'rank' => $formatRank($trimRanks[3] ?? null), 'bold' => true];
+        $travailAnnuel[] = ['label' => 'Moyenne annuelle', 'avg' => number_format($generalAverage, 2), 'rank' => $formatRank($rank), 'bold' => true, 'is_annual' => true];
         $travailAnnuel[] = ['label' => "Tableau d'honneur", 'avg' => $generalAverage >= 12 ? 'Oui' : 'Non', 'rank' => '', 'colspan' => true];
 
         $bulletinData['travail_annuel'] = $travailAnnuel;

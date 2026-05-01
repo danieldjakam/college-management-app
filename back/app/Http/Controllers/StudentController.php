@@ -2349,75 +2349,12 @@ class StudentController extends Controller
      */
     public function generateStudentCard($id)
     {
-        try {
-            $student = Student::with(['classSeries.schoolClass'])->findOrFail($id);
-            $schoolSettings = \App\Models\SchoolSetting::first();
-            $schoolYear = \App\Models\SchoolYear::where('is_current', true)->first();
-
-            // Générer le QR Code en base64
-            $qrData = "STUDENT_ID_{$student->id}";
-            $qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" . urlencode($qrData) . "&margin=1";
-
-            // Télécharger le QR code et le convertir en base64
-            $qrCodeContent = @file_get_contents($qrCodeUrl);
-            $qrCode = $qrCodeContent ? base64_encode($qrCodeContent) : '';
-
-            // Convertir le logo en base64
-            $logoBase64 = '';
-            if ($schoolSettings && $schoolSettings->logo) {
-                $logoPath = public_path('storage/' . $schoolSettings->logo);
-                if (file_exists($logoPath)) {
-                    $logoContent = file_get_contents($logoPath);
-                    $logoBase64 = base64_encode($logoContent);
-                }
-            }
-
-            // Convertir la photo de l'élève en base64
-            $studentPhotoBase64 = '';
-            if ($student->photo) {
-                $photoPath = public_path('storage/' . $student->photo);
-                if (file_exists($photoPath)) {
-                    $photoContent = file_get_contents($photoPath);
-                    $studentPhotoBase64 = base64_encode($photoContent);
-                }
-            }
-
-            // Générer le PDF avec la vue blade
-            $html = view('student-card', compact(
-                'student',
-                'schoolSettings',
-                'schoolYear',
-                'qrCode',
-                'logoBase64',
-                'studentPhotoBase64'
-            ))->render();
-
-            $pdf = \PDF::loadHTML($html);
-
-            // Définir le format de page: 85.6mm x 54mm
-            $pdf->setPaper([0, 0, 242.65, 153.07], 'landscape');
-
-            // Options supplémentaires pour éviter les doublons
-            $pdf->setOption('isHtml5ParserEnabled', true);
-            $pdf->setOption('isRemoteEnabled', true);
-
-            $filename = 'carte_scolaire_' . ($student->matricule ?? $student->id) . '.pdf';
-
-            return $pdf->download($filename);
-
-        } catch (\Exception $e) {
-            \Log::error('Error generating student card', [
-                'student_id' => $id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la génération de la carte scolaire',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        // Delegate to StudentCardController with new template
+        $cardController = app(\App\Http\Controllers\StudentCardController::class);
+        $request = new \Illuminate\Http\Request();
+        $schoolYear = \App\Models\SchoolYear::where('is_current', true)->first();
+        $request->merge(['academic_year' => $schoolYear ? $schoolYear->name : (date('Y') . '-' . (date('Y') + 1))]);
+        return $cardController->generateSingleCard($request, $id);
     }
 
     /**

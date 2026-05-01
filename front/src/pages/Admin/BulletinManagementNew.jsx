@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Table, Badge, Modal, Row, Col, Alert, Spinner, ProgressBar, Accordion, Form, ButtonGroup } from 'react-bootstrap';
-import { CardText, Download, Eye, Printer, ArrowClockwise, Clock, CheckCircle, ExclamationCircle, Calendar, Book, FileEarmarkZip } from 'react-bootstrap-icons';
+import { CardText, Download, Eye, Printer, ArrowClockwise, Clock, CheckCircle, ExclamationCircle, Calendar, Book, FileEarmarkZip, PencilSquare } from 'react-bootstrap-icons';
 import { secureApi } from '../../utils/apiMigration';
 import { authService } from '../../services/authService';
 import { host } from '../../utils/fetch';
@@ -35,6 +35,16 @@ function BulletinManagementNew() {
   const [previewContent, setPreviewContent] = useState('');
   const [previewStudent, setPreviewStudent] = useState(null);
   const [previewBulletinInfo, setPreviewBulletinInfo] = useState(null); // Pour le téléchargement PDF
+
+  // Modal d'edition de bulletin
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editData, setEditData] = useState(null);
+  const [editModifications, setEditModifications] = useState({});
+  const [editBulletinInfo, setEditBulletinInfo] = useState(null);
+  const [editReason, setEditReason] = useState('');
+  const [editPreviewHtml, setEditPreviewHtml] = useState('');
+  const [showEditPreview, setShowEditPreview] = useState(false);
 
   // Téléchargement groupé par période
   const [downloadingPeriod, setDownloadingPeriod] = useState(null);
@@ -378,6 +388,176 @@ function BulletinManagementNew() {
       setError('Erreur lors du téléchargement du PDF');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ===== EDITION DE BULLETIN =====
+  const handleEditBulletin = async (studentId, studentName, type, periodIdentifier) => {
+    try {
+      setEditLoading(true);
+      setError('');
+      const response = await secureApi.post('/bulletins/modifications/data', {
+        student_id: studentId,
+        type: type,
+        period_identifier: periodIdentifier
+      });
+
+      if (response && response.success) {
+        setEditData(response.data);
+        setEditBulletinInfo({ student_id: studentId, type, period_identifier: periodIdentifier, student_name: studentName });
+        setEditReason(response.modification_reason || '');
+
+        // Initialize modifications from existing or empty
+        if (response.existing_modifications) {
+          setEditModifications(response.existing_modifications);
+        } else {
+          setEditModifications({ subjects: [], general: {}, discipline: {} });
+        }
+        setShowEditPreview(false);
+        setEditPreviewHtml('');
+        setShowEditModal(true);
+      }
+    } catch (err) {
+      setError('Erreur lors du chargement des donnees du bulletin');
+      console.error(err);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleEditSubjectChange = (subjectId, field, value) => {
+    setEditModifications(prev => {
+      const subjects = [...(prev.subjects || [])];
+      let subjectMod = subjects.find(s => s.subject_id === subjectId);
+      if (!subjectMod) {
+        subjectMod = { subject_id: subjectId };
+        subjects.push(subjectMod);
+      }
+      subjectMod[field] = value === '' ? null : parseFloat(value);
+      return { ...prev, subjects };
+    });
+  };
+
+  const handleEditGeneralChange = (field, value) => {
+    setEditModifications(prev => ({
+      ...prev,
+      general: { ...(prev.general || {}), [field]: value }
+    }));
+  };
+
+  const handleEditDisciplineChange = (field, value) => {
+    setEditModifications(prev => ({
+      ...prev,
+      discipline: { ...(prev.discipline || {}), [field]: value === '' ? 0 : (isNaN(value) ? value : parseFloat(value)) }
+    }));
+  };
+
+  const getModifiedValue = (subjectId, field) => {
+    const mod = (editModifications.subjects || []).find(s => s.subject_id === subjectId);
+    if (mod && mod[field] !== undefined && mod[field] !== null) return mod[field];
+    return undefined;
+  };
+
+  const handleSaveModifications = async () => {
+    if (!editBulletinInfo) return;
+    try {
+      setEditLoading(true);
+      await secureApi.post('/bulletins/modifications/save', {
+        student_id: editBulletinInfo.student_id,
+        period_type: editBulletinInfo.type,
+        period_identifier: editBulletinInfo.period_identifier,
+        modifications: editModifications,
+        reason: editReason
+      });
+      setSuccess('Modifications enregistrees avec succes');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError('Erreur lors de la sauvegarde');
+      console.error(err);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handlePreviewModifications = async () => {
+    if (!editBulletinInfo) return;
+    try {
+      setEditLoading(true);
+      // Save first
+      await secureApi.post('/bulletins/modifications/save', {
+        student_id: editBulletinInfo.student_id,
+        period_type: editBulletinInfo.type,
+        period_identifier: editBulletinInfo.period_identifier,
+        modifications: editModifications,
+        reason: editReason
+      });
+      // Then preview
+      const response = await secureApi.post('/bulletins/modifications/preview', {
+        student_id: editBulletinInfo.student_id,
+        type: editBulletinInfo.type,
+        period_identifier: editBulletinInfo.period_identifier
+      });
+      if (response && response.success) {
+        setEditPreviewHtml(response.html);
+        setShowEditPreview(true);
+      }
+    } catch (err) {
+      setError('Erreur lors de la previsualisation');
+      console.error(err);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleRegenerateWithModifications = async () => {
+    if (!editBulletinInfo) return;
+    if (!window.confirm('Regenerer le bulletin PDF avec les modifications ?')) return;
+    try {
+      setEditLoading(true);
+      // Save first
+      await secureApi.post('/bulletins/modifications/save', {
+        student_id: editBulletinInfo.student_id,
+        period_type: editBulletinInfo.type,
+        period_identifier: editBulletinInfo.period_identifier,
+        modifications: editModifications,
+        reason: editReason
+      });
+      // Regenerate
+      await secureApi.post('/bulletins/modifications/regenerate', {
+        student_id: editBulletinInfo.student_id,
+        type: editBulletinInfo.type,
+        period_identifier: editBulletinInfo.period_identifier
+      });
+      setSuccess('Bulletin regenere avec les modifications');
+      setShowEditModal(false);
+      await fetchStudentsData();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError('Erreur lors de la regeneration');
+      console.error(err);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleResetModifications = async () => {
+    if (!editBulletinInfo) return;
+    if (!window.confirm('Supprimer toutes les modifications manuelles et revenir aux notes originales ?')) return;
+    try {
+      setEditLoading(true);
+      await secureApi.post('/bulletins/modifications/delete', {
+        student_id: editBulletinInfo.student_id,
+        period_type: editBulletinInfo.type,
+        period_identifier: editBulletinInfo.period_identifier
+      });
+      setEditModifications({ subjects: [], general: {}, discipline: {} });
+      setEditReason('');
+      setSuccess('Modifications supprimees');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError('Erreur lors de la suppression');
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -2099,6 +2279,24 @@ function BulletinManagementNew() {
                                           <ArrowClockwise size={12} />
                                         </Button>
                                       )}
+
+                                      {/* Edit - Modifier le bulletin (admin, principal, secretaire) */}
+                                      {bulletin.can_preview && authService.hasAnyRole(['admin', 'principal', 'secretaire']) && (
+                                        <Button
+                                          variant="outline-purple"
+                                          size="sm"
+                                          onClick={() => handleEditBulletin(
+                                            student.id,
+                                            `${student.first_name} ${student.last_name}`,
+                                            bulletin.type,
+                                            bulletin.identifier
+                                          )}
+                                          title={`Modifier ${bulletin.name}`}
+                                          style={{ borderColor: '#5B2C87', color: '#5B2C87' }}
+                                        >
+                                          <PencilSquare size={12} />
+                                        </Button>
+                                      )}
                                     </div>
                                   );
                                 })}
@@ -2153,6 +2351,328 @@ function BulletinManagementNew() {
           <Button variant="secondary" onClick={() => setShowPreviewModal(false)}>
             Fermer
           </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Modal d'edition de bulletin */}
+      <Modal
+        show={showEditModal}
+        onHide={() => setShowEditModal(false)}
+        size="xl"
+        fullscreen="lg-down"
+      >
+        <Modal.Header closeButton style={{ background: '#5B2C87', color: 'white' }}>
+          <Modal.Title>
+            <PencilSquare className="me-2" />
+            Modifier le Bulletin
+            {editBulletinInfo && ` - ${editBulletinInfo.student_name}`}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ maxHeight: '70vh', overflow: 'auto' }}>
+          {editLoading && !editData && (
+            <div className="text-center py-4">
+              <Spinner animation="border" variant="primary" />
+              <p className="mt-2">Chargement des donnees...</p>
+            </div>
+          )}
+
+          {editData && !showEditPreview && (
+            <>
+              <Alert variant="info" className="mb-3">
+                <strong>Instructions :</strong> Modifiez les notes ci-dessous. Laissez un champ vide pour garder la valeur originale.
+                Les champs modifies seront appliques lors de la generation du bulletin.
+              </Alert>
+
+              {/* Info eleve */}
+              <Card className="mb-3">
+                <Card.Header className="py-2">
+                  <strong>{editData.student?.last_name} {editData.student?.first_name}</strong>
+                  <span className="ms-2 text-muted">{editData.student?.class_name}</span>
+                </Card.Header>
+              </Card>
+
+              {/* Tableau des notes */}
+              <Table bordered size="sm" responsive className="mb-3">
+                <thead style={{ background: '#f8f9fa' }}>
+                  <tr>
+                    <th style={{ minWidth: '150px' }}>Matiere</th>
+                    <th style={{ width: '60px' }}>Coef</th>
+                    {editBulletinInfo?.type === 'sequence' && (
+                      <th style={{ width: '80px' }}>Note /20</th>
+                    )}
+                    {editBulletinInfo?.type === 'trimester' && editData.subjects?.[0]?.cycle_type === 'deuxieme' && (
+                      <>
+                        <th style={{ width: '70px' }}>Seq 1</th>
+                        <th style={{ width: '70px' }}>Seq 2</th>
+                        <th style={{ width: '70px' }}>Compo</th>
+                      </>
+                    )}
+                    {editBulletinInfo?.type === 'trimester' && editData.subjects?.[0]?.cycle_type !== 'deuxieme' && (
+                      <>
+                        <th style={{ width: '70px' }}>DS</th>
+                        <th style={{ width: '70px' }}>Compo</th>
+                      </>
+                    )}
+                    {editBulletinInfo?.type === 'annual' && (
+                      <>
+                        <th style={{ width: '70px' }}>Trim 1</th>
+                        <th style={{ width: '70px' }}>Trim 2</th>
+                        <th style={{ width: '70px' }}>Trim 3</th>
+                      </>
+                    )}
+                    <th style={{ width: '80px' }}>Moy /20</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    let currentGroup = '';
+                    return (editData.subjects || []).map((subject, idx) => {
+                      const rows = [];
+                      if (subject.group && subject.group !== currentGroup) {
+                        currentGroup = subject.group;
+                        const colSpan = editBulletinInfo?.type === 'sequence' ? 4 :
+                                        editBulletinInfo?.type === 'annual' ? 6 :
+                                        (editData.subjects?.[0]?.cycle_type === 'deuxieme' ? 6 : 5);
+                        rows.push(
+                          <tr key={`group-${idx}`} style={{ background: '#e8e0f0' }}>
+                            <td colSpan={colSpan} className="fw-bold" style={{ color: '#5B2C87', fontSize: '12px' }}>
+                              {currentGroup}
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      const modValue = (field) => {
+                        const v = getModifiedValue(subject.subject_id, field);
+                        return v !== undefined ? v : '';
+                      };
+
+                      rows.push(
+                        <tr key={`subj-${idx}`}>
+                          <td style={{ fontSize: '12px' }}>
+                            {subject.name}
+                            <br /><small className="text-muted">{subject.teacher}</small>
+                          </td>
+                          <td className="text-center">{subject.coefficient}</td>
+
+                          {editBulletinInfo?.type === 'sequence' && (
+                            <td>
+                              <Form.Control
+                                type="number"
+                                size="sm"
+                                step="0.25"
+                                min="0"
+                                max="20"
+                                placeholder={subject.score !== null && subject.score !== 'ABS' ? String(subject.score) : '-'}
+                                value={modValue('score')}
+                                onChange={(e) => handleEditSubjectChange(subject.subject_id, 'score', e.target.value)}
+                                style={{ width: '70px' }}
+                              />
+                            </td>
+                          )}
+
+                          {editBulletinInfo?.type === 'trimester' && subject.cycle_type === 'deuxieme' && (
+                            <>
+                              <td>
+                                <Form.Control type="number" size="sm" step="0.25" min="0" max="20"
+                                  placeholder={subject.sequence1 !== null ? String(subject.sequence1) : '-'}
+                                  value={modValue('sequence1')}
+                                  onChange={(e) => handleEditSubjectChange(subject.subject_id, 'sequence1', e.target.value)}
+                                  style={{ width: '60px' }}
+                                />
+                              </td>
+                              <td>
+                                <Form.Control type="number" size="sm" step="0.25" min="0" max="20"
+                                  placeholder={subject.sequence2 !== null ? String(subject.sequence2) : '-'}
+                                  value={modValue('sequence2')}
+                                  onChange={(e) => handleEditSubjectChange(subject.subject_id, 'sequence2', e.target.value)}
+                                  style={{ width: '60px' }}
+                                />
+                              </td>
+                              <td>
+                                <Form.Control type="number" size="sm" step="0.25" min="0" max="20"
+                                  placeholder={subject.composition !== null ? String(subject.composition) : '-'}
+                                  value={modValue('composition')}
+                                  onChange={(e) => handleEditSubjectChange(subject.subject_id, 'composition', e.target.value)}
+                                  style={{ width: '60px' }}
+                                />
+                              </td>
+                            </>
+                          )}
+
+                          {editBulletinInfo?.type === 'trimester' && subject.cycle_type !== 'deuxieme' && (
+                            <>
+                              <td>
+                                <Form.Control type="number" size="sm" step="0.25" min="0" max="20"
+                                  placeholder={subject.ds !== null ? String(subject.ds) : '-'}
+                                  value={modValue('ds')}
+                                  onChange={(e) => handleEditSubjectChange(subject.subject_id, 'ds', e.target.value)}
+                                  style={{ width: '60px' }}
+                                />
+                              </td>
+                              <td>
+                                <Form.Control type="number" size="sm" step="0.25" min="0" max="20"
+                                  placeholder={subject.composition !== null ? String(subject.composition) : '-'}
+                                  value={modValue('composition')}
+                                  onChange={(e) => handleEditSubjectChange(subject.subject_id, 'composition', e.target.value)}
+                                  style={{ width: '60px' }}
+                                />
+                              </td>
+                            </>
+                          )}
+
+                          {editBulletinInfo?.type === 'annual' && (
+                            <>
+                              <td>
+                                <Form.Control type="number" size="sm" step="0.25" min="0" max="20"
+                                  placeholder={subject.trim1 !== null ? String(subject.trim1) : '-'}
+                                  value={modValue('trim1')}
+                                  onChange={(e) => handleEditSubjectChange(subject.subject_id, 'trim1', e.target.value)}
+                                  style={{ width: '60px' }}
+                                />
+                              </td>
+                              <td>
+                                <Form.Control type="number" size="sm" step="0.25" min="0" max="20"
+                                  placeholder={subject.trim2 !== null ? String(subject.trim2) : '-'}
+                                  value={modValue('trim2')}
+                                  onChange={(e) => handleEditSubjectChange(subject.subject_id, 'trim2', e.target.value)}
+                                  style={{ width: '60px' }}
+                                />
+                              </td>
+                              <td>
+                                <Form.Control type="number" size="sm" step="0.25" min="0" max="20"
+                                  placeholder={subject.trim3 !== null ? String(subject.trim3) : '-'}
+                                  value={modValue('trim3')}
+                                  onChange={(e) => handleEditSubjectChange(subject.subject_id, 'trim3', e.target.value)}
+                                  style={{ width: '60px' }}
+                                />
+                              </td>
+                            </>
+                          )}
+
+                          <td>
+                            <Form.Control type="number" size="sm" step="0.25" min="0" max="20"
+                              placeholder={subject.score !== null && subject.score !== 'ABS' ? String(subject.score) : '-'}
+                              value={editBulletinInfo?.type !== 'sequence' ? modValue('score') : undefined}
+                              onChange={editBulletinInfo?.type !== 'sequence' ? (e) => handleEditSubjectChange(subject.subject_id, 'score', e.target.value) : undefined}
+                              disabled={editBulletinInfo?.type === 'sequence'}
+                              style={{ width: '70px', background: editBulletinInfo?.type === 'sequence' ? '#f0f0f0' : undefined }}
+                            />
+                          </td>
+                        </tr>
+                      );
+                      return rows;
+                    });
+                  })()}
+                </tbody>
+              </Table>
+
+              {/* Appreciation generale */}
+              <Card className="mb-3">
+                <Card.Header className="py-2 fw-bold">Appreciation Generale</Card.Header>
+                <Card.Body className="py-2">
+                  <Form.Control
+                    as="textarea"
+                    rows={2}
+                    placeholder={editData.general?.appreciation || 'Appreciation...'}
+                    value={editModifications.general?.appreciation || ''}
+                    onChange={(e) => handleEditGeneralChange('appreciation', e.target.value)}
+                  />
+                </Card.Body>
+              </Card>
+
+              {/* Discipline */}
+              <Card className="mb-3">
+                <Card.Header className="py-2 fw-bold">Discipline</Card.Header>
+                <Card.Body className="py-2">
+                  <Row>
+                    {[
+                      { key: 'absences_justified', label: 'Absences justifiees' },
+                      { key: 'absences_unjustified', label: 'Absences non justifiees' },
+                      { key: 'delays_justified', label: 'Retards justifies' },
+                      { key: 'delays_unjustified', label: 'Retards non justifies' },
+                      { key: 'detention_hours', label: 'Heures de consigne' },
+                      { key: 'exclusion_days', label: 'Jours d\'exclusion' },
+                    ].map(({ key, label }) => (
+                      <Col md={4} key={key} className="mb-2">
+                        <Form.Label className="mb-0" style={{ fontSize: '11px' }}>{label}</Form.Label>
+                        <Form.Control
+                          type="number"
+                          size="sm"
+                          min="0"
+                          placeholder={String(editData.discipline?.[key] || 0)}
+                          value={editModifications.discipline?.[key] ?? ''}
+                          onChange={(e) => handleEditDisciplineChange(key, e.target.value)}
+                        />
+                      </Col>
+                    ))}
+                  </Row>
+                  <Form.Label className="mb-0 mt-2" style={{ fontSize: '11px' }}>Observations</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={1}
+                    size="sm"
+                    placeholder={editData.discipline?.observations || 'Observations...'}
+                    value={editModifications.discipline?.observations || ''}
+                    onChange={(e) => handleEditDisciplineChange('observations', e.target.value)}
+                  />
+                </Card.Body>
+              </Card>
+
+              {/* Raison de modification */}
+              <Card className="mb-3">
+                <Card.Header className="py-2 fw-bold">Raison de la modification</Card.Header>
+                <Card.Body className="py-2">
+                  <Form.Control
+                    type="text"
+                    placeholder="Ex: Correction erreur de saisie, ajustement note..."
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                  />
+                </Card.Body>
+              </Card>
+            </>
+          )}
+
+          {/* Preview with modifications */}
+          {showEditPreview && editPreviewHtml && (
+            <div>
+              <Button variant="outline-secondary" size="sm" className="mb-2" onClick={() => setShowEditPreview(false)}>
+                Retour a l'edition
+              </Button>
+              <div dangerouslySetInnerHTML={{ __html: editPreviewHtml }} />
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          {!showEditPreview ? (
+            <>
+              <Button variant="danger" onClick={handleResetModifications} disabled={editLoading} className="me-auto">
+                Reinitialiser
+              </Button>
+              <Button variant="outline-info" onClick={handlePreviewModifications} disabled={editLoading}>
+                {editLoading ? <Spinner size="sm" className="me-1" /> : <Eye className="me-1" />}
+                Previsualiser
+              </Button>
+              <Button variant="primary" onClick={handleSaveModifications} disabled={editLoading}>
+                {editLoading ? <Spinner size="sm" className="me-1" /> : null}
+                Enregistrer
+              </Button>
+              <Button variant="success" onClick={handleRegenerateWithModifications} disabled={editLoading}>
+                {editLoading ? <Spinner size="sm" className="me-1" /> : <ArrowClockwise className="me-1" />}
+                Regenerer PDF
+              </Button>
+              <Button variant="secondary" onClick={() => setShowEditModal(false)}>Fermer</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="success" onClick={handleRegenerateWithModifications} disabled={editLoading}>
+                {editLoading ? <Spinner size="sm" className="me-1" /> : <ArrowClockwise className="me-1" />}
+                Regenerer PDF
+              </Button>
+              <Button variant="secondary" onClick={() => setShowEditPreview(false)}>Retour</Button>
+            </>
+          )}
         </Modal.Footer>
       </Modal>
     </div>

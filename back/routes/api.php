@@ -56,6 +56,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\MobileAttendanceController;
 use App\Http\Controllers\BulletinController;
+use App\Http\Controllers\BulletinModificationController;
 use App\Http\Controllers\MarkSheetController;
 use App\Http\Controllers\BusController;
 use App\Http\Controllers\CompetenceController;
@@ -511,12 +512,6 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/verify/{matricule}', [StudentCardController::class, 'verifyCard'])->withoutMiddleware(['role:admin,principal,secretaire,id_card_manager']);
     });
 
-    // Routes pour les paramètres de mise en page des cartes
-    Route::prefix('card-layout-settings')->middleware(['role:admin,principal,secretaire,id_card_manager'])->group(function () {
-        Route::get('/', [App\Http\Controllers\CardLayoutSettingController::class, 'index']);
-        Route::post('/update', [App\Http\Controllers\CardLayoutSettingController::class, 'update'])->middleware(['role:admin,principal,id_card_manager']);
-        Route::post('/reset', [App\Http\Controllers\CardLayoutSettingController::class, 'reset'])->middleware(['role:admin,principal,id_card_manager']);
-    });
 
     // Routes utilisateurs (pour compatibilité)
     Route::prefix('users')->group(function () {
@@ -1436,6 +1431,15 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
 
     Route::delete('/merged/{mergedId}', [BulletinController::class, 'deleteMergedBulletin'])
         ->middleware(['role:admin,principal']);
+
+    // Modifications manuelles de bulletins (secretaire, admin, principal)
+    Route::prefix('modifications')->middleware(['role:admin,principal,secretaire'])->group(function () {
+        Route::post('/data', [BulletinModificationController::class, 'getBulletinData']);
+        Route::post('/save', [BulletinModificationController::class, 'saveModifications']);
+        Route::post('/delete', [BulletinModificationController::class, 'deleteModifications']);
+        Route::post('/preview', [BulletinModificationController::class, 'previewWithModifications']);
+        Route::post('/regenerate', [BulletinModificationController::class, 'regenerateWithModifications']);
+    });
 });
 
 // Routes pour le Livret Scolaire

@@ -1,129 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, Button, Spinner } from 'react-bootstrap';
-import { Printer } from 'react-bootstrap-icons';
-import StudentCard from './StudentCard';
-import { useSchool } from '../contexts/SchoolContext';
+import { Printer, Download } from 'react-bootstrap-icons';
 import Swal from 'sweetalert2';
 import { host } from '../utils/fetch';
+import { secureApi } from '../utils/apiMigration';
 
 const StudentCardPrint = ({ student, schoolYear, show, onHide, onPrintSuccess }) => {
     const [printing, setPrinting] = useState(false);
-    const { schoolSettings } = useSchool();
+    const [previewHtml, setPreviewHtml] = useState('');
+    const [loadingPreview, setLoadingPreview] = useState(false);
 
-    const convertImageToBase64 = async (imageSrc) => {
-        return new Promise((resolve, reject) => {
-            if (!imageSrc) {
-                console.log('No image source provided');
-                resolve('');
-                return;
-            }
-
-            console.log('Converting image to base64:', imageSrc);
-
-            // Si c'est déjà une image en base64, la retourner directement
-            if (imageSrc.startsWith('data:image')) {
-                console.log('Image is already base64');
-                resolve(imageSrc);
-                return;
-            }
-
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-
-            img.onload = function() {
-                console.log('Image loaded successfully, converting to base64...');
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                ctx.drawImage(img, 0, 0);
-
-                try {
-                    const dataURL = canvas.toDataURL('image/png');
-                    console.log('Image converted to base64, length:', dataURL.length);
-                    resolve(dataURL);
-                } catch (error) {
-                    console.error('Error converting image to base64:', error);
-                    resolve('');
-                }
-            };
-
-            img.onerror = function(error) {
-                console.error('Error loading image:', imageSrc, error);
-                // Essayer de charger l'image sans CORS
-                const img2 = new Image();
-                img2.onload = function() {
-                    console.log('Image loaded without CORS, converting...');
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = img2.width;
-                    canvas.height = img2.height;
-                    ctx.drawImage(img2, 0, 0);
-
-                    try {
-                        const dataURL = canvas.toDataURL('image/png');
-                        resolve(dataURL);
-                    } catch (error) {
-                        console.error('Failed to convert without CORS:', error);
-                        resolve('');
-                    }
-                };
-                img2.onerror = function() {
-                    console.error('Failed to load image even without CORS');
-                    resolve('');
-                };
-                img2.src = imageSrc;
-            };
-
-            // Ajouter un timestamp pour éviter le cache
-            const separator = imageSrc.includes('?') ? '&' : '?';
-            img.src = imageSrc + separator + 't=' + Date.now();
-        });
-    };
-
-    const getStudentPhotoUrl = (student) => {
-        console.log('Getting student photo URL for:', student);
-
-        if (student.photo_url) {
-            console.log('Using photo_url:', student.photo_url);
-            return student.photo_url;
+    useEffect(() => {
+        if (show && student) {
+            loadPreview();
         }
+    }, [show, student?.id]);
 
-        if (student.photo) {
-            if (student.photo.startsWith('http')) {
-                console.log('Using full URL from photo:', student.photo);
-                return student.photo;
+    const loadPreview = async () => {
+        if (!student) return;
+        try {
+            setLoadingPreview(true);
+            const academicYear = schoolYear?.name || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+            const response = await secureApi.post(`/student-cards/student/${student.id}/preview`, {
+                academic_year: academicYear
+            });
+            if (response && response.success && response.html) {
+                setPreviewHtml(response.html);
             }
-            const fullUrl = `${host}/storage/${student.photo}`;
-            console.log('Constructed photo URL:', fullUrl);
-            return fullUrl;
+        } catch (err) {
+            console.error('Erreur chargement apercu:', err);
+        } finally {
+            setLoadingPreview(false);
         }
-
-        // Utiliser l'image par défaut importée
-        console.log('Using default photo');
-        return null; // On laissera l'image SVG par défaut dans le HTML
-    };
-
-    const getLogoUrl = () => {
-        console.log('Getting logo URL, schoolSettings:', schoolSettings);
-
-        if (schoolSettings?.logo_url) {
-            console.log('Using logo_url:', schoolSettings.logo_url);
-            return schoolSettings.logo_url;
-        }
-
-        if (schoolSettings?.logo) {
-            if (schoolSettings.logo.startsWith('http')) {
-                console.log('Using full URL from logo:', schoolSettings.logo);
-                return schoolSettings.logo;
-            }
-            const fullUrl = `${host}/storage/${schoolSettings.logo}`;
-            console.log('Constructed logo URL:', fullUrl);
-            return fullUrl;
-        }
-
-        console.log('No logo found');
-        return null;
     };
 
     const handlePrint = async () => {
@@ -131,9 +39,6 @@ const StudentCardPrint = ({ student, schoolYear, show, onHide, onPrintSuccess })
 
         try {
             setPrinting(true);
-
-            // Télécharger le PDF depuis le backend
-            console.log('Downloading student card PDF from backend for student:', student.id);
 
             const response = await fetch(`${host}/api/students/${student.id}/card`, {
                 method: 'GET',
@@ -144,17 +49,15 @@ const StudentCardPrint = ({ student, schoolYear, show, onHide, onPrintSuccess })
             });
 
             if (!response.ok) {
-                throw new Error('Erreur lors du téléchargement de la carte');
+                throw new Error('Erreur lors du telechargement de la carte');
             }
 
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
 
-            // Ouvrir le PDF dans un nouvel onglet
             const printWindow = window.open(url, '_blank');
 
             if (!printWindow) {
-                // Si le popup est bloqué, télécharger le fichier
                 const link = document.createElement('a');
                 link.href = url;
                 link.download = `carte_scolaire_${student.matricule || student.id}.pdf`;
@@ -170,12 +73,12 @@ const StudentCardPrint = ({ student, schoolYear, show, onHide, onPrintSuccess })
             }
 
         } catch (error) {
-            console.error('Erreur lors de l\'impression:', error);
+            console.error('Erreur:', error);
             setPrinting(false);
 
             Swal.fire({
-                title: 'Erreur d\'impression',
-                text: error.message || 'Impossible de télécharger la carte',
+                title: 'Erreur',
+                text: error.message || 'Impossible de telecharger la carte',
                 icon: 'error',
                 confirmButtonText: 'OK'
             });
@@ -186,28 +89,31 @@ const StudentCardPrint = ({ student, schoolYear, show, onHide, onPrintSuccess })
 
     return (
         <Modal show={show} onHide={onHide} size="lg" centered>
-            <Modal.Header closeButton>
+            <Modal.Header closeButton style={{ background: '#5B2C87', color: 'white' }}>
                 <Modal.Title>
                     <Printer className="me-2" />
-                    Carte Scolaire - {student.first_name} {student.last_name}
+                    Carte Scolaire - {student.last_name} {student.first_name}
                 </Modal.Title>
             </Modal.Header>
 
             <Modal.Body>
                 <div className="text-center mb-3">
-                    <div className="d-inline-block" style={{ transform: 'scale(1.5)', transformOrigin: 'center' }}>
-                        <StudentCard
-                            student={student}
-                            schoolYear={schoolYear}
+                    {loadingPreview ? (
+                        <div className="py-5">
+                            <Spinner animation="border" variant="primary" />
+                            <p className="mt-2 text-muted">Chargement de l'apercu...</p>
+                        </div>
+                    ) : previewHtml ? (
+                        <div
+                            className="d-inline-block"
+                            style={{ transform: 'scale(1.2)', transformOrigin: 'center top', marginBottom: '40px' }}
+                            dangerouslySetInnerHTML={{ __html: previewHtml }}
                         />
-                    </div>
-                </div>
-
-                <div className="text-center text-muted">
-                    <small>
-                        📌 Aperçu de la carte scolaire<br />
-                        Cliquez sur "Télécharger" pour obtenir le PDF avec photo et logo
-                    </small>
+                    ) : (
+                        <div className="py-4 text-muted">
+                            <p>Apercu non disponible. Cliquez sur Telecharger pour generer le PDF.</p>
+                        </div>
+                    )}
                 </div>
             </Modal.Body>
 
@@ -222,19 +128,13 @@ const StudentCardPrint = ({ student, schoolYear, show, onHide, onPrintSuccess })
                 >
                     {printing ? (
                         <>
-                            <Spinner
-                                as="span"
-                                animation="border"
-                                size="sm"
-                                role="status"
-                                className="me-2"
-                            />
-                            Génération...
+                            <Spinner as="span" animation="border" size="sm" role="status" className="me-2" />
+                            Generation...
                         </>
                     ) : (
                         <>
-                            <Printer className="me-2" />
-                            Télécharger la carte PDF
+                            <Download className="me-2" />
+                            Telecharger la carte PDF
                         </>
                     )}
                 </Button>
