@@ -488,7 +488,11 @@
                 </div>
                 <div class="info-details-line">
                     <span class="info-label">Parent :</span>
-                    <span class="info-value">{{ $card['parent_contact'] ?? 'N/A' }}</span>
+                    <span class="info-value">{{ $card['parent_name'] ?? 'N/A' }}</span>
+                </div>
+                <div class="info-details-line">
+                    <span class="info-label">Tel :</span>
+                    <span class="info-value">{{ $card['parent_phone'] ?? 'N/A' }}</span>
                 </div>
             </div>
         </div>

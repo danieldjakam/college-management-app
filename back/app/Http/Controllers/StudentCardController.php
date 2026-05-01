@@ -220,6 +220,8 @@ class StudentCardController extends Controller
             'photo_base64' => $photoData,
             'date_naissance' => $student->date_of_birth ?
                                Carbon::parse($student->date_of_birth)->format('d/m/Y') : 'N/A',
+            'parent_name' => $parentName ?: 'N/A',
+            'parent_phone' => $parentPhone ?: 'N/A',
             'parent_contact' => $parentContact,
             'qr_code' => $qrCode,
             'card_number' => $student->matricule,

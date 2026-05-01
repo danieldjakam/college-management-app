@@ -179,7 +179,8 @@
                         <div class="info-details">
                             <div class="info-details-line"><span class="info-label">Ne(e) le :</span> <span class="info-value">{{ $card['date_naissance'] }}</span></div>
                             <div class="info-details-line"><span class="info-label">Sexe :</span> <span class="info-value">{{ isset($card['student']) ? ($card['student']->gender ?? 'M') : 'M' }}</span> &nbsp;&nbsp; <span class="info-label">Classe :</span> <span class="info-value">{{ $card['classe'] }}</span></div>
-                            <div class="info-details-line"><span class="info-label">Parent :</span> <span class="info-value">{{ $card['parent_contact'] }}</span></div>
+                            <div class="info-details-line"><span class="info-label">Parent :</span> <span class="info-value">{{ $card['parent_name'] ?? 'N/A' }}</span></div>
+                            <div class="info-details-line"><span class="info-label">Tel :</span> <span class="info-value">{{ $card['parent_phone'] ?? 'N/A' }}</span></div>
                         </div>
                     </div>
 
