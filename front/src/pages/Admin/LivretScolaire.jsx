@@ -112,22 +112,23 @@ function LivretScolaire() {
     }
   };
 
-  const handleGradeChange = (studentId, cssId, trimester, value) => {
+  const handleGradeChange = (studentId, cssId, field, value) => {
     const key = `${studentId}_${cssId}`;
     const student = classData?.students?.find(s => s.id === studentId);
     const subject = student?.subjects?.find(s => s.class_series_subject_id === cssId);
 
     setEditedGrades(prev => {
       const existing = prev[key] || {
-        trim1: subject?.real_trim1,
-        trim2: subject?.real_trim2,
-        trim3: subject?.real_trim3,
+        ev1: subject?.real_ev1, ev2: subject?.real_ev2, comp1: subject?.real_comp1,
+        ev3: subject?.real_ev3, ev4: subject?.real_ev4, comp2: subject?.real_comp2,
+        comp3: subject?.real_comp3,
+        trim1: subject?.real_trim1, trim2: subject?.real_trim2, trim3: subject?.real_trim3,
       };
       return {
         ...prev,
         [key]: {
           ...existing,
-          [trimester]: value === '' ? null : parseFloat(value),
+          [field]: value === '' ? null : parseFloat(value),
         },
       };
     });
@@ -142,9 +143,10 @@ function LivretScolaire() {
         return {
           student_id: parseInt(studentId),
           class_series_subject_id: parseInt(cssId),
-          trim1: vals.trim1,
-          trim2: vals.trim2,
-          trim3: vals.trim3,
+          ev1: vals.ev1 ?? null, ev2: vals.ev2 ?? null, comp1: vals.comp1 ?? null,
+          ev3: vals.ev3 ?? null, ev4: vals.ev4 ?? null, comp2: vals.comp2 ?? null,
+          comp3: vals.comp3 ?? null,
+          trim1: vals.trim1 ?? null, trim2: vals.trim2 ?? null, trim3: vals.trim3 ?? null,
         };
       });
 
@@ -266,24 +268,60 @@ function LivretScolaire() {
     }
   };
 
-  const getAnnualAvg = (subject, edits) => {
+  // Calcul de la moyenne trimestre a partir des sequences
+  const calcTrimFromSeq = (s1, s2, comp) => {
+    const hasAny = s1 !== null || s2 !== null || comp !== null;
+    if (!hasAny) return null;
+    const ds = ((s1 ?? 0) + (s2 ?? 0)) / 2;
+    return (ds + (comp ?? 0)) / 2;
+  };
+
+  const getEffectiveTrim = (subject, edits, trimNum) => {
     const key = `${selectedStudent?.id}_${subject.class_series_subject_id}`;
     const adj = edits[key];
-    const t1 = adj?.trim1 ?? subject.real_trim1 ?? 0;
-    const t2 = adj?.trim2 ?? subject.real_trim2 ?? 0;
-    const t3 = adj?.trim3 ?? subject.real_trim3 ?? 0;
+    // Si trim directement modifie, utiliser cette valeur
+    const trimKey = `trim${trimNum}`;
+    if (adj && adj[trimKey] !== undefined && adj[trimKey] !== subject[`real_${trimKey}`]) {
+      return adj[trimKey];
+    }
+    // Sinon recalculer depuis les sequences si modifiees
+    if (trimNum === 1) {
+      const ev1 = adj?.ev1 ?? subject.real_ev1;
+      const ev2 = adj?.ev2 ?? subject.real_ev2;
+      const comp1 = adj?.comp1 ?? subject.real_comp1;
+      if (adj && (adj.ev1 !== undefined || adj.ev2 !== undefined || adj.comp1 !== undefined)) {
+        return calcTrimFromSeq(ev1, ev2, comp1);
+      }
+    } else if (trimNum === 2) {
+      const ev3 = adj?.ev3 ?? subject.real_ev3;
+      const ev4 = adj?.ev4 ?? subject.real_ev4;
+      const comp2 = adj?.comp2 ?? subject.real_comp2;
+      if (adj && (adj.ev3 !== undefined || adj.ev4 !== undefined || adj.comp2 !== undefined)) {
+        return calcTrimFromSeq(ev3, ev4, comp2);
+      }
+    } else if (trimNum === 3) {
+      if (adj && adj.comp3 !== undefined) {
+        return adj.comp3;
+      }
+    }
+    return adj?.[trimKey] ?? subject[`real_${trimKey}`] ?? 0;
+  };
+
+  const getAnnualAvg = (subject, edits) => {
+    const t1 = getEffectiveTrim(subject, edits, 1) ?? 0;
+    const t2 = getEffectiveTrim(subject, edits, 2) ?? 0;
+    const t3 = getEffectiveTrim(subject, edits, 3) ?? 0;
     return ((t1 + t2 + t3) / 3).toFixed(2);
   };
+
+  const seqFields = ['ev1', 'ev2', 'comp1', 'ev3', 'ev4', 'comp2', 'comp3'];
+  const allEditFields = [...seqFields, 'trim1', 'trim2', 'trim3'];
 
   const hasBeenModified = (subject) => {
     const key = `${selectedStudent?.id}_${subject.class_series_subject_id}`;
     const adj = editedGrades[key];
     if (!adj) return false;
-    return (
-      (adj.trim1 !== null && adj.trim1 !== subject.real_trim1) ||
-      (adj.trim2 !== null && adj.trim2 !== subject.real_trim2) ||
-      (adj.trim3 !== null && adj.trim3 !== subject.real_trim3)
-    );
+    return allEditFields.some(f => adj[f] !== null && adj[f] !== undefined && adj[f] !== subject[`real_${f}`]);
   };
 
   if (loading) {
@@ -452,13 +490,26 @@ function LivretScolaire() {
                   <Table bordered hover size="sm" responsive>
                     <thead className="table-dark">
                       <tr>
-                        <th style={{ width: '25%' }}>Matiere</th>
-                        <th style={{ width: '8%' }} className="text-center">Coef</th>
-                        <th style={{ width: '15%' }} className="text-center">Trimestre 1</th>
-                        <th style={{ width: '15%' }} className="text-center">Trimestre 2</th>
-                        <th style={{ width: '15%' }} className="text-center">Trimestre 3</th>
-                        <th style={{ width: '12%' }} className="text-center">Moy. Annuelle</th>
-                        <th style={{ width: '10%' }} className="text-center">Statut</th>
+                        <th rowSpan="2" style={{ verticalAlign: 'middle' }}>Matiere</th>
+                        <th rowSpan="2" className="text-center" style={{ verticalAlign: 'middle', width: 45 }}>Coef</th>
+                        <th colSpan="3" className="text-center" style={{ background: '#4a2070' }}>Trimestre 1</th>
+                        <th colSpan="3" className="text-center" style={{ background: '#4a2070' }}>Trimestre 2</th>
+                        <th className="text-center" style={{ background: '#4a2070' }}>Trim 3</th>
+                        <th colSpan="3" className="text-center" style={{ background: '#2c3e50' }}>Moyennes Trimestrielles</th>
+                        <th rowSpan="2" className="text-center" style={{ verticalAlign: 'middle', width: 65 }}>Moy. An.</th>
+                        <th rowSpan="2" className="text-center" style={{ verticalAlign: 'middle', width: 70 }}>Statut</th>
+                      </tr>
+                      <tr>
+                        <th className="text-center" style={{ fontSize: '0.7rem', width: 55 }}>EV1</th>
+                        <th className="text-center" style={{ fontSize: '0.7rem', width: 55 }}>EV2</th>
+                        <th className="text-center" style={{ fontSize: '0.7rem', width: 55 }}>Comp1</th>
+                        <th className="text-center" style={{ fontSize: '0.7rem', width: 55 }}>EV3</th>
+                        <th className="text-center" style={{ fontSize: '0.7rem', width: 55 }}>EV4</th>
+                        <th className="text-center" style={{ fontSize: '0.7rem', width: 55 }}>Comp2</th>
+                        <th className="text-center" style={{ fontSize: '0.7rem', width: 55 }}>Comp3</th>
+                        <th className="text-center" style={{ fontSize: '0.7rem', width: 55 }}>T1</th>
+                        <th className="text-center" style={{ fontSize: '0.7rem', width: 55 }}>T2</th>
+                        <th className="text-center" style={{ fontSize: '0.7rem', width: 55 }}>T3</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -468,46 +519,33 @@ function LivretScolaire() {
                         const modified = hasBeenModified(sub);
                         const avg = getAnnualAvg(sub, editedGrades);
 
+                        const seqInput = (field) => (
+                          <Form.Control
+                            type="number"
+                            size="sm"
+                            min="0"
+                            max="20"
+                            step="0.25"
+                            style={{ width: 52, margin: '0 auto', textAlign: 'center', fontSize: '0.75rem', padding: '2px 4px' }}
+                            value={adj?.[field] ?? sub[`real_${field}`] ?? ''}
+                            onChange={(e) => handleGradeChange(selectedStudent.id, sub.class_series_subject_id, field, e.target.value)}
+                          />
+                        );
+
                         return (
                           <tr key={sub.class_series_subject_id} className={modified ? 'table-warning' : ''}>
-                            <td className="fw-bold">{sub.subject_name}</td>
+                            <td className="fw-bold" style={{ fontSize: '0.8rem' }}>{sub.subject_name}</td>
                             <td className="text-center">{sub.coefficient}</td>
-                            <td className="text-center">
-                              <Form.Control
-                                type="number"
-                                size="sm"
-                                min="0"
-                                max="20"
-                                step="0.25"
-                                style={{ width: 80, margin: '0 auto', textAlign: 'center' }}
-                                value={adj?.trim1 ?? sub.real_trim1 ?? ''}
-                                onChange={(e) => handleGradeChange(selectedStudent.id, sub.class_series_subject_id, 'trim1', e.target.value)}
-                              />
-                            </td>
-                            <td className="text-center">
-                              <Form.Control
-                                type="number"
-                                size="sm"
-                                min="0"
-                                max="20"
-                                step="0.25"
-                                style={{ width: 80, margin: '0 auto', textAlign: 'center' }}
-                                value={adj?.trim2 ?? sub.real_trim2 ?? ''}
-                                onChange={(e) => handleGradeChange(selectedStudent.id, sub.class_series_subject_id, 'trim2', e.target.value)}
-                              />
-                            </td>
-                            <td className="text-center">
-                              <Form.Control
-                                type="number"
-                                size="sm"
-                                min="0"
-                                max="20"
-                                step="0.25"
-                                style={{ width: 80, margin: '0 auto', textAlign: 'center' }}
-                                value={adj?.trim3 ?? sub.real_trim3 ?? ''}
-                                onChange={(e) => handleGradeChange(selectedStudent.id, sub.class_series_subject_id, 'trim3', e.target.value)}
-                              />
-                            </td>
+                            <td className="text-center">{seqInput('ev1')}</td>
+                            <td className="text-center">{seqInput('ev2')}</td>
+                            <td className="text-center">{seqInput('comp1')}</td>
+                            <td className="text-center">{seqInput('ev3')}</td>
+                            <td className="text-center">{seqInput('ev4')}</td>
+                            <td className="text-center">{seqInput('comp2')}</td>
+                            <td className="text-center">{seqInput('comp3')}</td>
+                            <td className="text-center">{seqInput('trim1')}</td>
+                            <td className="text-center">{seqInput('trim2')}</td>
+                            <td className="text-center">{seqInput('trim3')}</td>
                             <td className="text-center fw-bold" style={{ color: parseFloat(avg) >= 10 ? '#27ae60' : '#e74c3c' }}>
                               {avg}
                             </td>

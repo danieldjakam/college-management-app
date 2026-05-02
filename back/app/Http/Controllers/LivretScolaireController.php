@@ -219,13 +219,38 @@ class LivretScolaireController extends Controller
                 $realT2 = $calcTrimGrade($student->id, 2, $ss->id);
                 $realT3 = $calcTrimGrade($student->id, 3, $ss->id);
 
+                // Notes de sequences individuelles
+                $seqIds1 = $seqMap[1] ?? [];
+                $seqIds2 = $seqMap[2] ?? [];
+                $realEv1 = isset($seqIds1[0]) ? $getGradeFromIndex($student->id, $seqIds1[0], $ss->id) : null;
+                $realEv2 = isset($seqIds1[1]) ? $getGradeFromIndex($student->id, $seqIds1[1], $ss->id) : null;
+                $realComp1 = $getCompGrade($student->id, 1, $ss->id);
+                $realEv3 = isset($seqIds2[0]) ? $getGradeFromIndex($student->id, $seqIds2[0], $ss->id) : null;
+                $realEv4 = isset($seqIds2[1]) ? $getGradeFromIndex($student->id, $seqIds2[1], $ss->id) : null;
+                $realComp2 = $getCompGrade($student->id, 2, $ss->id);
+                $realComp3 = $getCompGrade($student->id, 3, $ss->id);
+
                 $studentSubjects[] = [
                     'class_series_subject_id' => $ss->id,
                     'subject_name' => $ss->subject->name ?? 'N/A',
                     'coefficient' => (float)$ss->coefficient,
+                    'real_ev1' => $realEv1 !== null ? round((float)$realEv1, 2) : null,
+                    'real_ev2' => $realEv2 !== null ? round((float)$realEv2, 2) : null,
+                    'real_comp1' => ($realComp1 !== null && $realComp1 !== 'ABS') ? round((float)$realComp1, 2) : null,
+                    'real_ev3' => $realEv3 !== null ? round((float)$realEv3, 2) : null,
+                    'real_ev4' => $realEv4 !== null ? round((float)$realEv4, 2) : null,
+                    'real_comp2' => ($realComp2 !== null && $realComp2 !== 'ABS') ? round((float)$realComp2, 2) : null,
+                    'real_comp3' => ($realComp3 !== null && $realComp3 !== 'ABS') ? round((float)$realComp3, 2) : null,
                     'real_trim1' => $realT1 !== null ? round($realT1, 2) : null,
                     'real_trim2' => $realT2 !== null ? round($realT2, 2) : null,
                     'real_trim3' => $realT3 !== null ? round($realT3, 2) : null,
+                    'adjusted_ev1' => $adjusted ? (float)$adjusted->ev1 : null,
+                    'adjusted_ev2' => $adjusted ? (float)$adjusted->ev2 : null,
+                    'adjusted_comp1' => $adjusted ? (float)$adjusted->comp1 : null,
+                    'adjusted_ev3' => $adjusted ? (float)$adjusted->ev3 : null,
+                    'adjusted_ev4' => $adjusted ? (float)$adjusted->ev4 : null,
+                    'adjusted_comp2' => $adjusted ? (float)$adjusted->comp2 : null,
+                    'adjusted_comp3' => $adjusted ? (float)$adjusted->comp3 : null,
                     'adjusted_trim1' => $adjusted ? (float)$adjusted->trim1 : null,
                     'adjusted_trim2' => $adjusted ? (float)$adjusted->trim2 : null,
                     'adjusted_trim3' => $adjusted ? (float)$adjusted->trim3 : null,
@@ -264,6 +289,13 @@ class LivretScolaireController extends Controller
             'grades' => 'required|array',
             'grades.*.student_id' => 'required|exists:students,id',
             'grades.*.class_series_subject_id' => 'required|exists:class_series_subjects,id',
+            'grades.*.ev1' => 'nullable|numeric|min:0|max:20',
+            'grades.*.ev2' => 'nullable|numeric|min:0|max:20',
+            'grades.*.comp1' => 'nullable|numeric|min:0|max:20',
+            'grades.*.ev3' => 'nullable|numeric|min:0|max:20',
+            'grades.*.ev4' => 'nullable|numeric|min:0|max:20',
+            'grades.*.comp2' => 'nullable|numeric|min:0|max:20',
+            'grades.*.comp3' => 'nullable|numeric|min:0|max:20',
             'grades.*.trim1' => 'nullable|numeric|min:0|max:20',
             'grades.*.trim2' => 'nullable|numeric|min:0|max:20',
             'grades.*.trim3' => 'nullable|numeric|min:0|max:20',
@@ -277,15 +309,31 @@ class LivretScolaireController extends Controller
         $userId = auth()->id();
         $count = 0;
 
+        $seqFields = ['ev1', 'ev2', 'comp1', 'ev3', 'ev4', 'comp2', 'comp3'];
+        $trimFields = ['trim1', 'trim2', 'trim3'];
+        $allFields = array_merge($seqFields, $trimFields);
+
         foreach ($request->grades as $grade) {
-            // Ne sauvegarder que si au moins une note ajustee est fournie
-            if ($grade['trim1'] === null && $grade['trim2'] === null && $grade['trim3'] === null) {
-                // Supprimer l'ajustement s'il existait
+            // Verifier si au moins une note est fournie
+            $hasAnyValue = false;
+            foreach ($allFields as $f) {
+                if (isset($grade[$f]) && $grade[$f] !== null) {
+                    $hasAnyValue = true;
+                    break;
+                }
+            }
+
+            if (!$hasAnyValue) {
                 LivretScolaireGrade::where('student_id', $grade['student_id'])
                     ->where('class_series_subject_id', $grade['class_series_subject_id'])
                     ->where('school_year_id', $schoolYear->id)
                     ->delete();
                 continue;
+            }
+
+            $updateData = ['modified_by' => $userId];
+            foreach ($allFields as $f) {
+                $updateData[$f] = $grade[$f] ?? null;
             }
 
             LivretScolaireGrade::updateOrCreate(
@@ -294,12 +342,7 @@ class LivretScolaireController extends Controller
                     'class_series_subject_id' => $grade['class_series_subject_id'],
                     'school_year_id' => $schoolYear->id,
                 ],
-                [
-                    'trim1' => $grade['trim1'],
-                    'trim2' => $grade['trim2'],
-                    'trim3' => $grade['trim3'],
-                    'modified_by' => $userId,
-                ]
+                $updateData
             );
             $count++;
         }
