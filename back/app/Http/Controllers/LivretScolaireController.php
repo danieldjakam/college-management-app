@@ -632,7 +632,55 @@ class LivretScolaireController extends Controller
                 $origT3 = $comp3;
             }
 
-            // Appliquer les notes ajustees (si null, garder l'original)
+            // Appliquer les notes de sequences ajustees si elles existent
+            if ($isNonApc) {
+                $adjEv1 = $adjusted->ev1 !== null ? (float)$adjusted->ev1 : null;
+                $adjEv2 = $adjusted->ev2 !== null ? (float)$adjusted->ev2 : null;
+                $adjComp1 = $adjusted->comp1 !== null ? (float)$adjusted->comp1 : null;
+                $adjEv3 = $adjusted->ev3 !== null ? (float)$adjusted->ev3 : null;
+                $adjEv4 = $adjusted->ev4 !== null ? (float)$adjusted->ev4 : null;
+                $adjComp2 = $adjusted->comp2 !== null ? (float)$adjusted->comp2 : null;
+                $adjComp3 = $adjusted->comp3 !== null ? (float)$adjusted->comp3 : null;
+
+                // Remplacer les valeurs de sequences dans le subject si ajustees
+                if ($adjEv1 !== null) $subject['ev1'] = number_format($adjEv1, 2);
+                if ($adjEv2 !== null) $subject['ev2'] = number_format($adjEv2, 2);
+                if ($adjComp1 !== null) $subject['comp1'] = number_format($adjComp1, 2);
+                if ($adjEv3 !== null) $subject['ev3'] = number_format($adjEv3, 2);
+                if ($adjEv4 !== null) $subject['ev4'] = number_format($adjEv4, 2);
+                if ($adjComp2 !== null) $subject['comp2'] = number_format($adjComp2, 2);
+                if ($adjComp3 !== null) $subject['comp3'] = number_format($adjComp3, 2);
+
+                // Recalculer les trimestres a partir des sequences (ajustees ou originales)
+                $finalEv1 = is_numeric($subject['ev1'] ?? null) ? (float)$subject['ev1'] : null;
+                $finalEv2 = is_numeric($subject['ev2'] ?? null) ? (float)$subject['ev2'] : null;
+                $finalComp1 = is_numeric($subject['comp1'] ?? null) ? (float)$subject['comp1'] : null;
+                $finalEv3 = is_numeric($subject['ev3'] ?? null) ? (float)$subject['ev3'] : null;
+                $finalEv4 = is_numeric($subject['ev4'] ?? null) ? (float)$subject['ev4'] : null;
+                $finalComp2 = is_numeric($subject['comp2'] ?? null) ? (float)$subject['comp2'] : null;
+                $finalComp3 = is_numeric($subject['comp3'] ?? null) ? (float)$subject['comp3'] : null;
+
+                // Trim1: DS1 = (ev1+ev2)/2, M/20 = (DS1+Comp1)/2
+                $ds1Parts = array_filter([$finalEv1, $finalEv2], fn($v) => $v !== null);
+                $ds1 = count($ds1Parts) > 0 ? array_sum($ds1Parts) / max(count($ds1Parts), 2) : null;
+                if ($ds1 !== null && $finalComp1 !== null) $origT1 = ($ds1 + $finalComp1) / 2;
+                elseif ($ds1 !== null) $origT1 = $ds1 / 2;
+                elseif ($finalComp1 !== null) $origT1 = $finalComp1 / 2;
+                else $origT1 = null;
+
+                // Trim2: DS2 = (ev3+ev4)/2, M/20 = (DS2+Comp2)/2
+                $ds2Parts = array_filter([$finalEv3, $finalEv4], fn($v) => $v !== null);
+                $ds2 = count($ds2Parts) > 0 ? array_sum($ds2Parts) / max(count($ds2Parts), 2) : null;
+                if ($ds2 !== null && $finalComp2 !== null) $origT2 = ($ds2 + $finalComp2) / 2;
+                elseif ($ds2 !== null) $origT2 = $ds2 / 2;
+                elseif ($finalComp2 !== null) $origT2 = $finalComp2 / 2;
+                else $origT2 = null;
+
+                // Trim3: Comp3 only
+                $origT3 = $finalComp3;
+            }
+
+            // Appliquer les notes trimestrielles ajustees (si null, utiliser le calcul des sequences)
             $t1 = $adjusted->trim1 !== null ? (float)$adjusted->trim1 : ($origT1 ?? 0);
             $t2 = $adjusted->trim2 !== null ? (float)$adjusted->trim2 : ($origT2 ?? 0);
             $t3 = $adjusted->trim3 !== null ? (float)$adjusted->trim3 : ($origT3 ?? 0);
@@ -649,27 +697,6 @@ class LivretScolaireController extends Controller
 
             $subject['annual_average'] = $annualAvg;
             $subject['total'] = $total;
-
-            // Si non-APC, redistribuer les notes ajustees dans les colonnes ev/comp
-            // pour que le PDF affiche des valeurs coherentes
-            if ($isNonApc) {
-                if ($adjusted->trim1 !== null) {
-                    // Mettre la note ajustee dans comp1 et garder ev1/ev2
-                    $subject['comp1'] = number_format($t1, 2);
-                    $subject['ev1'] = number_format($t1, 2);
-                    $subject['ev2'] = number_format($t1, 2);
-                }
-                if ($adjusted->trim2 !== null) {
-                    $subject['comp2'] = number_format($t2, 2);
-                    $subject['ev3'] = number_format($t2, 2);
-                    $subject['ev4'] = number_format($t2, 2);
-                }
-                if ($adjusted->trim3 !== null) {
-                    $subject['comp3'] = number_format($t3, 2);
-                    $subject['ev5'] = number_format($t3, 2);
-                    $subject['ev6'] = number_format($t3, 2);
-                }
-            }
 
             // Mettre a jour competence si present
             if (isset($subject['competence'])) {
