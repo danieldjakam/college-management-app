@@ -395,12 +395,6 @@ class LivretScolaireController extends Controller
         // Generer le HTML puis le PDF
         $htmlContent = $this->bulletinService->renderBulletinTemplate('annual', $bulletinData, true);
 
-        // Remplacer le titre "BULLETIN ANNUEL" par "LIVRET SCOLAIRE"
-        $htmlContent = str_replace('BULLETIN ANNUEL', 'LIVRET SCOLAIRE', $htmlContent);
-        $htmlContent = str_replace('BULLETIN BILAN ANNUEL', 'LIVRET SCOLAIRE', $htmlContent);
-        $htmlContent = str_replace('bulletin annuel', 'livret scolaire', $htmlContent);
-        $htmlContent = str_replace('Bulletin Annuel', 'Livret Scolaire', $htmlContent);
-
         $filename = "livret_scolaire_{$studentId}_" . now()->format('Y-m-d') . ".pdf";
         $filePath = $this->bulletinService->generatePDF($htmlContent, $filename);
 
@@ -463,10 +457,6 @@ class LivretScolaireController extends Controller
                 $bulletinData['is_livret'] = true;
 
                 $htmlContent = $this->bulletinService->renderBulletinTemplate('annual', $bulletinData, true);
-                $htmlContent = str_replace('BULLETIN ANNUEL', 'LIVRET SCOLAIRE', $htmlContent);
-                $htmlContent = str_replace('BULLETIN BILAN ANNUEL', 'LIVRET SCOLAIRE', $htmlContent);
-                $htmlContent = str_replace('bulletin annuel', 'livret scolaire', $htmlContent);
-                $htmlContent = str_replace('Bulletin Annuel', 'Livret Scolaire', $htmlContent);
 
                 $filename = "livret_scolaire_{$student->id}_" . now()->format('Y-m-d') . ".pdf";
                 $filePath = $this->bulletinService->generatePDF($htmlContent, $filename);
@@ -548,10 +538,6 @@ class LivretScolaireController extends Controller
                 $bulletinData['is_livret'] = true;
 
                 $htmlContent = $this->bulletinService->renderBulletinTemplate('annual', $bulletinData, true);
-                $htmlContent = str_replace('BULLETIN ANNUEL', 'LIVRET SCOLAIRE', $htmlContent);
-                $htmlContent = str_replace('BULLETIN BILAN ANNUEL', 'LIVRET SCOLAIRE', $htmlContent);
-                $htmlContent = str_replace('bulletin annuel', 'livret scolaire', $htmlContent);
-                $htmlContent = str_replace('Bulletin Annuel', 'Livret Scolaire', $htmlContent);
 
                 $filename = "livret_scolaire_{$student->id}_" . now()->format('Y-m-d') . ".pdf";
                 $filePath = $this->bulletinService->generatePDF($htmlContent, $filename);
