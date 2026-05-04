@@ -114,6 +114,12 @@
             color: #666;
         }
 
+        .photo-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
         /* Grades table */
         .grades-table { margin-bottom: 6px; }
         .grades-table th, .grades-table td {
@@ -256,7 +262,7 @@
     <table class="student-table">
         <tr>
             <td rowspan="3" class="photo-cell">
-                <div class="photo-box">Student Photo</div>
+                {{student_photo}}
             </td>
             <td colspan="4"><b>Student's Name:</b> {{student_name}}</td>
         </tr>

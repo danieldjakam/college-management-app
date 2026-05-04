@@ -89,7 +89,6 @@
             color: black;
             padding: 0px 3px;
             margin-bottom: 1px;
-            padding-left: 10%;
         }
 
         .student-info table {
@@ -109,6 +108,10 @@
             width: 110px;
             min-width: 110px;
         }
+
+        .photo-cell { width: 65px; text-align: center; }
+        .photo-box { width: 60px; height: 70px; border: 1px dashed #999; margin: 2px auto; display: flex; align-items: center; justify-content: center; font-size: 7pt; color: #666; }
+        .photo-box img { width: 100%; height: 100%; object-fit: cover; }
 
         .grades-section {
             margin-bottom: 1px;
@@ -417,6 +420,9 @@
         <div class="student-info">
             <table>
                 <tr>
+                    <td rowspan="3" class="photo-cell">
+                        {{student_photo}}
+                    </td>
                     <td class="info-label">Nom et Prénoms:</td>
                     <td>{{student_name}}</td>
                     <td class="info-label">Date de naissance:</td>

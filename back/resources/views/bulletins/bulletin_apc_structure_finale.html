@@ -114,6 +114,12 @@
             color: #666;
         }
 
+        .photo-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
         /* Tableau des notes */
         .grades-table { margin-bottom: 6px; }
         .grades-table th, .grades-table td {
@@ -252,7 +258,7 @@
     <table class="student-table">
         <tr>
             <td rowspan="3" class="photo-cell">
-                <div class="photo-box">Photo de l'élève</div>
+                {{student_photo}}
             </td>
             <td colspan="4"><b>Nom et Prénoms de l'élève :</b> {{student_name}}</td>
         </tr>

@@ -2199,6 +2199,9 @@ class BulletinService
         // Language-specific labels
         $labels = $this->getLanguageLabels($sectionType);
 
+        // Student photo
+        $studentPhoto = $this->getStudentPhotoHtml($student);
+
         return [
             'student_name' => strtoupper($student->last_name . ' ' . $student->first_name),
             'birth_date' => $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : '',
@@ -2222,6 +2225,7 @@ class BulletinService
             'last_average' => number_format((float)($data['last_average'] ?? 0), 2, ',', ''),
             'general_appreciation' => $this->getGeneralAppreciationBySection((float)($data['average'] ?? 0), $sectionType),
             'logo_base64' => $logoBase64,
+            'student_photo' => $studentPhoto,
             'current_date' => now()->format('d/m/Y'),
             'section_type' => $sectionType,
             // Dynamic labels based on section
@@ -2994,6 +2998,19 @@ class BulletinService
         return $sectionType === 'anglophone' ? 'MR. N/A' : 'N/A';
     }
 
+    protected function getStudentPhotoHtml($student): string
+    {
+        if ($student->photo) {
+            $photoPath = storage_path('app/public/' . $student->photo);
+            if (file_exists($photoPath)) {
+                $photoData = base64_encode(file_get_contents($photoPath));
+                $photoExt = pathinfo($photoPath, PATHINFO_EXTENSION);
+                return '<div class="photo-box"><img src="data:image/' . $photoExt . ';base64,' . $photoData . '" alt="Photo"></div>';
+            }
+        }
+        return '<div class="photo-box">Photo</div>';
+    }
+
     /**
      * Get competences for a subject in a given trimester
      * Returns array with competence_1 and competence_2
@@ -3156,6 +3173,9 @@ class BulletinService
         // 🚀 OPTIMISATION: Use pre-loaded class_size (avoid SQL query)
         $classSize = $data['class_size'] ?? 0;
 
+        // Student photo
+        $studentPhoto = $this->getStudentPhotoHtml($student);
+
         // Student information
         $replacements = [
             'student_name' => strtoupper($student->last_name . ' ' . $student->first_name),
@@ -3170,6 +3190,7 @@ class BulletinService
             'parent_info' => $parentInfo,
             'school_year' => $currentSchoolYear ? $currentSchoolYear->name : (date('Y') . '/' . (date('Y') + 1)),
             'trimester_title' => $this->getTrimesterTitle($trimester, $isAnglophone),
+            'student_photo' => $studentPhoto,
         ];
 
         // Generate subjects HTML
@@ -4759,15 +4780,7 @@ class BulletinService
         $classSize = $data['class_size'] ?? 0;
 
         // Student photo
-        $studentPhoto = '<div class="photo-box">Photo</div>';
-        if ($student->photo) {
-            $photoPath = storage_path('app/public/' . $student->photo);
-            if (file_exists($photoPath)) {
-                $photoData = base64_encode(file_get_contents($photoPath));
-                $photoExt = pathinfo($photoPath, PATHINFO_EXTENSION);
-                $studentPhoto = '<div class="photo-box"><img src="data:image/' . $photoExt . ';base64,' . $photoData . '" alt="Photo"></div>';
-            }
-        }
+        $studentPhoto = $this->getStudentPhotoHtml($student);
 
         // Is repeater
         $isRepeater = ($student->is_repeater ?? false) ? 'Oui' : 'Non';

@@ -62,13 +62,16 @@
         /* STUDENT INFO */
         .student-info {
             background: #EFE9F3; color: black;
-            padding: 3px 5px; margin-bottom: 2px; padding-left: 8%;
+            padding: 3px 5px; margin-bottom: 2px;
         }
         .student-info table { width: 100%; border-collapse: collapse; }
         .student-info td {
             padding: 1px 3px; font-size: 7.5pt; vertical-align: middle; line-height: 1.2;
         }
         .info-label { font-weight: bold; }
+        .photo-cell { width: 65px; text-align: center; }
+        .photo-box { width: 60px; height: 70px; border: 1px dashed #999; margin: 2px auto; display: flex; align-items: center; justify-content: center; font-size: 7pt; color: #666; }
+        .photo-box img { width: 100%; height: 100%; object-fit: cover; }
         .checkbox {
             display: inline-block; width: 9px; height: 9px;
             border: 1px solid #000; margin: 0 2px; vertical-align: middle;
@@ -250,6 +253,9 @@
         <div class="student-info">
             <table>
                 <tr>
+                    <td rowspan="3" class="photo-cell">
+                        {{student_photo}}
+                    </td>
                     <td class="info-label">Noms et Pr&eacute;noms :</td>
                     <td colspan="3"><strong>{{student_name}}</strong></td>
                     <td class="info-label">Matricule :</td>
