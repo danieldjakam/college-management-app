@@ -24,27 +24,29 @@
 
         /* 2 colonnes x 5 lignes = 10 cartes par page A4
            Page utile: 204mm x 287mm (A4 210x297 - marges 3+3 x 5+5)
-           Carte: 100mm x 56mm (espace entre = 4mm horizontal, 1.4mm vertical)
+           Carte: 85mm x 54mm (format badge standard)
+           Centrage horizontal: (204 - 85*2) / 3 = 11.3mm entre colonnes
+           Centrage vertical: (287 - 54*5) / 6 = 2.8mm entre lignes
         */
         .card-wrapper {
-            width: 100mm;
-            height: 56mm;
+            width: 85mm;
+            height: 54mm;
             position: absolute;
             page-break-inside: avoid;
         }
 
-        /* Colonne 1 (gauche) */
-        .card-wrapper:nth-child(1)  { top: 0mm;      left: 0mm; }
-        .card-wrapper:nth-child(3)  { top: 57.4mm;   left: 0mm; }
-        .card-wrapper:nth-child(5)  { top: 114.8mm;  left: 0mm; }
-        .card-wrapper:nth-child(7)  { top: 172.2mm;  left: 0mm; }
-        .card-wrapper:nth-child(9)  { top: 229.6mm;  left: 0mm; }
-        /* Colonne 2 (droite - a l'extremite) */
-        .card-wrapper:nth-child(2)  { top: 0mm;      left: 104mm; }
-        .card-wrapper:nth-child(4)  { top: 57.4mm;   left: 104mm; }
-        .card-wrapper:nth-child(6)  { top: 114.8mm;  left: 104mm; }
-        .card-wrapper:nth-child(8)  { top: 172.2mm;  left: 104mm; }
-        .card-wrapper:nth-child(10) { top: 229.6mm;  left: 104mm; }
+        /* Colonne 1 (gauche) - debut a 11.3mm pour centrer */
+        .card-wrapper:nth-child(1)  { top: 3mm;       left: 11.3mm; }
+        .card-wrapper:nth-child(3)  { top: 59.8mm;    left: 11.3mm; }
+        .card-wrapper:nth-child(5)  { top: 116.6mm;   left: 11.3mm; }
+        .card-wrapper:nth-child(7)  { top: 173.4mm;   left: 11.3mm; }
+        .card-wrapper:nth-child(9)  { top: 230.2mm;   left: 11.3mm; }
+        /* Colonne 2 (droite) - 11.3 + 85 + 11.3 = 107.6mm */
+        .card-wrapper:nth-child(2)  { top: 3mm;       left: 107.6mm; }
+        .card-wrapper:nth-child(4)  { top: 59.8mm;    left: 107.6mm; }
+        .card-wrapper:nth-child(6)  { top: 116.6mm;   left: 107.6mm; }
+        .card-wrapper:nth-child(8)  { top: 173.4mm;   left: 107.6mm; }
+        .card-wrapper:nth-child(10) { top: 230.2mm;   left: 107.6mm; }
 
         .card {
             width: 100%; height: 100%; position: relative;
@@ -77,9 +79,9 @@
         .header-logo { position: absolute; top: 1mm; left: 2.5mm; width: 9mm; height: 9mm; }
         .header-logo img { width: 100%; height: 100%; object-fit: contain; border-radius: 50%; border: 1px solid rgba(255,255,255,0.7); background: #ffffff; }
         .header-logo-placeholder { width: 8mm; height: 8mm; background: rgba(255,255,255,0.15); border-radius: 50%; border: 0.5px solid rgba(255,255,255,0.3); }
-        .header-text { position: absolute; top: 1mm; left: 12mm; right: 14mm; text-align: center; color: white; }
-        .header-title { font-size: 7pt; font-weight: bold; letter-spacing: 0.3px; text-transform: uppercase; color: #ffffff; }
-        .header-subtitle { font-size: 6pt; letter-spacing: 0.8px; margin-top: 0.8mm; color: #9B59B6; font-weight: bold; }
+        .header-text { position: absolute; top: 1mm; left: 12mm; right: 12mm; text-align: center; color: white; }
+        .header-title { font-size: 6.5pt; font-weight: bold; letter-spacing: 0.2px; text-transform: uppercase; color: #ffffff; }
+        .header-subtitle { font-size: 5.5pt; letter-spacing: 0.6px; margin-top: 0.8mm; color: #9B59B6; font-weight: bold; }
 
         .chevron-top { position: absolute; top: 6.5mm; right: 0; width: 12mm; height: 10mm; z-index: 3; overflow: hidden; }
         .chevron-top-inner { position: absolute; top: 1mm; right: -2mm; width: 0; height: 0; border-top: 4mm solid #9B59B6; border-bottom: 4mm solid transparent; border-left: 5mm solid transparent; border-right: 5mm solid #9B59B6; }
@@ -88,30 +90,30 @@
         .chevron-bottom-inner { position: absolute; bottom: -1mm; right: -2mm; width: 0; height: 0; border-bottom: 4mm solid #9B59B6; border-top: 4mm solid transparent; border-left: 5mm solid transparent; border-right: 5mm solid #9B59B6; }
         .chevron-bottom-inner2 { position: absolute; bottom: -1mm; right: 2.5mm; width: 0; height: 0; border-top: 4mm solid transparent; border-bottom: 4mm solid transparent; border-right: 3.5mm solid rgba(155, 89, 182, 0.35); }
 
-        .photo-zone { position: absolute; top: 18mm; left: 3mm; width: 19mm; height: 24mm; border: 1.5px solid #5B2C87; border-radius: 1mm; overflow: hidden; background: #f0e6f6; z-index: 2; }
+        .photo-zone { position: absolute; top: 17.5mm; left: 2.5mm; width: 17mm; height: 22mm; border: 1.5px solid #5B2C87; border-radius: 1mm; overflow: hidden; background: #f0e6f6; z-index: 2; }
         .photo-zone img { width: 100%; height: 100%; object-fit: cover; }
         .photo-placeholder { width: 100%; height: 100%; display: table; text-align: center; color: #999; font-size: 5pt; }
         .photo-placeholder span { display: table-cell; vertical-align: middle; }
 
-        .info-zone { position: absolute; top: 17.5mm; left: 24mm; right: 3mm; }
+        .info-zone { position: absolute; top: 17mm; left: 21mm; right: 2.5mm; }
         .info-matricule { font-size: 6pt; color: #555; font-weight: bold; margin-bottom: 0.3mm; }
         .info-matricule-label { color: #888; font-weight: normal; }
-        .class-badge { position: absolute; top: 17.5mm; right: 3mm; background: #5B2C87; color: #fff; font-size: 5.5pt; font-weight: bold; padding: 0.8mm 2mm; border-radius: 1.5mm; z-index: 2; }
-        .info-name { font-size: 9pt; font-weight: bold; color: #1a1a1a; margin-top: 0.5mm; margin-bottom: 0.8mm; text-transform: uppercase; }
+        .class-badge { position: absolute; top: 17mm; right: 2.5mm; background: #5B2C87; color: #fff; font-size: 5pt; font-weight: bold; padding: 0.6mm 1.5mm; border-radius: 1.5mm; z-index: 2; }
+        .info-name { font-size: 8pt; font-weight: bold; color: #1a1a1a; margin-top: 0.5mm; margin-bottom: 0.5mm; text-transform: uppercase; }
         .info-details { font-size: 6pt; color: #333; line-height: 1.6; }
         .info-details-line { margin-bottom: 0.3mm; }
         .info-label { color: #666; font-weight: bold; text-transform: uppercase; font-size: 5.5pt; }
         .info-value { color: #1a1a1a; }
 
-        .qr-zone { position: absolute; bottom: 5.5mm; right: 16mm; width: 12mm; height: 12mm; z-index: 2; }
+        .qr-zone { position: absolute; bottom: 5mm; right: 14mm; width: 11mm; height: 11mm; z-index: 2; }
         .qr-zone img { width: 100%; height: 100%; }
 
-        .card-footer { position: absolute; bottom: 2mm; left: 3mm; right: 26mm; text-align: left; }
-        .footer-year { font-size: 5.5pt; color: #5B2C87; font-weight: bold; }
+        .card-footer { position: absolute; bottom: 1.5mm; left: 2.5mm; right: 24mm; text-align: left; }
+        .footer-year { font-size: 5pt; color: #5B2C87; font-weight: bold; }
         .footer-school { font-size: 3.5pt; color: #999; margin-top: 0.3mm; }
-        .footer-expires { font-size: 5pt; color: #9B59B6; font-weight: bold; position: absolute; bottom: 1.5mm; right: 14mm; }
+        .footer-expires { font-size: 4.5pt; color: #9B59B6; font-weight: bold; position: absolute; bottom: 1.5mm; right: 12mm; }
 
-        .watermark { position: absolute; top: 20mm; left: 25mm; width: 35mm; height: 35mm; z-index: 1; opacity: 0.10; }
+        .watermark { position: absolute; top: 18mm; left: 22mm; width: 30mm; height: 30mm; z-index: 1; opacity: 0.10; }
         .watermark img { width: 100%; height: 100%; object-fit: contain; }
 
         .bottom-accent { position: absolute; bottom: 0; left: 0; right: 0; height: 0.8mm; background: #5B2C87; }
