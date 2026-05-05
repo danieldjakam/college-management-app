@@ -493,7 +493,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Routes pour les cartes d'identité scolaires
-    Route::prefix('student-cards')->middleware(['role:admin,principal,secretaire,id_card_manager'])->group(function () {
+    Route::prefix('student-cards')->middleware(['role:admin,principal,secretaire,id_card_manager,accountant'])->group(function () {
         // Générer les cartes pour une classe entière (10 par page)
         Route::post('/class/{classId}/generate', [StudentCardController::class, 'generateClassCards']);
 

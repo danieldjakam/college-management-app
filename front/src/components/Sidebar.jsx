@@ -318,6 +318,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         {
           title: "Outils",
           items: [
+            { name: "Générateur de Cartes", href: "/card-generator", icon: <QrCode /> },
             { name: "Inventaire", href: "/inventory", icon: <Archive /> },
             { name: "Documents", href: "/documents", icon: <FolderFill /> },
           ],

@@ -617,9 +617,9 @@ const AppContent = () => {
               <Route
                 path="/card-generator"
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRoles={["admin", "principal", "secretaire", "id_card_manager", "accountant"]}>
                     <CardGenerator />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
               
