@@ -6,20 +6,40 @@ $app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
 
 use Illuminate\Support\Facades\DB;
 
-// 1. Trouver DJIOLEU FRANCK
+// 1. Trouver DJIOLEU FRANCK - chercher dans teachers ET users
 $staff = DB::table('teachers')
     ->whereRaw('UPPER(CONCAT(first_name, " ", last_name)) LIKE ?', ['%DJIOLEU%'])
     ->orWhereRaw('UPPER(CONCAT(last_name, " ", first_name)) LIKE ?', ['%DJIOLEU%'])
     ->first();
 
-if (!$staff) {
-    echo "DJIOLEU FRANCK introuvable dans teachers!\n";
-    exit(1);
+if ($staff) {
+    echo "Trouvé dans teachers: {$staff->first_name} {$staff->last_name} (id:{$staff->id}, user_id:{$staff->user_id})\n";
+    $userId = $staff->user_id;
+    $staffType = $staff->type_personnel ?? 'P';
+    $qrCode = $staff->qr_code ?? 'MANUAL';
+} else {
+    // Chercher dans users
+    $user = DB::table('users')
+        ->whereRaw('UPPER(username) LIKE ?', ['%DJIOLEU%'])
+        ->orWhereRaw('UPPER(email) LIKE ?', ['%DJIOLEU%'])
+        ->orWhereRaw('UPPER(contact) LIKE ?', ['%DJIOLEU%'])
+        ->first();
+
+    if (!$user) {
+        // Lister tous les users pour trouver manuellement
+        echo "DJIOLEU introuvable! Voici tous les users:\n";
+        $all = DB::table('users')->select('id', 'username', 'email', 'role')->get();
+        foreach ($all as $u) {
+            echo "  id:{$u->id} | {$u->username} | {$u->email} | {$u->role}\n";
+        }
+        exit(1);
+    }
+    echo "Trouvé dans users: {$user->username} (id:{$user->id}, role:{$user->role})\n";
+    $userId = $user->id;
+    $staffType = 'P';
+    $qrCode = 'MANUAL';
 }
 
-echo "Trouvé: {$staff->first_name} {$staff->last_name} (id:{$staff->id}, user_id:{$staff->user_id})\n";
-
-$userId = $staff->user_id;
 $schoolYearId = DB::table('school_years')->where('is_current', true)->value('id');
 $now = now();
 $count = 0;
@@ -62,10 +82,10 @@ foreach ($dates as $date) {
         'school_year_id' => $schoolYearId,
         'attendance_date' => $date,
         'scanned_at' => $entryTime,
-        'scanned_qr_code' => $staff->qr_code ?? 'MANUAL',
+        'scanned_qr_code' => $qrCode,
         'is_present' => 1,
         'event_type' => 'entry',
-        'staff_type' => $staff->type_personnel ?? 'P',
+        'staff_type' => $staffType,
         'work_hours' => 0,
         'late_minutes' => 0,
         'early_departure_minutes' => 0,
@@ -81,10 +101,10 @@ foreach ($dates as $date) {
         'school_year_id' => $schoolYearId,
         'attendance_date' => $date,
         'scanned_at' => $exitTime,
-        'scanned_qr_code' => $staff->qr_code ?? 'MANUAL',
+        'scanned_qr_code' => $qrCode,
         'is_present' => 1,
         'event_type' => 'exit',
-        'staff_type' => $staff->type_personnel ?? 'P',
+        'staff_type' => $staffType,
         'work_hours' => round($workHours, 2),
         'late_minutes' => 0,
         'early_departure_minutes' => 0,
