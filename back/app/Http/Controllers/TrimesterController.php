@@ -15,7 +15,10 @@ class TrimesterController extends Controller
     {
         try {
             $query = Trimester::with(['sequences' => function ($q) {
-                $q->where('is_active', true)->orderBy('number');
+                $q->where(function ($sub) {
+                    $sub->where('is_active', true)
+                        ->orWhere('is_composition', true);
+                })->orderBy('number');
             }, 'schoolYear']);
 
             // Filtrer par année scolaire directement

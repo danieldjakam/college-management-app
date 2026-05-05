@@ -126,7 +126,8 @@ class EvaluationController extends Controller
             $sequence = Sequence::with('trimester')->find($request->sequence_id);
 
             // Bloquer la création d'évaluations sur une séquence inactive
-            if ($sequence && !$sequence->is_active) {
+            // Les compositions sont toujours accessibles (pas besoin d'activation séparée)
+            if ($sequence && !$sequence->is_active && !$sequence->is_composition) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Cette séquence n\'est pas active. Vous ne pouvez pas créer d\'évaluation.'
