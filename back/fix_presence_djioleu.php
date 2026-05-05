@@ -18,20 +18,14 @@ if ($staff) {
     $staffType = $staff->type_personnel ?? 'P';
     $qrCode = $staff->qr_code ?? 'MANUAL';
 } else {
-    // Chercher dans users
+    // Chercher dans users par email exact
     $user = DB::table('users')
-        ->whereRaw('UPPER(username) LIKE ?', ['%DJIOLEU%'])
-        ->orWhereRaw('UPPER(email) LIKE ?', ['%DJIOLEU%'])
-        ->orWhereRaw('UPPER(contact) LIKE ?', ['%DJIOLEU%'])
+        ->where('email', 'FRANCK@gmail.com')
+        ->orWhere('username', 'FRANCK')
         ->first();
 
     if (!$user) {
-        // Lister tous les users pour trouver manuellement
-        echo "DJIOLEU introuvable! Voici tous les users:\n";
-        $all = DB::table('users')->select('id', 'username', 'email', 'role')->get();
-        foreach ($all as $u) {
-            echo "  id:{$u->id} | {$u->username} | {$u->email} | {$u->role}\n";
-        }
+        echo "FRANCK introuvable dans users!\n";
         exit(1);
     }
     echo "Trouvé dans users: {$user->username} (id:{$user->id}, role:{$user->role})\n";
