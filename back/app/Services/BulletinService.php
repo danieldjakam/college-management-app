@@ -948,6 +948,9 @@ class BulletinService
         $bulletinData['mention'] = $this->getMentionBySection($bulletinData['average'], $sectionType);
         $bulletinData['section_type'] = $sectionType;
 
+        // Ajouter subject_groups pour la modification de bulletins
+        $bulletinData['subject_groups'] = $this->groupSubjectsByType($bulletinData['subjects']);
+
         // Construire les lignes HTML pour le template
         $bulletinData['subjects_rows'] = $this->buildSubjectRowsHTML($bulletinData['subjects'], 'trimester');
 
@@ -1320,6 +1323,9 @@ class BulletinService
 
                 $bulletinData['mention'] = $this->getMentionBySection($bulletinData['average'], $sectionType);
                 $bulletinData['section_type'] = $sectionType;
+
+                // Ajouter subject_groups pour la modification de bulletins
+                $bulletinData['subject_groups'] = $this->groupSubjectsByType($bulletinData['subjects']);
 
                 // 🚀 OPTIMIZED: Calculate real class stats from pre-loaded data
                 $classStats = $this->calculateClassStatsFromPreloadedData($classTrimesterGrades, $subjects, $allStudents);
@@ -4077,7 +4083,13 @@ class BulletinService
         $bulletinData['total_general'] = $totalPoints;
         $bulletinData['total_coefficient'] = $totalCoefficient;
         $bulletinData['general_average'] = $generalAverage;
+        $bulletinData['average'] = $generalAverage;
         $bulletinData['rank'] = $rank;
+
+        // Ajouter subject_groups pour la modification de bulletins
+        if (isset($bulletinData['subjects'])) {
+            $bulletinData['subject_groups'] = $this->groupSubjectsByType($bulletinData['subjects']);
+        }
 
         // Class statistics
         $allAverages = array_values($classAnnualAverages);
@@ -4536,7 +4548,13 @@ class BulletinService
         $bulletinData['total_general'] = $totalPoints;
         $bulletinData['total_coefficient'] = $totalCoefficient;
         $bulletinData['general_average'] = $generalAverage;
+        $bulletinData['average'] = $generalAverage;
         $bulletinData['rank'] = $rank;
+
+        // Ajouter subject_groups pour la modification de bulletins
+        if (isset($bulletinData['subjects'])) {
+            $bulletinData['subject_groups'] = $this->groupSubjectsByType($bulletinData['subjects']);
+        }
 
         // Class statistics
         $allAverages = array_values($classAnnualAverages);
