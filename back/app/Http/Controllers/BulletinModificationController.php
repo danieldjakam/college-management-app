@@ -429,6 +429,26 @@ class BulletinModificationController extends Controller
             }
             unset($groupSubjects, $subject);
 
+            // Sync modifications back to the flat 'subjects' array
+            // (the template rendering uses $data['subjects'], not $data['subject_groups'])
+            if (isset($bulletinData['subjects'])) {
+                $modsBySubjectId = [];
+                foreach ($bulletinData['subject_groups'] as $groupSubjects) {
+                    foreach ($groupSubjects as $s) {
+                        if (isset($s['subject_id'])) {
+                            $modsBySubjectId[$s['subject_id']] = $s;
+                        }
+                    }
+                }
+                foreach ($bulletinData['subjects'] as &$flatSubject) {
+                    $sid = $flatSubject['subject_id'] ?? null;
+                    if ($sid && isset($modsBySubjectId[$sid])) {
+                        $flatSubject = array_merge($flatSubject, $modsBySubjectId[$sid]);
+                    }
+                }
+                unset($flatSubject);
+            }
+
             // Recalculate general average and total
             $this->recalculateGeneralAverage($bulletinData);
         }
