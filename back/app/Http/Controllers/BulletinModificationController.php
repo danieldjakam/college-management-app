@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\BulletinModification;
+use App\Models\ClassSeriesSubject;
+use App\Models\Grade;
 use App\Models\Student;
 use App\Services\BulletinService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class BulletinModificationController extends Controller
@@ -451,6 +454,19 @@ class BulletinModificationController extends Controller
 
             // Recalculate general average and total
             $this->recalculateGeneralAverage($bulletinData);
+
+            // Recalculate rank based on new average
+            if (isset($bulletinData['average']) && isset($bulletinData['student_id'])) {
+                $newRank = $this->recalculateRank(
+                    $bulletinData['student_id'],
+                    $bulletinData['average'],
+                    $type,
+                    $bulletinData
+                );
+                if ($newRank !== null) {
+                    $bulletinData['rank'] = $newRank;
+                }
+            }
         }
 
         // Apply appreciation override
@@ -527,6 +543,113 @@ class BulletinModificationController extends Controller
             elseif ($avg >= 12) $bulletinData['mention'] = 'Assez Bien';
             elseif ($avg >= 10) $bulletinData['mention'] = 'Passable';
             else $bulletinData['mention'] = 'Insuffisant';
+        }
+    }
+
+    /**
+     * Recalculate student rank after average modification
+     * Gets all classmates' averages from DB, replaces modified student's average, re-ranks
+     */
+    private function recalculateRank(int $studentId, float $newAverage, string $type, array $bulletinData): ?int
+    {
+        try {
+            $student = Student::find($studentId);
+            if (!$student || !$student->class_series_id) {
+                return null;
+            }
+
+            // Get all classmates
+            $classmates = Student::where('class_series_id', $student->class_series_id)->get();
+            $allSubjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();
+
+            $averages = [];
+
+            if ($type === 'sequence') {
+                $sequenceId = $bulletinData['sequence']->id ?? null;
+                if (!$sequenceId) return null;
+
+                foreach ($classmates as $classmate) {
+                    if ($classmate->id == $studentId) {
+                        $averages[$classmate->id] = $newAverage;
+                        continue;
+                    }
+
+                    $totalPoints = 0;
+                    $totalCoef = 0;
+                    foreach ($allSubjects as $subject) {
+                        $grade = Grade::where('student_id', $classmate->id)
+                            ->where('sequence_id', $sequenceId)
+                            ->where('class_series_subject_id', $subject->id)
+                            ->whereNotNull('score')
+                            ->where('is_absent', false)
+                            ->first();
+                        if ($grade) {
+                            $totalPoints += (float)$grade->score * (float)$subject->coefficient;
+                            $totalCoef += (float)$subject->coefficient;
+                        }
+                    }
+                    if ($totalCoef > 0) {
+                        $averages[$classmate->id] = $totalPoints / $totalCoef;
+                    }
+                }
+            } elseif ($type === 'trimester') {
+                $trimesterNumber = $bulletinData['trimester']->number ?? $bulletinData['trimester_number'] ?? null;
+                if (!$trimesterNumber) return null;
+
+                foreach ($classmates as $classmate) {
+                    if ($classmate->id == $studentId) {
+                        $averages[$classmate->id] = $newAverage;
+                        continue;
+                    }
+                    // Use BulletinService to get trimester data for classmate
+                    try {
+                        $data = $this->bulletinService->generateTrimesterBulletinData((int)$trimesterNumber, $classmate->id);
+                        if ($data && isset($data['average']) && $data['average'] > 0) {
+                            $averages[$classmate->id] = (float)$data['average'];
+                        }
+                    } catch (\Exception $e) {
+                        // Skip this student if error
+                    }
+                }
+            } elseif ($type === 'annual') {
+                foreach ($classmates as $classmate) {
+                    if ($classmate->id == $studentId) {
+                        $averages[$classmate->id] = $newAverage;
+                        continue;
+                    }
+                    try {
+                        if ($this->bulletinService->isApcClass($classmate)) {
+                            $data = $this->bulletinService->generateAnnualBulletinData($classmate->id);
+                        } else {
+                            $data = $this->bulletinService->generateAnnualBulletinDataNonApc($classmate->id);
+                        }
+                        if ($data && isset($data['average']) && (float)$data['average'] > 0) {
+                            $averages[$classmate->id] = (float)$data['average'];
+                        }
+                    } catch (\Exception $e) {
+                        // Skip
+                    }
+                }
+            }
+
+            if (empty($averages) || !isset($averages[$studentId])) {
+                return null;
+            }
+
+            // Sort descending and find rank
+            arsort($averages);
+            $rank = 1;
+            foreach ($averages as $sid => $avg) {
+                if ($sid == $studentId) {
+                    return $rank;
+                }
+                $rank++;
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Erreur recalcul rang: ' . $e->getMessage());
+            return null;
         }
     }
 }
