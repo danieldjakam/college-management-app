@@ -1373,9 +1373,9 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
     Route::post('/download-direct', [BulletinController::class, 'downloadDirect'])
         ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
 
-    // Forcer la régénération (Admin uniquement)
+    // Forcer la régénération
     Route::post('/force-regenerate', [BulletinController::class, 'forceRegenerate'])
-        ->middleware(['role:admin']);
+        ->middleware(['role:admin,secretaire']);
 
     // ⚡ Fusion de bulletins en un seul PDF
     Route::post('/merge', [BulletinController::class, 'mergeBulletins'])
@@ -1391,13 +1391,11 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
 
     // Génération batch synchrone (optimisée pour QUEUE_CONNECTION=sync)
     Route::post('/batch-generate-sync', [BulletinController::class, 'batchGenerateSync'])
-        ->middleware(['role:admin']);
+        ->middleware(['role:admin,secretaire']);
 
     // 🚀 ULTRA-OPTIMIZED: Génération batch trimestre (360× PLUS RAPIDE!)
-    // Charge TOUTES les données EN UNE FOIS au lieu de 58 fois
-    // ~30 secondes au lieu de 19+ minutes pour 58 étudiants
     Route::post('/batch-generate-trimester-optimized', [BulletinController::class, 'batchGenerateTrimesterOptimized'])
-        ->middleware(['role:admin']);
+        ->middleware(['role:admin,secretaire']);
 
     // Récupérer la progression d'une génération batch
     Route::get('/progress/{progressKey}', [BulletinController::class, 'getBatchProgress'])
