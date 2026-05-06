@@ -373,6 +373,17 @@ class BulletinModificationController extends Controller
     public function applyModifications(array $bulletinData, array $modifications, string $type): array
     {
         // Apply subject modifications
+        // Detect cycle/section type for competence recalculation
+        $sectionType = $bulletinData['section_type'] ?? 'francophone';
+        $cycleType = 'premier';
+        if (isset($bulletinData['subject_groups'])) {
+            foreach ($bulletinData['subject_groups'] as $gs) {
+                foreach ($gs as $s) {
+                    if (isset($s['cycle_type'])) { $cycleType = $s['cycle_type']; break 2; }
+                }
+            }
+        }
+
         if (isset($modifications['subjects']) && isset($bulletinData['subject_groups'])) {
             $subjectMods = collect($modifications['subjects'])->keyBy('subject_id');
 
@@ -388,8 +399,8 @@ class BulletinModificationController extends Controller
                                 $subject['total'] = (float) $mod['score'] * ($subject['coefficient'] ?? 1);
                             }
                         } elseif ($type === 'trimester') {
-                            $cycleType = $subject['cycle_type'] ?? 'premier';
-                            if ($cycleType === 'deuxieme') {
+                            $subjectCycleType = $subject['cycle_type'] ?? 'premier';
+                            if ($subjectCycleType === 'deuxieme') {
                                 if (array_key_exists('sequence1', $mod)) $subject['sequence1'] = $mod['sequence1'] !== null ? (float) $mod['sequence1'] : null;
                                 if (array_key_exists('sequence2', $mod)) $subject['sequence2'] = $mod['sequence2'] !== null ? (float) $mod['sequence2'] : null;
                             } else {
@@ -403,7 +414,7 @@ class BulletinModificationController extends Controller
                                 $subject['average'] = (float) $mod['score'];
                             } else {
                                 // Auto-recalculate from components
-                                $this->recalculateSubjectScore($subject, $cycleType);
+                                $this->recalculateSubjectScore($subject, $subjectCycleType);
                             }
                             $subject['total'] = ($subject['score'] ?? 0) * ($subject['coefficient'] ?? 1);
                             $subject['nxc'] = $subject['total'];
@@ -426,6 +437,27 @@ class BulletinModificationController extends Controller
                                 $subject['average'] = (float) $mod['score'];
                             }
                             $subject['total'] = ($subject['score'] ?? $subject['annual_average'] ?? 0) * ($subject['coefficient'] ?? 1);
+                        }
+
+                        // Recalculate competence based on new score
+                        $newScore = $subject['score'] ?? $subject['average'] ?? null;
+                        if ($newScore !== null && is_numeric($newScore)) {
+                            $subject['competence'] = $this->calculateCompetence((float) $newScore, $cycleType, $sectionType);
+                            $subject['grade'] = $subject['competence'];
+                        }
+
+                        // Recalculate per-subject rank
+                        if ($newScore !== null && is_numeric($newScore) && isset($bulletinData['student_id'])) {
+                            $newSubjectRank = $this->recalculateSubjectRank(
+                                $bulletinData['student_id'],
+                                $subjectId,
+                                (float) $newScore,
+                                $type,
+                                $bulletinData
+                            );
+                            if ($newSubjectRank !== null) {
+                                $subject['rank'] = $newSubjectRank;
+                            }
                         }
                     }
                 }
@@ -649,6 +681,117 @@ class BulletinModificationController extends Controller
             return null;
         } catch (\Exception $e) {
             Log::error('Erreur recalcul rang: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Calculate competence based on score, cycle type, and section type
+     */
+    private function calculateCompetence(float $grade, string $cycleType = 'premier', string $sectionType = 'francophone'): string
+    {
+        if ($sectionType === 'technique') {
+            if ($grade >= 16) return 'A+';
+            if ($grade >= 14) return 'A';
+            if ($grade >= 10) return 'ECA';
+            return 'NA';
+        }
+
+        if ($sectionType === 'anglophone') {
+            if ($grade >= 16) return 'Mastered (Excellent)';
+            if ($grade >= 14) return 'Mastered (Very Good)';
+            if ($grade >= 12) return 'Mastered (Good)';
+            if ($grade >= 10) return 'Developing';
+            return 'Beginning';
+        }
+
+        if ($cycleType === 'deuxieme') {
+            if ($grade >= 16) return 'Acquise (Excellent)';
+            if ($grade >= 14) return 'Acquise (Très Bien)';
+            if ($grade >= 12) return 'Acquise (Bien)';
+            if ($grade >= 10) return 'En cours d\'acquisition';
+            return 'Non acquise';
+        }
+
+        // Premier cycle francophone
+        if ($grade >= 16) return 'A+';
+        if ($grade >= 14) return 'A';
+        if ($grade >= 10) return 'ECA';
+        return 'NA';
+    }
+
+    /**
+     * Recalculate per-subject rank after score modification
+     */
+    private function recalculateSubjectRank(int $studentId, int $subjectId, float $newScore, string $type, array $bulletinData): ?int
+    {
+        try {
+            $student = Student::find($studentId);
+            if (!$student || !$student->class_series_id) return null;
+
+            // Find the class_series_subject_id for this subject
+            $classSeriesSubject = ClassSeriesSubject::where('class_series_id', $student->class_series_id)
+                ->whereHas('subject', function ($q) use ($subjectId) {
+                    $q->where('id', $subjectId);
+                })
+                ->first();
+            if (!$classSeriesSubject) return null;
+
+            if ($type === 'sequence') {
+                $sequenceId = $bulletinData['sequence']->id ?? null;
+                if (!$sequenceId) return null;
+
+                // Count how many students have a higher score for this subject in this sequence
+                $betterCount = Grade::where('sequence_id', $sequenceId)
+                    ->where('class_series_subject_id', $classSeriesSubject->id)
+                    ->whereNotNull('score')
+                    ->where('is_absent', false)
+                    ->where('score', '>', $newScore)
+                    ->count();
+
+                return $betterCount + 1;
+
+            } elseif ($type === 'trimester') {
+                // For trimester, get all classmates' averages for this subject
+                $classmates = Student::where('class_series_id', $student->class_series_id)->get();
+                $trimesterNumber = $bulletinData['trimester']->number ?? $bulletinData['trimester_number'] ?? null;
+                if (!$trimesterNumber) return null;
+
+                $scores = [$studentId => $newScore];
+
+                foreach ($classmates as $classmate) {
+                    if ($classmate->id == $studentId) continue;
+                    try {
+                        $data = $this->bulletinService->generateTrimesterBulletinData((int)$trimesterNumber, $classmate->id);
+                        if ($data && isset($data['subjects'])) {
+                            foreach ($data['subjects'] as $s) {
+                                if (($s['subject_id'] ?? null) == $subjectId) {
+                                    $subjectScore = $s['score'] ?? $s['average'] ?? null;
+                                    if ($subjectScore !== null && is_numeric($subjectScore)) {
+                                        $scores[$classmate->id] = (float)$subjectScore;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        // Skip
+                    }
+                }
+
+                // Count better scores
+                $betterCount = 0;
+                foreach ($scores as $sid => $score) {
+                    if ($sid != $studentId && $score > $newScore) {
+                        $betterCount++;
+                    }
+                }
+                return $betterCount + 1;
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Erreur recalcul rang matière: ' . $e->getMessage());
             return null;
         }
     }
