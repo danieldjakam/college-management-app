@@ -1416,7 +1416,6 @@ function BulletinManagementNew() {
 
   return (
     <div className="container-fluid">
-      <style>{`.modal-90w { max-width: 90% !important; width: 90%; }`}</style>
       {/* Header avec timeline académique */}
       <Row className="mb-4">
         <Col>
@@ -2359,9 +2358,7 @@ function BulletinManagementNew() {
       <Modal
         show={showEditModal}
         onHide={() => setShowEditModal(false)}
-        size="xl"
-        fullscreen="md-down"
-        dialogClassName="modal-90w"
+        fullscreen
       >
         <Modal.Header closeButton style={{ background: '#5B2C87', color: 'white' }}>
           <Modal.Title>
