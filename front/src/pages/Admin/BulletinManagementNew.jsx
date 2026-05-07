@@ -1416,6 +1416,7 @@ function BulletinManagementNew() {
 
   return (
     <div className="container-fluid">
+      <style>{`.modal-90w { max-width: 90% !important; width: 90%; }`}</style>
       {/* Header avec timeline académique */}
       <Row className="mb-4">
         <Col>
@@ -2359,7 +2360,8 @@ function BulletinManagementNew() {
         show={showEditModal}
         onHide={() => setShowEditModal(false)}
         size="xl"
-        fullscreen="lg-down"
+        fullscreen="md-down"
+        dialogClassName="modal-90w"
       >
         <Modal.Header closeButton style={{ background: '#5B2C87', color: 'white' }}>
           <Modal.Title>
@@ -2368,7 +2370,7 @@ function BulletinManagementNew() {
             {editBulletinInfo && ` - ${editBulletinInfo.student_name}`}
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body style={{ maxHeight: '70vh', overflow: 'auto' }}>
+        <Modal.Body style={{ maxHeight: '80vh', overflow: 'auto' }}>
           {editLoading && !editData && (
             <div className="text-center py-4">
               <Spinner animation="border" variant="primary" />
