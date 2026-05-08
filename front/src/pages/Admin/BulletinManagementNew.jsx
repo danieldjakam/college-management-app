@@ -1184,14 +1184,13 @@ function BulletinManagementNew() {
     }
 
     setMergingPeriod(period.identifier);
-    setMergeProgress({ status: 'starting', message: 'Démarrage de la fusion...', percentage: 0 });
+    setMergeProgress({ status: 'starting', message: 'Fusion en cours...', percentage: 50 });
     setError('');
     setSuccess('');
 
     try {
       const token = authService.getToken();
 
-      // Lancer la fusion
       const response = await fetch(`${host}/api/bulletins/merge`, {
         method: 'POST',
         headers: {
@@ -1212,122 +1211,40 @@ function BulletinManagementNew() {
 
       const data = await response.json();
       if (!data.success) {
-        throw new Error(data.message || 'Erreur lors du démarrage de la fusion');
+        throw new Error(data.message || 'Erreur lors de la fusion');
       }
 
-      const jobId = data.job_id;
-      setSuccess(`Fusion de ${data.bulletin_count} bulletins en cours...`);
+      // Télécharger le fichier fusionné
+      const downloadUrl = data.download_url || data.direct_download_url;
+      if (downloadUrl) {
+        const downloadResponse = await fetch(`${host}${downloadUrl}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
 
-      // ⚡ Attendre 3 secondes puis vérifier si terminé (pour mode sync)
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      // Vérifier si le job est terminé
-      const checkResponse = await fetch(`${host}/api/bulletins/merge-progress/${jobId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (checkResponse.ok) {
-        const checkData = await checkResponse.json();
-
-        if (checkData.status === 'completed') {
-          // Job terminé instantanément (mode sync)
-          setMergingPeriod(null);
-          setMergeProgress({ status: 'completed', message: checkData.message, percentage: 100 });
-
-          if (checkData.file_id) {
-            // ⚡ FIX: Télécharger via fetch avec token, puis créer un Blob URL
-            const downloadUrl = `${host}/api/bulletins/merged/${checkData.file_id}/download`;
-            try {
-              const downloadResponse = await fetch(downloadUrl, {
-                headers: { 'Authorization': `Bearer ${token}` }
-              });
-
-              if (downloadResponse.ok) {
-                const blob = await downloadResponse.blob();
-                const blobUrl = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = blobUrl;
-                a.download = checkData.filename || 'bulletins_merged.pdf';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(blobUrl);
-              } else {
-                console.error('Erreur téléchargement:', await downloadResponse.text());
-              }
-            } catch (downloadError) {
-              console.error('Erreur téléchargement PDF:', downloadError);
-            }
-          }
-
-          setSuccess(`✅ ${checkData.message}`);
-          setTimeout(() => setSuccess(''), 5000);
-          return;
+        if (downloadResponse.ok) {
+          const blob = await downloadResponse.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = data.filename || 'bulletins_merged.pdf';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(blobUrl);
         }
       }
 
-      // Sinon continuer le polling normal (mode async)
-      const progressInterval = setInterval(async () => {
-        try {
-          const progressResponse = await fetch(`${host}/api/bulletins/merge-progress/${jobId}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-
-          if (progressResponse.ok) {
-            const progressData = await progressResponse.json();
-            setMergeProgress(progressData);
-
-            if (progressData.status === 'completed') {
-              clearInterval(progressInterval);
-              setMergingPeriod(null);
-
-              // Télécharger automatiquement via fetch + Blob URL (pour envoyer le token)
-              if (progressData.file_id) {
-                const downloadUrl = `${host}/api/bulletins/merged/${progressData.file_id}/download`;
-                try {
-                  const downloadResponse = await fetch(downloadUrl, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                  });
-
-                  if (downloadResponse.ok) {
-                    const blob = await downloadResponse.blob();
-                    const blobUrl = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = blobUrl;
-                    a.download = progressData.filename || 'bulletins_merged.pdf';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(blobUrl);
-                  } else {
-                    console.error('Erreur téléchargement:', await downloadResponse.text());
-                  }
-                } catch (downloadError) {
-                  console.error('Erreur téléchargement PDF:', downloadError);
-                }
-              }
-
-              setSuccess(`✅ ${progressData.message}`);
-              setTimeout(() => setSuccess(''), 5000);
-            } else if (progressData.status === 'failed') {
-              clearInterval(progressInterval);
-              setMergingPeriod(null);
-              throw new Error(progressData.message || 'Erreur lors de la fusion');
-            }
-          }
-        } catch (error) {
-          clearInterval(progressInterval);
-          setMergingPeriod(null);
-          throw error;
-        }
-      }, 2000); // Vérifier toutes les 2 secondes
+      setMergeProgress({ status: 'completed', message: data.message, percentage: 100 });
+      setSuccess(data.message);
+      setTimeout(() => setSuccess(''), 5000);
 
     } catch (error) {
       console.error('Erreur fusion:', error);
-      setMergingPeriod(null);
       setMergeProgress({});
       setError(error.message || 'Erreur lors de la fusion des bulletins');
       setTimeout(() => setError(''), 10000);
+    } finally {
+      setMergingPeriod(null);
     }
   };
 

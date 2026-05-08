@@ -1921,45 +1921,98 @@ class BulletinController extends Controller
             ], 404);
         }
 
-        // Générer un identifiant unique pour suivre la progression
-        $jobId = uniqid('merge_', true);
+        // Fusion synchrone directe (sans job/polling)
+        try {
+            $bulletins = BulletinGeneration::where('period_type', $validated['period_type'])
+                ->where('period_identifier', $validated['period_identifier'])
+                ->whereHas('student', function ($query) use ($validated) {
+                    $query->where('class_series_id', $validated['class_series_id']);
+                })
+                ->with('student')
+                ->orderBy('created_at')
+                ->get();
 
-        // Dispatcher le job de fusion
-        MergeBulletinPDFs::dispatch(
-            $validated['class_series_id'],
-            $validated['period_type'],
-            $validated['period_identifier'],
-            $jobId
-        );
-
-        // ⚡ Si QUEUE_CONNECTION=sync, le job est déjà terminé !
-        // Récupérer le résultat du cache
-        if (config('queue.default') === 'sync') {
-            sleep(1); // Petite pause pour s'assurer que le cache est écrit
-            $progress = \Cache::get("merge_progress_{$jobId}");
-
-            if ($progress && $progress['status'] === 'completed') {
-                return response()->json([
-                    'success' => true,
-                    'message' => $progress['message'],
-                    'job_id' => $jobId,
-                    'bulletin_count' => $bulletinCount,
-                    'class_name' => $classSeries->name,
-                    'completed' => true,
-                    'file_id' => $progress['file_id'] ?? null,
-                    'filename' => $progress['filename'] ?? null,
-                    'download_url' => $progress['download_url'] ?? null
-                ]);
+            // Collecter les fichiers PDF existants
+            $pdfFiles = [];
+            foreach ($bulletins as $bulletin) {
+                $filePath = storage_path('app/' . $bulletin->file_path);
+                if (file_exists($filePath)) {
+                    $pdfFiles[] = $filePath;
+                }
             }
-        }
 
-        return response()->json([
-            'success' => true,
-            'message' => "Fusion de $bulletinCount bulletins en cours...",
-            'job_id' => $jobId,
-            'bulletin_count' => $bulletinCount,
-            'class_name' => $classSeries->name
-        ]);
+            if (empty($pdfFiles)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun fichier PDF trouvé. Régénérez d\'abord les bulletins.'
+                ], 404);
+            }
+
+            // Fusionner avec FPDI
+            $mergedPdf = new \setasign\Fpdi\Fpdi();
+            foreach ($pdfFiles as $file) {
+                try {
+                    $pageCount = $mergedPdf->setSourceFile($file);
+                    for ($i = 1; $i <= $pageCount; $i++) {
+                        $templateId = $mergedPdf->importPage($i);
+                        $size = $mergedPdf->getTemplateSize($templateId);
+                        $mergedPdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                        $mergedPdf->useTemplate($templateId);
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning("Erreur fusion bulletin: " . $e->getMessage());
+                }
+            }
+
+            // Sauvegarder le fichier
+            $filename = "bulletins_{$validated['period_type']}_{$validated['period_identifier']}_classe_{$validated['class_series_id']}_" . now()->format('Y-m-d_His') . ".pdf";
+            $relativePath = "merged_bulletins/{$filename}";
+            $fullPath = storage_path('app/public/' . $relativePath);
+
+            $directory = dirname($fullPath);
+            if (!file_exists($directory)) {
+                mkdir($directory, 0755, true);
+            }
+
+            $mergedPdf->Output('F', $fullPath);
+
+            // Sauvegarder en DB
+            $fileId = null;
+            try {
+                $record = MergedBulletinPDF::create([
+                    'class_series_id' => $validated['class_series_id'],
+                    'period_type' => $validated['period_type'],
+                    'period_identifier' => $validated['period_identifier'],
+                    'file_path' => $relativePath,
+                    'filename' => $filename,
+                    'bulletin_count' => count($pdfFiles),
+                    'file_size' => filesize($fullPath),
+                    'status' => 'completed'
+                ]);
+                $fileId = $record->id;
+            } catch (\Exception $e) {
+                \Log::warning("DB save failed for bulletin merge: " . $e->getMessage());
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => count($pdfFiles) . " bulletins fusionnés avec succès !",
+                'completed' => true,
+                'bulletin_count' => count($pdfFiles),
+                'class_name' => $classSeries->name,
+                'file_id' => $fileId,
+                'filename' => $filename,
+                'download_url' => $fileId ? "/api/bulletins/merged/{$fileId}/download" : null,
+                'direct_download_url' => "/api/bulletins/download-merged-file/{$filename}",
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error("Erreur fusion bulletins: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la fusion: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -2022,6 +2075,18 @@ class BulletinController extends Controller
                 'Content-Disposition' => 'attachment; filename="' . $merged->filename . '"'
             ]
         );
+    }
+
+    /**
+     * Télécharger un fichier fusionné par nom de fichier
+     */
+    public function downloadMergedFile($filename)
+    {
+        $filePath = storage_path('app/public/merged_bulletins/' . $filename);
+        if (!file_exists($filePath)) {
+            return response()->json(['success' => false, 'message' => 'Fichier introuvable'], 404);
+        }
+        return response()->download($filePath, $filename, ['Content-Type' => 'application/pdf']);
     }
 
     /**

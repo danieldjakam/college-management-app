@@ -1389,6 +1389,10 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
     Route::get('/merged/{mergedId}/download', [BulletinController::class, 'downloadMergedBulletin'])
         ->middleware(['role:admin,principal,secretaire']);
 
+    // Téléchargement direct par nom de fichier
+    Route::get('/download-merged-file/{filename}', [BulletinController::class, 'downloadMergedFile'])
+        ->middleware(['role:admin,principal,secretaire']);
+
     // Génération batch synchrone (optimisée pour QUEUE_CONNECTION=sync)
     Route::post('/batch-generate-sync', [BulletinController::class, 'batchGenerateSync'])
         ->middleware(['role:admin,secretaire']);
