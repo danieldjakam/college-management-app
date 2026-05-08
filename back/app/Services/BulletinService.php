@@ -1884,6 +1884,12 @@ class BulletinService
         }
 
         $pdfContent = $dompdf->output();
+
+        if (empty($pdfContent)) {
+            \Log::error("DomPDF output() returned empty content", ['filename' => $filename]);
+            throw new \RuntimeException("PDF generation failed: empty output for {$filename}");
+        }
+
         $filePath = 'public/bulletins/' . $filename;
         $fullPath = storage_path('app/' . $filePath);
 
@@ -1893,7 +1899,19 @@ class BulletinService
             mkdir($directory, 0755, true);
         }
 
-        file_put_contents($fullPath, $pdfContent);
+        $bytesWritten = file_put_contents($fullPath, $pdfContent);
+
+        if ($bytesWritten === false) {
+            \Log::error("file_put_contents failed", ['path' => $fullPath, 'content_size' => strlen($pdfContent)]);
+            throw new \RuntimeException("Failed to write PDF file: {$fullPath}");
+        }
+
+        if (!file_exists($fullPath)) {
+            \Log::error("PDF file missing after write", ['path' => $fullPath, 'bytes_written' => $bytesWritten]);
+            throw new \RuntimeException("PDF file not found after write: {$fullPath}");
+        }
+
+        \Log::info("PDF file written successfully", ['path' => $fullPath, 'size' => $bytesWritten]);
 
         return $filePath;
     }
