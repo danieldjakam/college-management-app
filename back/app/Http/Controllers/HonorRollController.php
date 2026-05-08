@@ -576,14 +576,28 @@ class HonorRollController extends Controller
 
         $students = $students->get();
 
+        // Récupérer le numéro du trimestre (batchGenerate utilise $trimester->number, pas l'ID)
+        $trimester = Trimester::find($validated['trimester_id']);
+        $trimNumber = $trimester ? $trimester->number : $validated['trimester_id'];
+
         // Chercher les certificats existants pour ces étudiants
         foreach ($students as $student) {
-            $filename = 'honor_roll_' . $student->id . '_trim' . $validated['trimester_id'] . '_' . date('Y-m-d') . '.pdf';
+            // Chercher le fichier avec le numéro du trimestre (format de batchGenerate)
+            $filename = 'honor_roll_' . $student->id . '_trim' . $trimNumber . '_' . date('Y-m-d') . '.pdf';
             $filePath = 'public/honor_rolls/' . $filename;
             $fullPath = storage_path('app/' . $filePath);
 
             if (file_exists($fullPath)) {
                 $certificatePaths[] = $filePath;
+            } else {
+                // Fallback: chercher avec n'importe quelle date
+                $pattern = storage_path('app/public/honor_rolls/honor_roll_' . $student->id . '_trim' . $trimNumber . '_*.pdf');
+                $matches = glob($pattern);
+                if (!empty($matches)) {
+                    // Prendre le plus récent
+                    usort($matches, fn($a, $b) => filemtime($b) - filemtime($a));
+                    $certificatePaths[] = str_replace(storage_path('app/'), '', $matches[0]);
+                }
             }
         }
 
