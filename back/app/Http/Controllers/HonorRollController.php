@@ -238,20 +238,36 @@ class HonorRollController extends Controller
             ], 404);
         }
 
-        // Calculer les données du bulletin
-        $bulletinData = $this->bulletinService->generateTrimesterBulletinData(
-            $trimester->number,
-            $student->id
-        );
+        // Use pre-calculated average/rank from frontend if provided (avoids heavy bulletin recalculation)
+        $average = $request->input('average');
+        $rank = $request->input('rank');
 
-        if (!$bulletinData || $bulletinData['average'] < 12.00) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cet élève n\'est pas éligible au tableau d\'honneur (moyenne < 12/20)'
-            ], 400);
+        if ($average && $rank) {
+            $average = round((float) $average, 2);
+            if ($average < 12.00) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet élève n\'est pas éligible au tableau d\'honneur (moyenne < 12/20)'
+                ], 400);
+            }
+        } else {
+            // Fallback: recalculate from bulletin data
+            $bulletinData = $this->bulletinService->generateTrimesterBulletinData(
+                $trimester->number,
+                $student->id
+            );
+
+            if (!$bulletinData || $bulletinData['average'] < 12.00) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet élève n\'est pas éligible au tableau d\'honneur (moyenne < 12/20)'
+                ], 400);
+            }
+            $average = round($bulletinData['average'], 2);
+            $rank = $bulletinData['rank'];
         }
 
-        $mention = $this->getMention($bulletinData['average']);
+        $mention = $this->getMention($average);
 
         // Préparer le logo en base64
         $logoPath = $this->getLogoPath();
@@ -277,10 +293,10 @@ class HonorRollController extends Controller
         $data = [
             'student' => $student,
             'trimester' => $trimester,
-            'average' => round($bulletinData['average'], 2),
-            'rank' => $bulletinData['rank'],
+            'average' => $average,
+            'rank' => $rank,
             'mention' => $mention,
-            'total_points' => $bulletinData['totalPoints'] ?? 0,
+            'total_points' => 0,
             'class_name' => $student->classSeries->name ?? 'N/A',
             'academic_year' => $academicYear,
             'generation_date' => now()->format('d/m/Y'),
@@ -412,6 +428,14 @@ class HonorRollController extends Controller
         $trimesterId = $request->input('trimester_id');
         $trimester = Trimester::find($trimesterId);
 
+        // Build lookup for pre-calculated data from frontend
+        $studentsDataMap = [];
+        if ($request->has('students_data')) {
+            foreach ($request->input('students_data') as $sd) {
+                $studentsDataMap[$sd['id']] = $sd;
+            }
+        }
+
         $generated = [];
         $failed = [];
 
@@ -424,18 +448,30 @@ class HonorRollController extends Controller
                     continue;
                 }
 
-                // Calculer les données du bulletin
-                $bulletinData = $this->bulletinService->generateTrimesterBulletinData(
-                    $trimester->number,
-                    $student->id
-                );
+                // Use pre-calculated data if available
+                if (isset($studentsDataMap[$studentId])) {
+                    $average = round((float) $studentsDataMap[$studentId]['average'], 2);
+                    $rank = $studentsDataMap[$studentId]['rank'];
+                    if ($average < 12.00) {
+                        $failed[] = ['id' => $studentId, 'reason' => 'Non éligible (moyenne < 12/20)'];
+                        continue;
+                    }
+                } else {
+                    // Fallback: recalculate
+                    $bulletinData = $this->bulletinService->generateTrimesterBulletinData(
+                        $trimester->number,
+                        $student->id
+                    );
 
-                if (!$bulletinData || $bulletinData['average'] < 12.00) {
-                    $failed[] = ['id' => $studentId, 'reason' => 'Non éligible (moyenne < 12/20)'];
-                    continue;
+                    if (!$bulletinData || $bulletinData['average'] < 12.00) {
+                        $failed[] = ['id' => $studentId, 'reason' => 'Non éligible (moyenne < 12/20)'];
+                        continue;
+                    }
+                    $average = round($bulletinData['average'], 2);
+                    $rank = $bulletinData['rank'];
                 }
 
-                $mention = $this->getMention($bulletinData['average']);
+                $mention = $this->getMention($average);
 
                 // Préparer le logo en base64
                 $logoPath = $this->getLogoPath();
@@ -461,10 +497,10 @@ class HonorRollController extends Controller
                 $data = [
                     'student' => $student,
                     'trimester' => $trimester,
-                    'average' => round($bulletinData['average'], 2),
-                    'rank' => $bulletinData['rank'],
+                    'average' => $average,
+                    'rank' => $rank,
                     'mention' => $mention,
-                    'total_points' => $bulletinData['totalPoints'] ?? 0,
+                    'total_points' => 0,
                     'class_name' => $student->classSeries->name ?? 'N/A',
                     'academic_year' => $academicYear,
                     'generation_date' => now()->format('d/m/Y'),

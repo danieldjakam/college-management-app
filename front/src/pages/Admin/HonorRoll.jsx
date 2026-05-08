@@ -128,7 +128,7 @@ const HonorRoll = () => {
     }
   };
 
-  const generateCertificate = async (studentId) => {
+  const generateCertificate = async (studentId, average, rank) => {
     if (!selectedTrimester) {
       setError('Veuillez sélectionner un trimestre');
       return;
@@ -142,6 +142,8 @@ const HonorRoll = () => {
       const response = await secureApi.post('/honor-rolls/generate-certificate', {
         student_id: studentId,
         trimester_id: selectedTrimester,
+        average: average,
+        rank: rank,
       });
 
       // secureApi returns the data directly, not wrapped in { data: ... }
@@ -223,9 +225,10 @@ const HonorRoll = () => {
     setSuccess('');
 
     try {
-      const studentIds = eligibleStudents.map(s => s.id);
+      const studentsData = eligibleStudents.map(s => ({ id: s.id, average: s.average, rank: s.rank }));
       const response = await secureApi.post('/honor-rolls/batch-generate', {
-        student_ids: studentIds,
+        student_ids: eligibleStudents.map(s => s.id),
+        students_data: studentsData,
         trimester_id: selectedTrimester,
       });
 
@@ -679,7 +682,7 @@ const HonorRoll = () => {
                             <Button
                               color="primary"
                               size="sm"
-                              onClick={() => generateCertificate(student.id)}
+                              onClick={() => generateCertificate(student.id, student.average, student.rank)}
                               disabled={generating[student.id]}
                             >
                               {generating[student.id] ? (
