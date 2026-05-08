@@ -1752,6 +1752,10 @@ Route::prefix('honor-rolls')->middleware('auth:api')->group(function () {
     Route::get('/merged/{mergedId}/download', [HonorRollController::class, 'downloadMergedCertificate'])
         ->middleware(['role:admin,principal,directeur_etudes,secretaire,parent']);
 
+    // Download merged file by filename
+    Route::get('/download-merged-file/{filename}', [HonorRollController::class, 'downloadMergedFile'])
+        ->middleware(['role:admin,principal,directeur_etudes,secretaire']);
+
     // List all merged certificate PDFs
     Route::get('/merged', [HonorRollController::class, 'listMergedCertificates'])
         ->middleware(['role:admin,principal,directeur_etudes,secretaire']);

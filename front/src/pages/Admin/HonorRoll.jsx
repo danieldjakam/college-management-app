@@ -252,7 +252,6 @@ const HonorRoll = () => {
     setSuccess('');
 
     try {
-      // Lancer la fusion
       const response = await secureApi.post('/honor-rolls/merge', {
         trimester_id: selectedTrimester,
         section_id: selectedSection || null,
@@ -261,97 +260,37 @@ const HonorRoll = () => {
         series_id: selectedSeries || null,
       });
 
-      const jobId = response.job_id;
+      // Télécharger le fichier fusionné
+      const downloadUrl = response.download_url || response.direct_download_url;
+      if (downloadUrl) {
+        const token = localStorage.getItem('token');
+        const downloadResponse = await fetch(host + downloadUrl, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
 
-      // Attendre la fin de la fusion
-      let completed = response.completed || false;
-      let downloadUrl = response.download_url;
+        if (downloadResponse.ok) {
+          const blob = await downloadResponse.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = response.filename || 'honor_rolls_merged.pdf';
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
 
-      if (!completed) {
-        // Polling pour vérifier la progression
-        const checkProgress = setInterval(async () => {
-          try {
-            const progressResponse = await secureApi.get(`/honor-rolls/merge-progress/${jobId}`);
-
-            if (progressResponse.status === 'completed') {
-              clearInterval(checkProgress);
-              downloadUrl = progressResponse.download_url;
-              completed = true;
-
-              // Télécharger automatiquement
-              if (downloadUrl) {
-                const token = localStorage.getItem('token');
-                const downloadResponse = await fetch(host + downloadUrl, {
-                  method: 'GET',
-                  headers: {
-                    'Authorization': `Bearer ${token}`
-                  }
-                });
-
-                if (downloadResponse.ok) {
-                  const blob = await downloadResponse.blob();
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = progressResponse.filename;
-                  document.body.appendChild(a);
-                  a.click();
-                  window.URL.revokeObjectURL(url);
-                  document.body.removeChild(a);
-
-                  setSuccess(`${progressResponse.current} certificats fusionnés et téléchargés avec succès !`);
-                  setMerging(false);
-                }
-              }
-            } else if (progressResponse.status === 'failed') {
-              clearInterval(checkProgress);
-              setError('Erreur lors de la fusion des certificats');
-              setMerging(false);
-            }
-          } catch (err) {
-            console.error('Error checking progress:', err);
-          }
-        }, 2000); // Vérifier toutes les 2 secondes
-
-        // Timeout après 5 minutes
-        setTimeout(() => {
-          clearInterval(checkProgress);
-          if (merging) {
-            setError('La fusion prend trop de temps. Vérifiez les PDFs fusionnés dans l\'historique.');
-            setMerging(false);
-          }
-        }, 300000);
-      } else {
-        // Déjà terminé (mode sync)
-        if (downloadUrl) {
-          const token = localStorage.getItem('token');
-          const downloadResponse = await fetch(host + downloadUrl, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-
-          if (downloadResponse.ok) {
-            const blob = await downloadResponse.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = response.filename;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-
-            setSuccess(`${response.certificate_count} certificats fusionnés et téléchargés avec succès !`);
-          }
+          setSuccess(`${response.certificate_count} certificats fusionnés et téléchargés avec succès !`);
+        } else {
+          setError('Erreur lors du téléchargement du fichier fusionné');
         }
-        setMerging(false);
+      } else {
+        setSuccess(response.message || 'Fusion terminée');
       }
-
     } catch (err) {
       console.error('Error merging certificates:', err);
       setError(err.message || 'Erreur lors de la fusion des certificats');
+    } finally {
       setMerging(false);
     }
   };

@@ -391,6 +391,32 @@ class HonorRollController extends Controller
     }
 
     /**
+     * Helper pour générer le label du filtre pour le nom de fichier fusionné
+     */
+    private function generateMergeFilterLabel($validated)
+    {
+        if (!empty($validated['series_id'])) return "serie_{$validated['series_id']}";
+        if (!empty($validated['class_id'])) return "class_{$validated['class_id']}";
+        if (!empty($validated['level_id'])) return "level_{$validated['level_id']}";
+        if (!empty($validated['section_id'])) return "section_{$validated['section_id']}";
+        return "all";
+    }
+
+    /**
+     * Télécharger un fichier fusionné directement par nom
+     */
+    public function downloadMergedFile($filename)
+    {
+        $filePath = storage_path('app/public/merged_honor_rolls/' . $filename);
+
+        if (!file_exists($filePath)) {
+            return response()->json(['success' => false, 'message' => 'Fichier introuvable'], 404);
+        }
+
+        return response()->download($filePath, $filename, ['Content-Type' => 'application/pdf']);
+    }
+
+    /**
      * Récupérer les filtres disponibles (sections, niveaux, classes, séries)
      */
     public function getFilters()
@@ -640,49 +666,91 @@ class HonorRollController extends Controller
         if (empty($certificatePaths)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Aucun certificat trouvé pour les critères sélectionnés'
+                'message' => 'Aucun certificat trouvé pour les critères sélectionnés. Générez d\'abord les certificats individuels.'
             ], 404);
         }
 
-        // Générer un identifiant unique pour suivre la progression
-        $jobId = uniqid('merge_honor_', true);
+        // Faire la fusion directement (sans job) pour éviter les problèmes de timeout/cache
+        try {
+            $pdf = new \setasign\Fpdi\Fpdi();
+            $processedCount = 0;
 
-        // Dispatcher le job de fusion
-        MergeHonorRollPDFs::dispatch(
-            $validated['trimester_id'],
-            $validated['section_id'] ?? null,
-            $validated['level_id'] ?? null,
-            $validated['class_id'] ?? null,
-            $validated['series_id'] ?? null,
-            $certificatePaths,
-            $jobId
-        );
+            foreach ($certificatePaths as $certificatePath) {
+                try {
+                    $filePath = storage_path('app/' . $certificatePath);
+                    if (!file_exists($filePath)) continue;
 
-        // Si QUEUE_CONNECTION=sync, le job est déjà terminé
-        if (config('queue.default') === 'sync') {
-            sleep(1);
-            $progress = Cache::get("merge_honor_progress_{$jobId}");
-
-            if ($progress && $progress['status'] === 'completed') {
-                return response()->json([
-                    'success' => true,
-                    'message' => $progress['message'],
-                    'job_id' => $jobId,
-                    'certificate_count' => count($certificatePaths),
-                    'completed' => true,
-                    'file_id' => $progress['file_id'] ?? null,
-                    'filename' => $progress['filename'] ?? null,
-                    'download_url' => $progress['download_url'] ?? null
-                ]);
+                    $pageCount = $pdf->setSourceFile($filePath);
+                    for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                        $tplId = $pdf->importPage($pageNo);
+                        $size = $pdf->getTemplateSize($tplId);
+                        $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                        $pdf->useTemplate($tplId);
+                    }
+                    $processedCount++;
+                } catch (\Exception $e) {
+                    \Log::warning("Erreur fusion certificat: " . $e->getMessage());
+                }
             }
-        }
 
-        return response()->json([
-            'success' => true,
-            'message' => "Fusion de " . count($certificatePaths) . " certificats en cours...",
-            'job_id' => $jobId,
-            'certificate_count' => count($certificatePaths),
-        ]);
+            if ($processedCount === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun PDF n\'a pu être fusionné'
+                ], 500);
+            }
+
+            // Générer le fichier
+            $filterLabel = $this->generateMergeFilterLabel($validated);
+            $filename = "honor_rolls_trim{$trimNumber}_{$filterLabel}_" . now()->format('Y-m-d_His') . ".pdf";
+            $relativePath = "merged_honor_rolls/{$filename}";
+            $fullPath = storage_path('app/public/' . $relativePath);
+
+            $directory = dirname($fullPath);
+            if (!file_exists($directory)) {
+                mkdir($directory, 0755, true);
+            }
+
+            $pdf->Output('F', $fullPath);
+
+            // Sauvegarder en DB
+            try {
+                $mergedPdf = MergedHonorRollPDF::create([
+                    'trimester_id' => $validated['trimester_id'],
+                    'section_id' => $validated['section_id'] ?? null,
+                    'level_id' => $validated['level_id'] ?? null,
+                    'class_id' => $validated['class_id'] ?? null,
+                    'series_id' => $validated['series_id'] ?? null,
+                    'file_path' => $relativePath,
+                    'filename' => $filename,
+                    'certificate_count' => $processedCount,
+                    'file_size' => filesize($fullPath),
+                    'status' => 'completed'
+                ]);
+                $fileId = $mergedPdf->id;
+            } catch (\Exception $e) {
+                \Log::warning("DB save failed for merge, but file exists: " . $e->getMessage());
+                $fileId = null;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "{$processedCount} certificats fusionnés avec succès !",
+                'completed' => true,
+                'certificate_count' => $processedCount,
+                'file_id' => $fileId,
+                'filename' => $filename,
+                'download_url' => $fileId ? "/api/honor-rolls/merged/{$fileId}/download" : null,
+                'direct_download_url' => "/api/honor-rolls/download-merged-file/{$filename}",
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error("Erreur fusion certificats: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la fusion: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
