@@ -844,6 +844,7 @@ class BulletinService
 
                 $bulletinData['subjects'][] = [
                     'name' => $seriesSubject->subject->name,
+                    'subject_id' => $seriesSubject->subject->id,
                     'sequence1' => $sequenceGrades[0], // Nouvelle structure pour Deuxième Cycle
                     'sequence2' => $sequenceGrades[1], // Nouvelle structure pour Deuxième Cycle
                     'composition' => $compositionGrade,
@@ -912,7 +913,7 @@ class BulletinService
 
                 $bulletinData['subjects'][] = [
                     'name' => $seriesSubject->subject->name,
-                    'subject_id' => $seriesSubject->id, // ID du ClassSeriesSubject pour les calculs Min-Max
+                    'subject_id' => $seriesSubject->subject->id,
                     'ds' => $dsAverage,
                     'composition' => $compositionGrade,
                     'score' => $trimesterGrade, // Pour compatibilité avec le template

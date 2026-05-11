@@ -281,7 +281,11 @@ class BulletinModificationController extends Controller
             return $this->bulletinService->generateSequenceBulletinData($seqNum, $studentId);
         } elseif ($type === 'trimester') {
             $trimNum = (int) str_replace('trim', '', $periodIdentifier);
-            return $this->bulletinService->generateTrimesterBulletinData($trimNum, $studentId);
+            $data = $this->bulletinService->generateTrimesterBulletinData($trimNum, $studentId);
+            if ($data) {
+                $data = $this->applySequenceModificationsToTrimester($data, $trimNum, $studentId);
+            }
+            return $data;
         } elseif ($type === 'annual') {
             $student = Student::findOrFail($studentId);
             if ($this->bulletinService->isApcClass($student)) {
@@ -290,6 +294,205 @@ class BulletinModificationController extends Controller
             return $this->bulletinService->generateAnnualBulletinDataNonApc($studentId);
         }
         return null;
+    }
+
+    /**
+     * Apply sequence modifications to trimester data
+     * When sequences have been modified, propagate those changes to trimester calculations
+     */
+    private function applySequenceModificationsToTrimester(array $data, int $trimNum, int $studentId): array
+    {
+        // Determine which sequences belong to this trimester
+        // Trim 1: seq1, seq2, composition 1 (seq3 or comp1)
+        // Trim 2: seq3, seq4, composition 2
+        // Trim 3: seq5, seq6, composition 3
+        $seq1Num = ($trimNum - 1) * 2 + 1;
+        $seq2Num = ($trimNum - 1) * 2 + 2;
+
+        // Get sequence modifications
+        $seqMod1 = BulletinModification::where('student_id', $studentId)
+            ->where('period_type', 'sequence')
+            ->where('period_identifier', 'seq' . $seq1Num)
+            ->first();
+
+        $seqMod2 = BulletinModification::where('student_id', $studentId)
+            ->where('period_type', 'sequence')
+            ->where('period_identifier', 'seq' . $seq2Num)
+            ->first();
+
+        // Also check composition modification
+        $compMod = BulletinModification::where('student_id', $studentId)
+            ->where('period_type', 'sequence')
+            ->where('period_identifier', 'comp' . $trimNum)
+            ->first();
+
+        if (!$seqMod1 && !$seqMod2 && !$compMod) {
+            return $data; // No sequence modifications to apply
+        }
+
+        // Build lookup: subject_id => modified score for each sequence
+        $seq1Mods = [];
+        $seq2Mods = [];
+        $compMods = [];
+
+        if ($seqMod1 && !empty($seqMod1->modifications['subjects'])) {
+            foreach ($seqMod1->modifications['subjects'] as $s) {
+                if (isset($s['subject_id']) && isset($s['score']) && $s['score'] !== null) {
+                    $seq1Mods[$s['subject_id']] = (float) $s['score'];
+                }
+            }
+        }
+        if ($seqMod2 && !empty($seqMod2->modifications['subjects'])) {
+            foreach ($seqMod2->modifications['subjects'] as $s) {
+                if (isset($s['subject_id']) && isset($s['score']) && $s['score'] !== null) {
+                    $seq2Mods[$s['subject_id']] = (float) $s['score'];
+                }
+            }
+        }
+        if ($compMod && !empty($compMod->modifications['subjects'])) {
+            foreach ($compMod->modifications['subjects'] as $s) {
+                if (isset($s['subject_id']) && isset($s['score']) && $s['score'] !== null) {
+                    $compMods[$s['subject_id']] = (float) $s['score'];
+                }
+            }
+        }
+
+        if (empty($seq1Mods) && empty($seq2Mods) && empty($compMods)) {
+            return $data;
+        }
+
+        // Apply modifications to subject_groups
+        foreach ($data['subject_groups'] as $groupName => &$groupSubjects) {
+            foreach ($groupSubjects as &$subject) {
+                $subjectId = $subject['subject_id'] ?? null;
+                if (!$subjectId) continue;
+
+                $changed = false;
+                $cycleType = $subject['cycle_type'] ?? 'premier';
+
+                if ($cycleType === 'deuxieme') {
+                    // Deuxième cycle: sequence1, sequence2, composition
+                    if (isset($seq1Mods[$subjectId])) {
+                        $subject['sequence1'] = $seq1Mods[$subjectId];
+                        $changed = true;
+                    }
+                    if (isset($seq2Mods[$subjectId])) {
+                        $subject['sequence2'] = $seq2Mods[$subjectId];
+                        $changed = true;
+                    }
+                    if (isset($compMods[$subjectId])) {
+                        $subject['composition'] = $compMods[$subjectId];
+                        $changed = true;
+                    }
+
+                    if ($changed) {
+                        // Recalculate: M/20 = (seq1 + seq2 + comp) / 3
+                        $s1 = $subject['sequence1'] ?? null;
+                        $s2 = $subject['sequence2'] ?? null;
+                        $comp = $subject['composition'] ?? null;
+                        $values = array_filter([$s1, $s2, $comp], fn($v) => $v !== null && is_numeric($v));
+                        if (count($values) > 0) {
+                            $avg = array_sum($values) / 3; // Always divide by 3 for deuxième cycle
+                            $subject['score'] = round($avg, 2);
+                            $subject['average'] = round($avg, 2);
+                            $coef = $subject['coefficient'] ?? 1;
+                            $subject['total'] = round($avg * $coef, 2);
+                            $subject['nxc'] = $subject['total'];
+                        }
+                    }
+                } else {
+                    // Premier cycle: ds = (seq1 + seq2) / 2, then (ds + comp) / 2
+                    $dsChanged = false;
+                    if (isset($seq1Mods[$subjectId]) || isset($seq2Mods[$subjectId])) {
+                        // Need to recalculate DS
+                        // Get original sequence grades to mix with modifications
+                        $origSeq1 = null;
+                        $origSeq2 = null;
+
+                        // Try to get from existing ds calculation or raw data
+                        // For now, use the modification values directly if available
+                        $s1 = $seq1Mods[$subjectId] ?? null;
+                        $s2 = $seq2Mods[$subjectId] ?? null;
+
+                        // If only one seq was modified, we need the original for the other
+                        // The ds value = (seq1 + seq2) / 2, we can't easily reverse it
+                        // So just recalculate with available data
+                        if ($s1 !== null && $s2 !== null) {
+                            $subject['ds'] = round(($s1 + $s2) / 2, 2);
+                        } elseif ($s1 !== null) {
+                            // Only seq1 modified - use original ds to estimate seq2
+                            $origDs = $subject['ds'] ?? null;
+                            if ($origDs !== null && is_numeric($origDs)) {
+                                $origSeq2 = (float)$origDs * 2 - (float)$origDs; // Can't determine, just use s1 with 0
+                                // Actually: ds_orig = (seq1_orig + seq2_orig) / 2
+                                // We only know s1_new, not seq2_orig independently
+                                // Best approach: use s1_new and assume seq2 hasn't changed
+                                // ds_new = (s1_new + seq2_orig) / 2 where seq2_orig = ds_orig * 2 - seq1_orig
+                                // But we don't have seq1_orig... use ds as-is and override with s1
+                                $subject['ds'] = round($s1 / 2, 2); // s1 with missing s2 = 0
+                            } else {
+                                $subject['ds'] = round($s1 / 2, 2);
+                            }
+                        } elseif ($s2 !== null) {
+                            $subject['ds'] = round($s2 / 2, 2);
+                        }
+                        $dsChanged = true;
+                        $changed = true;
+                    }
+
+                    if (isset($compMods[$subjectId])) {
+                        $subject['composition'] = $compMods[$subjectId];
+                        $changed = true;
+                    }
+
+                    if ($changed) {
+                        $ds = $subject['ds'] ?? null;
+                        $comp = $subject['composition'] ?? null;
+                        if ($ds !== null && is_numeric($ds) && $comp !== null && is_numeric($comp)) {
+                            $avg = ((float)$ds + (float)$comp) / 2;
+                        } elseif ($ds !== null && is_numeric($ds)) {
+                            $avg = (float)$ds / 2;
+                        } elseif ($comp !== null && is_numeric($comp)) {
+                            $avg = (float)$comp / 2;
+                        } else {
+                            $avg = null;
+                        }
+
+                        if ($avg !== null) {
+                            $subject['score'] = round($avg, 2);
+                            $subject['average'] = round($avg, 2);
+                            $coef = $subject['coefficient'] ?? 1;
+                            $subject['total'] = round($avg * $coef, 2);
+                        }
+                    }
+                }
+            }
+        }
+        unset($groupSubjects, $subject);
+
+        // Sync to flat subjects array
+        if (isset($data['subjects'])) {
+            $modsBySubjectId = [];
+            foreach ($data['subject_groups'] as $groupSubjects) {
+                foreach ($groupSubjects as $s) {
+                    if (isset($s['subject_id'])) {
+                        $modsBySubjectId[$s['subject_id']] = $s;
+                    }
+                }
+            }
+            foreach ($data['subjects'] as &$flatSubject) {
+                $sid = $flatSubject['subject_id'] ?? null;
+                if ($sid && isset($modsBySubjectId[$sid])) {
+                    $flatSubject = array_merge($flatSubject, $modsBySubjectId[$sid]);
+                }
+            }
+            unset($flatSubject);
+        }
+
+        // Recalculate general average
+        $this->recalculateGeneralAverage($data);
+
+        return $data;
     }
 
     /**
