@@ -16,6 +16,7 @@ use App\Jobs\MergeBulletinPDFs;
 use App\Models\MergedBulletinPDF;
 use App\Models\ClassSeries;
 use App\Models\BulletinModification;
+use App\Http\Controllers\BulletinModificationController;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
@@ -1310,6 +1311,17 @@ class BulletinController extends Controller
                     }
 
                     $bulletinData = $allBulletinData[$studentId];
+
+                    // Apply manual modifications if any
+                    $modification = BulletinModification::where('student_id', $studentId)
+                        ->where('period_type', 'trimester')
+                        ->where('period_identifier', 'trim' . $request->trimester_number)
+                        ->first();
+
+                    if ($modification) {
+                        $modController = new BulletinModificationController($this->bulletinService);
+                        $bulletinData = $modController->applyModifications($bulletinData, $modification->modifications, 'trimester');
+                    }
 
                     // Générer le HTML
                     $htmlContent = $this->bulletinService->renderBulletinTemplate('trimester', $bulletinData, true);
