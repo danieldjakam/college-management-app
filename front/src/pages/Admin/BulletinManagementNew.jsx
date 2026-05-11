@@ -427,13 +427,13 @@ function BulletinManagementNew() {
 
   const handleEditSubjectChange = (subjectId, field, value) => {
     setEditModifications(prev => {
-      const subjects = [...(prev.subjects || [])];
-      let subjectMod = subjects.find(s => s.subject_id === subjectId);
-      if (!subjectMod) {
-        subjectMod = { subject_id: subjectId };
-        subjects.push(subjectMod);
+      const subjects = (prev.subjects || []).map(s => ({ ...s }));
+      const idx = subjects.findIndex(s => s.subject_id === subjectId);
+      if (idx >= 0) {
+        subjects[idx] = { ...subjects[idx], [field]: value === '' ? null : parseFloat(value) };
+      } else {
+        subjects.push({ subject_id: subjectId, [field]: value === '' ? null : parseFloat(value) });
       }
-      subjectMod[field] = value === '' ? null : parseFloat(value);
       return { ...prev, subjects };
     });
   };
