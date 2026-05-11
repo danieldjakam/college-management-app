@@ -1281,7 +1281,7 @@ class BulletinService
                             'total' => number_format($average * $coefficient, 2),
                             'nxc' => number_format($average * $coefficient, 2), // NXC = Moy × COEF
                             'teacher' => $teacherNames ?: 'Non assigné',
-                            'subject_id' => $subject->id,
+                            'subject_id' => $subject->subject->id,
                             'rank' => $this->getTrimesterSubjectRankOptimized($student->id, $subject->id, $classTrimesterGrades),
                             'min' => $minMaxData['min'],
                             'max' => $minMaxData['max'],
