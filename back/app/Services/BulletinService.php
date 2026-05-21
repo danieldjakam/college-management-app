@@ -4651,7 +4651,7 @@ class BulletinService
         $replacements = [
             '{{logo_base64}}' => $logoBase64,
             '{{school_year}}' => $data['school_year'] ?? '',
-            '{{student_name}}' => strtoupper(($data['student_first_name'] ?? '') . ' ' . ($data['student_last_name'] ?? '')),
+            '{{student_name}}' => strtoupper(($data['student_last_name'] ?? '') . ' ' . ($data['student_first_name'] ?? '')),
             '{{student_number}}' => $data['student_matricule'] ?? 'N/A',
             '{{birth_date}}' => $data['student_birth_date'] ?? 'N/A',
             '{{class_name}}' => $data['class_name'] ?? 'N/A',

@@ -528,9 +528,27 @@ class BulletinModificationController extends Controller
                         }
                         $subjectEntry['cycle_type'] = $cycleType;
                     } elseif ($type === 'annual') {
-                        $subjectEntry['trim1'] = $subject['trim1'] ?? $subject['trimester1_average'] ?? null;
-                        $subjectEntry['trim2'] = $subject['trim2'] ?? $subject['trimester2_average'] ?? null;
-                        $subjectEntry['trim3'] = $subject['trim3'] ?? $subject['trimester3_average'] ?? null;
+                        // Expose individual sequences and compositions for editing
+                        $isNonApc = isset($subject['ev1']);
+                        $subjectEntry['is_non_apc'] = $isNonApc;
+
+                        if ($isNonApc) {
+                            // NonAPC: ev1-ev4, comp1-comp3 (ev5/ev6 stay as-is for premier cycle)
+                            for ($i = 1; $i <= 4; $i++) {
+                                $val = $subject["ev{$i}"] ?? '-';
+                                $subjectEntry["ev{$i}"] = ($val !== '-' && $val !== 'ABS') ? (float) $val : null;
+                            }
+                            for ($i = 1; $i <= 3; $i++) {
+                                $val = $subject["comp{$i}"] ?? '-';
+                                $subjectEntry["comp{$i}"] = ($val !== '-' && $val !== 'ABS') ? (float) $val : null;
+                            }
+                        } else {
+                            // APC: trim values come from calcTrimGrade (ds+comp), expose as trim1/trim2/trim3
+                            // But also need raw sequence data - extract from bulletin data
+                            $subjectEntry['trim1'] = $subject['trim1'] ?? $subject['trimester1_average'] ?? null;
+                            $subjectEntry['trim2'] = $subject['trim2'] ?? $subject['trimester2_average'] ?? null;
+                            $subjectEntry['trim3'] = $subject['trim3'] ?? $subject['trimester3_average'] ?? null;
+                        }
                         $subjectEntry['score'] = $subject['score'] ?? $subject['annual_average'] ?? null;
                     }
 
@@ -622,18 +640,92 @@ class BulletinModificationController extends Controller
                             $subject['total'] = ($subject['score'] ?? 0) * ($subject['coefficient'] ?? 1);
                             $subject['nxc'] = $subject['total'];
                         } elseif ($type === 'annual') {
-                            if (array_key_exists('trim1', $mod)) {
-                                $subject['trim1'] = $mod['trim1'] !== null ? (float) $mod['trim1'] : null;
-                                $subject['trimester1_average'] = $subject['trim1'];
+                            $isNonApc = isset($subject['ev1']);
+                            $annualChanged = false;
+
+                            if ($isNonApc) {
+                                // NonAPC: apply ev1-ev4, comp1-comp3 modifications
+                                for ($i = 1; $i <= 4; $i++) {
+                                    $key = "ev{$i}";
+                                    if (array_key_exists($key, $mod) && $mod[$key] !== null) {
+                                        $subject[$key] = number_format((float) $mod[$key], 2);
+                                        $annualChanged = true;
+                                    }
+                                }
+                                for ($i = 1; $i <= 3; $i++) {
+                                    $key = "comp{$i}";
+                                    if (array_key_exists($key, $mod) && $mod[$key] !== null) {
+                                        $subject[$key] = number_format((float) $mod[$key], 2);
+                                        $annualChanged = true;
+                                    }
+                                }
+
+                                if ($annualChanged) {
+                                    // Recalculate trimester averages from sequences + compositions
+                                    // Premier cycle: trim = (DS + comp) / 2 where DS = (seq1 + seq2) / 2
+                                    // Trim 1: ev1, ev2, comp1 | Trim 2: ev3, ev4, comp2 | Trim 3: comp3 only
+                                    $parseVal = function ($v) {
+                                        if ($v === '-' || $v === 'ABS' || $v === null) return null;
+                                        return (float) $v;
+                                    };
+
+                                    // Trim 1
+                                    $s1 = $parseVal($subject['ev1'] ?? null);
+                                    $s2 = $parseVal($subject['ev2'] ?? null);
+                                    $c1 = $parseVal($subject['comp1'] ?? null);
+                                    $t1 = $this->calcTrimesterFromComponents($s1, $s2, $c1);
+
+                                    // Trim 2
+                                    $s3 = $parseVal($subject['ev3'] ?? null);
+                                    $s4 = $parseVal($subject['ev4'] ?? null);
+                                    $c2 = $parseVal($subject['comp2'] ?? null);
+                                    $t2 = $this->calcTrimesterFromComponents($s3, $s4, $c2);
+
+                                    // Trim 3: composition only
+                                    $c3 = $parseVal($subject['comp3'] ?? null);
+                                    $t3 = ($c3 !== null) ? $c3 : null;
+
+                                    // Recalculate annual average: (trim1 + trim2 + trim3) / 3
+                                    $trimValues = array_filter([$t1, $t2, $t3], fn($v) => $v !== null);
+                                    if (count($trimValues) > 0) {
+                                        $annualAvg = (($t1 ?? 0) + ($t2 ?? 0) + ($t3 ?? 0)) / 3;
+                                        $subject['annual_average'] = round($annualAvg, 2);
+                                        $subject['score'] = round($annualAvg, 2);
+                                        $subject['average'] = round($annualAvg, 2);
+                                        $coef = $subject['coefficient'] ?? 1;
+                                        $subject['total'] = round($annualAvg * $coef, 2);
+                                    }
+                                }
+                            } else {
+                                // APC: allow direct trim modifications (fallback)
+                                if (array_key_exists('trim1', $mod)) {
+                                    $subject['trim1'] = $mod['trim1'] !== null ? (float) $mod['trim1'] : null;
+                                    $subject['trimester1_average'] = $subject['trim1'];
+                                    $annualChanged = true;
+                                }
+                                if (array_key_exists('trim2', $mod)) {
+                                    $subject['trim2'] = $mod['trim2'] !== null ? (float) $mod['trim2'] : null;
+                                    $subject['trimester2_average'] = $subject['trim2'];
+                                    $annualChanged = true;
+                                }
+                                if (array_key_exists('trim3', $mod)) {
+                                    $subject['trim3'] = $mod['trim3'] !== null ? (float) $mod['trim3'] : null;
+                                    $subject['trimester3_average'] = $subject['trim3'];
+                                    $annualChanged = true;
+                                }
+
+                                if ($annualChanged && !isset($mod['score'])) {
+                                    // Recalculate annual from trimesters
+                                    $t1 = (float) ($subject['trim1'] ?? $subject['trimester1_average'] ?? 0);
+                                    $t2 = (float) ($subject['trim2'] ?? $subject['trimester2_average'] ?? 0);
+                                    $t3 = (float) ($subject['trim3'] ?? $subject['trimester3_average'] ?? 0);
+                                    $annualAvg = ($t1 + $t2 + $t3) / 3;
+                                    $subject['score'] = round($annualAvg, 2);
+                                    $subject['annual_average'] = round($annualAvg, 2);
+                                    $subject['average'] = round($annualAvg, 2);
+                                }
                             }
-                            if (array_key_exists('trim2', $mod)) {
-                                $subject['trim2'] = $mod['trim2'] !== null ? (float) $mod['trim2'] : null;
-                                $subject['trimester2_average'] = $subject['trim2'];
-                            }
-                            if (array_key_exists('trim3', $mod)) {
-                                $subject['trim3'] = $mod['trim3'] !== null ? (float) $mod['trim3'] : null;
-                                $subject['trimester3_average'] = $subject['trim3'];
-                            }
+
                             if (isset($mod['score']) && $mod['score'] !== null) {
                                 $subject['score'] = (float) $mod['score'];
                                 $subject['annual_average'] = (float) $mod['score'];
@@ -720,6 +812,19 @@ class BulletinModificationController extends Controller
         }
 
         return $bulletinData;
+    }
+
+    /**
+     * Calculate trimester average from sequence and composition components
+     * Premier cycle: (DS + comp) / 2 where DS = (seq1 + seq2) / 2
+     */
+    private function calcTrimesterFromComponents(?float $seq1, ?float $seq2, ?float $comp): ?float
+    {
+        $hasAny = ($seq1 !== null || $seq2 !== null || $comp !== null);
+        if (!$hasAny) return null;
+
+        $ds = (($seq1 ?? 0) + ($seq2 ?? 0)) / 2;
+        return ($ds + ($comp ?? 0)) / 2;
     }
 
     /**

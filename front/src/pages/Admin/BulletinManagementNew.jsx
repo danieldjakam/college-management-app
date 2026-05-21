@@ -2329,7 +2329,18 @@ function BulletinManagementNew() {
                         <th style={{ width: '70px' }}>Compo</th>
                       </>
                     )}
-                    {editBulletinInfo?.type === 'annual' && (
+                    {editBulletinInfo?.type === 'annual' && editData.subjects?.[0]?.is_non_apc && (
+                      <>
+                        <th style={{ width: '55px', fontSize: '10px' }}>Seq1</th>
+                        <th style={{ width: '55px', fontSize: '10px' }}>Seq2</th>
+                        <th style={{ width: '55px', fontSize: '10px' }}>Comp1</th>
+                        <th style={{ width: '55px', fontSize: '10px' }}>Seq3</th>
+                        <th style={{ width: '55px', fontSize: '10px' }}>Seq4</th>
+                        <th style={{ width: '55px', fontSize: '10px' }}>Comp2</th>
+                        <th style={{ width: '55px', fontSize: '10px' }}>Comp3</th>
+                      </>
+                    )}
+                    {editBulletinInfo?.type === 'annual' && !editData.subjects?.[0]?.is_non_apc && (
                       <>
                         <th style={{ width: '70px' }}>Trim 1</th>
                         <th style={{ width: '70px' }}>Trim 2</th>
@@ -2347,7 +2358,7 @@ function BulletinManagementNew() {
                       if (subject.group && subject.group !== currentGroup) {
                         currentGroup = subject.group;
                         const colSpan = editBulletinInfo?.type === 'sequence' ? 4 :
-                                        editBulletinInfo?.type === 'annual' ? 6 :
+                                        editBulletinInfo?.type === 'annual' ? (editData.subjects?.[0]?.is_non_apc ? 10 : 6) :
                                         (editData.subjects?.[0]?.cycle_type === 'deuxieme' ? 6 : 5);
                         rows.push(
                           <tr key={`group-${idx}`} style={{ background: '#e8e0f0' }}>
@@ -2437,7 +2448,21 @@ function BulletinManagementNew() {
                             </>
                           )}
 
-                          {editBulletinInfo?.type === 'annual' && (
+                          {editBulletinInfo?.type === 'annual' && subject.is_non_apc && (
+                            <>
+                              {['ev1', 'ev2', 'comp1', 'ev3', 'ev4', 'comp2', 'comp3'].map(field => (
+                                <td key={field}>
+                                  <Form.Control type="number" size="sm" step="0.25" min="0" max="20"
+                                    placeholder={subject[field] !== null && subject[field] !== undefined ? String(subject[field]) : '-'}
+                                    value={modValue(field)}
+                                    onChange={(e) => handleEditSubjectChange(subject.subject_id, field, e.target.value)}
+                                    style={{ width: '50px', fontSize: '11px' }}
+                                  />
+                                </td>
+                              ))}
+                            </>
+                          )}
+                          {editBulletinInfo?.type === 'annual' && !subject.is_non_apc && (
                             <>
                               <td>
                                 <Form.Control type="number" size="sm" step="0.25" min="0" max="20"
