@@ -641,63 +641,54 @@ class BulletinModificationController extends Controller
                             $subject['nxc'] = $subject['total'];
                         } elseif ($type === 'annual') {
                             $isNonApc = isset($subject['ev1']);
-                            $annualChanged = false;
 
                             if ($isNonApc) {
-                                // NonAPC: apply ev1-ev4, comp1-comp3 modifications
+                                // NonAPC: apply ev1-ev4, comp1-comp3 modifications if present
                                 for ($i = 1; $i <= 4; $i++) {
                                     $key = "ev{$i}";
                                     if (array_key_exists($key, $mod) && $mod[$key] !== null) {
                                         $subject[$key] = number_format((float) $mod[$key], 2);
-                                        $annualChanged = true;
                                     }
                                 }
                                 for ($i = 1; $i <= 3; $i++) {
                                     $key = "comp{$i}";
                                     if (array_key_exists($key, $mod) && $mod[$key] !== null) {
                                         $subject[$key] = number_format((float) $mod[$key], 2);
-                                        $annualChanged = true;
                                     }
                                 }
 
-                                if ($annualChanged) {
-                                    // Recalculate trimester averages from sequences + compositions
-                                    // Premier cycle: trim = (DS + comp) / 2 where DS = (seq1 + seq2) / 2
-                                    // Trim 1: ev1, ev2, comp1 | Trim 2: ev3, ev4, comp2 | Trim 3: comp3 only
-                                    $parseVal = function ($v) {
-                                        if ($v === '-' || $v === 'ABS' || $v === null) return null;
-                                        return (float) $v;
-                                    };
+                                // ALWAYS recalculate annual from current ev/comp values.
+                                // This ensures old stored 'score' fields from previous modification
+                                // formats never corrupt the annual average.
+                                $parseVal = function ($v) {
+                                    if ($v === '-' || $v === 'ABS' || $v === null) return null;
+                                    return (float) $v;
+                                };
 
-                                    // Trim 1
-                                    $s1 = $parseVal($subject['ev1'] ?? null);
-                                    $s2 = $parseVal($subject['ev2'] ?? null);
-                                    $c1 = $parseVal($subject['comp1'] ?? null);
-                                    $t1 = $this->calcTrimesterFromComponents($s1, $s2, $c1);
+                                $t1 = $this->calcTrimesterFromComponents(
+                                    $parseVal($subject['ev1'] ?? null),
+                                    $parseVal($subject['ev2'] ?? null),
+                                    $parseVal($subject['comp1'] ?? null)
+                                );
+                                $t2 = $this->calcTrimesterFromComponents(
+                                    $parseVal($subject['ev3'] ?? null),
+                                    $parseVal($subject['ev4'] ?? null),
+                                    $parseVal($subject['comp2'] ?? null)
+                                );
+                                $c3 = $parseVal($subject['comp3'] ?? null);
+                                $t3 = $c3;
 
-                                    // Trim 2
-                                    $s3 = $parseVal($subject['ev3'] ?? null);
-                                    $s4 = $parseVal($subject['ev4'] ?? null);
-                                    $c2 = $parseVal($subject['comp2'] ?? null);
-                                    $t2 = $this->calcTrimesterFromComponents($s3, $s4, $c2);
-
-                                    // Trim 3: composition only
-                                    $c3 = $parseVal($subject['comp3'] ?? null);
-                                    $t3 = ($c3 !== null) ? $c3 : null;
-
-                                    // Recalculate annual average: (trim1 + trim2 + trim3) / 3
-                                    $trimValues = array_filter([$t1, $t2, $t3], fn($v) => $v !== null);
-                                    if (count($trimValues) > 0) {
-                                        $annualAvg = (($t1 ?? 0) + ($t2 ?? 0) + ($t3 ?? 0)) / 3;
-                                        $subject['annual_average'] = round($annualAvg, 2);
-                                        $subject['score'] = round($annualAvg, 2);
-                                        $subject['average'] = round($annualAvg, 2);
-                                        $coef = $subject['coefficient'] ?? 1;
-                                        $subject['total'] = round($annualAvg * $coef, 2);
-                                    }
+                                $trimValues = array_filter([$t1, $t2, $t3], fn($v) => $v !== null);
+                                if (count($trimValues) > 0) {
+                                    $annualAvg = (($t1 ?? 0) + ($t2 ?? 0) + ($t3 ?? 0)) / 3;
+                                    $subject['annual_average'] = round($annualAvg, 2);
+                                    $subject['score'] = round($annualAvg, 2);
+                                    $subject['average'] = round($annualAvg, 2);
+                                    $subject['total'] = round($annualAvg * ($subject['coefficient'] ?? 1), 2);
                                 }
                             } else {
-                                // APC: allow direct trim modifications (fallback)
+                                // APC: allow direct trim modifications
+                                $annualChanged = false;
                                 if (array_key_exists('trim1', $mod)) {
                                     $subject['trim1'] = $mod['trim1'] !== null ? (float) $mod['trim1'] : null;
                                     $subject['trimester1_average'] = $subject['trim1'];
@@ -715,7 +706,6 @@ class BulletinModificationController extends Controller
                                 }
 
                                 if ($annualChanged && !isset($mod['score'])) {
-                                    // Recalculate annual from trimesters
                                     $t1 = (float) ($subject['trim1'] ?? $subject['trimester1_average'] ?? 0);
                                     $t2 = (float) ($subject['trim2'] ?? $subject['trimester2_average'] ?? 0);
                                     $t3 = (float) ($subject['trim3'] ?? $subject['trimester3_average'] ?? 0);
@@ -724,14 +714,15 @@ class BulletinModificationController extends Controller
                                     $subject['annual_average'] = round($annualAvg, 2);
                                     $subject['average'] = round($annualAvg, 2);
                                 }
-                            }
 
-                            if (isset($mod['score']) && $mod['score'] !== null) {
-                                $subject['score'] = (float) $mod['score'];
-                                $subject['annual_average'] = (float) $mod['score'];
-                                $subject['average'] = (float) $mod['score'];
+                                // APC: allow direct score override
+                                if (isset($mod['score']) && $mod['score'] !== null) {
+                                    $subject['score'] = (float) $mod['score'];
+                                    $subject['annual_average'] = (float) $mod['score'];
+                                    $subject['average'] = (float) $mod['score'];
+                                }
+                                $subject['total'] = ($subject['score'] ?? $subject['annual_average'] ?? 0) * ($subject['coefficient'] ?? 1);
                             }
-                            $subject['total'] = ($subject['score'] ?? $subject['annual_average'] ?? 0) * ($subject['coefficient'] ?? 1);
                         }
 
                         // Recalculate competence based on new score
@@ -862,7 +853,7 @@ class BulletinModificationController extends Controller
 
         foreach ($bulletinData['subject_groups'] as $groupSubjects) {
             foreach ($groupSubjects as $subject) {
-                $score = $subject['score'] ?? $subject['average'] ?? null;
+                $score = $subject['score'] ?? $subject['average'] ?? $subject['annual_average'] ?? null;
                 $coef = $subject['coefficient'] ?? 1;
                 if ($score !== null && $score !== 'ABS' && is_numeric($score)) {
                     $totalPoints += (float) $score * (float) $coef;
