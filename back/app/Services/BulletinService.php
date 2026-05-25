@@ -4648,8 +4648,10 @@ class BulletinService
         }
 
         // Simple placeholders
+        $title = "BULLETIN BILAN ANNUEL";
         $replacements = [
             '{{logo_base64}}' => $logoBase64,
+            '{{bulletin_title}}' => $title,
             '{{school_year}}' => $data['school_year'] ?? '',
             '{{student_name}}' => strtoupper(($data['student_last_name'] ?? '') . ' ' . ($data['student_first_name'] ?? '')),
             '{{student_number}}' => $data['student_matricule'] ?? 'N/A',
@@ -4823,7 +4825,9 @@ class BulletinService
         // Is repeater
         $isRepeater = ($student->is_repeater ?? false) ? 'Oui' : 'Non';
 
+        $title = "BULLETIN BILAN ANNUEL";
         $replacements = [
+            'bulletin_title' => $title,
             'student_name' => strtoupper($student->last_name . ' ' . $student->first_name),
             'birth_date' => $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : ($student->birthday ?? 'N/A'),
             'birth_place' => $student->place_of_birth ?? ($student->birthday_place ?? 'N/A'),
@@ -4845,6 +4849,8 @@ class BulletinService
         $totalCoef = 0;
         $rowIndex = 0;
 
+        $cycleType = $this->determineCycleType($student);
+
         foreach ($data['subjects'] as $subject) {
             $coef = (float)($subject['coefficient'] ?? 1);
             $annualAvg = (float)($subject['annual_average'] ?? 0);
@@ -4855,17 +4861,8 @@ class BulletinService
             $cote = $this->getCote($annualAvg);
             $coteClass = $this->getCoteClass($cote);
 
-            // Appreciation based on annual average
-            $appreciation = '';
-            if ($annualAvg >= 14) {
-                $appreciation = 'Expert';
-            } elseif ($annualAvg >= 12) {
-                $appreciation = 'Acquise';
-            } elseif ($annualAvg >= 10) {
-                $appreciation = 'En Cours d\'Acquisition';
-            } else {
-                $appreciation = 'Non Acquise';
-            }
+            // Appreciation based on annual average using standard competence logic
+            $appreciation = $this->getCompetence($annualAvg, $cycleType, $sectionType);
 
             $rowClass = ($rowIndex % 2 === 1) ? ' class="row-even"' : '';
 

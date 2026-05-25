@@ -257,20 +257,20 @@
         </tr>
     </table>
 
-    <div class="title">BULLETIN SCOLAIRE ANNUEL</div>
-    <div class="year">Annee scolaire : {{school_year}}</div>
+    <div class="title">{{bulletin_title}}</div>
+    <div class="year">Année scolaire : {{school_year}}</div>
 
-    <!-- Tableau informations eleve -->
+    <!-- Tableau informations élève -->
     <table class="student-table">
         <tr>
             <td rowspan="3" class="photo-cell">
                 {{student_photo}}
             </td>
-            <td colspan="4"><b>Nom et Prenoms de l'eleve :</b> {{student_name}}</td>
-            <td><b>Classe :</b> {{class_level}}<sup>eme</sup> {{class_section}}</td>
+            <td colspan="4"><b>Nom et Prénoms de l'élève :</b> {{student_name}}</td>
+            <td><b>Classe :</b> {{class_level}}<sup>ème</sup> {{class_section}}</td>
         </tr>
         <tr>
-            <td colspan="3"><b>Date et lieu de naissance :</b> {{birth_date}} a {{birth_place}}</td>
+            <td colspan="3"><b>Date et lieu de naissance :</b> {{birth_date}} à {{birth_place}}</td>
             <td><b>Genre :</b> {{gender}}</td>
             <td><b>Effectif :</b> {{class_size}}</td>
         </tr>
@@ -297,7 +297,7 @@
                 <th class="total-col">Moy x coef</th>
                 <th class="cote-col">COTE</th>
                 <th class="minmax-col">[Min - Max]</th>
-                <th class="app-col">Appreciations et Visa de l'enseignant</th>
+                <th class="app-col">Appréciations et Visa de l'enseignant</th>
             </tr>
         </thead>
         <tbody>
@@ -314,9 +314,9 @@
         </tbody>
     </table>
 
-    <!-- Tableau Discipline / Travail / Decision / Profil -->
+    <!-- Tableau Discipline / Travail / Décision / Profil -->
     <table class="bottom-table">
-        <!-- Ligne d'en-tete -->
+        <!-- Ligne d'en-tête -->
         <tr>
             <td colspan="4" class="section-header"><b>DISCIPLINE</b></td>
             <td colspan="2" class="section-header"><b>TRAVAIL DE L'ELEVE</b></td>
@@ -342,7 +342,7 @@
         <tr>
             <td class="disc-label">Abs just. (h)</td>
             <td class="disc-data">{{abs_just}}</td>
-            <td class="disc-label">Blame conduite</td>
+            <td class="disc-label">Blâme conduite</td>
             <td class="disc-data">{{blame}}</td>
             <td class="travail-label">COEF.</td>
             <td class="travail-data">{{total_coef}}</td>
@@ -370,22 +370,22 @@
         <tr>
             <td class="disc-label">Consignes (h)</td>
             <td class="disc-data">{{consignes}}</td>
-            <td class="disc-label">Excl. definitive</td>
+            <td class="disc-label">Excl. définitive</td>
             <td class="disc-data">{{exclusion_definitive}}</td>
             <td class="travail-label">COTE</td>
             <td class="travail-data"><b>{{student_cote}}</b></td>
-            <td class="profil-label">Taux reussite</td>
+            <td class="profil-label">Taux réussite</td>
             <td class="profil-data">{{success_rate}}%</td>
         </tr>
     </table>
 
     <!-- Appreciation et Signatures -->
-    <table class="final-table">
+    <table class="final-table" style="margin-bottom: 8px;">
         <tr>
-            <td class="app-header" style="width: 40%;"><b>Appreciation du travail de l'eleve</b></td>
+            <td class="app-header" style="width: 40%;"><b>Appréciation du travail de l'élève</b></td>
             <td class="signature-cell" style="width: 20%;"><b>Visa du parent / Tuteur</b></td>
             <td class="signature-cell" style="width: 20%;"><b>Nom et visa du professeur principal</b></td>
-            <td class="signature-cell" style="width: 20%;"><b>Le Chef d'etablissement</b></td>
+            <td class="signature-cell" style="width: 20%;"><b>Le Chef d'établissement</b></td>
         </tr>
         <tr>
             <td class="app-box">{{detailed_appreciation}}</td>
@@ -394,6 +394,64 @@
             <td class="signature-space"></td>
         </tr>
     </table>
+
+    <!-- Grille de Notation APC -->
+    <div style="margin-top: 5px;">
+        <table style="width: 100%; border: 1px solid #000; border-collapse: collapse;">
+            <tr style="background: #EFE9F3;">
+                <td colspan="5" style="text-align: center; border: 1px solid #000; padding: 2px; font-weight: bold; font-size: 7pt;">GRILLE DE NOTATION / RATING GRID</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 2px; width: 15%; text-align: center; font-weight: bold;">NIVEAUX / LEVELS</td>
+                <td style="border: 1px solid #000; padding: 2px; width: 10%; text-align: center; font-weight: bold;">COTE / GRADE</td>
+                <td style="border: 1px solid #000; padding: 2px; width: 15%; text-align: center; font-weight: bold;">NOTES / MARKS</td>
+                <td style="border: 1px solid #000; padding: 2px; width: 30%; text-align: center; font-weight: bold;">COMPETENCES / COMPETENCES</td>
+                <td style="border: 1px solid #000; padding: 2px; width: 30%; text-align: center; font-weight: bold;">PERFORMANCE GRID</td>
+            </tr>
+            <tr>
+                <td rowspan="2" style="border: 1px solid #000; padding: 2px; text-align: center;">NIVEAU 4</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">A+</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">18 - 20 / 20</td>
+                <td rowspan="2" style="border: 1px solid #000; padding: 2px;">Compétences très bien acquises (CTBA)</td>
+                <td rowspan="2" style="border: 1px solid #000; padding: 2px;">Extremely well acquired competences (EWAC)</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">A</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">16 - 17,99 / 20</td>
+            </tr>
+            <tr>
+                <td rowspan="2" style="border: 1px solid #000; padding: 2px; text-align: center;">NIVEAU 3</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">B+</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">15 - 15,99 / 20</td>
+                <td rowspan="2" style="border: 1px solid #000; padding: 2px;">Compétences bien acquises (CBA)</td>
+                <td rowspan="2" style="border: 1px solid #000; padding: 2px;">Well acquired competences (WAC)</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">B</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">14 - 14,99 / 20</td>
+            </tr>
+            <tr>
+                <td rowspan="2" style="border: 1px solid #000; padding: 2px; text-align: center;">NIVEAU 2</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">C+</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">12 - 13,99 / 20</td>
+                <td style="border: 1px solid #000; padding: 2px;">Compétences acquises (CA)</td>
+                <td style="border: 1px solid #000; padding: 2px;">Acquired competences (AC)</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">C</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">10 - 11,99 / 20</td>
+                <td style="border: 1px solid #000; padding: 2px;">Compétences moyennement acquises (CMA)</td>
+                <td style="border: 1px solid #000; padding: 2px;">Moderately acquired competences (MAC)</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">NIVEAU 1</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">D</td>
+                <td style="border: 1px solid #000; padding: 2px; text-align: center;">Inf à 10 / 20</td>
+                <td style="border: 1px solid #000; padding: 2px;">Compétences non acquises (CNA)</td>
+                <td style="border: 1px solid #000; padding: 2px;">Not acquired competences (NAC)</td>
+            </tr>
+        </table>
+    </div>
     </div><!-- fin content-wrapper -->
 </div>
 </body>
