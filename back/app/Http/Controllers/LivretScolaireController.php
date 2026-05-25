@@ -574,135 +574,128 @@ class LivretScolaireController extends Controller
 
     /**
      * Appliquer les notes ajustees sur les donnees du bulletin
+     * RECALCUL COMPLET : Agit comme une calculatrice pour synchroniser notes et moyennes
      */
     protected function applyAdjustedGrades($bulletinData, $adjustedGrades)
     {
         $totalPoints = 0;
         $totalCoefficient = 0;
-        $cycleType = $bulletinData['cycle_type'] ?? 'premier';
-        $sectionType = $bulletinData['section_type'] ?? 'francophone';
-
-        // Pour recalculer le résumé "Travail Annuel" (Non-APC)
-        $trimTotals = [1 => 0, 2 => 0, 3 => 0];
-        $trimCoefs = [1 => 0, 2 => 0, 3 => 0];
+        
+        // Initialiser les accumulateurs pour le résumé annuel (bas de page)
+        // [Somme des (Note * Coef), Somme des Coefs]
+        $summary = [
+            'ev1' => [0, 0], 'ev2' => [0, 0], 'comp1' => [0, 0], 'trim1' => [0, 0],
+            'ev3' => [0, 0], 'ev4' => [0, 0], 'comp2' => [0, 0], 'trim2' => [0, 0],
+            'ev5' => [0, 0], 'ev6' => [0, 0], 'comp3' => [0, 0], 'trim3' => [0, 0],
+        ];
 
         foreach ($bulletinData['subjects'] as &$subject) {
             $cssId = $subject['class_series_subject_id'] ?? null;
             if (!$cssId) continue;
 
-            $adjusted = $adjustedGrades->get($cssId);
-            $coef = (float)$subject['coefficient'];
+            $adj = $adjustedGrades->get($cssId);
+            $coef = (float)($subject['coefficient'] ?? 1);
 
-            // Récupérer les notes actuelles (originales du bulletin)
-            $ev1 = is_numeric($subject['ev1'] ?? null) ? (float)$subject['ev1'] : null;
-            $ev2 = is_numeric($subject['ev2'] ?? null) ? (float)$subject['ev2'] : null;
-            $comp1 = is_numeric($subject['comp1'] ?? null) ? (float)$subject['comp1'] : null;
-            $ev3 = is_numeric($subject['ev3'] ?? null) ? (float)$subject['ev3'] : null;
-            $ev4 = is_numeric($subject['ev4'] ?? null) ? (float)$subject['ev4'] : null;
-            $comp2 = is_numeric($subject['comp2'] ?? null) ? (float)$subject['comp2'] : null;
-            $comp3 = is_numeric($subject['comp3'] ?? null) ? (float)$subject['comp3'] : null;
-
-            if ($adjusted) {
-                // Appliquer les ajustements individuels
-                if ($adjusted->ev1 !== null) { $ev1 = (float)$adjusted->ev1; $subject['ev1'] = number_format($ev1, 2); }
-                if ($adjusted->ev2 !== null) { $ev2 = (float)$adjusted->ev2; $subject['ev2'] = number_format($ev2, 2); }
-                if ($adjusted->comp1 !== null) { $comp1 = (float)$adjusted->comp1; $subject['comp1'] = number_format($comp1, 2); }
-                if ($adjusted->ev3 !== null) { $ev3 = (float)$adjusted->ev3; $subject['ev3'] = number_format($ev3, 2); }
-                if ($adjusted->ev4 !== null) { $ev4 = (float)$adjusted->ev4; $subject['ev4'] = number_format($ev4, 2); }
-                if ($adjusted->comp2 !== null) { $comp2 = (float)$adjusted->comp2; $subject['comp2'] = number_format($comp2, 2); }
-                if ($adjusted->comp3 !== null) { $comp3 = (float)$adjusted->comp3; $subject['comp3'] = number_format($comp3, 2); }
-            }
-
-            // Recalculer les moyennes trimestrielles
-            $calcTrim = function($e1, $e2, $c) {
-                $parts = array_filter([$e1, $e2], fn($v) => $v !== null);
-                if (count($parts) === 0 && $c === null) return null;
-                $ds = count($parts) > 0 ? array_sum($parts) / 2 : 0;
-                $finalComp = $c !== null ? $c : 0;
-                return ($ds + $finalComp) / 2;
+            // 1. Récupération des notes (Priorité Livret, sinon Bulletin original)
+            $getN = function($field, $key) use ($subject, $adj) {
+                if ($adj && $adj->$field !== null) return (float)$adj->$field;
+                $v = $subject[$key] ?? null;
+                if ($v === '-' || $v === 'ABS' || $v === '') return null;
+                return (is_numeric($v)) ? (float)$v : null;
             };
 
-            $t1 = $calcTrim($ev1, $ev2, $comp1);
-            $t2 = $calcTrim($ev3, $ev4, $comp2);
-            $t3 = $comp3;
+            $ev1 = $getN('ev1', 'ev1'); $ev2 = $getN('ev2', 'ev2'); $c1 = $getN('comp1', 'comp1');
+            $ev3 = $getN('ev3', 'ev3'); $ev4 = $getN('ev4', 'ev4'); $c2 = $getN('comp2', 'comp2');
+            $ev5 = $getN('ev5', 'ev5'); $ev6 = $getN('ev6', 'ev6'); $c3 = $getN('comp3', 'comp3');
 
-            // Fallback aux notes originales si le recalcul par composants échoue
-            if ($t1 === null && isset($subject['trim1']) && is_numeric($subject['trim1'])) $t1 = (float)$subject['trim1'];
-            if ($t2 === null && isset($subject['trim2']) && is_numeric($subject['trim2'])) $t2 = (float)$subject['trim2'];
-            if ($t3 === null && isset($subject['trim3']) && is_numeric($subject['trim3'])) $t3 = (float)$subject['trim3'];
+            // 2. Mise à jour de l'affichage dans le tableau principal
+            $subject['ev1'] = $ev1 !== null ? number_format($ev1, 2) : '-';
+            $subject['ev2'] = $ev2 !== null ? number_format($ev2, 2) : '-';
+            $subject['comp1'] = $c1 !== null ? number_format($c1, 2) : '-';
+            $subject['ev3'] = $ev3 !== null ? number_format($ev3, 2) : '-';
+            $subject['ev4'] = $ev4 !== null ? number_format($ev4, 2) : '-';
+            $subject['comp2'] = $c2 !== null ? number_format($c2, 2) : '-';
+            $subject['ev5'] = $ev5 !== null ? number_format($ev5, 2) : '-';
+            $subject['ev6'] = $ev6 !== null ? number_format($ev6, 2) : '-';
+            $subject['comp3'] = $c3 !== null ? number_format($c3, 2) : '-';
 
-            if ($adjusted) {
-                // Priorité finale aux trimestres manuellement ajustés (Livret)
-                if ($adjusted->trim1 !== null) $t1 = (float)$adjusted->trim1;
-                if ($adjusted->trim2 !== null) $t2 = (float)$adjusted->trim2;
-                if ($adjusted->trim3 !== null) $t3 = (float)$adjusted->trim3;
+            // 3. Recalcul des moyennes trimestrielles de la matière
+            $calcT = function($eA, $eB, $comp) {
+                if ($eA === null && $eB === null && $comp === null) return null;
+                $ds = (($eA ?? 0) + ($eB ?? 0)) / 2;
+                return ($ds + ($comp ?? 0)) / 2;
+            };
+
+            $t1 = ($adj && $adj->trim1 !== null) ? (float)$adj->trim1 : $calcT($ev1, $ev2, $c1);
+            $t2 = ($adj && $adj->trim2 !== null) ? (float)$adj->trim2 : $calcT($ev3, $ev4, $c2);
+            $t3 = ($adj && $adj->trim3 !== null) ? (float)$adj->trim3 : $calcT($ev5, $ev6, $c3);
+
+            // Mise à jour de l'affichage trimestriel par matière
+            $subject['trim1'] = $t1 !== null ? number_format($t1, 2) : '-';
+            $subject['trim2'] = $t2 !== null ? number_format($t2, 2) : '-';
+            $subject['trim3'] = $t3 !== null ? number_format($t3, 2) : '-';
+
+            // 4. Accumulation pour le résumé annuel global (TRAVAIL ANNUEL)
+            $map = [
+                'ev1' => $ev1, 'ev2' => $ev2, 'comp1' => $c1, 'trim1' => $t1,
+                'ev3' => $ev3, 'ev4' => $ev4, 'comp2' => $c2, 'trim2' => $t2,
+                'ev5' => $ev5, 'ev6' => $ev6, 'comp3' => $c3, 'trim3' => $t3,
+            ];
+            foreach ($map as $k => $v) {
+                if ($v !== null) {
+                    $summary[$k][0] += $v * $coef;
+                    $summary[$k][1] += $coef;
+                }
             }
 
-            // Mise à jour du sujet pour le template
-            if ($t1 !== null) $subject['trim1'] = number_format($t1, 2);
-            if ($t2 !== null) $subject['trim2'] = number_format($t2, 2);
-            if ($t3 !== null) $subject['trim3'] = number_format($t3, 2);
-
-            // Cumul pour résumé "Travail Annuel"
-            if ($t1 !== null) { $trimTotals[1] += $t1 * $coef; $trimCoefs[1] += $coef; }
-            if ($t2 !== null) { $trimTotals[2] += $t2 * $coef; $trimCoefs[2] += $coef; }
-            if ($t3 !== null) { $trimTotals[3] += $t3 * $coef; $trimCoefs[3] += $coef; }
-
-            // Moyenne annuelle du sujet
+            // 5. Moyenne annuelle de la matière
             $trims = array_filter([$t1, $t2, $t3], fn($v) => $v !== null);
             $annualAvg = count($trims) > 0 ? array_sum($trims) / count($trims) : 0;
-            $total = $annualAvg * $coef;
-
             $subject['annual_average'] = $annualAvg;
-            $subject['total'] = $total;
+            $subject['total'] = $annualAvg * $coef;
 
-            // Compétence
-            if ($cycleType === 'deuxieme') {
-                if ($annualAvg >= 16) $subject['competence'] = 'Acquise (Excellent)';
-                elseif ($annualAvg >= 14) $subject['competence'] = 'Acquise (Très Bien)';
-                elseif ($annualAvg >= 12) $subject['competence'] = 'Acquise (Bien)';
-                elseif ($annualAvg >= 10) $subject['competence'] = 'En cours d\'acquisition';
-                else $subject['competence'] = 'Non acquise';
-            } else {
-                if ($annualAvg >= 16) $subject['competence'] = 'A+';
-                elseif ($annualAvg >= 14) $subject['competence'] = 'A';
-                elseif ($annualAvg >= 10) $subject['competence'] = 'ECA';
-                else $subject['competence'] = 'NA';
-            }
-
-            $totalPoints += $total;
+            $totalPoints += $subject['total'];
             $totalCoefficient += $coef;
+            
+            // Appréciation par matière
+            if ($annualAvg >= 16) $subject['competence'] = 'A+ (Expert)';
+            elseif ($annualAvg >= 14) $subject['competence'] = 'A (Acquise)';
+            elseif ($annualAvg >= 10) $subject['competence'] = 'ECA (En Cours)';
+            else $subject['competence'] = 'NA (Non Acquise)';
         }
 
-        // Recalculer la moyenne générale du bulletin
-        $generalAverage = $totalCoefficient > 0 ? $totalPoints / $totalCoefficient : 0;
+        // 6. Moyenne Générale Annuelle
+        $generalAvg = $totalCoefficient > 0 ? $totalPoints / $totalCoefficient : 0;
+        $bulletinData['average'] = $generalAvg;
         $bulletinData['total_general'] = $totalPoints;
         $bulletinData['total_coefficient'] = $totalCoefficient;
-        $bulletinData['general_average'] = $generalAverage;
-        $bulletinData['average'] = $generalAverage;
 
-        // Mettre à jour le tableau "travail_annuel" (Résumé Non-APC)
+        // 7. Mise à jour synchronisée du tableau de résumé "TRAVAIL ANNUEL"
         if (isset($bulletinData['travail_annuel']) && is_array($bulletinData['travail_annuel'])) {
             foreach ($bulletinData['travail_annuel'] as &$row) {
-                if (preg_match('/Moyenne trimestre\s*([1-3])/i', $row['label'], $matches)) {
-                    $tNum = (int)$matches[1];
-                    if ($trimCoefs[$tNum] > 0) {
-                        $row['avg'] = number_format($trimTotals[$tNum] / $trimCoefs[$tNum], 2);
-                    }
+                $lbl = strtolower($row['label']);
+                $key = null;
+                
+                if (strpos($lbl, 'ev1') !== false) $key = 'ev1';
+                elseif (strpos($lbl, 'ev2') !== false) $key = 'ev2';
+                elseif (strpos($lbl, 'ev3') !== false) $key = 'ev3';
+                elseif (strpos($lbl, 'ev4') !== false) $key = 'ev4';
+                elseif (strpos($lbl, 'ev5') !== false) $key = 'ev5';
+                elseif (strpos($lbl, 'ev6') !== false) $key = 'ev6';
+                elseif (strpos($lbl, 'compo trim1') !== false) $key = 'comp1';
+                elseif (strpos($lbl, 'compo trim2') !== false) $key = 'comp2';
+                elseif (strpos($lbl, 'compo trim3') !== false) $key = 'comp3';
+                elseif (preg_match('/trimestre\s*1/', $lbl)) $key = 'trim1';
+                elseif (preg_match('/trimestre\s*2/', $lbl)) $key = 'trim2';
+                elseif (preg_match('/trimestre\s*3/', $lbl)) $key = 'trim3';
+
+                if ($key && $summary[$key][1] > 0) {
+                    $row['avg'] = number_format($summary[$key][0] / $summary[$key][1], 2);
                 }
-                if (stripos($row['label'], 'Moyenne annuelle') !== false) {
-                    $row['avg'] = number_format($generalAverage, 2);
-                }
+                if (strpos($lbl, 'annuelle') !== false) $row['avg'] = number_format($generalAvg, 2);
+                if (strpos($lbl, "honneur") !== false) $row['avg'] = $generalAvg >= 12 ? 'Oui' : 'Non';
             }
         }
-
-        // Recalculer l'appréciation générale
-        if ($generalAverage >= 16) $bulletinData['general_appreciation'] = 'Excellent';
-        elseif ($generalAverage >= 14) $bulletinData['general_appreciation'] = 'Très Bien';
-        elseif ($generalAverage >= 12) $bulletinData['general_appreciation'] = 'Bien';
-        elseif ($generalAverage >= 10) $bulletinData['general_appreciation'] = 'Assez Bien';
-        elseif ($generalAverage >= 8) $bulletinData['general_appreciation'] = 'Passable';
-        else $bulletinData['general_appreciation'] = 'Insuffisant';
 
         return $bulletinData;
     }

@@ -4649,6 +4649,10 @@ class BulletinService
 
         // Simple placeholders
         $title = "BULLETIN BILAN ANNUEL";
+        
+        // Ensure student photo is handled
+        $photoHtml = $this->getStudentPhotoHtml($student);
+        
         $replacements = [
             '{{logo_base64}}' => $logoBase64,
             '{{bulletin_title}}' => $title,
@@ -4659,7 +4663,7 @@ class BulletinService
             '{{class_name}}' => $data['class_name'] ?? 'N/A',
             '{{class_size}}' => $data['class_size'] ?? 0,
             '{{main_teacher}}' => $data['main_teacher'] ?? 'N/A',
-            '{{student_photo}}' => $this->getStudentPhotoHtml($student),
+            '{{student_photo}}' => $photoHtml,
             '{{is_repeater_checked}}' => ($student->is_repeater ?? false) ? 'checkbox-filled' : '',
             '{{is_not_repeater_checked}}' => ($student->is_repeater ?? false) ? '' : 'checkbox-filled',
             '{{class_average}}' => number_format($data['class_average'] ?? 0, 2),
@@ -4676,7 +4680,13 @@ class BulletinService
 
         // Generate subject groups HTML
         $subjectGroups = $this->groupSubjectsByType($data['subjects']);
-        $groupColors = ['A' => '#3b82f6', 'B' => '#10b981', 'C' => '#f59e0b', 'D' => '#8b5cf6'];
+        $groupColors = [
+            'A' => '#3b82f6', 
+            'B' => '#10b981', 
+            'C' => '#f59e0b', 
+            'D' => '#8b5cf6',
+            'E' => '#ec4899'  // Pink for specialization subjects
+        ];
         $groupsHtml = '';
 
         foreach ($subjectGroups as $groupName => $subjects) {
