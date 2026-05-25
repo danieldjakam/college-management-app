@@ -4657,6 +4657,7 @@ class BulletinService
             '{{class_name}}' => $data['class_name'] ?? 'N/A',
             '{{class_size}}' => $data['class_size'] ?? 0,
             '{{main_teacher}}' => $data['main_teacher'] ?? 'N/A',
+            '{{student_photo}}' => $this->getStudentPhotoHtml($student),
             '{{is_repeater_checked}}' => ($student->is_repeater ?? false) ? 'checkbox-filled' : '',
             '{{is_not_repeater_checked}}' => ($student->is_repeater ?? false) ? '' : 'checkbox-filled',
             '{{class_average}}' => number_format($data['class_average'] ?? 0, 2),

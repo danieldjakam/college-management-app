@@ -94,11 +94,24 @@ function LivretScolaire() {
         (response.data.students || []).forEach(student => {
           student.subjects.forEach(sub => {
             const key = `${student.id}_${sub.class_series_subject_id}`;
-            if (sub.adjusted_trim1 !== null || sub.adjusted_trim2 !== null || sub.adjusted_trim3 !== null) {
+            const hasAnyAdjustment =
+              sub.adjusted_ev1 !== null || sub.adjusted_ev2 !== null || sub.adjusted_comp1 !== null ||
+              sub.adjusted_ev3 !== null || sub.adjusted_ev4 !== null || sub.adjusted_comp2 !== null ||
+              sub.adjusted_comp3 !== null ||
+              sub.adjusted_trim1 !== null || sub.adjusted_trim2 !== null || sub.adjusted_trim3 !== null;
+
+            if (hasAnyAdjustment) {
               initial[key] = {
-                trim1: sub.adjusted_trim1 ?? sub.real_trim1,
-                trim2: sub.adjusted_trim2 ?? sub.real_trim2,
-                trim3: sub.adjusted_trim3 ?? sub.real_trim3,
+                ev1: sub.adjusted_ev1 ?? sub.real_ev1,
+                ev2: sub.adjusted_ev2 ?? sub.real_ev2,
+                comp1: sub.adjusted_comp1 ?? sub.real_comp1,
+                ev3: sub.adjusted_ev3 ?? sub.real_ev3,
+                ev4: sub.adjusted_ev4 ?? sub.real_ev4,
+                comp2: sub.adjusted_comp2 ?? sub.real_comp2,
+                comp3: sub.adjusted_comp3 ?? sub.real_comp3,
+                trim1: sub.adjusted_trim1,
+                trim2: sub.adjusted_trim2,
+                trim3: sub.adjusted_trim3,
               };
             }
           });
@@ -122,15 +135,21 @@ function LivretScolaire() {
         ev1: subject?.real_ev1, ev2: subject?.real_ev2, comp1: subject?.real_comp1,
         ev3: subject?.real_ev3, ev4: subject?.real_ev4, comp2: subject?.real_comp2,
         comp3: subject?.real_comp3,
-        trim1: subject?.real_trim1, trim2: subject?.real_trim2, trim3: subject?.real_trim3,
+        trim1: null, trim2: null, trim3: null,
       };
-      return {
-        ...prev,
-        [key]: {
-          ...existing,
-          [field]: value === '' ? null : parseFloat(value),
-        },
+
+      const updated = {
+        ...existing,
+        [field]: value === '' ? null : parseFloat(value),
       };
+
+      // Quand une séquence change, nullifier le trim correspondant
+      // pour forcer le recalcul backend depuis les EV/comp
+      if (['ev1', 'ev2', 'comp1'].includes(field)) updated.trim1 = null;
+      if (['ev3', 'ev4', 'comp2'].includes(field)) updated.trim2 = null;
+      if (field === 'comp3') updated.trim3 = null;
+
+      return { ...prev, [key]: updated };
     });
   };
 
