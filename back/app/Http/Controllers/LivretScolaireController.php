@@ -666,15 +666,12 @@ class LivretScolaireController extends Controller
                 $origT3 = $finalComp3;
             }
 
-            // Si des EV/comp ont ete ajustes pour un trimestre, toujours recalculer
-            // le trim depuis les sequences (ignorer le trim stocke qui peut etre obsolete)
-            $hasSeqAdj1 = $adjusted->ev1 !== null || $adjusted->ev2 !== null || $adjusted->comp1 !== null;
-            $hasSeqAdj2 = $adjusted->ev3 !== null || $adjusted->ev4 !== null || $adjusted->comp2 !== null;
-            $hasSeqAdj3 = $adjusted->comp3 !== null;
-
-            $t1 = (!$hasSeqAdj1 && $adjusted->trim1 !== null) ? (float)$adjusted->trim1 : ($origT1 ?? 0);
-            $t2 = (!$hasSeqAdj2 && $adjusted->trim2 !== null) ? (float)$adjusted->trim2 : ($origT2 ?? 0);
-            $t3 = (!$hasSeqAdj3 && $adjusted->trim3 !== null) ? (float)$adjusted->trim3 : ($origT3 ?? 0);
+            // Priorite : toujours recalculer depuis les donnees actuelles (EV originaux ou ajustes)
+            // Le trim stocke en base peut etre obsolete (calcule depuis d'anciennes notes)
+            // On ne l'utilise que si aucune donnee de base n'est disponible pour calculer
+            $t1 = $origT1 !== null ? $origT1 : ($adjusted->trim1 !== null ? (float)$adjusted->trim1 : 0);
+            $t2 = $origT2 !== null ? $origT2 : ($adjusted->trim2 !== null ? (float)$adjusted->trim2 : 0);
+            $t3 = $origT3 !== null ? $origT3 : ($adjusted->trim3 !== null ? (float)$adjusted->trim3 : 0);
 
             // Compter combien de trimestres ont des donnees
             $trimCount = 0;
