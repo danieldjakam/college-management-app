@@ -614,31 +614,32 @@ class LivretScolaireController extends Controller
                 $subject[$k == 'c1' ? 'comp1' : ($k == 'c2' ? 'comp2' : ($k == 'c3' ? 'comp3' : $k))] = ($v !== null) ? number_format($v, 2) : '-';
             }
 
-            // 3. Calcul intelligent des trimestres
-            $calcTrim = function($e1, $e2, $comp, $isT3 = false) {
-                if ($e1 === null && $e2 === null && $comp === null) return null;
-                
-                // Règle T3 : Souvent uniquement la composition
-                if ($isT3 && $e1 === null && $e2 === null) return $comp;
+            // 3. Calcul des trimestres
+            // Si comp est explicitement ajuste (saisi dans le livret) → c'est la moyenne
+            // trimestrielle directe. Sinon, on recalcule depuis les sequences.
+            $comp1IsAdj = $adj && $adj->comp1 !== null;
+            $comp2IsAdj = $adj && $adj->comp2 !== null;
+            $comp3IsAdj = $adj && $adj->comp3 !== null;
 
-                // Calcul du DS (Moyenne des séquences présentes)
+            $calcTrim = function($e1, $e2, $comp, $isT3 = false, $compIsAvg = false) {
+                if ($e1 === null && $e2 === null && $comp === null) return null;
+                // Comp saisie directement = moyenne trimestre
+                if ($compIsAvg && $comp !== null) return $comp;
+                // T3 sans sequences
+                if ($isT3 && $e1 === null && $e2 === null) return $comp;
+                // Calcul DS
                 $ds = null;
                 if ($e1 !== null && $e2 !== null) $ds = ($e1 + $e2) / 2;
-                elseif ($e1 !== null) $ds = $e1; 
+                elseif ($e1 !== null) $ds = $e1;
                 elseif ($e2 !== null) $ds = $e2;
-                elseif (!$isT3) $ds = 0; // Pénalité si séquences vides en T1/T2
-
-                // Moyenne Trimestre = (DS + Compo) / 2
+                elseif (!$isT3) $ds = 0;
                 if ($ds !== null && $comp !== null) return ($ds + $comp) / 2;
                 return $ds ?? $comp;
             };
 
-            // Toujours recalculer depuis les sequences (originales ou ajustees)
-            // Le trim stocke en base peut etre obsolete - il ne sert que de fallback
-            // si aucune donnee de sequence n'est disponible pour ce trimestre
-            $calcT1 = $calcTrim($n['ev1'], $n['ev2'], $n['c1']);
-            $calcT2 = $calcTrim($n['ev3'], $n['ev4'], $n['c2']);
-            $calcT3 = $calcTrim($n['ev5'], $n['ev6'], $n['c3'], true);
+            $calcT1 = $calcTrim($n['ev1'], $n['ev2'], $n['c1'], false, $comp1IsAdj);
+            $calcT2 = $calcTrim($n['ev3'], $n['ev4'], $n['c2'], false, $comp2IsAdj);
+            $calcT3 = $calcTrim($n['ev5'], $n['ev6'], $n['c3'], true,  $comp3IsAdj);
             $t1 = ($calcT1 !== null) ? $calcT1 : (($adj && $adj->trim1 !== null) ? (float)$adj->trim1 : null);
             $t2 = ($calcT2 !== null) ? $calcT2 : (($adj && $adj->trim2 !== null) ? (float)$adj->trim2 : null);
             $t3 = ($calcT3 !== null) ? $calcT3 : (($adj && $adj->trim3 !== null) ? (float)$adj->trim3 : null);
