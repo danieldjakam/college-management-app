@@ -574,15 +574,14 @@ class LivretScolaireController extends Controller
 
     /**
      * Appliquer les notes ajustees sur les donnees du bulletin
-     * RECALCUL COMPLET : Agit comme une calculatrice pour synchroniser notes et moyennes
+     * Moteur de calcul ultra-robuste pour éviter les erreurs de moyennes
      */
     protected function applyAdjustedGrades($bulletinData, $adjustedGrades)
     {
         $totalPoints = 0;
         $totalCoefficient = 0;
         
-        // Initialiser les accumulateurs pour le résumé annuel (bas de page)
-        // [Somme des (Note * Coef), Somme des Coefs]
+        // Accumulateurs pour le résumé annuel en bas de page
         $summary = [
             'ev1' => [0, 0], 'ev2' => [0, 0], 'comp1' => [0, 0], 'trim1' => [0, 0],
             'ev3' => [0, 0], 'ev4' => [0, 0], 'comp2' => [0, 0], 'trim2' => [0, 0],
@@ -596,50 +595,63 @@ class LivretScolaireController extends Controller
             $adj = $adjustedGrades->get($cssId);
             $coef = (float)($subject['coefficient'] ?? 1);
 
-            // 1. Récupération des notes (Priorité Livret, sinon Bulletin original)
+            // 1. Récupération sécurisée des notes
             $getN = function($field, $key) use ($subject, $adj) {
                 if ($adj && $adj->$field !== null) return (float)$adj->$field;
                 $v = $subject[$key] ?? null;
-                if ($v === '-' || $v === 'ABS' || $v === '') return null;
+                if ($v === '-' || $v === 'ABS' || $v === '' || $v === null) return null;
                 return (is_numeric($v)) ? (float)$v : null;
             };
 
-            $ev1 = $getN('ev1', 'ev1'); $ev2 = $getN('ev2', 'ev2'); $c1 = $getN('comp1', 'comp1');
-            $ev3 = $getN('ev3', 'ev3'); $ev4 = $getN('ev4', 'ev4'); $c2 = $getN('comp2', 'comp2');
-            $ev5 = $getN('ev5', 'ev5'); $ev6 = $getN('ev6', 'ev6'); $c3 = $getN('comp3', 'comp3');
+            $n = [
+                'ev1' => $getN('ev1', 'ev1'), 'ev2' => $getN('ev2', 'ev2'), 'c1' => $getN('comp1', 'comp1'),
+                'ev3' => $getN('ev3', 'ev3'), 'ev4' => $getN('ev4', 'ev4'), 'c2' => $getN('comp2', 'comp2'),
+                'ev5' => $getN('ev5', 'ev5'), 'ev6' => $getN('ev6', 'ev6'), 'c3' => $getN('comp3', 'comp3'),
+            ];
 
-            // 2. Mise à jour de l'affichage dans le tableau principal
-            $subject['ev1'] = $ev1 !== null ? number_format($ev1, 2) : '-';
-            $subject['ev2'] = $ev2 !== null ? number_format($ev2, 2) : '-';
-            $subject['comp1'] = $c1 !== null ? number_format($c1, 2) : '-';
-            $subject['ev3'] = $ev3 !== null ? number_format($ev3, 2) : '-';
-            $subject['ev4'] = $ev4 !== null ? number_format($ev4, 2) : '-';
-            $subject['comp2'] = $c2 !== null ? number_format($c2, 2) : '-';
-            $subject['ev5'] = $ev5 !== null ? number_format($ev5, 2) : '-';
-            $subject['ev6'] = $ev6 !== null ? number_format($ev6, 2) : '-';
-            $subject['comp3'] = $c3 !== null ? number_format($c3, 2) : '-';
+            // 2. Mise à jour de l'affichage texte dans le tableau
+            foreach ($n as $k => $v) {
+                $subject[$k == 'c1' ? 'comp1' : ($k == 'c2' ? 'comp2' : ($k == 'c3' ? 'comp3' : $k))] = ($v !== null) ? number_format($v, 2) : '-';
+            }
 
-            // 3. Recalcul des moyennes trimestrielles de la matière
-            $calcT = function($eA, $eB, $comp) {
-                if ($eA === null && $eB === null && $comp === null) return null;
-                $ds = (($eA ?? 0) + ($eB ?? 0)) / 2;
-                return ($ds + ($comp ?? 0)) / 2;
+            // 3. Calcul intelligent des trimestres
+            $calcTrim = function($e1, $e2, $comp, $isT3 = false) {
+                if ($e1 === null && $e2 === null && $comp === null) return null;
+                
+                // Règle T3 : Souvent uniquement la composition
+                if ($isT3 && $e1 === null && $e2 === null) return $comp;
+
+                // Calcul du DS (Moyenne des séquences présentes)
+                $ds = null;
+                if ($e1 !== null && $e2 !== null) $ds = ($e1 + $e2) / 2;
+                elseif ($e1 !== null) $ds = $e1; 
+                elseif ($e2 !== null) $ds = $e2;
+                elseif (!$isT3) $ds = 0; // Pénalité si séquences vides en T1/T2
+
+                // Moyenne Trimestre = (DS + Compo) / 2
+                if ($ds !== null && $comp !== null) return ($ds + $comp) / 2;
+                return $ds ?? $comp;
             };
 
-            $t1 = ($adj && $adj->trim1 !== null) ? (float)$adj->trim1 : $calcT($ev1, $ev2, $c1);
-            $t2 = ($adj && $adj->trim2 !== null) ? (float)$adj->trim2 : $calcT($ev3, $ev4, $c2);
-            $t3 = ($adj && $adj->trim3 !== null) ? (float)$adj->trim3 : $calcT($ev5, $ev6, $c3);
+            // Toujours recalculer depuis les sequences (originales ou ajustees)
+            // Le trim stocke en base peut etre obsolete - il ne sert que de fallback
+            // si aucune donnee de sequence n'est disponible pour ce trimestre
+            $calcT1 = $calcTrim($n['ev1'], $n['ev2'], $n['c1']);
+            $calcT2 = $calcTrim($n['ev3'], $n['ev4'], $n['c2']);
+            $calcT3 = $calcTrim($n['ev5'], $n['ev6'], $n['c3'], true);
+            $t1 = ($calcT1 !== null) ? $calcT1 : (($adj && $adj->trim1 !== null) ? (float)$adj->trim1 : null);
+            $t2 = ($calcT2 !== null) ? $calcT2 : (($adj && $adj->trim2 !== null) ? (float)$adj->trim2 : null);
+            $t3 = ($calcT3 !== null) ? $calcT3 : (($adj && $adj->trim3 !== null) ? (float)$adj->trim3 : null);
 
-            // Mise à jour de l'affichage trimestriel par matière
-            $subject['trim1'] = $t1 !== null ? number_format($t1, 2) : '-';
-            $subject['trim2'] = $t2 !== null ? number_format($t2, 2) : '-';
-            $subject['trim3'] = $t3 !== null ? number_format($t3, 2) : '-';
+            $subject['trim1'] = ($t1 !== null) ? number_format($t1, 2) : '-';
+            $subject['trim2'] = ($t2 !== null) ? number_format($t2, 2) : '-';
+            $subject['trim3'] = ($t3 !== null) ? number_format($t3, 2) : '-';
 
-            // 4. Accumulation pour le résumé annuel global (TRAVAIL ANNUEL)
+            // 4. Accumulation pour le résumé annuel
             $map = [
-                'ev1' => $ev1, 'ev2' => $ev2, 'comp1' => $c1, 'trim1' => $t1,
-                'ev3' => $ev3, 'ev4' => $ev4, 'comp2' => $c2, 'trim2' => $t2,
-                'ev5' => $ev5, 'ev6' => $ev6, 'comp3' => $c3, 'trim3' => $t3,
+                'ev1' => $n['ev1'], 'ev2' => $n['ev2'], 'comp1' => $n['c1'], 'trim1' => $t1,
+                'ev3' => $n['ev3'], 'ev4' => $n['ev4'], 'comp2' => $n['c2'], 'trim2' => $t2,
+                'ev5' => $n['ev5'], 'ev6' => $n['ev6'], 'comp3' => $n['c3'], 'trim3' => $t3,
             ];
             foreach ($map as $k => $v) {
                 if ($v !== null) {
@@ -648,34 +660,33 @@ class LivretScolaireController extends Controller
                 }
             }
 
-            // 5. Moyenne annuelle de la matière
+            // 5. Moyenne Annuelle de la matière (Division par le nombre de trimestres réels)
             $trims = array_filter([$t1, $t2, $t3], fn($v) => $v !== null);
-            $annualAvg = count($trims) > 0 ? array_sum($trims) / count($trims) : 0;
+            $annualAvg = (count($trims) > 0) ? array_sum($trims) / count($trims) : 0;
+            
             $subject['annual_average'] = $annualAvg;
             $subject['total'] = $annualAvg * $coef;
 
             $totalPoints += $subject['total'];
             $totalCoefficient += $coef;
             
-            // Appréciation par matière
             if ($annualAvg >= 16) $subject['competence'] = 'A+ (Expert)';
             elseif ($annualAvg >= 14) $subject['competence'] = 'A (Acquise)';
             elseif ($annualAvg >= 10) $subject['competence'] = 'ECA (En Cours)';
             else $subject['competence'] = 'NA (Non Acquise)';
         }
 
-        // 6. Moyenne Générale Annuelle
-        $generalAvg = $totalCoefficient > 0 ? $totalPoints / $totalCoefficient : 0;
+        // 6. Moyenne Générale du Bulletin
+        $generalAvg = ($totalCoefficient > 0) ? $totalPoints / $totalCoefficient : 0;
         $bulletinData['average'] = $generalAvg;
         $bulletinData['total_general'] = $totalPoints;
         $bulletinData['total_coefficient'] = $totalCoefficient;
 
-        // 7. Mise à jour synchronisée du tableau de résumé "TRAVAIL ANNUEL"
+        // 7. Synchronisation du résumé "TRAVAIL ANNUEL"
         if (isset($bulletinData['travail_annuel']) && is_array($bulletinData['travail_annuel'])) {
             foreach ($bulletinData['travail_annuel'] as &$row) {
                 $lbl = strtolower($row['label']);
                 $key = null;
-                
                 if (strpos($lbl, 'ev1') !== false) $key = 'ev1';
                 elseif (strpos($lbl, 'ev2') !== false) $key = 'ev2';
                 elseif (strpos($lbl, 'ev3') !== false) $key = 'ev3';
@@ -693,11 +704,12 @@ class LivretScolaireController extends Controller
                     $row['avg'] = number_format($summary[$key][0] / $summary[$key][1], 2);
                 }
                 if (strpos($lbl, 'annuelle') !== false) $row['avg'] = number_format($generalAvg, 2);
-                if (strpos($lbl, "honneur") !== false) $row['avg'] = $generalAvg >= 12 ? 'Oui' : 'Non';
+                if (strpos($lbl, "honneur") !== false) $row['avg'] = ($generalAvg >= 12) ? 'Oui' : 'Non';
             }
         }
 
         return $bulletinData;
+    }
     }
 
     /**
