@@ -710,7 +710,6 @@ class LivretScolaireController extends Controller
 
         return $bulletinData;
     }
-    }
 
     /**
      * Telecharger le livret PDF d'un eleve
