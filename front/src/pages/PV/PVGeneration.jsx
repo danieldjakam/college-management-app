@@ -9,7 +9,7 @@ const PVGeneration = () => {
     const [loading, setLoading] = useState(false);
     const [classSeries, setClassSeries] = useState([]);
     const [selectedSeries, setSelectedSeries] = useState('');
-    const [pvType, setPvType] = useState('period'); // 'period' ou 'trimester'
+    const [pvType, setPvType] = useState('period'); // 'period', 'trimester' ou 'annual'
     const [evaluations, setEvaluations] = useState([]);
     const [trimesters, setTrimesters] = useState([]);
     const [selectedEvaluation, setSelectedEvaluation] = useState('');
@@ -25,9 +25,10 @@ const PVGeneration = () => {
         if (selectedSeries) {
             if (pvType === 'period') {
                 loadEvaluations(selectedSeries);
-            } else {
+            } else if (pvType === 'trimester') {
                 loadTrimesters(selectedSeries);
             }
+            // 'annual' : pas de chargement supplémentaire nécessaire
         } else {
             setEvaluations([]);
             setTrimesters([]);
@@ -126,6 +127,10 @@ const PVGeneration = () => {
             Swal.fire('Attention', 'Veuillez sélectionner une classe et un trimestre', 'warning');
             return;
         }
+        if (pvType === 'annual' && !selectedSeries) {
+            Swal.fire('Attention', 'Veuillez sélectionner une classe', 'warning');
+            return;
+        }
 
         try {
             setGenerating(true);
@@ -135,8 +140,10 @@ const PVGeneration = () => {
             let apiUrl;
             if (pvType === 'period') {
                 apiUrl = `${host}/api/pv/generate/${selectedSeries}/${selectedEvaluation}`;
-            } else {
+            } else if (pvType === 'trimester') {
                 apiUrl = `${host}/api/pv/trimester/generate/${selectedSeries}/${selectedTrimester}`;
+            } else {
+                apiUrl = `${host}/api/pv/annual/generate/${selectedSeries}`;
             }
 
             // Télécharger directement le PDF
@@ -184,6 +191,10 @@ const PVGeneration = () => {
             Swal.fire('Attention', 'Veuillez sélectionner une classe et un trimestre', 'warning');
             return;
         }
+        if (pvType === 'annual' && !selectedSeries) {
+            Swal.fire('Attention', 'Veuillez sélectionner une classe', 'warning');
+            return;
+        }
 
         try {
             const token = localStorage.getItem('token');
@@ -192,8 +203,10 @@ const PVGeneration = () => {
             let url;
             if (pvType === 'period') {
                 url = `${host}/api/pv/preview/${selectedSeries}/${selectedEvaluation}`;
-            } else {
+            } else if (pvType === 'trimester') {
                 url = `${host}/api/pv/trimester/preview/${selectedSeries}/${selectedTrimester}`;
+            } else {
+                url = `${host}/api/pv/annual/preview/${selectedSeries}`;
             }
 
             // Ouvrir dans un nouvel onglet
@@ -311,9 +324,10 @@ const PVGeneration = () => {
                                 >
                                     <option value="period">Séquence / Composition</option>
                                     <option value="trimester">Trimestre (DS + Compo)</option>
+                                    <option value="annual">Annuel (moyenne des 3 trimestres)</option>
                                 </Form.Select>
                                 <Form.Text className="text-muted">
-                                    {pvType === 'period' ? 'PV par séquence ou composition' : 'PV par trimestre complet'}
+                                    {pvType === 'period' ? 'PV par séquence ou composition' : pvType === 'trimester' ? 'PV par trimestre complet' : 'PV bilan annuel'}
                                 </Form.Text>
                             </Form.Group>
                         </Col>
@@ -344,7 +358,7 @@ const PVGeneration = () => {
                                         Séquence ou Composition
                                     </Form.Text>
                                 </Form.Group>
-                            ) : (
+                            ) : pvType === 'trimester' ? (
                                 <Form.Group className="mb-3">
                                     <Form.Label>
                                         Trimestre <span className="text-danger">*</span>
@@ -366,6 +380,19 @@ const PVGeneration = () => {
                                         Moyennes trimestrielles
                                     </Form.Text>
                                 </Form.Group>
+                            ) : (
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Période</Form.Label>
+                                    <Form.Control
+                                        size="lg"
+                                        type="text"
+                                        value="Toute l'année scolaire"
+                                        disabled
+                                    />
+                                    <Form.Text className="text-muted">
+                                        Moyenne des 3 trimestres par matière
+                                    </Form.Text>
+                                </Form.Group>
                             )}
                         </Col>
                     </Row>
@@ -378,6 +405,7 @@ const PVGeneration = () => {
                                 !selectedSeries ||
                                 (pvType === 'period' && !selectedEvaluation) ||
                                 (pvType === 'trimester' && !selectedTrimester)
+                                // pvType === 'annual' : seule la classe est requise
                             }
                         >
                             <Eye className="me-2" />
@@ -493,6 +521,9 @@ const PVGeneration = () => {
                                     <li><em>Deuxième Cycle (2nde-Tle) :</em> M/20 = (Seq1 + Seq2 + Compo) / 3</li>
                                     <li><em>Trimestre 3 (Premier Cycle) :</em> M/20 = Composition uniquement</li>
                                 </ul>
+                            </li>
+                            <li className="mt-2">
+                                <strong>PV Annuel :</strong> Moyenne annuelle par matière = (Moy_T1 + Moy_T2 + Moy_T3) / nombre de trimestres saisis. Classement final sur toute l'année.
                             </li>
                         </ul>
                     </Alert>

@@ -1497,6 +1497,16 @@ Route::middleware(['auth:api'])->prefix('pv')->group(function () {
     // Prévisualiser le PV de trimestre (HTML)
     Route::get('/trimester/preview/{classSeriesId}/{trimesterId}', [App\Http\Controllers\PVController::class, 'previewTrimester'])
         ->middleware(['role:admin,principal,secretaire,comptable_superieur']);
+
+    // === ROUTES POUR PV ANNUEL ===
+
+    // Générer le PV annuel en PDF
+    Route::get('/annual/generate/{classSeriesId}', [App\Http\Controllers\PVController::class, 'generateAnnual'])
+        ->middleware(['role:admin,principal,secretaire,comptable_superieur']);
+
+    // Prévisualiser le PV annuel (HTML)
+    Route::get('/annual/preview/{classSeriesId}', [App\Http\Controllers\PVController::class, 'previewAnnual'])
+        ->middleware(['role:admin,principal,secretaire,comptable_superieur']);
 });
 
 // Routes pour les Fiches de Report de Notes (Mark Sheets)

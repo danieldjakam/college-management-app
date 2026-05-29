@@ -408,6 +408,157 @@ class PVService
     }
 
     /**
+     * Générer le PV ANNUEL (moyenne des 3 trimestres par matière)
+     */
+    public function generateAnnualPV($classSeriesId)
+    {
+        try {
+            Log::info("🎯 Génération PV ANNUEL pour class_series_id: {$classSeriesId}");
+
+            $pdf = PDF::loadHTML($this->generateAnnualHTML($classSeriesId));
+            $pdf->setPaper('A4', 'landscape');
+
+            Log::info("✅ PV ANNUEL généré avec succès");
+
+            return $pdf;
+
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur génération PV ANNUEL: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Générer le HTML de prévisualisation du PV ANNUEL
+     */
+    public function generateAnnualHTML($classSeriesId)
+    {
+        try {
+            $classSeries = ClassSeries::with(['schoolClass.level'])->findOrFail($classSeriesId);
+            $schoolYear = SchoolYear::where('is_current', true)->firstOrFail();
+            $cycleType = $this->determineCycleType($classSeries);
+
+            // Récupérer les 3 trimestres de l'année courante
+            $trimesters = Trimester::where('school_year_id', $schoolYear->id)
+                ->orderBy('number')
+                ->get();
+
+            $mainTeacher = MainTeacher::where('class_series_id', $classSeriesId)
+                ->where('school_year_id', $schoolYear->id)
+                ->where('is_active', true)
+                ->with('teacher')
+                ->first();
+
+            $mainTeacherName = $mainTeacher
+                ? $mainTeacher->teacher->first_name . ' ' . $mainTeacher->teacher->last_name
+                : 'Non désigné';
+
+            $seriesSubjects = ClassSeriesSubject::where('class_series_id', $classSeriesId)
+                ->where('is_active', true)
+                ->with('subject')
+                ->orderBy('subject_id')
+                ->get();
+
+            $students = Student::where('class_series_id', $classSeriesId)
+                ->where('is_active', true)
+                ->get();
+
+            $bulletinService = new BulletinService();
+            $studentsResults = [];
+
+            foreach ($students as $student) {
+                $studentsResults[] = $this->calculateStudentAnnualResults(
+                    $student,
+                    $seriesSubjects,
+                    $trimesters,
+                    $cycleType,
+                    $bulletinService
+                );
+            }
+
+            usort($studentsResults, fn($a, $b) => $b['average'] <=> $a['average']);
+
+            foreach ($studentsResults as $index => &$result) {
+                $result['rank'] = $index + 1;
+            }
+
+            $statistics = $this->calculateStatistics($studentsResults);
+
+            $evaluationData = (object) [
+                'schoolYear' => $schoolYear,
+                'school_year_id' => $schoolYear->id,
+                'is_annual_pv' => true,
+            ];
+
+            return $this->generateHTML(
+                $classSeries,
+                $evaluationData,
+                $seriesSubjects,
+                $studentsResults,
+                $statistics,
+                $mainTeacherName,
+                $cycleType
+            );
+
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur génération HTML ANNUEL: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Calculer les résultats annuels d'un élève
+     * Moy_annuelle_matière = moyenne des moyennes trimestrielles disponibles
+     * Moyenne générale = Σ(Moy_annuelle × coeff) / Σ(coeff)
+     */
+    private function calculateStudentAnnualResults($student, $seriesSubjects, $trimesters, $cycleType, $bulletinService)
+    {
+        $totalPoints = 0;
+        $allCoefficients = 0;
+
+        foreach ($seriesSubjects as $seriesSubject) {
+            $allCoefficients += (float)$seriesSubject->coefficient;
+        }
+
+        $grades = [];
+
+        foreach ($seriesSubjects as $seriesSubject) {
+            $trimGrades = [];
+
+            foreach ($trimesters as $trimester) {
+                $g = $bulletinService->calculateTrimesterGrade(
+                    $trimester->number,
+                    $student->id,
+                    $seriesSubject->id,
+                    $cycleType
+                );
+                if ($g !== null) {
+                    $trimGrades[] = (float)$g;
+                }
+            }
+
+            if (count($trimGrades) > 0) {
+                $annualAvg = array_sum($trimGrades) / count($trimGrades);
+                $grades[$seriesSubject->id] = round($annualAvg, 2);
+                $totalPoints += $annualAvg * (float)$seriesSubject->coefficient;
+            } else {
+                $grades[$seriesSubject->id] = null;
+            }
+        }
+
+        $average = $allCoefficients > 0 ? round($totalPoints / $allCoefficients, 2) : 0;
+
+        return [
+            'student'      => $student,
+            'grades'       => $grades,
+            'total_points' => round($totalPoints, 2),
+            'average'      => $average,
+            'mention'      => $this->getMention($average),
+            'passed'       => $average >= 10,
+        ];
+    }
+
+    /**
      * ANCIENNE MÉTHODE - Garder pour compatibilité mais déprécier
      * @deprecated Use generatePVByPeriod() instead
      */
@@ -675,8 +826,13 @@ class PVService
         // Type d'évaluation
         $evaluationType = '';
 
+        // Vérifier si c'est un PV annuel
+        if (isset($evaluation->is_annual_pv) && $evaluation->is_annual_pv) {
+            $evaluationType = "Bilan Annuel - Moy = (Moy_T1 + Moy_T2 + Moy_T3) / 3";
+        }
+
         // Vérifier si c'est un PV de trimestre
-        if (isset($evaluation->is_trimester_pv) && $evaluation->is_trimester_pv) {
+        elseif (isset($evaluation->is_trimester_pv) && $evaluation->is_trimester_pv) {
             // PV de trimestre avec formule uniformisée pour tous les cycles
             if ($evaluation->trimester->number == 3) {
                 // Trimestre 3: Composition uniquement pour tous les cycles

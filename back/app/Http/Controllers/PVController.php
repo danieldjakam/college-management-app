@@ -272,6 +272,53 @@ class PVController extends Controller
     }
 
     /**
+     * Générer le PV ANNUEL en PDF
+     * GET /api/pv/annual/generate/{classSeriesId}
+     */
+    public function generateAnnual($classSeriesId)
+    {
+        try {
+            Log::info("🎯 Requête génération PV ANNUEL - ClassSeries: {$classSeriesId}");
+
+            $classSeries = ClassSeries::findOrFail($classSeriesId);
+            $pdf = $this->pvService->generateAnnualPV($classSeriesId);
+
+            $fileName = 'PV_' . str_replace(' ', '_', $classSeries->name) . '_Annuel_' . date('Y-m-d') . '.pdf';
+
+            Log::info("✅ PV ANNUEL généré avec succès: {$fileName}");
+
+            return $pdf->download($fileName);
+
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur génération PV ANNUEL: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la génération du PV annuel',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Prévisualiser le PV ANNUEL (HTML)
+     * GET /api/pv/annual/preview/{classSeriesId}
+     */
+    public function previewAnnual($classSeriesId)
+    {
+        try {
+            ClassSeries::findOrFail($classSeriesId);
+            $html = $this->pvService->generateAnnualHTML($classSeriesId);
+            return response($html, 200)->header('Content-Type', 'text/html');
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la prévisualisation du PV annuel',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Obtenir la liste des trimestres disponibles pour une série
      * GET /api/pv/trimesters/{classSeriesId}
      */
