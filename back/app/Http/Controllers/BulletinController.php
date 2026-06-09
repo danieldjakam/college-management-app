@@ -1912,7 +1912,7 @@ class BulletinController extends Controller
 
         $validated = $request->validate([
             'class_series_id' => 'required|exists:class_series,id',
-            'period_type' => 'required|in:sequence,trimester',
+            'period_type' => 'required|in:sequence,trimester,annual',
             'period_identifier' => 'required|string'
         ]);
 
