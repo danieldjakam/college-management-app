@@ -180,6 +180,16 @@ const StudentDiscipline = () => {
     }));
   };
 
+  const handleCheckboxChange = (studentId, field) => {
+    setDisciplineData(prev => ({
+      ...prev,
+      [studentId]: {
+        ...prev[studentId],
+        [field]: prev[studentId]?.[field] ? 0 : 1
+      }
+    }));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError('');
@@ -386,44 +396,36 @@ const StudentDiscipline = () => {
                           style={{ width: '60px' }}
                         />
                       </td>
-                      <td>
+                      <td className="text-center align-middle">
                         <Input
-                          type="number"
-                          min="0"
-                          bsSize="sm"
-                          value={disciplineData[student.student_id]?.blame_conduct || 0}
-                          onChange={(e) => handleInputChange(student.student_id, 'blame_conduct', e.target.value)}
-                          style={{ width: '60px' }}
+                          type="checkbox"
+                          checked={!!disciplineData[student.student_id]?.blame_conduct}
+                          onChange={() => handleCheckboxChange(student.student_id, 'blame_conduct')}
+                          style={{ width: '20px', height: '20px', cursor: 'pointer' }}
                         />
                       </td>
-                      <td>
+                      <td className="text-center align-middle">
                         <Input
-                          type="number"
-                          min="0"
-                          bsSize="sm"
-                          value={disciplineData[student.student_id]?.blame_work || 0}
-                          onChange={(e) => handleInputChange(student.student_id, 'blame_work', e.target.value)}
-                          style={{ width: '60px' }}
+                          type="checkbox"
+                          checked={!!disciplineData[student.student_id]?.blame_work}
+                          onChange={() => handleCheckboxChange(student.student_id, 'blame_work')}
+                          style={{ width: '20px', height: '20px', cursor: 'pointer' }}
                         />
                       </td>
-                      <td>
+                      <td className="text-center align-middle">
                         <Input
-                          type="number"
-                          min="0"
-                          bsSize="sm"
-                          value={disciplineData[student.student_id]?.warning_conduct || 0}
-                          onChange={(e) => handleInputChange(student.student_id, 'warning_conduct', e.target.value)}
-                          style={{ width: '60px' }}
+                          type="checkbox"
+                          checked={!!disciplineData[student.student_id]?.warning_conduct}
+                          onChange={() => handleCheckboxChange(student.student_id, 'warning_conduct')}
+                          style={{ width: '20px', height: '20px', cursor: 'pointer' }}
                         />
                       </td>
-                      <td>
+                      <td className="text-center align-middle">
                         <Input
-                          type="number"
-                          min="0"
-                          bsSize="sm"
-                          value={disciplineData[student.student_id]?.warning_work || 0}
-                          onChange={(e) => handleInputChange(student.student_id, 'warning_work', e.target.value)}
-                          style={{ width: '60px' }}
+                          type="checkbox"
+                          checked={!!disciplineData[student.student_id]?.warning_work}
+                          onChange={() => handleCheckboxChange(student.student_id, 'warning_work')}
+                          style={{ width: '20px', height: '20px', cursor: 'pointer' }}
                         />
                       </td>
                       <td>
