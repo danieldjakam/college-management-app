@@ -4788,6 +4788,75 @@ class BulletinService
 
         $html = str_replace('{{travail_annuel_rows}}', $travailHtml, $html);
 
+        // Discipline - Sum across 3 trimesters
+        $student = $data['student'];
+        $absNonJust = 0;
+        $absJust = 0;
+        $retards = 0;
+        $consignes = 0;
+        $avertissementCount = 0;
+        $blameCount = 0;
+        $exclusionDays = 0;
+        $discPerTrim = [1 => [], 2 => [], 3 => []];
+
+        for ($t = 1; $t <= 3; $t++) {
+            $trimester = Trimester::where('number', $t)->first();
+            if ($trimester) {
+                $disc = \App\Models\StudentDiscipline::where('student_id', $student->id)
+                    ->where('trimester_id', $trimester->id)
+                    ->first();
+                if ($disc) {
+                    $tRetards = ($disc->delays_justified ?? 0) + ($disc->delays_unjustified ?? 0);
+                    $discPerTrim[$t] = [
+                        'retards' => $tRetards,
+                        'abs_just' => $disc->absences_justified ?? 0,
+                        'abs_non_just' => $disc->absences_unjustified ?? 0,
+                        'avertissement' => $disc->warning_conduct ?? 0,
+                        'blame' => $disc->blame_conduct ?? 0,
+                        'consignes' => $disc->consignes ?? 0,
+                        'exclusion' => $disc->exclusion_days ?? 0,
+                    ];
+                    $absNonJust += $disc->absences_unjustified ?? 0;
+                    $absJust += $disc->absences_justified ?? 0;
+                    $retards += $tRetards;
+                    $consignes += $disc->consignes ?? 0;
+                    $avertissementCount += $disc->warning_conduct ?? 0;
+                    $blameCount += $disc->blame_conduct ?? 0;
+                    $exclusionDays += $disc->exclusion_days ?? 0;
+                }
+            }
+            if (empty($discPerTrim[$t])) {
+                $discPerTrim[$t] = ['retards' => 0, 'abs_just' => 0, 'abs_non_just' => 0, 'avertissement' => 0, 'blame' => 0, 'consignes' => 0, 'exclusion' => 0];
+            }
+        }
+
+        // Helper to render checkbox HTML
+        $checkbox = function ($value) {
+            $filled = $value > 0 ? ' checkbox-filled' : '';
+            return '<span class="checkbox' . $filled . '"></span>';
+        };
+
+        // Per-trimester placeholders for the discipline table
+        for ($t = 1; $t <= 3; $t++) {
+            $d = $discPerTrim[$t];
+            $html = str_replace("{{disc_retards_t{$t}}}", $d['retards'], $html);
+            $html = str_replace("{{disc_abs_just_t{$t}}}", $d['abs_just'], $html);
+            $html = str_replace("{{disc_abs_non_just_t{$t}}}", $d['abs_non_just'], $html);
+            $html = str_replace("{{disc_avert_cb_t{$t}}}", $checkbox($d['avertissement']), $html);
+            $html = str_replace("{{disc_blame_cb_t{$t}}}", $checkbox($d['blame']), $html);
+            $html = str_replace("{{disc_consignes_t{$t}}}", $d['consignes'], $html);
+            $html = str_replace("{{disc_exclusion_t{$t}}}", $d['exclusion'], $html);
+        }
+
+        // Annual totals
+        $html = str_replace('{{disc_retards_annuel}}', $retards, $html);
+        $html = str_replace('{{disc_abs_just_annuel}}', $absJust, $html);
+        $html = str_replace('{{disc_abs_non_just_annuel}}', $absNonJust, $html);
+        $html = str_replace('{{disc_avert_cb_annuel}}', $checkbox($avertissementCount), $html);
+        $html = str_replace('{{disc_blame_cb_annuel}}', $checkbox($blameCount), $html);
+        $html = str_replace('{{disc_consignes_annuel}}', $consignes, $html);
+        $html = str_replace('{{disc_exclusion_annuel}}', $exclusionDays, $html);
+
         return $html;
     }
 
@@ -4918,8 +4987,8 @@ class BulletinService
         $absJust = 0;
         $retards = 0;
         $consignes = 0;
-        $avertissement = '';
-        $blame = '';
+        $avertissementCount = 0;
+        $blameCount = 0;
         $exclusionDays = 0;
         $exclusionDefinitive = '';
 
@@ -4935,6 +5004,8 @@ class BulletinService
                     $retards += $disc->delays_justified ?? 0;
                     $retards += $disc->delays_unjustified ?? 0;
                     $consignes += $disc->consignes ?? 0;
+                    $avertissementCount += $disc->warning_conduct ?? 0;
+                    $blameCount += $disc->blame_conduct ?? 0;
                     $exclusionDays += $disc->exclusion_days ?? 0;
                 }
             }
@@ -4944,10 +5015,10 @@ class BulletinService
         $replacements['abs_just'] = $absJust;
         $replacements['retards'] = $retards;
         $replacements['consignes'] = $consignes;
-        $replacements['avertissement'] = $avertissement;
-        $replacements['blame'] = $blame;
+        $replacements['avertissement'] = '<span class="checkbox' . ($avertissementCount > 0 ? ' checkbox-filled' : '') . '"></span>';
+        $replacements['blame'] = '<span class="checkbox' . ($blameCount > 0 ? ' checkbox-filled' : '') . '"></span>';
         $replacements['discipline_exclusion_days'] = $exclusionDays;
-        $replacements['exclusion_definitive'] = $exclusionDefinitive;
+        $replacements['exclusion_definitive'] = '<span class="checkbox"></span>';
 
         // Class profile
         $classMin = $data['class_min'] ?? 0;
