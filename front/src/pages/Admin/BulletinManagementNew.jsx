@@ -462,6 +462,7 @@ function BulletinManagementNew() {
     if (!editBulletinInfo) return;
     try {
       setEditLoading(true);
+      // 1. Sauvegarder les modifications
       await secureApi.post('/bulletins/modifications/save', {
         student_id: editBulletinInfo.student_id,
         period_type: editBulletinInfo.type,
@@ -469,7 +470,15 @@ function BulletinManagementNew() {
         modifications: editModifications,
         reason: editReason
       });
-      setSuccess('Modifications enregistrees avec succes');
+      // 2. Regenerer le PDF automatiquement
+      await secureApi.post('/bulletins/modifications/regenerate', {
+        student_id: editBulletinInfo.student_id,
+        type: editBulletinInfo.type,
+        period_identifier: editBulletinInfo.period_identifier
+      });
+      setSuccess('Modifications enregistrees et bulletin regenere');
+      setShowEditModal(false);
+      await fetchStudentsData();
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError('Erreur lors de la sauvegarde');
