@@ -4872,16 +4872,24 @@ class BulletinService
         // Get class level and section
         $classLevel = '';
         $classSection = '';
+        $classDisplayName = '';
         $className = $student->classSeries->name ?? $student->schoolClass->name ?? '';
         if ($className) {
-            preg_match('/(\d+)/', $className, $matches);
-            if (!empty($matches[1])) {
-                $classLevel = $matches[1];
-            }
-            if (preg_match('/\s([A-Z]+)\s*$/', $className, $sectionMatches)) {
-                $classSection = $sectionMatches[1];
-            } elseif (preg_match('/([A-Z]+)$/', $className, $sectionMatches)) {
-                $classSection = $sectionMatches[1];
+            if ($sectionType === 'anglophone') {
+                // Anglophone: use full class name (e.g. "Form 1 MA", "FORM TWO A")
+                $classDisplayName = strtoupper($className);
+            } else {
+                // Francophone: extract level number and section letter
+                preg_match('/(\d+)/', $className, $matches);
+                if (!empty($matches[1])) {
+                    $classLevel = $matches[1];
+                }
+                if (preg_match('/\s([A-Z]+)\s*$/', $className, $sectionMatches)) {
+                    $classSection = $sectionMatches[1];
+                } elseif (preg_match('/([A-Z]+)$/', $className, $sectionMatches)) {
+                    $classSection = $sectionMatches[1];
+                }
+                $classDisplayName = $classLevel . '<sup>ème</sup> ' . $classSection;
             }
         }
 
@@ -4915,6 +4923,7 @@ class BulletinService
             'is_repeater' => $isRepeater,
             'class_level' => $classLevel,
             'class_section' => $classSection,
+            'class_display_name' => $classDisplayName,
             'class_size' => $classSize,
             'main_teacher' => $mainTeacher,
             'parent_info' => $parentInfo,
