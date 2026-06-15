@@ -236,21 +236,36 @@ class HonorRollController extends Controller
     {
         $studentId = $request->input('student_id');
         $trimesterId = $request->input('trimester_id');
+        $periodType = $request->input('period_type', 'trimester');
 
-        if (!$studentId || !$trimesterId) {
+        if (!$studentId) {
             return response()->json([
                 'success' => false,
-                'message' => 'ID étudiant et trimestre requis'
+                'message' => 'ID étudiant requis'
+            ], 400);
+        }
+
+        if ($periodType !== 'annual' && !$trimesterId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Le trimestre est requis'
             ], 400);
         }
 
         $student = Student::with(['classSeries.schoolClass.level.section'])->find($studentId);
-        $trimester = Trimester::find($trimesterId);
-
-        if (!$student || !$trimester) {
+        $trimester = null;
+        if ($periodType !== 'annual') {
+            $trimester = Trimester::find($trimesterId);
+            if (!$student || !$trimester) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Étudiant ou trimestre introuvable'
+                ], 404);
+            }
+        } elseif (!$student) {
             return response()->json([
                 'success' => false,
-                'message' => 'Étudiant ou trimestre introuvable'
+                'message' => 'Étudiant introuvable'
             ], 404);
         }
 
@@ -268,19 +283,29 @@ class HonorRollController extends Controller
             }
         } else {
             // Fallback: recalculate from bulletin data
-            $bulletinData = $this->bulletinService->generateTrimesterBulletinData(
-                $trimester->number,
-                $student->id
-            );
+            if ($periodType === 'annual') {
+                $isApc = $this->bulletinService->isApcClass($student);
+                $bulletinData = $isApc
+                    ? $this->bulletinService->generateAnnualBulletinData($student->id)
+                    : $this->bulletinService->generateAnnualBulletinDataNonApc($student->id);
+                $average = $bulletinData['general_average'] ?? $bulletinData['average'] ?? null;
+                $rank = $bulletinData['rank'] ?? null;
+            } else {
+                $bulletinData = $this->bulletinService->generateTrimesterBulletinData(
+                    $trimester->number,
+                    $student->id
+                );
+                $average = $bulletinData['average'] ?? null;
+                $rank = $bulletinData['rank'] ?? null;
+            }
 
-            if (!$bulletinData || $bulletinData['average'] < 12.00) {
+            if (!$bulletinData || !$average || $average < 12.00) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Cet élève n\'est pas éligible au tableau d\'honneur (moyenne < 12/20)'
                 ], 400);
             }
-            $average = round($bulletinData['average'], 2);
-            $rank = $bulletinData['rank'];
+            $average = round((float) $average, 2);
         }
 
         $mention = $this->getMention($average);
@@ -309,6 +334,8 @@ class HonorRollController extends Controller
         $data = [
             'student' => $student,
             'trimester' => $trimester,
+            'period_type' => $periodType,
+            'period_label' => $periodType === 'annual' ? 'Année Scolaire' : 'Trimestre ' . ($trimester ? $trimester->number : ''),
             'average' => $average,
             'rank' => $rank,
             'mention' => $mention,
@@ -355,7 +382,8 @@ class HonorRollController extends Controller
         $pdfContent = $dompdf->output();
 
         // Sauvegarder le PDF
-        $filename = 'honor_roll_' . $student->id . '_trim' . $trimester->number . '_' . date('Y-m-d') . '.pdf';
+        $periodSuffix = $periodType === 'annual' ? 'annuel' : 'trim' . ($trimester ? $trimester->number : '');
+        $filename = 'honor_roll_' . $student->id . '_' . $periodSuffix . '_' . date('Y-m-d') . '.pdf';
         $filePath = 'public/honor_rolls/' . $filename;
         $fullPath = storage_path('app/' . $filePath);
 
@@ -460,15 +488,20 @@ class HonorRollController extends Controller
     {
         set_time_limit(600); // 10 minutes
 
-        $request->validate([
+        $periodType = $request->input('period_type', 'trimester');
+
+        $rules = [
             'student_ids' => 'required|array',
             'student_ids.*' => 'exists:students,id',
-            'trimester_id' => 'required|exists:trimesters,id',
-        ]);
+        ];
+        if ($periodType !== 'annual') {
+            $rules['trimester_id'] = 'required|exists:trimesters,id';
+        }
+        $request->validate($rules);
 
         $studentIds = $request->input('student_ids');
         $trimesterId = $request->input('trimester_id');
-        $trimester = Trimester::find($trimesterId);
+        $trimester = $periodType !== 'annual' ? Trimester::find($trimesterId) : null;
 
         // Build lookup for pre-calculated data from frontend
         $studentsDataMap = [];
@@ -500,17 +533,26 @@ class HonorRollController extends Controller
                     }
                 } else {
                     // Fallback: recalculate
-                    $bulletinData = $this->bulletinService->generateTrimesterBulletinData(
-                        $trimester->number,
-                        $student->id
-                    );
+                    if ($periodType === 'annual') {
+                        $isApc = $this->bulletinService->isApcClass($student);
+                        $bulletinData = $isApc
+                            ? $this->bulletinService->generateAnnualBulletinData($student->id)
+                            : $this->bulletinService->generateAnnualBulletinDataNonApc($student->id);
+                        $avg = $bulletinData['general_average'] ?? $bulletinData['average'] ?? null;
+                    } else {
+                        $bulletinData = $this->bulletinService->generateTrimesterBulletinData(
+                            $trimester->number,
+                            $student->id
+                        );
+                        $avg = $bulletinData['average'] ?? null;
+                    }
 
-                    if (!$bulletinData || $bulletinData['average'] < 12.00) {
+                    if (!$bulletinData || !$avg || $avg < 12.00) {
                         $failed[] = ['id' => $studentId, 'reason' => 'Non éligible (moyenne < 12/20)'];
                         continue;
                     }
-                    $average = round($bulletinData['average'], 2);
-                    $rank = $bulletinData['rank'];
+                    $average = round((float) $avg, 2);
+                    $rank = $bulletinData['rank'] ?? null;
                 }
 
                 $mention = $this->getMention($average);
@@ -539,6 +581,8 @@ class HonorRollController extends Controller
                 $data = [
                     'student' => $student,
                     'trimester' => $trimester,
+                    'period_type' => $periodType,
+                    'period_label' => $periodType === 'annual' ? 'Année Scolaire' : 'Trimestre ' . ($trimester ? $trimester->number : ''),
                     'average' => $average,
                     'rank' => $rank,
                     'mention' => $mention,
@@ -582,7 +626,8 @@ class HonorRollController extends Controller
                 $pdfContent = $dompdf->output();
 
                 // Sauvegarder le PDF
-                $filename = 'honor_roll_' . $student->id . '_trim' . $trimester->number . '_' . date('Y-m-d') . '.pdf';
+                $pSuffix = $periodType === 'annual' ? 'annuel' : 'trim' . ($trimester ? $trimester->number : '');
+                $filename = 'honor_roll_' . $student->id . '_' . $pSuffix . '_' . date('Y-m-d') . '.pdf';
                 $filePath = 'public/honor_rolls/' . $filename;
                 $fullPath = storage_path('app/' . $filePath);
 
@@ -624,29 +669,34 @@ class HonorRollController extends Controller
         ini_set('max_execution_time', '300');
         ini_set('memory_limit', '512M');
 
-        $validated = $request->validate([
-            'trimester_id' => 'required|exists:trimesters,id',
+        $periodType = $request->input('period_type', 'trimester');
+
+        $rules = [
             'section_id' => 'nullable|exists:sections,id',
             'level_id' => 'nullable|exists:levels,id',
             'class_id' => 'nullable|exists:school_classes,id',
             'series_id' => 'nullable|exists:class_series,id',
-        ]);
+        ];
+        if ($periodType !== 'annual') {
+            $rules['trimester_id'] = 'required|exists:trimesters,id';
+        }
+        $validated = $request->validate($rules);
 
         // Récupérer tous les fichiers de certificats selon les filtres
         $certificatePaths = [];
         $students = Student::where('is_active', true);
 
-        if ($validated['series_id']) {
+        if (!empty($validated['series_id'])) {
             $students->where('class_series_id', $validated['series_id']);
-        } elseif ($validated['class_id']) {
+        } elseif (!empty($validated['class_id'])) {
             $students->whereHas('classSeries', function ($q) use ($validated) {
                 $q->where('class_id', $validated['class_id']);
             });
-        } elseif ($validated['level_id']) {
+        } elseif (!empty($validated['level_id'])) {
             $students->whereHas('classSeries.schoolClass', function ($q) use ($validated) {
                 $q->where('level_id', $validated['level_id']);
             });
-        } elseif ($validated['section_id']) {
+        } elseif (!empty($validated['section_id'])) {
             $students->whereHas('classSeries.schoolClass.level', function ($q) use ($validated) {
                 $q->where('section_id', $validated['section_id']);
             });
@@ -654,14 +704,17 @@ class HonorRollController extends Controller
 
         $students = $students->get();
 
-        // Récupérer le numéro du trimestre (batchGenerate utilise $trimester->number, pas l'ID)
-        $trimester = Trimester::find($validated['trimester_id']);
-        $trimNumber = $trimester ? $trimester->number : $validated['trimester_id'];
+        // Déterminer le suffixe de période pour la recherche de fichiers
+        if ($periodType === 'annual') {
+            $fileSuffix = 'annuel';
+        } else {
+            $trimester = Trimester::find($validated['trimester_id']);
+            $fileSuffix = 'trim' . ($trimester ? $trimester->number : $validated['trimester_id']);
+        }
 
         // Chercher les certificats existants pour ces étudiants
         foreach ($students as $student) {
-            // Chercher le fichier avec le numéro du trimestre (format de batchGenerate)
-            $filename = 'honor_roll_' . $student->id . '_trim' . $trimNumber . '_' . date('Y-m-d') . '.pdf';
+            $filename = 'honor_roll_' . $student->id . '_' . $fileSuffix . '_' . date('Y-m-d') . '.pdf';
             $filePath = 'public/honor_rolls/' . $filename;
             $fullPath = storage_path('app/' . $filePath);
 
@@ -669,7 +722,7 @@ class HonorRollController extends Controller
                 $certificatePaths[] = $filePath;
             } else {
                 // Fallback: chercher avec n'importe quelle date
-                $pattern = storage_path('app/public/honor_rolls/honor_roll_' . $student->id . '_trim' . $trimNumber . '_*.pdf');
+                $pattern = storage_path('app/public/honor_rolls/honor_roll_' . $student->id . '_' . $fileSuffix . '_*.pdf');
                 $matches = glob($pattern);
                 if (!empty($matches)) {
                     // Prendre le plus récent

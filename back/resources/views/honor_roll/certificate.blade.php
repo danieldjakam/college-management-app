@@ -265,7 +265,7 @@
             </tr>
             <tr>
                 <td class="info-label">Période / Period:</td>
-                <td class="info-value">{{ $trimester->number }}{{ $trimester->number == 1 ? 'er' : 'ème' }} Trimestre {{ $academic_year }}</td>
+                <td class="info-value">{{ $period_label ?? ($trimester ? $trimester->number . ($trimester->number == 1 ? 'er' : 'ème') . ' Trimestre' : 'Année Scolaire') }} {{ $academic_year }}</td>
             </tr>
             <tr>
                 <td class="info-label">Moyenne Générale / General Average:</td>
