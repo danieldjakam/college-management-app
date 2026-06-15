@@ -17,6 +17,7 @@ const HonorRoll = () => {
   const [selectedLevel, setSelectedLevel] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSeries, setSelectedSeries] = useState('');
+  const [selectedPeriodType, setSelectedPeriodType] = useState('trimester');
   const [selectedTrimester, setSelectedTrimester] = useState('');
 
   // Données
@@ -84,7 +85,7 @@ const HonorRoll = () => {
   };
 
   const fetchEligibleStudents = async () => {
-    if (!selectedTrimester) {
+    if (selectedPeriodType === 'trimester' && !selectedTrimester) {
       setError('Veuillez sélectionner un trimestre');
       return;
     }
@@ -101,7 +102,8 @@ const HonorRoll = () => {
 
     try {
       const response = await secureApi.post('/honor-rolls/eligible-students', {
-        trimester_id: selectedTrimester,
+        period_type: selectedPeriodType,
+        trimester_id: selectedPeriodType === 'trimester' ? selectedTrimester : null,
         section_id: selectedSection || null,
         level_id: selectedLevel || null,
         class_id: selectedClass || null,
@@ -129,7 +131,7 @@ const HonorRoll = () => {
   };
 
   const generateCertificate = async (studentId, average, rank) => {
-    if (!selectedTrimester) {
+    if (selectedPeriodType === 'trimester' && !selectedTrimester) {
       setError('Veuillez sélectionner un trimestre');
       return;
     }
@@ -141,7 +143,8 @@ const HonorRoll = () => {
     try {
       const response = await secureApi.post('/honor-rolls/generate-certificate', {
         student_id: studentId,
-        trimester_id: selectedTrimester,
+        period_type: selectedPeriodType,
+        trimester_id: selectedPeriodType === 'trimester' ? selectedTrimester : null,
         average: average,
         rank: rank,
       });
@@ -215,7 +218,7 @@ const HonorRoll = () => {
   };
 
   const batchGenerateAllCertificates = async () => {
-    if (!selectedTrimester || eligibleStudents.length === 0) {
+    if ((selectedPeriodType === 'trimester' && !selectedTrimester) || eligibleStudents.length === 0) {
       setError('Aucun élève éligible à générer');
       return;
     }
@@ -229,7 +232,8 @@ const HonorRoll = () => {
       const response = await secureApi.post('/honor-rolls/batch-generate', {
         student_ids: eligibleStudents.map(s => s.id),
         students_data: studentsData,
-        trimester_id: selectedTrimester,
+        period_type: selectedPeriodType,
+        trimester_id: selectedPeriodType === 'trimester' ? selectedTrimester : null,
       });
 
       setSuccess(`${response.generated_count} certificats générés avec succès (${response.failed_count} échecs)`);
@@ -242,7 +246,7 @@ const HonorRoll = () => {
   };
 
   const mergeAndDownloadCertificates = async () => {
-    if (!selectedTrimester) {
+    if (selectedPeriodType === 'trimester' && !selectedTrimester) {
       setError('Veuillez sélectionner un trimestre');
       return;
     }
@@ -253,7 +257,8 @@ const HonorRoll = () => {
 
     try {
       const response = await secureApi.post('/honor-rolls/merge', {
-        trimester_id: selectedTrimester,
+        period_type: selectedPeriodType,
+        trimester_id: selectedPeriodType === 'trimester' ? selectedTrimester : null,
         section_id: selectedSection || null,
         level_id: selectedLevel || null,
         class_id: selectedClass || null,
@@ -300,6 +305,8 @@ const HonorRoll = () => {
     setSelectedLevel('');
     setSelectedClass('');
     setSelectedSeries('');
+    setSelectedPeriodType('trimester');
+    setSelectedTrimester('');
     setEligibleStudents([]);
     setGroupedByMention({});
     setStatistics({});
@@ -328,12 +335,21 @@ const HonorRoll = () => {
           <Row>
             <Col md={2}>
               <FormGroup>
-                <Label for="trimester">Trimestre *</Label>
+                <Label for="period">Période *</Label>
                 <Input
                   type="select"
-                  id="trimester"
-                  value={selectedTrimester}
-                  onChange={(e) => setSelectedTrimester(e.target.value)}
+                  id="period"
+                  value={selectedPeriodType === 'annual' ? 'annual' : selectedTrimester}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'annual') {
+                      setSelectedPeriodType('annual');
+                      setSelectedTrimester('');
+                    } else {
+                      setSelectedPeriodType('trimester');
+                      setSelectedTrimester(val);
+                    }
+                  }}
                 >
                   <option value="">Choisir...</option>
                   {trimesters.map((trim) => (
@@ -341,6 +357,7 @@ const HonorRoll = () => {
                       Trimestre {trim.trimester_number}
                     </option>
                   ))}
+                  <option value="annual">Annuel</option>
                 </Input>
               </FormGroup>
             </Col>
@@ -436,7 +453,7 @@ const HonorRoll = () => {
                   color="primary"
                   className="w-100"
                   onClick={fetchEligibleStudents}
-                  disabled={loading || !selectedTrimester}
+                  disabled={loading || (selectedPeriodType === 'trimester' && !selectedTrimester)}
                 >
                   {loading ? (
                     <>

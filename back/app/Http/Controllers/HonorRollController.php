@@ -28,7 +28,7 @@ class HonorRollController extends Controller
 
     /**
      * Récupérer les élèves éligibles au tableau d'honneur
-     * Critères: Moyenne >= 12/20 sur un trimestre
+     * Critères: Moyenne >= 12/20 sur un trimestre ou sur l'année
      */
     public function getEligibleStudents(Request $request)
     {
@@ -36,6 +36,7 @@ class HonorRollController extends Controller
         set_time_limit(300); // 5 minutes
 
         $trimesterId = $request->input('trimester_id');
+        $periodType = $request->input('period_type', 'trimester'); // 'trimester' ou 'annual'
         $sectionId = $request->input('section_id');
         $levelId = $request->input('level_id');
         $classId = $request->input('class_id');
@@ -43,26 +44,29 @@ class HonorRollController extends Controller
 
         \Log::info('Honor roll request received', [
             'trimester_id' => $trimesterId,
+            'period_type' => $periodType,
             'section_id' => $sectionId,
             'level_id' => $levelId,
             'class_id' => $classId,
             'series_id' => $seriesId,
         ]);
 
-        if (!$trimesterId) {
+        if ($periodType !== 'annual' && !$trimesterId) {
             return response()->json([
                 'success' => false,
                 'message' => 'Le trimestre est requis'
             ], 400);
         }
 
-        // Récupérer le trimestre
-        $trimester = Trimester::find($trimesterId);
-        if (!$trimester) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Trimestre introuvable'
-            ], 404);
+        $trimester = null;
+        if ($periodType !== 'annual') {
+            $trimester = Trimester::find($trimesterId);
+            if (!$trimester) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Trimestre introuvable'
+                ], 404);
+            }
         }
 
         // Construire la requête des étudiants avec filtres
@@ -77,7 +81,6 @@ class HonorRollController extends Controller
         }
 
         if ($seriesId) {
-            // Si c'est un tableau de series_id (sélection multiple)
             if (is_array($seriesId)) {
                 $query->whereIn('class_series_id', $seriesId);
             } else {
@@ -97,43 +100,51 @@ class HonorRollController extends Controller
             });
         }
 
-        \Log::info('Query built, fetching students...');
-
         $students = $query->with(['classSeries.schoolClass.level.section'])->get();
 
-        \Log::info('Students fetched', ['count' => $students->count()]);
-
-        // Limiter le traitement si trop d'élèves
         if ($students->count() > 500) {
-            \Log::warning('Too many students', ['count' => $students->count()]);
             return response()->json([
                 'success' => false,
                 'message' => "Trop d'élèves à traiter ({$students->count()}). Veuillez affiner vos filtres (maximum 500 élèves)."
             ], 400);
         }
 
-        \Log::info('Processing honor roll for ' . $students->count() . ' students');
+        \Log::info("Processing honor roll ({$periodType}) for " . $students->count() . ' students');
 
-        // Calculer les moyennes et filtrer >= 12/20
         $eligibleStudents = [];
-        $processedCount = 0;
 
         foreach ($students as $student) {
-            $processedCount++;
-
-            // Log progress every 50 students
-            if ($processedCount % 50 === 0) {
-                \Log::info("Processed $processedCount / {$students->count()} students");
-            }
-
             try {
-                $bulletinData = $this->bulletinService->generateTrimesterBulletinData(
-                    $trimester->number,
-                    $student->id
-                );
+                $average = null;
+                $rank = null;
 
-                if ($bulletinData && $bulletinData['average'] >= 12.00) {
-                $mention = $this->getMention($bulletinData['average']);
+                if ($periodType === 'annual') {
+                    // Calcul annuel: utiliser generateAnnualBulletinData ou NonApc
+                    $isApc = $this->bulletinService->isApcClass($student);
+                    if ($isApc) {
+                        $bulletinData = $this->bulletinService->generateAnnualBulletinData($student->id);
+                    } else {
+                        $bulletinData = $this->bulletinService->generateAnnualBulletinDataNonApc($student->id);
+                    }
+
+                    if ($bulletinData) {
+                        $average = $bulletinData['general_average'] ?? $bulletinData['average'] ?? null;
+                        $rank = $bulletinData['rank'] ?? null;
+                    }
+                } else {
+                    $bulletinData = $this->bulletinService->generateTrimesterBulletinData(
+                        $trimester->number,
+                        $student->id
+                    );
+
+                    if ($bulletinData) {
+                        $average = $bulletinData['average'] ?? null;
+                        $rank = $bulletinData['rank'] ?? null;
+                    }
+                }
+
+                if ($average !== null && $average >= 12.00) {
+                    $mention = $this->getMention($average);
 
                     $eligibleStudents[] = [
                         'id' => $student->id,
@@ -145,10 +156,9 @@ class HonorRollController extends Controller
                         'class_series_id' => $student->class_series_id,
                         'section' => $student->classSeries->schoolClass->level->section->name ?? 'N/A',
                         'level' => $student->classSeries->schoolClass->level->name ?? 'N/A',
-                        'average' => round($bulletinData['average'], 2),
-                        'rank' => $bulletinData['rank'],
+                        'average' => round($average, 2),
+                        'rank' => $rank,
                         'mention' => $mention,
-                        'total_points' => $bulletinData['totalPoints'] ?? 0,
                     ];
                 }
             } catch (\Exception $e) {
@@ -159,12 +169,10 @@ class HonorRollController extends Controller
 
         \Log::info("Found " . count($eligibleStudents) . " eligible students out of {$students->count()}");
 
-        // Trier par moyenne décroissante
         usort($eligibleStudents, function ($a, $b) {
             return $b['average'] <=> $a['average'];
         });
 
-        // Grouper par mention
         $groupedByMention = [
             'Excellent' => [],
             'Très bien' => [],
@@ -176,13 +184,21 @@ class HonorRollController extends Controller
             $groupedByMention[$student['mention']][] = $student;
         }
 
+        $periodLabel = $periodType === 'annual'
+            ? 'Bilan Annuel'
+            : 'Trimestre ' . ($trimester ? $trimester->number : '');
+
         return response()->json([
             'success' => true,
-            'trimester' => [
+            'period' => [
+                'type' => $periodType,
+                'label' => $periodLabel,
+            ],
+            'trimester' => $trimester ? [
                 'id' => $trimester->id,
                 'name' => 'Trimestre ' . $trimester->number,
                 'trimester_number' => $trimester->number,
-            ],
+            ] : null,
             'students' => $eligibleStudents,
             'grouped_by_mention' => $groupedByMention,
             'statistics' => [
