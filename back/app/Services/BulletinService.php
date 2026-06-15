@@ -2615,7 +2615,7 @@ class BulletinService
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">TOTAL</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">RANG</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPÉTENCES</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 13%;">NOMS DES PROFESSEURS</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%; font-size: 5.5pt;">NOMS DES<br>PROFESSEURS</th>';
                 }
             } else {
                 // 📚 PREMIER CYCLE: 9 colonnes avec DS1 (moyenne cachée)
@@ -2629,7 +2629,7 @@ class BulletinService
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">RANK</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPETENCIES</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 20%;">TEACHER NAMES</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%; font-size: 5.5pt;">TEACHER<br>NAMES</th>';
                 } else {
                     // French headers for Francophone section
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 20%;">DISCIPLINE</th>';
@@ -2640,7 +2640,7 @@ class BulletinService
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">RANG</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPÉTENCES</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 20%;">NOMS DES PROFESSEURS</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%; font-size: 5.5pt;">NOMS DES<br>PROFESSEURS</th>';
                 }
             }
         } else {
@@ -2653,7 +2653,7 @@ class BulletinService
                 $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">(NXC)</th>';
                 $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">RANK</th>';
                 $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 13%;">COMPETENCIES</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 20%;">TEACHER NAMES</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%; font-size: 5.5pt;">TEACHER<br>NAMES</th>';
             } else {
                 // French headers for Francophone section
                 $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 25%;">DISCIPLINE</th>';
@@ -2662,7 +2662,7 @@ class BulletinService
                 $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">(NXC)</th>';
                 $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">RANG</th>';
                 $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 13%;">COMPÉTENCES</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 20%;">NOMS DES PROFESSEURS</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%; font-size: 5.5pt;">NOMS DES<br>PROFESSEURS</th>';
             }
         }
 
@@ -2727,7 +2727,7 @@ class BulletinService
                     // 🔧 FIX BUG #1: Si pas de rang, afficher dernier rang au lieu de 1er
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10pt;">' . $competence . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10pt;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center; font-size: 5.5pt; line-height: 0.9;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
                 } else {
                     // 📚 PREMIER CYCLE: 9 colonnes avec DS1 (moyenne cachée)
                     $ds1 = $subject['ds'] ?? null;
@@ -2747,7 +2747,7 @@ class BulletinService
                     // 🔧 FIX BUG #1: Si pas de rang, afficher dernier rang au lieu de 1er
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $competence . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center; font-size: 5.5pt; line-height: 0.9;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
                 }
             } else {
                 // Pour bulletin séquence avec alignement
@@ -2760,7 +2760,7 @@ class BulletinService
                 // 🔧 FIX BUG #1: Si pas de rang, afficher dernier rang au lieu de 1er
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $competence . '</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center; font-size: 5.5pt; line-height: 0.9;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
             }
 
             $html .= '</tr>';
@@ -2788,8 +2788,8 @@ class BulletinService
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // (NXC)
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // TOTAL
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // RANG
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10pt;">' . strtoupper(explode(' :', $groupName)[0]) . '</td>'; // COMPÉTENCES
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10pt;">Moy Gpe: ' . number_format((float)$groupAverage, 2) . '</td>'; // PROFESSEURS
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center; font-size: 6pt; font-weight: bold;">' . strtoupper(explode(' :', $groupName)[0]) . '</td>'; // COMPÉTENCES
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center; font-size: 6pt; font-weight: bold;">Moy Gpe: ' . number_format((float)$groupAverage, 2) . '</td>'; // PROFESSEURS
             } else {
                 // 📚 PREMIER CYCLE: 9 colonnes - ligne de total
                 $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>';
@@ -3667,15 +3667,13 @@ class BulletinService
     private function getDetailedAppreciation($avg)
     {
         if ($avg >= 16) {
-            return 'Points forts: Excellente maîtrise des matières. Points à améliorer: Maintenir cet excellent niveau.';
+            return 'A+ (Expert) - Excellente maîtrise des compétences.';
         } elseif ($avg >= 14) {
-            return 'Points forts: Très bonne maîtrise des matières. Points à améliorer: Viser l\'excellence.';
-        } elseif ($avg >= 12) {
-            return 'Points forts: Bonne compréhension générale. Points à améliorer: Renforcer les acquis.';
+            return 'A (Acquise) - Très bonne maîtrise des compétences.';
         } elseif ($avg >= 10) {
-            return 'Points forts: Compréhension satisfaisante. Points à améliorer: Travailler plus régulièrement.';
+            return 'ECA (En Cours d\'Acquisition) - Compétences en cours d\'acquisition. Poursuivre les efforts.';
         } else {
-            return 'Points forts: Des efforts remarqués. Points à améliorer: Redoubler d\'efforts et demander de l\'aide.';
+            return 'NA (Non Acquise) - Compétences non acquises. Redoubler d\'efforts.';
         }
     }
 
@@ -4615,13 +4613,11 @@ class BulletinService
 
         $bulletinData['travail_annuel'] = $travailAnnuel;
 
-        // Appreciation
-        if ($generalAverage >= 16) $bulletinData['general_appreciation'] = 'Excellent';
-        elseif ($generalAverage >= 14) $bulletinData['general_appreciation'] = 'Très Bien';
-        elseif ($generalAverage >= 12) $bulletinData['general_appreciation'] = 'Bien';
-        elseif ($generalAverage >= 10) $bulletinData['general_appreciation'] = 'Assez Bien';
-        elseif ($generalAverage >= 8) $bulletinData['general_appreciation'] = 'Passable';
-        else $bulletinData['general_appreciation'] = 'Insuffisant';
+        // Appreciation APC (même système que la colonne Compétences par matière)
+        if ($generalAverage >= 16) $bulletinData['general_appreciation'] = 'A+ (Expert)';
+        elseif ($generalAverage >= 14) $bulletinData['general_appreciation'] = 'A (Acquise)';
+        elseif ($generalAverage >= 10) $bulletinData['general_appreciation'] = 'ECA (En Cours d\'Acquisition)';
+        else $bulletinData['general_appreciation'] = 'NA (Non Acquise)';
 
         return $bulletinData;
     }
@@ -4978,6 +4974,9 @@ class BulletinService
         $replacements['total_coef'] = $totalCoef;
         $replacements['general_average'] = number_format((float)$generalAverage, 2);
         $replacements['student_cote'] = $this->getCote($generalAverage);
+        $replacements['tableau_honneur'] = $generalAverage >= 12
+            ? '<span style="color: #27ae60;">Oui</span>'
+            : '<span style="color: #e74c3c;">Non</span>';
 
         // Decision du Conseil de Classe (automatic)
         if ($generalAverage >= 10) {

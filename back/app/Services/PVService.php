@@ -533,12 +533,17 @@ class PVService
                     $cycleType
                 );
                 if ($g !== null) {
-                    $trimGrades[] = (float)$g;
+                    $trimGrades[$trimester->number] = (float)$g;
                 }
             }
 
             if (count($trimGrades) > 0) {
-                $annualAvg = array_sum($trimGrades) / count($trimGrades);
+                // Toujours diviser par 3 (même logique que le bulletin annuel)
+                // Les trimestres sans notes comptent comme 0
+                $t1 = $trimGrades[1] ?? 0;
+                $t2 = $trimGrades[2] ?? 0;
+                $t3 = $trimGrades[3] ?? 0;
+                $annualAvg = ($t1 + $t2 + $t3) / 3;
                 $grades[$seriesSubject->id] = round($annualAvg, 2);
                 $totalPoints += $annualAvg * (float)$seriesSubject->coefficient;
             } else {
