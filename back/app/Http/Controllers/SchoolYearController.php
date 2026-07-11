@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SchoolYear;
 use App\Models\User;
+use App\Services\SchoolYearTransitionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
@@ -227,6 +228,79 @@ class SchoolYearController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la définition de l\'année de travail',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Preview de la transition vers une nouvelle annee
+     */
+    public function previewTransition(Request $request, SchoolYear $schoolYear)
+    {
+        try {
+            $service = new SchoolYearTransitionService();
+            $preview = $service->preview($schoolYear, $request->all());
+
+            return response()->json([
+                'success' => true,
+                'data' => $preview
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in SchoolYearController@previewTransition: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la preparation du preview',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Executer la transition vers une nouvelle annee scolaire
+     */
+    public function executeTransition(Request $request, SchoolYear $schoolYear)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255|unique:school_years,name',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after:start_date',
+            'copy_teacher_assignments' => 'boolean',
+            'copy_main_teachers' => 'boolean',
+            'promote_students' => 'boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Donnees invalides',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $service = new SchoolYearTransitionService();
+
+            $result = $service->execute($schoolYear, [
+                'name' => $request->name,
+                'start_date' => $request->start_date,
+                'end_date' => $request->end_date,
+            ], [
+                'copy_teacher_assignments' => $request->get('copy_teacher_assignments', true),
+                'copy_main_teachers' => $request->get('copy_main_teachers', true),
+                'promote_students' => $request->get('promote_students', false),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+                'message' => 'Transition vers la nouvelle annee scolaire effectuee avec succes'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in SchoolYearController@executeTransition: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la transition',
                 'error' => $e->getMessage()
             ], 500);
         }

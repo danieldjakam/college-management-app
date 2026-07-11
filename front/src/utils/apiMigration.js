@@ -915,7 +915,9 @@ export const secureApiEndpoints = {
         getActive: () => secureApi.get('/school-years/active'),
         getActiveYears: () => secureApi.get('/school-years/active'),
         getUserWorkingYear: () => secureApi.get('/school-years/user-working-year'),
-        setUserWorkingYear: (yearId) => secureApi.post('/school-years/set-user-working-year', { school_year_id: yearId })
+        setUserWorkingYear: (yearId) => secureApi.post('/school-years/set-user-working-year', { school_year_id: yearId }),
+        previewTransition: (id) => secureApi.get(`/school-years/${id}/preview-transition`),
+        executeTransition: (id, data) => secureApi.post(`/school-years/${id}/transition`, data)
     },
 
     // === MANUAL DISCOUNTS (Module Réductions) ===
