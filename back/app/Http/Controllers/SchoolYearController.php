@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\SchoolYear;
+use App\Models\StudentArrear;
 use App\Models\User;
 use App\Services\SchoolYearTransitionService;
 use Illuminate\Http\Request;
@@ -333,6 +334,113 @@ class SchoolYearController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération de l\'année de travail',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Liste des arrieres (eleves insolvables) pour une annee cible
+     */
+    public function getArrears(Request $request)
+    {
+        try {
+            $yearId = $request->get('school_year_id');
+            $status = $request->get('status');
+
+            $query = StudentArrear::with(['student.classSeries.schoolClass', 'sourceYear', 'targetYear']);
+
+            if ($yearId) {
+                $query->where('target_school_year_id', $yearId);
+            }
+
+            if ($status) {
+                $query->where('status', $status);
+            }
+
+            $arrears = $query->orderBy('arrear_amount', 'desc')->get();
+
+            $summary = [
+                'total_count' => $arrears->count(),
+                'pending_count' => $arrears->where('status', 'pending')->count(),
+                'partially_paid_count' => $arrears->where('status', 'partially_paid')->count(),
+                'paid_count' => $arrears->where('status', 'paid')->count(),
+                'waived_count' => $arrears->where('status', 'waived')->count(),
+                'total_debt' => $arrears->sum('arrear_amount'),
+                'total_recovered' => $arrears->sum('amount_paid_on_arrear'),
+                'total_remaining' => $arrears->sum(fn($a) => max(0, $a->arrear_amount - $a->amount_paid_on_arrear)),
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'arrears' => $arrears,
+                    'summary' => $summary,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in SchoolYearController@getArrears: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la recuperation des arrieres',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Mettre a jour le statut d'un arriere (paiement partiel, solde, annulation)
+     */
+    public function updateArrear(Request $request, $arrearId)
+    {
+        $validator = Validator::make($request->all(), [
+            'amount_paid' => 'nullable|numeric|min:0',
+            'status' => 'nullable|in:pending,partially_paid,paid,waived',
+            'notes' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Donnees invalides',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $arrear = StudentArrear::findOrFail($arrearId);
+
+            if ($request->has('amount_paid') && $request->amount_paid > 0) {
+                $arrear->amount_paid_on_arrear += $request->amount_paid;
+
+                if ($arrear->amount_paid_on_arrear >= $arrear->arrear_amount) {
+                    $arrear->amount_paid_on_arrear = $arrear->arrear_amount;
+                    $arrear->status = 'paid';
+                } else {
+                    $arrear->status = 'partially_paid';
+                }
+            }
+
+            if ($request->has('status')) {
+                $arrear->status = $request->status;
+            }
+
+            if ($request->has('notes')) {
+                $arrear->notes = $request->notes;
+            }
+
+            $arrear->save();
+
+            return response()->json([
+                'success' => true,
+                'data' => $arrear->load(['student', 'sourceYear', 'targetYear']),
+                'message' => 'Arriere mis a jour avec succes'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in SchoolYearController@updateArrear: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la mise a jour',
                 'error' => $e->getMessage()
             ], 500);
         }

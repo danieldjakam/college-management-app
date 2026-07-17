@@ -10,6 +10,10 @@ use App\Models\Sequence;
 use App\Models\TeacherAssignment;
 use App\Models\MainTeacher;
 use App\Models\Student;
+use App\Models\StudentArrear;
+use App\Models\Payment;
+use App\Models\PaymentTranche;
+use App\Services\PaymentStatusService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -57,6 +61,9 @@ class SchoolYearTransitionService
             ->where('is_active', true)
             ->count();
 
+        // Calculate insolvent students
+        $insolvableData = $this->calculateInsolvableStudents($sourceYear, $seriesIds);
+
         return [
             'source_year' => $sourceYear->name,
             'classes_count' => $sourceSeries->count(),
@@ -69,6 +76,9 @@ class SchoolYearTransitionService
             'subjects_assignments_count' => $subjectsCount,
             'teacher_assignments_count' => $teacherAssignmentsCount,
             'main_teachers_count' => $mainTeachersCount,
+            'insolvable_students_count' => $insolvableData['count'],
+            'insolvable_total_debt' => $insolvableData['total_debt'],
+            'insolvable_students' => $insolvableData['students'],
             'options' => [
                 'copy_teacher_assignments' => $options['copy_teacher_assignments'] ?? true,
                 'copy_main_teachers' => $options['copy_main_teachers'] ?? true,
@@ -95,6 +105,8 @@ class SchoolYearTransitionService
             'teacher_assignments_copied' => 0,
             'main_teachers_copied' => 0,
             'students_promoted' => 0,
+            'arrears_recorded' => 0,
+            'arrears_total_debt' => 0,
             'errors' => [],
         ];
 
@@ -134,7 +146,12 @@ class SchoolYearTransitionService
                 );
             }
 
-            // 8. Promote students (move to new year's series)
+            // 8. Record arrears for insolvent students
+            $arrearsResult = $this->recordArrears($sourceYear, $newYear);
+            $result['arrears_recorded'] = $arrearsResult['count'];
+            $result['arrears_total_debt'] = $arrearsResult['total_debt'];
+
+            // 9. Promote students (move to new year's series)
             if ($promoteStudents) {
                 $result['students_promoted'] = $this->promoteStudents(
                     $sourceYear, $newYear, $seriesMapping
@@ -495,6 +512,142 @@ class SchoolYearTransitionService
             ->where('is_active', true)
             ->with('schoolClass')
             ->get();
+    }
+
+    /**
+     * Calculate insolvent students for the source year
+     */
+    private function calculateInsolvableStudents(SchoolYear $sourceYear, array $seriesIds): array
+    {
+        $students = Student::where('is_active', true)
+            ->where(function ($q) use ($sourceYear, $seriesIds) {
+                $q->where('school_year_id', $sourceYear->id)
+                  ->orWhere(function ($q2) use ($seriesIds) {
+                      $q2->whereNull('school_year_id')
+                         ->whereIn('class_series_id', $seriesIds);
+                  });
+            })
+            ->with('classSeries.schoolClass')
+            ->get();
+
+        $insolvableStudents = [];
+        $totalDebt = 0;
+
+        foreach ($students as $student) {
+            $paymentData = $this->getStudentPaymentSummary($student, $sourceYear);
+
+            if ($paymentData['remaining'] > 0) {
+                $className = $student->classSeries && $student->classSeries->schoolClass
+                    ? $student->classSeries->schoolClass->name . ' ' . $student->classSeries->name
+                    : 'N/A';
+
+                $insolvableStudents[] = [
+                    'student_id' => $student->id,
+                    'name' => trim(($student->last_name ?? $student->name) . ' ' . ($student->first_name ?? $student->subname ?? '')),
+                    'class' => $className,
+                    'total_required' => $paymentData['required'],
+                    'total_paid' => $paymentData['paid'],
+                    'remaining' => $paymentData['remaining'],
+                ];
+
+                $totalDebt += $paymentData['remaining'];
+            }
+        }
+
+        // Sort by remaining amount descending
+        usort($insolvableStudents, fn($a, $b) => $b['remaining'] <=> $a['remaining']);
+
+        return [
+            'count' => count($insolvableStudents),
+            'total_debt' => $totalDebt,
+            'students' => $insolvableStudents,
+        ];
+    }
+
+    /**
+     * Get payment summary for a student in a given year
+     */
+    private function getStudentPaymentSummary(Student $student, SchoolYear $schoolYear): array
+    {
+        // Get total paid from payments table
+        $totalPaid = Payment::where('student_id', $student->id)
+            ->where(function ($q) use ($schoolYear) {
+                $q->where('school_year_id', $schoolYear->id)
+                  ->orWhereNull('school_year_id');
+            })
+            ->where('status', '!=', 'cancelled')
+            ->sum('total_amount');
+
+        // Get total required from class payment amounts
+        $classId = $student->classSeries ? $student->classSeries->class_id : null;
+        $totalRequired = 0;
+
+        if ($classId) {
+            $totalRequired = DB::table('class_payment_amounts')
+                ->where('class_id', $classId)
+                ->sum('amount');
+        }
+
+        // If no class amounts defined, try to get from payment tranches with default amounts
+        if ($totalRequired == 0) {
+            $totalRequired = PaymentTranche::where('is_active', true)
+                ->where('use_default_amount', true)
+                ->sum('default_amount');
+        }
+
+        $remaining = max(0, $totalRequired - $totalPaid);
+
+        return [
+            'required' => round($totalRequired, 2),
+            'paid' => round($totalPaid, 2),
+            'remaining' => round($remaining, 2),
+        ];
+    }
+
+    /**
+     * Record arrears for all insolvent students
+     */
+    private function recordArrears(SchoolYear $sourceYear, SchoolYear $newYear): array
+    {
+        $sourceSeries = $this->getSourceSeries($sourceYear);
+        $seriesIds = $sourceSeries->pluck('id')->toArray();
+        $insolvableData = $this->calculateInsolvableStudents($sourceYear, $seriesIds);
+
+        $count = 0;
+        $totalDebt = 0;
+
+        foreach ($insolvableData['students'] as $studentData) {
+            // Don't create duplicate arrears
+            $exists = StudentArrear::where('student_id', $studentData['student_id'])
+                ->where('source_school_year_id', $sourceYear->id)
+                ->exists();
+
+            if ($exists) {
+                continue;
+            }
+
+            StudentArrear::create([
+                'student_id' => $studentData['student_id'],
+                'source_school_year_id' => $sourceYear->id,
+                'target_school_year_id' => $newYear->id,
+                'total_required' => $studentData['total_required'],
+                'total_paid' => $studentData['total_paid'],
+                'arrear_amount' => $studentData['remaining'],
+                'source_class_name' => $studentData['class'],
+                'status' => 'pending',
+                'amount_paid_on_arrear' => 0,
+            ]);
+
+            $count++;
+            $totalDebt += $studentData['remaining'];
+        }
+
+        Log::info("Arrears recorded: {$count} students, total debt: {$totalDebt} FCFA");
+
+        return [
+            'count' => $count,
+            'total_debt' => $totalDebt,
+        ];
     }
 
     /**

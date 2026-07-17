@@ -555,6 +555,8 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/{schoolYear}/set-current', [SchoolYearController::class, 'setCurrent'])->middleware('role:admin');
         Route::get('/{schoolYear}/preview-transition', [SchoolYearController::class, 'previewTransition'])->middleware('role:admin');
         Route::post('/{schoolYear}/transition', [SchoolYearController::class, 'executeTransition'])->middleware('role:admin');
+        Route::get('/arrears', [SchoolYearController::class, 'getArrears'])->middleware('role:admin,accountant,comptable_superieur');
+        Route::put('/arrears/{arrearId}', [SchoolYearController::class, 'updateArrear'])->middleware('role:admin,accountant,comptable_superieur');
     });
 
     // Routes pour les paiements (comptables et admins)

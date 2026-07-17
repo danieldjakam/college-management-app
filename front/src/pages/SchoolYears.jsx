@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Table, Modal, Form, Alert, Badge, Spinner, ProgressBar } from 'react-bootstrap';
-import { Plus, Pencil, Star, StarFill, ArrowRepeat, CheckCircle, ExclamationTriangle } from 'react-bootstrap-icons';
+import { Plus, Pencil, Star, StarFill, ArrowRepeat, CheckCircle, ExclamationTriangle, CashCoin } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../utils/apiMigration';
 
 const SchoolYears = () => {
@@ -220,6 +220,10 @@ const SchoolYears = () => {
         setTransitionResult(null);
         setTransitionStep('form');
         setError('');
+    };
+
+    const formatAmount = (amount) => {
+        return new Intl.NumberFormat('fr-FR').format(Math.round(amount || 0)) + ' FCFA';
     };
 
     // Find the current year for the transition button
@@ -645,6 +649,64 @@ const SchoolYears = () => {
                                     </div>
                                 </>
                             )}
+
+                            {/* Section Insolvables */}
+                            {transitionPreview.insolvable_students_count > 0 && (
+                                <>
+                                    <hr />
+                                    <Alert variant="danger">
+                                        <CashCoin className="me-2" />
+                                        <strong>{transitionPreview.insolvable_students_count} eleve(s) insolvable(s)</strong> avec une dette totale de <strong>{formatAmount(transitionPreview.insolvable_total_debt)}</strong>.
+                                        <br />
+                                        <small>Ces arrieres seront automatiquement enregistres lors de la transition.</small>
+                                    </Alert>
+
+                                    <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                                        <Table bordered size="sm" striped>
+                                            <thead className="table-danger">
+                                                <tr>
+                                                    <th>Eleve</th>
+                                                    <th>Classe</th>
+                                                    <th className="text-end">Requis</th>
+                                                    <th className="text-end">Paye</th>
+                                                    <th className="text-end">Dette</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {transitionPreview.insolvable_students.slice(0, 50).map((s, idx) => (
+                                                    <tr key={idx}>
+                                                        <td>{s.name}</td>
+                                                        <td><small>{s.class}</small></td>
+                                                        <td className="text-end"><small>{formatAmount(s.total_required)}</small></td>
+                                                        <td className="text-end"><small>{formatAmount(s.total_paid)}</small></td>
+                                                        <td className="text-end text-danger"><strong>{formatAmount(s.remaining)}</strong></td>
+                                                    </tr>
+                                                ))}
+                                                {transitionPreview.insolvable_students.length > 50 && (
+                                                    <tr>
+                                                        <td colSpan={5} className="text-center text-muted">
+                                                            ... et {transitionPreview.insolvable_students.length - 50} autres eleves
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                            <tfoot className="table-danger">
+                                                <tr>
+                                                    <td colSpan={4} className="text-end"><strong>Total dette :</strong></td>
+                                                    <td className="text-end"><strong>{formatAmount(transitionPreview.insolvable_total_debt)}</strong></td>
+                                                </tr>
+                                            </tfoot>
+                                        </Table>
+                                    </div>
+                                </>
+                            )}
+
+                            {transitionPreview.insolvable_students_count === 0 && (
+                                <Alert variant="success" className="mt-3">
+                                    <CheckCircle className="me-2" />
+                                    Tous les eleves sont a jour de leurs paiements.
+                                </Alert>
+                            )}
                         </>
                     )}
 
@@ -690,8 +752,28 @@ const SchoolYears = () => {
                                         <td>Eleves inscrits</td>
                                         <td><Badge bg="warning" text="dark">{transitionResult.students_promoted}</Badge></td>
                                     </tr>
+                                    {transitionResult.arrears_recorded > 0 && (
+                                        <tr className="table-danger">
+                                            <td>Arrieres enregistres (eleves insolvables)</td>
+                                            <td>
+                                                <Badge bg="danger">{transitionResult.arrears_recorded} eleves</Badge>
+                                                {' - '}
+                                                <strong>{formatAmount(transitionResult.arrears_total_debt)}</strong>
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </Table>
+
+                            {transitionResult.arrears_recorded > 0 && (
+                                <Alert variant="danger" className="mt-3">
+                                    <CashCoin className="me-2" />
+                                    <strong>{transitionResult.arrears_recorded} eleve(s) insolvable(s)</strong> ont ete enregistres
+                                    avec une dette totale de <strong>{formatAmount(transitionResult.arrears_total_debt)}</strong>.
+                                    <br />
+                                    <small>Vous pouvez consulter et gerer ces arrieres dans le module de gestion des arrieres.</small>
+                                </Alert>
+                            )}
 
                             <Alert variant="info" className="mt-3">
                                 <strong>Prochaines etapes :</strong>
@@ -704,6 +786,9 @@ const SchoolYears = () => {
                                         <li><strong>Inscrire les eleves</strong> dans les nouvelles classes</li>
                                     )}
                                     <li>Verifier et ajuster les <strong>affectations enseignants</strong> si necessaire</li>
+                                    {transitionResult.arrears_recorded > 0 && (
+                                        <li>Suivre les <strong>arrieres des eleves insolvables</strong> de l'annee precedente</li>
+                                    )}
                                 </ul>
                             </Alert>
                         </>

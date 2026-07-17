@@ -70,6 +70,7 @@ class SchoolYearTransition extends Command
                 ['Affectations enseignants', $options['copy_teacher_assignments'] ? $preview['teacher_assignments_count'] : 'Non copie'],
                 ['Professeurs titulaires', $options['copy_main_teachers'] ? $preview['main_teachers_count'] : 'Non copie'],
                 ['Promotion eleves', $options['promote_students'] ? 'Oui' : 'Non'],
+                ['Eleves insolvables', $preview['insolvable_students_count'] . ' (dette: ' . number_format($preview['insolvable_total_debt'], 0, ',', ' ') . ' FCFA)'],
             ]
         );
 
@@ -77,6 +78,11 @@ class SchoolYearTransition extends Command
         $this->info('La nouvelle annee contiendra:');
         $this->line('  - 3 trimestres');
         $this->line('  - 9 sequences (6 regulieres + 3 compositions)');
+
+        if ($preview['insolvable_students_count'] > 0) {
+            $this->newLine();
+            $this->warn("ATTENTION: {$preview['insolvable_students_count']} eleve(s) insolvable(s) - les arrieres seront enregistres automatiquement.");
+        }
 
         if (!$this->option('force') && !$this->confirm('Voulez-vous continuer?')) {
             $this->info('Transition annulee.');
@@ -106,6 +112,7 @@ class SchoolYearTransition extends Command
                     ['Affectations enseignants', $result['teacher_assignments_copied']],
                     ['Professeurs titulaires', $result['main_teachers_copied']],
                     ['Eleves inscrits', $result['students_promoted']],
+                    ['Arrieres enregistres', $result['arrears_recorded'] . ' eleves (dette: ' . number_format($result['arrears_total_debt'], 0, ',', ' ') . ' FCFA)'],
                 ]
             );
 
