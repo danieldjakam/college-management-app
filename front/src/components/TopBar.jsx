@@ -1,25 +1,28 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-    Search, 
-    Bell, 
+import {
+    Search,
+    Bell,
     List,
     Globe,
     ChevronRight,
     Gear,
     PersonCircle,
-    ChatDots
+    ChatDots,
+    Calendar2Week
 } from 'react-bootstrap-icons';
 import { useAuth, usePermissions } from '../hooks/useAuth';
+import { useSchoolYear } from '../contexts/SchoolYearContext';
 import UserMenu from './UserMenu';
 const TopBar = ({ onSidebarToggle, showSidebarToggle = false }) => {
     const location = useLocation();
     const [searchQuery, setSearchQuery] = useState('');
     const [showNotifications, setShowNotifications] = useState(false);
-    
+
     // Hooks d'authentification
     const { user, isAuthenticated } = useAuth();
     const { canManageUsers, canAccess } = usePermissions();
+    const { activeYears, workingYear, changeWorkingYear, loading: yearsLoading } = useSchoolYear();
     const getBreadcrumb = () => {
         const path = location.pathname;
         const segments = path.split('/').filter(segment => segment);
@@ -100,6 +103,60 @@ const TopBar = ({ onSidebarToggle, showSidebarToggle = false }) => {
             <div className="topbar-right">
                 {isAuthenticated && user && (
                     <>
+                        {/* School Year Selector */}
+                        {!yearsLoading && activeYears.length > 0 && (
+                            <div className="school-year-selector" style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                marginRight: '12px',
+                                padding: '4px 10px',
+                                borderRadius: '8px',
+                                backgroundColor: workingYear?.is_current ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.15)',
+                                border: workingYear?.is_current ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(245, 158, 11, 0.4)',
+                            }}>
+                                <Calendar2Week size={14} style={{
+                                    color: workingYear?.is_current ? '#10b981' : '#f59e0b',
+                                    flexShrink: 0
+                                }} />
+                                <select
+                                    value={workingYear?.id || ''}
+                                    onChange={(e) => changeWorkingYear(e.target.value)}
+                                    style={{
+                                        border: 'none',
+                                        background: 'transparent',
+                                        fontSize: '13px',
+                                        fontWeight: '600',
+                                        color: workingYear?.is_current ? '#059669' : '#d97706',
+                                        cursor: 'pointer',
+                                        outline: 'none',
+                                        padding: '2px 4px',
+                                        maxWidth: '140px',
+                                    }}
+                                    title="Changer l'ann&eacute;e scolaire de travail"
+                                >
+                                    {activeYears.map(year => (
+                                        <option key={year.id} value={year.id}>
+                                            {year.name}{year.is_current ? ' (actuelle)' : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                {!workingYear?.is_current && (
+                                    <span style={{
+                                        fontSize: '10px',
+                                        fontWeight: '700',
+                                        color: '#fff',
+                                        backgroundColor: '#f59e0b',
+                                        padding: '1px 6px',
+                                        borderRadius: '4px',
+                                        whiteSpace: 'nowrap',
+                                    }}>
+                                        ARCHIVE
+                                    </span>
+                                )}
+                            </div>
+                        )}
+
                         {/* Search Box */}
                         <div className="search-box">
                             <Search className="search-icon" size={16} />
