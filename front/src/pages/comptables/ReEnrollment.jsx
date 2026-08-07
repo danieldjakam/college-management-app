@@ -142,11 +142,11 @@ function ReEnrollment() {
         has_scholarship_enabled: formData.has_scholarship_enabled ? 1 : 0,
       });
 
-      const result = response.data;
-      if (result.success) {
-        const newStudent = result.data;
+      // secureApi retourne directement le JSON parsé: { success, data, message }
+      if (response.success) {
+        const newStudent = response.data;
         setSuccessInfo({
-          message: result.message || 'Reinscription reussie!',
+          message: response.message || 'Reinscription reussie!',
           studentId: newStudent.id,
           studentName: `${newStudent.last_name} ${newStudent.first_name}`,
         });
@@ -154,7 +154,7 @@ function ReEnrollment() {
         setSearchQuery('');
         setSearchResults([]);
       } else {
-        setError(result.message || 'Erreur lors de la reinscription');
+        setError(response.message || 'Erreur lors de la reinscription');
       }
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Erreur lors de la reinscription';
