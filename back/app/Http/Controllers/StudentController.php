@@ -32,7 +32,7 @@ class StudentController extends Controller
         // Si l'utilisateur a une année de travail définie, l'utiliser
         if ($user && $user->working_school_year_id) {
             $workingYear = SchoolYear::find($user->working_school_year_id);
-            if ($workingYear && $workingYear->is_active) {
+            if ($workingYear) {
                 return $workingYear;
             }
         }
@@ -420,6 +420,220 @@ class StudentController extends Controller
                 'message' => $friendly,
                 'error' => $msg
             ], 500);
+        }
+    }
+
+    /**
+     * Rechercher les élèves de l'année précédente pour réinscription
+     */
+    public function searchPreviousYear(Request $request)
+    {
+        try {
+            $query = $request->get('q', '');
+            if (strlen($query) < 2) {
+                return response()->json(['success' => true, 'data' => []]);
+            }
+
+            $workingYear = $this->getUserWorkingYear();
+            if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            // Chercher les élèves des années PRÉCÉDENTES (pas l'année courante)
+            $students = Student::where('is_active', true)
+                ->where(function ($q2) use ($workingYear) {
+                    $q2->where('school_year_id', '!=', $workingYear->id)
+                       ->orWhereNull('school_year_id');
+                })
+                ->where(function ($q) use ($query) {
+                    $q->where('last_name', 'like', "%{$query}%")
+                      ->orWhere('first_name', 'like', "%{$query}%")
+                      ->orWhere('name', 'like', "%{$query}%")
+                      ->orWhere('student_number', 'like', "%{$query}%");
+                })
+                ->with(['classSeries.schoolClass', 'schoolYear'])
+                ->limit(20)
+                ->get();
+
+            // Vérifier les arriérés pour chaque élève
+            $results = $students->map(function ($student) use ($workingYear) {
+                $arrearRemaining = 0;
+                $arrearId = null;
+
+                try {
+                    $arrear = DB::table('student_arrears')
+                        ->where('student_id', $student->id)
+                        ->where('target_school_year_id', $workingYear->id)
+                        ->where('status', '!=', 'paid')
+                        ->where('status', '!=', 'waived')
+                        ->first();
+
+                    if ($arrear) {
+                        $arrearRemaining = max(0, $arrear->arrear_amount - $arrear->amount_paid_on_arrear);
+                        $arrearId = $arrear->id;
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('Erreur lecture arriérés pour élève ' . $student->id . ': ' . $e->getMessage());
+                }
+
+                // Vérifier si déjà réinscrit cette année
+                $alreadyEnrolled = Student::where('school_year_id', $workingYear->id)
+                    ->where(function ($q) use ($student) {
+                        $q->where('last_name', $student->last_name)
+                           ->where('first_name', $student->first_name)
+                           ->where('date_of_birth', $student->date_of_birth);
+                    })
+                    ->exists();
+
+                return [
+                    'id' => $student->id,
+                    'last_name' => $student->last_name,
+                    'first_name' => $student->first_name,
+                    'name' => $student->name,
+                    'date_of_birth' => $student->date_of_birth,
+                    'place_of_birth' => $student->place_of_birth,
+                    'gender' => $student->gender,
+                    'parent_name' => $student->parent_name,
+                    'parent_phone' => $student->parent_phone,
+                    'parent_email' => $student->parent_email,
+                    'mother_name' => $student->mother_name,
+                    'mother_phone' => $student->mother_phone,
+                    'address' => $student->address,
+                    'photo' => $student->photo,
+                    'photo_url' => $student->photo_url,
+                    'student_number' => $student->student_number,
+                    'previous_class' => $student->classSeries
+                        ? ($student->classSeries->schoolClass->name ?? '') . ' ' . ($student->classSeries->name ?? '')
+                        : 'N/A',
+                    'previous_year' => $student->schoolYear->name ?? 'N/A',
+                    'has_arrear' => $arrearRemaining > 0,
+                    'arrear_amount' => $arrearRemaining,
+                    'arrear_id' => $arrearId,
+                    'already_enrolled' => $alreadyEnrolled,
+                ];
+            });
+
+            return response()->json(['success' => true, 'data' => $results]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur searchPreviousYear: ' . $e->getMessage(), [
+                'query' => $request->get('q'),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la recherche',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Réinscrire un ancien élève dans la nouvelle année
+     */
+    public function reenroll(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'student_id' => 'required|integer|exists:students,id',
+            'class_series_id' => 'required|integer|exists:class_series,id',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'date_of_birth' => 'required|date',
+            'place_of_birth' => 'required|string|max:255',
+            'gender' => 'required|in:M,F',
+            'parent_name' => 'required|string|max:255',
+            'parent_phone' => 'nullable|string|max:20',
+            'parent_email' => 'nullable|email|max:255',
+            'mother_name' => 'nullable|string|max:255',
+            'mother_phone' => 'nullable|string|max:20',
+            'address' => 'nullable|string|max:500',
+            'has_scholarship_enabled' => 'nullable|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => 'Données invalides', 'errors' => $validator->errors()], 422);
+        }
+
+        $workingYear = $this->getUserWorkingYear();
+        if (!$workingYear) {
+            return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+        }
+
+        // Vérifier les arriérés impayés
+        $arrear = DB::table('student_arrears')
+            ->where('student_id', $request->student_id)
+            ->where('target_school_year_id', $workingYear->id)
+            ->whereNotIn('status', ['paid', 'waived'])
+            ->first();
+
+        if ($arrear) {
+            $remaining = max(0, $arrear->arrear_amount - $arrear->amount_paid_on_arrear);
+            if ($remaining > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet élève a un arriéré de ' . number_format($remaining, 0, ',', '.') . ' FCFA. Il doit d\'abord solder sa dette avant la réinscription.',
+                    'arrear_amount' => $remaining,
+                    'arrear_id' => $arrear->id,
+                ], 422);
+            }
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $oldStudent = Student::findOrFail($request->student_id);
+
+            // Générer nouveau numéro
+            $studentNumber = Student::generateStudentNumber(
+                $workingYear->start_date,
+                $request->class_series_id
+            );
+
+            $maxOrder = Student::where('class_series_id', $request->class_series_id)
+                ->where('school_year_id', $workingYear->id)
+                ->max('order') ?: 0;
+
+            // Créer le nouvel enregistrement pour la nouvelle année
+            $newStudent = Student::create([
+                'first_name' => $request->first_name,
+                'last_name' => $request->last_name,
+                'name' => $request->last_name . ' ' . $request->first_name,
+                'date_of_birth' => $request->date_of_birth,
+                'place_of_birth' => $request->place_of_birth,
+                'gender' => $request->gender,
+                'parent_name' => $request->parent_name,
+                'parent_phone' => $request->parent_phone,
+                'parent_email' => $request->parent_email,
+                'mother_name' => $request->mother_name,
+                'mother_phone' => $request->mother_phone,
+                'address' => $request->address,
+                'photo' => $oldStudent->photo,
+                'class_series_id' => $request->class_series_id,
+                'school_year_id' => $workingYear->id,
+                'student_number' => $studentNumber,
+                'student_status' => 'old',
+                'order' => $maxOrder + 1,
+                'is_active' => true,
+                'is_new' => false,
+                'has_scholarship_enabled' => $request->has_scholarship_enabled ?? false,
+            ]);
+
+            $newStudent->load(['classSeries.schoolClass', 'schoolYear']);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'data' => $newStudent,
+                'message' => 'Élève réinscrit avec succès'
+            ], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Reenroll error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Erreur lors de la réinscription', 'error' => $e->getMessage()], 500);
         }
     }
 
@@ -1337,7 +1551,17 @@ class StudentController extends Controller
             ]);
 
             // GESTION AUTOMATIQUE DES PAIEMENTS APRÈS TRANSFERT
-            $this->handlePaymentAdjustmentOnTransfer($student, $oldSeries, $newSeries);
+            // Les erreurs remontent et provoquent un rollback complet du transfert
+            try {
+                $this->handlePaymentAdjustmentOnTransfer($student, $oldSeries, $newSeries);
+            } catch (\Exception $paymentError) {
+                \Log::error('Payment adjustment failed during transfer - rolling back entire transfer', [
+                    'student_id' => $student->id,
+                    'error' => $paymentError->getMessage(),
+                    'trace' => $paymentError->getTraceAsString()
+                ]);
+                throw $paymentError; // Remonter pour rollback
+            }
 
             // Log du transfert
             \Log::info('Student transfer completed', [
@@ -2150,110 +2374,130 @@ class StudentController extends Controller
      */
     private function handlePaymentAdjustmentOnTransfer($student, $oldSeries, $newSeries)
     {
-        try {
-            // CORRECTION: Récupérer TOUS les paiements de l'élève pour cette année scolaire
-            $allPayments = Payment::where('student_id', $student->id)
-                ->where('school_year_id', $student->school_year_id)
-                ->where('is_rame_physical', false)
-                ->orderBy('payment_date', 'asc')
-                ->get();
+        // CRITICAL: Rafraichir la relation classSeries pour utiliser la NOUVELLE classe
+        // Apres $student->update(), la relation cachee pointe encore sur l'ancienne classe
+        $student->load('classSeries.schoolClass');
 
-            if ($allPayments->isEmpty()) {
-                \Log::info('No payments found for transfer', [
-                    'student_id' => $student->id
-                ]);
-                return;
-            }
+        // Recuperer TOUS les paiements de l'eleve pour cette annee scolaire
+        $allPayments = Payment::where('student_id', $student->id)
+            ->where('school_year_id', $student->school_year_id)
+            ->where('is_rame_physical', false)
+            ->orderBy('payment_date', 'asc')
+            ->get();
 
-            // Calculer le total payé (somme de TOUS les paiements)
-            $totalPaid = $allPayments->sum('total_amount');
-
-            // Récupérer TOUTES les tranches de paiement pour la nouvelle classe (dans l'ordre)
-            $allTranches = PaymentTranche::active()
-                ->ordered()
-                ->get();
-
-            if ($allTranches->isEmpty()) {
-                \Log::warning('No payment tranches found');
-                return;
-            }
-
-            \Log::info('Transfer payment recalculation started', [
-                'student_id' => $student->id,
-                'total_paid' => $totalPaid,
-                'payments_count' => $allPayments->count(),
-                'from_class' => $oldSeries ? $oldSeries->name : 'N/A',
-                'to_class' => $newSeries->name
+        if ($allPayments->isEmpty()) {
+            \Log::info('Transfer: No payments found, nothing to adjust', [
+                'student_id' => $student->id
             ]);
-
-            // ÉTAPE 1: Calculer la nouvelle répartition séquentielle
-            $newAllocation = [];
-            $remainingAmount = $totalPaid;
-
-            foreach ($allTranches as $tranche) {
-                if ($remainingAmount <= 0) break;
-
-                // Calculer le montant requis pour cette tranche dans la NOUVELLE classe
-                $requiredAmount = $tranche->getAmountForStudent($student, $student->is_new, false, false, false);
-
-                if ($requiredAmount <= 0) continue;
-
-                // Allouer autant que possible à cette tranche
-                $allocatedAmount = min($remainingAmount, $requiredAmount);
-
-                $newAllocation[] = [
-                    'tranche_id' => $tranche->id,
-                    'tranche_name' => $tranche->name,
-                    'required_amount' => $requiredAmount,
-                    'allocated_amount' => $allocatedAmount,
-                    'is_fully_paid' => $allocatedAmount >= $requiredAmount
-                ];
-
-                $remainingAmount -= $allocatedAmount;
-            }
-
-            // ÉTAPE 2: Supprimer TOUS les anciens payment_details
-            $paymentIds = $allPayments->pluck('id');
-            PaymentDetail::whereIn('payment_id', $paymentIds)->delete();
-
-            \Log::info('Deleted old payment details', [
-                'payment_ids' => $paymentIds->toArray()
-            ]);
-
-            // ÉTAPE 3: Redistribuer les nouveaux payment_details sur les paiements existants
-            $this->redistributePaymentDetails($allPayments, $newAllocation);
-
-            // ÉTAPE 4: Ajouter une note explicative à chaque paiement
-            $transferNote = sprintf(
-                'Recalculé suite au transfert de %s vers %s le %s',
-                $oldSeries ? $oldSeries->name : 'Aucune série',
-                $newSeries->name,
-                now()->format('d/m/Y H:i')
-            );
-
-            foreach ($allPayments as $payment) {
-                $existingNotes = $payment->notes ? $payment->notes . "\n" : '';
-                $payment->update([
-                    'notes' => $existingNotes . $transferNote
-                ]);
-            }
-
-            \Log::info('Payment adjustment completed successfully', [
-                'student_id' => $student->id,
-                'total_paid' => $totalPaid,
-                'new_allocation' => $newAllocation,
-                'remaining_unallocated' => $remainingAmount
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Error adjusting payment on transfer', [
-                'student_id' => $student->id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            // Ne pas faire échouer le transfert à cause d'un problème de paiement
-            // L'admin pourra corriger manuellement
+            return;
         }
+
+        // Calculer le total paye (somme de TOUS les paiements)
+        $totalPaid = $allPayments->sum('total_amount');
+
+        // Recuperer TOUTES les tranches de paiement actives (dans l'ordre)
+        $allTranches = PaymentTranche::active()
+            ->ordered()
+            ->get();
+
+        if ($allTranches->isEmpty()) {
+            \Log::warning('Transfer: No payment tranches found');
+            return;
+        }
+
+        // Calculer les montants requis pour la NOUVELLE classe
+        $newClassId = $newSeries->schoolClass->id;
+        $oldClassName = $oldSeries ? $oldSeries->schoolClass->name : 'N/A';
+        $newClassName = $newSeries->schoolClass->name;
+
+        \Log::info('Transfer payment recalculation started', [
+            'student_id' => $student->id,
+            'student_name' => $student->first_name . ' ' . $student->last_name,
+            'total_paid' => $totalPaid,
+            'payments_count' => $allPayments->count(),
+            'from_class' => $oldClassName,
+            'to_class' => $newClassName,
+            'new_class_id' => $newClassId
+        ]);
+
+        // ETAPE 1: Calculer la nouvelle repartition sequentielle avec les montants de la NOUVELLE classe
+        $newAllocation = [];
+        $remainingAmount = $totalPaid;
+        $totalNewRequired = 0;
+
+        foreach ($allTranches as $tranche) {
+            // Calculer le montant requis pour cette tranche dans la NOUVELLE classe
+            // On utilise getAmountForStudent qui va chercher via $student->classSeries (maintenant rafraichi)
+            $requiredAmount = $tranche->getAmountForStudent($student, $student->is_new ?? false, false, false, false);
+
+            if ($requiredAmount <= 0) continue;
+
+            $totalNewRequired += $requiredAmount;
+
+            // Allouer autant que possible a cette tranche
+            $allocatedAmount = min(max(0, $remainingAmount), $requiredAmount);
+
+            $newAllocation[] = [
+                'tranche_id' => $tranche->id,
+                'tranche_name' => $tranche->name,
+                'required_amount' => $requiredAmount,
+                'allocated_amount' => $allocatedAmount,
+                'is_fully_paid' => $allocatedAmount >= $requiredAmount
+            ];
+
+            $remainingAmount -= $allocatedAmount;
+        }
+
+        $overpayment = max(0, $remainingAmount);
+
+        \Log::info('Transfer allocation calculated', [
+            'student_id' => $student->id,
+            'total_paid' => $totalPaid,
+            'total_new_required' => $totalNewRequired,
+            'overpayment' => $overpayment,
+            'allocation' => $newAllocation
+        ]);
+
+        // ETAPE 2: Supprimer les anciens payment_details ET recreer dans un bloc atomique
+        // (pas de catch silencieux - si ca echoue, le transfert entier echoue et rollback)
+        $paymentIds = $allPayments->pluck('id');
+        PaymentDetail::whereIn('payment_id', $paymentIds)->delete();
+
+        \Log::info('Deleted old payment details', [
+            'payment_ids' => $paymentIds->toArray()
+        ]);
+
+        // ETAPE 3: Redistribuer les nouveaux payment_details sur les paiements existants
+        $this->redistributePaymentDetails($allPayments, $newAllocation);
+
+        // ETAPE 4: Ajouter une note explicative a chaque paiement
+        $transferNote = sprintf(
+            'Recalcule suite au transfert de %s vers %s le %s (ancien total: %s, nouveau total: %s)',
+            $oldSeries ? $oldSeries->name : 'Aucune serie',
+            $newSeries->name,
+            now()->format('d/m/Y H:i'),
+            number_format($totalPaid, 0, ',', ' '),
+            number_format($totalNewRequired, 0, ',', ' ')
+        );
+
+        if ($overpayment > 0) {
+            $transferNote .= sprintf(' - Excedent: %s FCFA', number_format($overpayment, 0, ',', ' '));
+        }
+
+        foreach ($allPayments as $payment) {
+            $existingNotes = $payment->notes ? $payment->notes . "\n" : '';
+            $payment->update([
+                'notes' => $existingNotes . $transferNote
+            ]);
+        }
+
+        \Log::info('Payment adjustment completed successfully', [
+            'student_id' => $student->id,
+            'total_paid' => $totalPaid,
+            'total_new_required' => $totalNewRequired,
+            'overpayment' => $overpayment,
+            'new_allocation' => $newAllocation
+        ]);
     }
 
     /**

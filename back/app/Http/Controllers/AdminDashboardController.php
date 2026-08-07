@@ -23,22 +23,31 @@ use App\Models\StudentAttendance;
 use App\Models\TeacherAttendance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
+use App\Traits\ResolvesSchoolYear;
 
 class AdminDashboardController extends Controller
 {
+    use ResolvesSchoolYear;
+
     /**
      * Dashboard principal pour l'administrateur
      */
-    public function index()
+    public function index(Request $request)
     {
         try {
-            $currentSchoolYear = SchoolYear::where('is_current', true)->first();
+            $currentSchoolYear = $this->resolveSchoolYear($request->input('school_year_id'));
             $currentDate = Carbon::now();
 
-            // 1. STATISTIQUES GÉNÉRALES
+            $schoolYearId = $currentSchoolYear ? $currentSchoolYear->id : null;
+
+            // 1. STATISTIQUES GENERALES (filtrees par annee scolaire)
+            $studentBaseQuery = Student::where('is_active', true)
+                ->when($schoolYearId, fn($q) => $q->where('school_year_id', $schoolYearId));
+
             $generalStats = [
-                'total_students' => Student::where('is_active', true)->count(),
+                'total_students' => (clone $studentBaseQuery)->count(),
                 'total_teachers' => Teacher::where('is_active', true)->count(),
                 'total_subjects' => Subject::where('is_active', true)->count(),
                 'total_classes' => SchoolClass::where('is_active', true)->count(),
@@ -46,8 +55,8 @@ class AdminDashboardController extends Controller
                 'total_levels' => Level::where('is_active', true)->count(),
             ];
 
-            // 2. STATISTIQUES ÉTUDIANTS
-            $genderStats = Student::where('is_active', true)
+            // 2. STATISTIQUES ETUDIANTS (filtrees par annee scolaire)
+            $genderStats = (clone $studentBaseQuery)
                 ->select('gender', DB::raw('count(*) as count'))
                 ->groupBy('gender')
                 ->pluck('count', 'gender');
@@ -57,6 +66,7 @@ class AdminDashboardController extends Controller
                 'total_female' => $genderStats['F'] ?? 0,
                 'by_gender' => $genderStats,
                 'by_section' => Student::where('students.is_active', true)
+                    ->when($schoolYearId, fn($q) => $q->where('students.school_year_id', $schoolYearId))
                     ->join('class_series', 'students.class_series_id', '=', 'class_series.id')
                     ->join('school_classes', 'class_series.class_id', '=', 'school_classes.id')
                     ->join('levels', 'school_classes.level_id', '=', 'levels.id')
@@ -65,6 +75,7 @@ class AdminDashboardController extends Controller
                     ->groupBy('sections.name')
                     ->pluck('count', 'name'),
                 'by_class' => Student::where('students.is_active', true)
+                    ->when($schoolYearId, fn($q) => $q->where('students.school_year_id', $schoolYearId))
                     ->join('class_series', 'students.class_series_id', '=', 'class_series.id')
                     ->join('school_classes', 'class_series.class_id', '=', 'school_classes.id')
                     ->select('school_classes.name', DB::raw('count(*) as count'))
@@ -72,9 +83,10 @@ class AdminDashboardController extends Controller
                     ->orderByDesc('count')
                     ->limit(10)
                     ->pluck('count', 'name'),
-                'new_students_this_year' => $currentSchoolYear ?
+                'new_students_this_year' => $schoolYearId ?
                     Student::where('is_active', true)
-                        ->where('school_year_id', $currentSchoolYear->id)
+                        ->where('school_year_id', $schoolYearId)
+                        ->where('is_new', true)
                         ->count() : 0
             ];
 
@@ -118,12 +130,17 @@ class AdminDashboardController extends Controller
                     'number' => $currentTrimester->number,
                     'progress' => $this->calculateTrimesterProgress($currentTrimester)
                 ] : null,
-                'total_evaluations' => Evaluation::where('is_active', true)->count(),
+                'total_evaluations' => Evaluation::where('is_active', true)
+                    ->when($currentSchoolYear, fn($q) => $q->where('school_year_id', $currentSchoolYear->id))
+                    ->count(),
                 'evaluations_this_sequence' => $currentSequence ?
                     Evaluation::where('sequence_id', $currentSequence->id)
                         ->where('is_active', true)->count() : 0,
-                'total_grades' => Grade::whereNotNull('score')->count(),
+                'total_grades' => Grade::whereNotNull('score')
+                    ->when($currentSchoolYear, fn($q) => $q->where('school_year_id', $currentSchoolYear->id))
+                    ->count(),
                 'evaluation_types_distribution' => Evaluation::where('is_active', true)
+                    ->when($currentSchoolYear, fn($q) => $q->where('school_year_id', $currentSchoolYear->id))
                     ->select('type', DB::raw('count(*) as count'))
                     ->groupBy('type')
                     ->pluck('count', 'type')

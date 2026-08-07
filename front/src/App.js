@@ -17,6 +17,7 @@ import ProtectedRoute, {
 } from "./components/ProtectedRoute";
 import { useAuth } from "./hooks/useAuth";
 import { SchoolProvider } from "./contexts/SchoolContext";
+import { SchoolYearProvider } from "./contexts/SchoolYearContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 
 // Pages
@@ -43,6 +44,7 @@ import StudentsComp from "./pages/comptables/Students";
 import StudentsByClass from "./pages/comptables/StudentsByClass";
 import StudentAttendanceTracking from "./pages/comptables/StudentAttendanceTracking";
 import StaffAttendanceReportCompt from "./pages/comptables/StaffAttendanceReport";
+import ReEnrollment from "./pages/comptables/ReEnrollment";
 
 // Payment Pages
 import StudentPayment from "./pages/Payments/StudentPayment";
@@ -61,6 +63,7 @@ import RecoveryStatus from "./pages/Reports/RecoveryStatus";
 import SchoolCertificates from "./pages/Reports/SchoolCertificates";
 import StaffAttendanceReport from "./pages/Reports/StaffAttendanceReport";
 import ClassFeesSheet from "./pages/Reports/ClassFeesSheet";
+import ArrearsManagement from "./pages/Reports/ArrearsManagement";
 
 
 // User Management
@@ -101,6 +104,7 @@ import AttendanceReports from "./pages/Attendance/AttendanceReports";
 import ManualAttendance from "./pages/ManualAttendance";
 import TeacherDetailedStats from "./pages/Teachers/TeacherDetailedStats";
 import ParentNotifications from './pages/Admin/ParentNotifications';
+import SmsManagement from './pages/Admin/SmsManagement';
 
 // Supervisor Management
 import SupervisorStatus from "./pages/SupervisorManagement/SupervisorStatus";
@@ -588,6 +592,15 @@ const AppContent = () => {
               />
 
               <Route
+                path="/admin/sms"
+                element={
+                  <ProtectedRoute requiredRoles={['admin', 'secretaire']}>
+                    <SmsManagement />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
                 path="/admin/student-discipline"
                 element={
                   <ProtectedRoute requiredRoles={['admin', 'secretaire', 'surveillant_general', 'surveillant_secteur']}>
@@ -874,6 +887,24 @@ const AppContent = () => {
                   <ProtectedRoute requiredRoles={['admin', 'principal', 'comptable_superieur', 'accountant']}>
                     <VacataireAttendanceReport />
                   </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/arrears-management"
+                element={
+                  <AccountantRoute>
+                    <ArrearsManagement />
+                  </AccountantRoute>
+                }
+              />
+
+              <Route
+                path="/re-enrollment"
+                element={
+                  <AccountantRoute>
+                    <ReEnrollment />
+                  </AccountantRoute>
                 }
               />
 
@@ -1166,9 +1197,11 @@ function App() {
   return (
     <AppAuthProvider>
       <SchoolProvider>
-        <ThemeProvider>
-          <AppContent />
-        </ThemeProvider>
+        <SchoolYearProvider>
+          <ThemeProvider>
+            <AppContent />
+          </ThemeProvider>
+        </SchoolYearProvider>
       </SchoolProvider>
     </AppAuthProvider>
   );

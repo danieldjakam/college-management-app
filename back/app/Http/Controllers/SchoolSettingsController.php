@@ -71,7 +71,12 @@ class SchoolSettingsController extends Controller
             'whatsapp_notifications_enabled' => 'nullable|in:true,false,1,0',
             'whatsapp_api_url' => 'nullable|string|max:255',
             'whatsapp_instance_id' => 'nullable|string|max:100',
-            'whatsapp_token' => 'nullable|string|max:255'
+            'whatsapp_token' => 'nullable|string|max:255',
+            // Champs Nexah SMS
+            'sms_notifications_enabled' => 'nullable|in:true,false,1,0',
+            'nexah_sms_user' => 'nullable|string|max:100',
+            'nexah_sms_password' => 'nullable|string|max:100',
+            'nexah_sms_sender_id' => 'nullable|string|max:11'
         ]);
 
         if ($validator->fails()) {
@@ -93,9 +98,12 @@ class SchoolSettingsController extends Controller
             $data = $request->except(['school_logo']);
             \Log::info('Data to update:', $data);
 
-            // Convertir le boolean WhatsApp
+            // Convertir les booleans
             if (isset($data['whatsapp_notifications_enabled'])) {
                 $data['whatsapp_notifications_enabled'] = filter_var($data['whatsapp_notifications_enabled'], FILTER_VALIDATE_BOOLEAN);
+            }
+            if (isset($data['sms_notifications_enabled'])) {
+                $data['sms_notifications_enabled'] = filter_var($data['sms_notifications_enabled'], FILTER_VALIDATE_BOOLEAN);
             }
 
             // Appliquer des valeurs par défaut pour les champs requis

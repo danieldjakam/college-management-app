@@ -9,6 +9,7 @@ import {
     InfoCircle, CalendarEvent, Award
 } from 'react-bootstrap-icons';
 import { secureApiEndpoints, secureApi } from '../../utils/apiMigration';
+import { useSchoolYear } from '../../contexts/SchoolYearContext';
 import { Line, Pie, Bar } from 'react-chartjs-2';
 import {
     Chart as ChartJS,
@@ -40,18 +41,21 @@ const AdminDashboard = () => {
     const [dashboardData, setDashboardData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const { workingYearId } = useSchoolYear();
 
     useEffect(() => {
         loadDashboard();
-    }, []);
+    }, [workingYearId]);
 
     const loadDashboard = async () => {
         try {
             setLoading(true);
             setError(null);
 
-            // Utiliser directement secureApi en cas de problème avec secureApiEndpoints
-            const response = await secureApi.get('/admin/dashboard');
+            const url = workingYearId
+                ? `/admin/dashboard?school_year_id=${workingYearId}`
+                : '/admin/dashboard';
+            const response = await secureApi.get(url);
 
             if (response.success) {
                 setDashboardData(response.data);

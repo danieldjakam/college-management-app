@@ -20,11 +20,13 @@ import {
     CardText,
     FileEarmarkText,
     ChatDots,
+    Phone,
     BusFront,
     Ticket,
     Cart3,
     LayersFill,
     TrophyFill,
+    PersonPlus,
 } from 'react-bootstrap-icons'
 import logo from '../images/logo.png'
 import { useAuth } from '../hooks/useAuth';
@@ -131,6 +133,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         {
           title: "Outils",
           items: [
+            { name: "Réinscription Anciens", href: "/re-enrollment", icon: <PersonPlus /> },
             { name: "Inventaire", href: "/inventory", icon: <Archive /> },
             { name: "Documents", href: "/documents", icon: <FolderFill /> },
             { name: "Réductions", href: "/manual-discounts", icon: <CashCoin /> },
@@ -153,6 +156,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           title: "Communication",
           items: [
             { name: "Communication Parents", href: "/admin/parent-notifications", icon: <ChatDots /> },
+            { name: "SMS Parents", href: "/admin/sms", icon: <Phone /> },
           ],
         },
         {
@@ -208,6 +212,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         {
           title: "Outils",
           items: [
+            { name: "Réinscription Anciens", href: "/re-enrollment", icon: <PersonPlus /> },
             { name: "Inventaire", href: "/inventory", icon: <Archive /> },
             { name: "Documents", href: "/documents", icon: <FolderFill /> },
           ],
@@ -231,6 +236,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           title: "Communication",
           items: [
             { name: "Communication Parents", href: "/admin/parent-notifications", icon: <ChatDots /> },
+            { name: "SMS Parents", href: "/admin/sms", icon: <Phone /> },
             { name: "Mes Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
           ],
         },
@@ -281,6 +287,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           title: "Comptabilité",
           items: [
             { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
+            { name: "Réinscription Anciens", href: "/re-enrollment", icon: <PersonPlus /> },
             { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
             { name: "Réductions", href: "/manual-discounts", icon: <CashCoin /> },
@@ -393,6 +400,11 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
               name: "Fiche de Scolarité par Classe",
               href: "/reports/class-fees-sheet",
               icon: <FileTextFill />,
+            },
+            {
+              name: "Arriérés (Insolvables)",
+              href: "/arrears-management",
+              icon: <ExclamationTriangle />,
             },
           ],
         },

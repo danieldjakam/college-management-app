@@ -475,6 +475,10 @@ Route::middleware('auth:api')->group(function () {
         // Servir les photos avec CORS headers
         Route::get('/{id}/photo', [StudentController::class, 'getPhoto']);
 
+        // Réinscription anciens élèves
+        Route::get('/search-previous-year', [StudentController::class, 'searchPreviousYear']);
+        Route::post('/reenroll', [StudentController::class, 'reenroll']);
+
         Route::post('/', [StudentController::class, 'store']);
         Route::put('/{student}', [StudentController::class, 'update']);
         Route::patch('/{student}/status', [StudentController::class, 'updateStatus']);
@@ -1304,6 +1308,16 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/stats', [NotificationController::class, 'stats']);
         Route::get('/{id}/status', [NotificationController::class, 'getStatus']);
         Route::delete('/{id}', [NotificationController::class, 'destroy']);
+    });
+
+    // Routes SMS Nexah (admin et secretaire)
+    Route::middleware(['auth:api', 'role:admin,secretaire'])->prefix('sms')->group(function () {
+        Route::post('/send', [\App\Http\Controllers\SmsController::class, 'sendToParents']);
+        Route::post('/test', [\App\Http\Controllers\SmsController::class, 'sendTest']);
+        Route::get('/test-connection', [\App\Http\Controllers\SmsController::class, 'testConnection']);
+        Route::get('/balance', [\App\Http\Controllers\SmsController::class, 'balance']);
+        Route::get('/history', [\App\Http\Controllers\SmsController::class, 'history']);
+        Route::get('/stats', [\App\Http\Controllers\SmsController::class, 'stats']);
     });
 
     // Schedule routes for admin

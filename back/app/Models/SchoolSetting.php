@@ -27,13 +27,18 @@ class SchoolSetting extends Model
         'whatsapp_notifications_enabled',
         'whatsapp_api_url',
         'whatsapp_instance_id',
-        'whatsapp_token'
+        'whatsapp_token',
+        'sms_notifications_enabled',
+        'nexah_sms_user',
+        'nexah_sms_password',
+        'nexah_sms_sender_id',
     ];
 
     protected $casts = [
         'scholarship_deadline' => 'date',
         'reduction_percentage' => 'decimal:2',
-        'whatsapp_notifications_enabled' => 'boolean'
+        'whatsapp_notifications_enabled' => 'boolean',
+        'sms_notifications_enabled' => 'boolean',
     ];
 
     /**
