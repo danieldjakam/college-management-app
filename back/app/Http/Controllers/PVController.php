@@ -6,12 +6,14 @@ use App\Services\PVService;
 use App\Models\ClassSeries;
 use App\Models\Evaluation;
 use App\Models\SchoolYear;
+use App\Traits\ResolvesSchoolYear;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 
 class PVController extends Controller
 {
+    use ResolvesSchoolYear;
     protected $pvService;
 
     public function __construct(PVService $pvService)
@@ -24,10 +26,12 @@ class PVController extends Controller
      * GET /api/pv/generate/{classSeriesId}/{periodId}
      * periodId format: "sequenceId_trimesterId" ou "sequenceId/trimesterId"
      */
-    public function generate($classSeriesId, $periodId)
+    public function generate(Request $request, $classSeriesId, $periodId)
     {
         try {
             Log::info("🎯 Requête génération PV - ClassSeries: {$classSeriesId}, Period: {$periodId}");
+
+            $schoolYear = $this->resolveSchoolYear($request->input('school_year_id'));
 
             // Valider que la série existe
             $classSeries = ClassSeries::findOrFail($classSeriesId);
@@ -46,7 +50,7 @@ class PVController extends Controller
             $trimester = \App\Models\Trimester::findOrFail($trimesterId);
 
             // Générer le PV basé sur la période
-            $pdf = $this->pvService->generatePVByPeriod($classSeriesId, $sequenceId, $trimesterId);
+            $pdf = $this->pvService->generatePVByPeriod($classSeriesId, $sequenceId, $trimesterId, $schoolYear?->id);
 
             // Nom du fichier
             $periodType = $sequence->is_composition ? 'Comp' : 'Seq';
@@ -72,13 +76,13 @@ class PVController extends Controller
      * Obtenir la liste des périodes d'évaluation disponibles pour une série
      * GET /api/pv/evaluations/{classSeriesId}
      */
-    public function getAvailableEvaluations($classSeriesId)
+    public function getAvailableEvaluations(Request $request, $classSeriesId)
     {
         try {
             $classSeries = ClassSeries::with(['schoolClass'])->findOrFail($classSeriesId);
 
-            // Récupérer l'année scolaire courante
-            $currentYear = SchoolYear::where('is_current', true)->first();
+            // Récupérer l'année scolaire de travail
+            $currentYear = $this->resolveSchoolYear($request->input('school_year_id'));
 
             if (!$currentYear) {
                 return response()->json([
@@ -147,8 +151,15 @@ class PVController extends Controller
     public function getClassSeries(Request $request)
     {
         try {
+            $schoolYear = $this->resolveSchoolYear($request->input('school_year_id'));
+
             $query = ClassSeries::with(['schoolClass.level'])
                 ->where('is_active', true);
+
+            // Filtrer par année scolaire si disponible
+            if ($schoolYear) {
+                $query->where('school_year_id', $schoolYear->id);
+            }
 
             // Filtrer par niveau si spécifié
             if ($request->has('level_id')) {
@@ -197,8 +208,11 @@ class PVController extends Controller
             $sequence = \App\Models\Sequence::findOrFail($sequenceId);
             $trimester = \App\Models\Trimester::findOrFail($trimesterId);
 
+            // Résoudre l'année scolaire
+            $schoolYear = $this->resolveSchoolYear(request()->input('school_year_id'));
+
             // Générer le HTML de prévisualisation
-            $html = $this->pvService->generateHTMLByPeriod($classSeriesId, $sequenceId, $trimesterId);
+            $html = $this->pvService->generateHTMLByPeriod($classSeriesId, $sequenceId, $trimesterId, $schoolYear?->id);
 
             return response($html, 200)->header('Content-Type', 'text/html');
 
@@ -215,10 +229,12 @@ class PVController extends Controller
      * Générer le PV de TRIMESTRE (moyennes DS + Composition)
      * GET /api/pv/trimester/generate/{classSeriesId}/{trimesterId}
      */
-    public function generateTrimester($classSeriesId, $trimesterId)
+    public function generateTrimester(Request $request, $classSeriesId, $trimesterId)
     {
         try {
             Log::info("🎯 Requête génération PV TRIMESTRE - ClassSeries: {$classSeriesId}, Trimester: {$trimesterId}");
+
+            $schoolYear = $this->resolveSchoolYear($request->input('school_year_id'));
 
             // Valider que la série existe
             $classSeries = ClassSeries::findOrFail($classSeriesId);
@@ -227,7 +243,7 @@ class PVController extends Controller
             $trimester = \App\Models\Trimester::findOrFail($trimesterId);
 
             // Générer le PV de trimestre
-            $pdf = $this->pvService->generateTrimesterPV($classSeriesId, $trimesterId);
+            $pdf = $this->pvService->generateTrimesterPV($classSeriesId, $trimesterId, $schoolYear?->id);
 
             // Nom du fichier
             $fileName = 'PV_' . str_replace(' ', '_', $classSeries->name) . '_Trimestre' . $trimester->number . '_' . date('Y-m-d') . '.pdf';
@@ -257,8 +273,11 @@ class PVController extends Controller
             $classSeries = ClassSeries::findOrFail($classSeriesId);
             $trimester = \App\Models\Trimester::findOrFail($trimesterId);
 
+            // Résoudre l'année scolaire
+            $schoolYear = $this->resolveSchoolYear(request()->input('school_year_id'));
+
             // Générer le HTML de prévisualisation
-            $html = $this->pvService->generateTrimesterHTML($classSeriesId, $trimesterId);
+            $html = $this->pvService->generateTrimesterHTML($classSeriesId, $trimesterId, $schoolYear?->id);
 
             return response($html, 200)->header('Content-Type', 'text/html');
 
@@ -275,13 +294,14 @@ class PVController extends Controller
      * Générer le PV ANNUEL en PDF
      * GET /api/pv/annual/generate/{classSeriesId}
      */
-    public function generateAnnual($classSeriesId)
+    public function generateAnnual(Request $request, $classSeriesId)
     {
         try {
             Log::info("🎯 Requête génération PV ANNUEL - ClassSeries: {$classSeriesId}");
 
+            $schoolYear = $this->resolveSchoolYear($request->input('school_year_id'));
             $classSeries = ClassSeries::findOrFail($classSeriesId);
-            $pdf = $this->pvService->generateAnnualPV($classSeriesId);
+            $pdf = $this->pvService->generateAnnualPV($classSeriesId, $schoolYear?->id);
 
             $fileName = 'PV_' . str_replace(' ', '_', $classSeries->name) . '_Annuel_' . date('Y-m-d') . '.pdf';
 
@@ -303,11 +323,12 @@ class PVController extends Controller
      * Prévisualiser le PV ANNUEL (HTML)
      * GET /api/pv/annual/preview/{classSeriesId}
      */
-    public function previewAnnual($classSeriesId)
+    public function previewAnnual(Request $request, $classSeriesId)
     {
         try {
+            $schoolYear = $this->resolveSchoolYear($request->input('school_year_id'));
             ClassSeries::findOrFail($classSeriesId);
-            $html = $this->pvService->generateAnnualHTML($classSeriesId);
+            $html = $this->pvService->generateAnnualHTML($classSeriesId, $schoolYear?->id);
             return response($html, 200)->header('Content-Type', 'text/html');
         } catch (\Exception $e) {
             return response()->json([
@@ -322,13 +343,13 @@ class PVController extends Controller
      * Obtenir la liste des trimestres disponibles pour une série
      * GET /api/pv/trimesters/{classSeriesId}
      */
-    public function getAvailableTrimesters($classSeriesId)
+    public function getAvailableTrimesters(Request $request, $classSeriesId)
     {
         try {
             $classSeries = ClassSeries::with(['schoolClass'])->findOrFail($classSeriesId);
 
-            // Récupérer l'année scolaire courante
-            $currentYear = SchoolYear::where('is_current', true)->first();
+            // Récupérer l'année scolaire de travail
+            $currentYear = $this->resolveSchoolYear($request->input('school_year_id'));
 
             if (!$currentYear) {
                 return response()->json([
@@ -337,7 +358,7 @@ class PVController extends Controller
                 ], 404);
             }
 
-            // Récupérer tous les trimestres de l'année courante
+            // Récupérer tous les trimestres de l'année de travail
             $trimesters = \App\Models\Trimester::where('school_year_id', $currentYear->id)
                 ->orderBy('number')
                 ->get();

@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\ClassSeries;
 use App\Models\SchoolYear;
+use App\Traits\ResolvesSchoolYear;
 use Illuminate\Http\Request;
 
 class ClassSeriesController extends Controller
 {
+    use ResolvesSchoolYear;
     /**
      * Lister toutes les séries de classes avec filtrage optionnel
      */
@@ -21,18 +23,13 @@ class ClassSeriesController extends Controller
                 $query->where('class_id', $request->class_id);
             }
 
-            // Filtrer par année scolaire
-            if ($request->has('school_year_id')) {
-                $query->where('school_year_id', $request->school_year_id);
-            } else {
-                // Par défaut, année scolaire courante
-                $currentYear = SchoolYear::where('is_current', true)->first();
-                if ($currentYear) {
-                    $query->where(function($q) use ($currentYear) {
-                        $q->where('school_year_id', $currentYear->id)
-                          ->orWhereNull('school_year_id');
-                    });
-                }
+            // Filtrer par année scolaire (utilise l'année de travail de l'utilisateur par défaut)
+            $schoolYear = $this->resolveSchoolYear($request->input('school_year_id'));
+            if ($schoolYear) {
+                $query->where(function($q) use ($schoolYear) {
+                    $q->where('school_year_id', $schoolYear->id)
+                      ->orWhereNull('school_year_id');
+                });
             }
 
             // Filtrer par statut actif

@@ -771,7 +771,7 @@ class HonorRollController extends Controller
 
             // Générer le fichier
             $filterLabel = $this->generateMergeFilterLabel($validated);
-            $filename = "honor_rolls_trim{$trimNumber}_{$filterLabel}_" . now()->format('Y-m-d_His') . ".pdf";
+            $filename = "honor_rolls_{$fileSuffix}_{$filterLabel}_" . now()->format('Y-m-d_His') . ".pdf";
             $relativePath = "merged_honor_rolls/{$filename}";
             $fullPath = storage_path('app/public/' . $relativePath);
 
@@ -785,7 +785,7 @@ class HonorRollController extends Controller
             // Sauvegarder en DB
             try {
                 $mergedPdf = MergedHonorRollPDF::create([
-                    'trimester_id' => $validated['trimester_id'],
+                    'trimester_id' => $validated['trimester_id'] ?? null,
                     'section_id' => $validated['section_id'] ?? null,
                     'level_id' => $validated['level_id'] ?? null,
                     'class_id' => $validated['class_id'] ?? null,

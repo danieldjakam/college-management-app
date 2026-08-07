@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Trimester;
 use App\Models\SchoolYear;
+use App\Traits\ResolvesSchoolYear;
 use Illuminate\Http\Request;
 
 class TrimesterController extends Controller
 {
+    use ResolvesSchoolYear;
     /**
      * Lister tous les trimestres
      */
@@ -21,15 +23,10 @@ class TrimesterController extends Controller
                 })->orderBy('number');
             }, 'schoolYear']);
 
-            // Filtrer par année scolaire directement
-            if ($request->has('school_year_id')) {
-                $query->where('school_year_id', $request->school_year_id);
-            } else {
-                // Par défaut, année scolaire courante
-                $currentYear = SchoolYear::where('is_current', true)->first();
-                if ($currentYear) {
-                    $query->where('school_year_id', $currentYear->id);
-                }
+            // Filtrer par année scolaire (utilise l'année de travail par défaut)
+            $schoolYear = $this->resolveSchoolYear($request->input('school_year_id'));
+            if ($schoolYear) {
+                $query->where('school_year_id', $schoolYear->id);
             }
 
             $trimesters = $query->orderBy('number')->get();

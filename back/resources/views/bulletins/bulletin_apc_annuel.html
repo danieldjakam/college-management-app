@@ -6,16 +6,20 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        @page {
+            margin: 2mm 2mm 2mm 2mm;
+            size: A4 portrait;
+        }
+
         body {
             font-family: 'Times New Roman', serif;
-            font-size: 7.5pt;
+            font-size: 6.5pt;
             color: #000;
         }
 
         .page {
-            width: 200mm;
-            min-height: 297mm;
-            padding: 4mm 0mm 4mm 0mm;
+            width: 210mm;
+            padding: 1mm 3mm 1mm 3mm;
             margin: 0 auto;
             position: relative;
         }
@@ -41,13 +45,13 @@
         table { border-collapse: collapse; width: 100%; }
 
         /* En-tete CPBD */
-        .header-table { margin-bottom: 4px; }
+        .header-table { margin-bottom: 1px; }
         .header-table td {
             background: #EFE9F3;
-            padding: 2px 2px;
-            font-size: 6.5pt;
+            padding: 1px 2px;
+            font-size: 6pt;
             vertical-align: middle;
-            line-height: 1.15;
+            line-height: 1.0;
         }
 
         .header-left { text-align: left; width: 37%; }
@@ -55,47 +59,47 @@
         .header-right { text-align: right; width: 37%; }
 
         .logo {
-            width: 60px;
-            height: 60px;
+            width: 45px;
+            height: 45px;
             margin: 0 auto;
             text-align: center;
         }
 
         .logo img {
-            width: 60px;
-            height: 60px;
+            width: 45px;
+            height: 45px;
         }
 
         .title {
             text-align: center;
-            font-size: 13pt;
+            font-size: 8pt;
             font-weight: bold;
             background: #EFE9F3;
-            padding: 4px;
-            margin: 4px 0;
+            padding: 1px;
+            margin: 1px 0;
         }
 
-        .year { text-align: center; font-size: 8pt; margin-bottom: 4px; }
+        .year { text-align: center; font-size: 6.5pt; margin-bottom: 1px; }
 
         /* Tableau infos eleve */
-        .student-table { margin-bottom: 4px; }
+        .student-table { margin-bottom: 1px; }
         .student-table td {
             border: 1px solid #000;
-            padding: 2px 3px;
-            font-size: 7.5pt;
+            padding: 1px 2px;
+            font-size: 6.5pt;
             vertical-align: middle;
-            line-height: 1.2;
+            line-height: 1.0;
         }
 
         .photo-cell {
-            width: 65px;
+            width: 55px;
             text-align: center;
             background: #f5f5f5;
         }
 
         .photo-box {
-            width: 60px;
-            height: 70px;
+            width: 50px;
+            height: 60px;
             border: 1px dashed #999;
             margin: 2px auto;
             text-align: center;
@@ -111,36 +115,36 @@
         }
 
         /* Tableau des notes annuel */
-        .grades-table { margin-bottom: 4px; }
+        .grades-table { margin-bottom: 1px; }
         .grades-table th, .grades-table td {
             border: 1px solid #000;
-            padding: 1px 2px;
-            font-size: 7.5pt;
+            padding: 0px 1px;
+            font-size: 6pt;
             text-align: center;
             vertical-align: middle;
-            line-height: 1.15;
+            line-height: 0.85;
         }
 
         .grades-table th {
             background: #EFE9F3;
             font-weight: bold;
-            font-size: 7pt;
+            font-size: 6pt;
         }
 
-        .subject-col { text-align: left; width: 19%; font-size: 7pt; padding-left: 3px; }
-        .trim-col { width: 5.5%; font-size: 7pt; }
-        .moy-col { width: 5.5%; font-weight: bold; font-size: 7pt; }
-        .coef-col { width: 4%; font-size: 7pt; }
-        .total-col { width: 6.5%; font-size: 7pt; }
-        .cote-col { width: 4%; font-weight: bold; font-size: 7pt; }
-        .minmax-col { width: 9%; font-size: 6.5pt; }
-        .app-col { width: 13%; font-size: 6.5pt; text-align: left; padding-left: 2px; }
+        .subject-col { text-align: left; width: 19%; font-size: 6pt; padding-left: 2px; }
+        .trim-col { width: 5.5%; font-size: 6pt; }
+        .moy-col { width: 5.5%; font-weight: bold; font-size: 6pt; }
+        .coef-col { width: 4%; font-size: 6pt; }
+        .total-col { width: 6.5%; font-size: 6pt; }
+        .cote-col { width: 4%; font-weight: bold; font-size: 6pt; }
+        .minmax-col { width: 9%; font-size: 5.5pt; }
+        .app-col { width: 13%; font-size: 5.5pt; text-align: left; padding-left: 1px; }
 
         .teacher-name { font-size: 6.5pt; font-style: italic; color: #555; }
 
         .total-row td {
             font-weight: bold;
-            font-size: 7.5pt;
+            font-size: 6pt;
             background: #f0ecf4;
         }
 
@@ -148,66 +152,66 @@
         .row-even { background: #faf8fc; }
 
         /* Tableau Discipline/Travail/Decision/Profil */
-        .bottom-table { margin-bottom: 4px; }
+        .bottom-table { margin-bottom: 1px; }
         .bottom-table td {
             border: 1px solid #000;
-            padding: 1px 2px;
-            font-size: 7pt;
+            padding: 0px 1px;
+            font-size: 6pt;
             vertical-align: middle;
             text-align: center;
-            line-height: 1.15;
+            line-height: 0.9;
         }
 
         .section-header {
             background: #EFE9F3;
             font-weight: bold;
             text-align: center;
-            font-size: 7pt;
+            font-size: 6pt;
         }
 
-        .disc-label { text-align: left; font-size: 6.5pt; }
-        .disc-data { font-size: 7pt; }
+        .disc-label { text-align: left; font-size: 5.5pt; }
+        .disc-data { font-size: 6pt; }
         .checkbox { display: inline-block; width: 9px; height: 9px; border: 1px solid #000; margin: 0 2px; vertical-align: middle; }
         .checkbox-filled { background: #000; }
-        .travail-label { text-align: left; font-size: 6.5pt; }
-        .travail-data { font-size: 7pt; font-weight: bold; }
-        .decision-label { text-align: left; font-size: 6.5pt; }
-        .decision-data { font-size: 7pt; }
-        .profil-label { font-size: 6.5pt; text-align: left; }
-        .profil-data { font-size: 7pt; font-weight: bold; }
+        .travail-label { text-align: left; font-size: 5.5pt; }
+        .travail-data { font-size: 6pt; font-weight: bold; }
+        .decision-label { text-align: left; font-size: 5.5pt; }
+        .decision-data { font-size: 6pt; }
+        .profil-label { font-size: 5.5pt; text-align: left; }
+        .profil-data { font-size: 6pt; font-weight: bold; }
 
         /* Appreciation finale */
         .final-table { margin-bottom: 0; }
         .final-table td {
             border: 1px solid #000;
-            padding: 3px 4px;
-            font-size: 7.5pt;
+            padding: 1px 2px;
+            font-size: 6pt;
             vertical-align: top;
-            line-height: 1.2;
+            line-height: 1.0;
         }
 
         .app-header {
             background: #EFE9F3;
             font-weight: bold;
             text-align: center;
-            font-size: 7.5pt;
+            font-size: 6pt;
         }
 
         .app-box {
-            min-height: 35px;
-            font-size: 7.5pt;
+            min-height: 20px;
+            font-size: 6pt;
         }
 
         .signature-cell {
             text-align: center;
             vertical-align: top;
             font-weight: bold;
-            font-size: 7.5pt;
-            padding-top: 2px;
+            font-size: 6pt;
+            padding-top: 1px;
         }
 
         .signature-space {
-            height: 35px;
+            height: 20px;
             vertical-align: bottom;
             text-align: center;
         }
@@ -221,12 +225,8 @@
         .cote-c { color: #e67e22; font-weight: bold; }
         .cote-d { color: #e74c3c; font-weight: bold; }
 
-        @page {
-            margin: 0;
-        }
-
         @media print {
-            .page { margin: 0; padding: 4mm 0mm; }
+            .page { margin: 0; padding: 1mm 3mm; }
         }
     </style>
 </head>
@@ -390,7 +390,7 @@
     </table>
 
     <!-- Appreciation et Signatures -->
-    <table class="final-table" style="margin-bottom: 8px;">
+    <table class="final-table" style="margin-bottom: 2px;">
         <tr>
             <td class="app-header" style="width: 40%;"><b>Appréciation du travail de l'élève</b></td>
             <td class="signature-cell" style="width: 20%;"><b>Visa du parent / Tuteur</b></td>
@@ -406,59 +406,59 @@
     </table>
 
     <!-- Grille de Notation APC -->
-    <div style="margin-top: 5px;">
+    <div style="margin-top: 1px;">
         <table style="width: 100%; border: 1px solid #000; border-collapse: collapse;">
             <tr style="background: #EFE9F3;">
-                <td colspan="5" style="text-align: center; border: 1px solid #000; padding: 2px; font-weight: bold; font-size: 7pt;">GRILLE DE NOTATION / RATING GRID</td>
+                <td colspan="5" style="text-align: center; border: 1px solid #000; padding: 1px; font-weight: bold; font-size: 5.5pt;">GRILLE DE NOTATION / RATING GRID</td>
             </tr>
             <tr>
-                <td style="border: 1px solid #000; padding: 2px; width: 15%; text-align: center; font-weight: bold;">NIVEAUX / LEVELS</td>
-                <td style="border: 1px solid #000; padding: 2px; width: 10%; text-align: center; font-weight: bold;">COTE / GRADE</td>
-                <td style="border: 1px solid #000; padding: 2px; width: 15%; text-align: center; font-weight: bold;">NOTES / MARKS</td>
-                <td style="border: 1px solid #000; padding: 2px; width: 30%; text-align: center; font-weight: bold;">COMPETENCES / COMPETENCES</td>
-                <td style="border: 1px solid #000; padding: 2px; width: 30%; text-align: center; font-weight: bold;">PERFORMANCE GRID</td>
+                <td style="border: 1px solid #000; padding: 1px; width: 15%; text-align: center; font-weight: bold;">NIVEAUX / LEVELS</td>
+                <td style="border: 1px solid #000; padding: 1px; width: 10%; text-align: center; font-weight: bold;">COTE / GRADE</td>
+                <td style="border: 1px solid #000; padding: 1px; width: 15%; text-align: center; font-weight: bold;">NOTES / MARKS</td>
+                <td style="border: 1px solid #000; padding: 1px; width: 30%; text-align: center; font-weight: bold;">COMPETENCES / COMPETENCES</td>
+                <td style="border: 1px solid #000; padding: 1px; width: 30%; text-align: center; font-weight: bold;">PERFORMANCE GRID</td>
             </tr>
             <tr>
-                <td rowspan="2" style="border: 1px solid #000; padding: 2px; text-align: center;">NIVEAU 4</td>
-                <td style="border: 1px solid #000; padding: 2px; text-align: center;">A+</td>
-                <td style="border: 1px solid #000; padding: 2px; text-align: center;">18 - 20 / 20</td>
-                <td rowspan="2" style="border: 1px solid #000; padding: 2px;">Compétences très bien acquises (CTBA)</td>
-                <td rowspan="2" style="border: 1px solid #000; padding: 2px;">Extremely well acquired competences (EWAC)</td>
+                <td rowspan="2" style="border: 1px solid #000; padding: 1px; text-align: center;">NIVEAU 4</td>
+                <td style="border: 1px solid #000; padding: 1px; text-align: center;">A+</td>
+                <td style="border: 1px solid #000; padding: 1px; text-align: center;">18 - 20 / 20</td>
+                <td rowspan="2" style="border: 1px solid #000; padding: 1px;">Compétences très bien acquises (CTBA)</td>
+                <td rowspan="2" style="border: 1px solid #000; padding: 1px;">Extremely well acquired competences (EWAC)</td>
             </tr>
             <tr>
-                <td style="border: 1px solid #000; padding: 2px; text-align: center;">A</td>
-                <td style="border: 1px solid #000; padding: 2px; text-align: center;">16 - 17,99 / 20</td>
+                <td style="border: 1px solid #000; padding: 1px; text-align: center;">A</td>
+                <td style="border: 1px solid #000; padding: 1px; text-align: center;">16 - 17,99 / 20</td>
             </tr>
             <tr>
-                <td rowspan="2" style="border: 1px solid #000; padding: 2px; text-align: center;">NIVEAU 3</td>
-                <td style="border: 1px solid #000; padding: 2px; text-align: center;">B+</td>
-                <td style="border: 1px solid #000; padding: 2px; text-align: center;">15 - 15,99 / 20</td>
-                <td rowspan="2" style="border: 1px solid #000; padding: 2px;">Compétences bien acquises (CBA)</td>
-                <td rowspan="2" style="border: 1px solid #000; padding: 2px;">Well acquired competences (WAC)</td>
+                <td rowspan="2" style="border: 1px solid #000; padding: 1px; text-align: center;">NIVEAU 3</td>
+                <td style="border: 1px solid #000; padding: 1px; text-align: center;">B+</td>
+                <td style="border: 1px solid #000; padding: 1px; text-align: center;">15 - 15,99 / 20</td>
+                <td rowspan="2" style="border: 1px solid #000; padding: 1px;">Compétences bien acquises (CBA)</td>
+                <td rowspan="2" style="border: 1px solid #000; padding: 1px;">Well acquired competences (WAC)</td>
             </tr>
             <tr>
-                <td style="border: 1px solid #000; padding: 2px; text-align: center;">B</td>
-                <td style="border: 1px solid #000; padding: 2px; text-align: center;">14 - 14,99 / 20</td>
+                <td style="border: 1px solid #000; padding: 1px; text-align: center;">B</td>
+                <td style="border: 1px solid #000; padding: 1px; text-align: center;">14 - 14,99 / 20</td>
             </tr>
             <tr>
-                <td rowspan="2" style="border: 1px solid #000; padding: 2px; text-align: center;">NIVEAU 2</td>
-                <td style="border: 1px solid #000; padding: 2px; text-align: center;">C+</td>
-                <td style="border: 1px solid #000; padding: 2px; text-align: center;">12 - 13,99 / 20</td>
-                <td style="border: 1px solid #000; padding: 2px;">Compétences acquises (CA)</td>
-                <td style="border: 1px solid #000; padding: 2px;">Acquired competences (AC)</td>
+                <td rowspan="2" style="border: 1px solid #000; padding: 1px; text-align: center;">NIVEAU 2</td>
+                <td style="border: 1px solid #000; padding: 1px; text-align: center;">C+</td>
+                <td style="border: 1px solid #000; padding: 1px; text-align: center;">12 - 13,99 / 20</td>
+                <td style="border: 1px solid #000; padding: 1px;">Compétences acquises (CA)</td>
+                <td style="border: 1px solid #000; padding: 1px;">Acquired competences (AC)</td>
             </tr>
             <tr>
-                <td style="border: 1px solid #000; padding: 2px; text-align: center;">C</td>
-                <td style="border: 1px solid #000; padding: 2px; text-align: center;">10 - 11,99 / 20</td>
-                <td style="border: 1px solid #000; padding: 2px;">Compétences moyennement acquises (CMA)</td>
-                <td style="border: 1px solid #000; padding: 2px;">Moderately acquired competences (MAC)</td>
+                <td style="border: 1px solid #000; padding: 1px; text-align: center;">C</td>
+                <td style="border: 1px solid #000; padding: 1px; text-align: center;">10 - 11,99 / 20</td>
+                <td style="border: 1px solid #000; padding: 1px;">Compétences moyennement acquises (CMA)</td>
+                <td style="border: 1px solid #000; padding: 1px;">Moderately acquired competences (MAC)</td>
             </tr>
             <tr>
-                <td style="border: 1px solid #000; padding: 2px; text-align: center;">NIVEAU 1</td>
-                <td style="border: 1px solid #000; padding: 2px; text-align: center;">D</td>
-                <td style="border: 1px solid #000; padding: 2px; text-align: center;">Inf à 10 / 20</td>
-                <td style="border: 1px solid #000; padding: 2px;">Compétences non acquises (CNA)</td>
-                <td style="border: 1px solid #000; padding: 2px;">Not acquired competences (NAC)</td>
+                <td style="border: 1px solid #000; padding: 1px; text-align: center;">NIVEAU 1</td>
+                <td style="border: 1px solid #000; padding: 1px; text-align: center;">D</td>
+                <td style="border: 1px solid #000; padding: 1px; text-align: center;">Inf à 10 / 20</td>
+                <td style="border: 1px solid #000; padding: 1px;">Compétences non acquises (CNA)</td>
+                <td style="border: 1px solid #000; padding: 1px;">Not acquired competences (NAC)</td>
             </tr>
         </table>
     </div>

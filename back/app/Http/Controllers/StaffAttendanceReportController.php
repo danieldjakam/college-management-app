@@ -24,11 +24,11 @@ class StaffAttendanceReportController extends Controller
         
         if ($user && $user->working_school_year_id) {
             $workingYear = \App\Models\SchoolYear::find($user->working_school_year_id);
-            if ($workingYear && $workingYear->is_active) {
+            if ($workingYear) {
                 return $workingYear;
             }
         }
-        
+
         $workingYear = \App\Models\SchoolYear::where('is_current', true)->first();
         
         if (!$workingYear) {

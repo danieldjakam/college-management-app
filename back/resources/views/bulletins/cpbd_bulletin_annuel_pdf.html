@@ -6,7 +6,7 @@
     <style>
         @page {
             size: A4 portrait;
-            margin: 8mm 6mm 6mm 6mm;
+            margin: 2mm 2mm 2mm 2mm;
         }
 
         * {
@@ -17,8 +17,8 @@
 
         body {
             font-family: 'Arial', sans-serif;
-            font-size: 8pt;
-            line-height: 1.15;
+            font-size: 6.5pt;
+            line-height: 0.9;
             color: #000;
             background: white;
             padding: 0px;
@@ -36,37 +36,37 @@
         .header {
             background: #EFE9F3;
             color: black;
-            padding: 3px 0;
+            padding: 0px;
             text-align: center;
         }
         .school-info { display: table; width: 100%; margin-bottom: 2px; }
         .school-left, .school-right {
             display: table-cell; width: 32%; vertical-align: middle;
-            font-size: 7pt; padding: 2px 5px;
+            font-size: 6pt; padding: 0px 2px;
         }
         .school-left { text-align: center; }
         .school-right { text-align: center; }
         .school-left div, .school-right div { margin: 1px 0; line-height: 1.1; }
         .school-center {
             display: table-cell; width: 36%; text-align: center;
-            vertical-align: middle; padding: 2px;
+            vertical-align: middle; padding: 0px;
         }
         .bulletin-title {
-            font-size: 11pt; font-weight: bold; margin: 3px 0; text-align: center;
-            letter-spacing: 1px;
+            font-size: 8pt; font-weight: bold; margin: 1px 0; text-align: center;
+            letter-spacing: 0px;
         }
         .school-year {
-            font-size: 8pt; font-weight: bold; margin-bottom: 2px;
+            font-size: 6.5pt; font-weight: bold; margin-bottom: 1px;
         }
 
         /* STUDENT INFO */
         .student-info {
             background: #EFE9F3; color: black;
-            padding: 3px 5px; margin-bottom: 2px;
+            padding: 0px 2px; margin-bottom: 1px;
         }
         .student-info table { width: 100%; border-collapse: collapse; }
         .student-info td {
-            padding: 1px 3px; font-size: 7.5pt; vertical-align: middle; line-height: 1.2;
+            padding: 0px 2px; font-size: 6.5pt; vertical-align: middle; line-height: 0.9;
         }
         .info-label { font-weight: bold; }
         .photo-cell { width: 65px; text-align: center; }
@@ -80,21 +80,21 @@
 
         /* GROUP HEADER */
         .group-header {
-            background: #EFE9F3; color: black; padding: 2px;
-            font-weight: bold; font-size: 7pt;
+            background: #EFE9F3; color: black; padding: 1px;
+            font-weight: bold; font-size: 6pt;
             text-transform: uppercase; text-align: center;
         }
 
         /* GRADES TABLE */
         .subjects-table {
-            width: 100%; border-collapse: collapse; font-size: 7pt;
+            width: 100%; border-collapse: collapse; font-size: 6pt;
         }
         .subjects-table th, .subjects-table td {
-            border: 1px solid #000; padding: 1.5px 2px;
-            text-align: center; vertical-align: middle; line-height: 1.1;
+            border: 1px solid #000; padding: 0px 1px;
+            text-align: center; vertical-align: middle; line-height: 0.8;
         }
         .subjects-table th {
-            background: #EFE9F3; color: black; font-weight: bold; font-size: 6.5pt;
+            background: #EFE9F3; color: black; font-weight: bold; font-size: 6pt;
         }
         .subject-name {
             text-align: left !important; font-weight: 600; padding-left: 3px !important;
@@ -105,7 +105,7 @@
         .moy-below-average { color: #e74c3c; font-weight: bold; }
 
         /* BOTTOM 3-COLUMN SECTION */
-        .bottom-section { display: table; width: 100%; margin-top: 3px; }
+        .bottom-section { display: table; width: 100%; margin-top: 1px; }
         .bottom-left {
             display: table-cell; width: 28%; vertical-align: top;
             border: 1px solid #EFE9F3;
@@ -120,13 +120,13 @@
         }
 
         /* DISCIPLINE TABLE */
-        .disc-table { width: 100%; border-collapse: collapse; font-size: 6.5pt; }
+        .disc-table { width: 100%; border-collapse: collapse; font-size: 6pt; }
         .disc-table th, .disc-table td {
-            border: 1px solid #e0e0e0; padding: 1.5px 2px;
-            text-align: center; line-height: 1.1;
+            border: 1px solid #e0e0e0; padding: 0px 1px;
+            text-align: center; line-height: 0.85;
         }
         .disc-table th {
-            background: #EFE9F3; font-size: 6.5pt; font-weight: bold;
+            background: #EFE9F3; font-size: 6pt; font-weight: bold;
         }
         .disc-label {
             text-align: left !important; padding-left: 3px !important; font-weight: 600;
@@ -134,66 +134,66 @@
 
         /* PERFORMANCE SECTION */
         .perf-header {
-            background: #EFE9F3; font-weight: bold; font-size: 7pt;
-            text-align: center; padding: 2px; color: black;
+            background: #EFE9F3; font-weight: bold; font-size: 6pt;
+            text-align: center; padding: 1px; color: black;
         }
         .stat-item {
-            display: table; width: 100%; padding: 1.5px 3px;
-            border-bottom: 1px solid #e0e0e0; font-size: 7pt;
+            display: table; width: 100%; padding: 0px 2px;
+            border-bottom: 1px solid #e0e0e0; font-size: 6pt;
         }
-        .stat-label { display: table-cell; width: 65%; font-size: 7pt; }
+        .stat-label { display: table-cell; width: 65%; font-size: 6pt; }
         .stat-value {
             display: table-cell; width: 35%; font-weight: bold;
-            color: #333; text-align: right; font-size: 7pt;
+            color: #333; text-align: right; font-size: 6pt;
         }
 
         /* TRAVAIL ANNUEL TABLE */
         .travail-header {
-            background: #EFE9F3; font-weight: bold; font-size: 7pt;
-            text-align: center; padding: 2px; color: black;
+            background: #EFE9F3; font-weight: bold; font-size: 6pt;
+            text-align: center; padding: 1px; color: black;
         }
-        .travail-table { width: 100%; border-collapse: collapse; font-size: 6.5pt; }
+        .travail-table { width: 100%; border-collapse: collapse; font-size: 6pt; }
         .travail-table th, .travail-table td {
-            border: 1px solid #e0e0e0; padding: 1.5px 2px;
-            text-align: center; line-height: 1.1;
+            border: 1px solid #e0e0e0; padding: 0px 1px;
+            text-align: center; line-height: 0.85;
         }
-        .travail-table th { background: #EFE9F3; font-size: 6.5pt; font-weight: bold; }
+        .travail-table th { background: #EFE9F3; font-size: 6pt; font-weight: bold; }
         .travail-label { text-align: left !important; padding-left: 3px !important; }
         .travail-bold { font-weight: bold; background: transparent; }
 
         /* OBSERVATIONS */
         .observations {
-            background: transparent; padding: 3px; margin-top: 3px;
+            background: transparent; padding: 1px; margin-top: 1px;
             text-align: center; border: 1px solid #EFE9F3;
         }
-        .observations h3 { margin-bottom: 2px; font-size: 8pt; }
-        .observations p { font-size: 9pt; }
+        .observations h3 { margin-bottom: 0px; font-size: 6pt; }
+        .observations p { font-size: 6.5pt; }
 
         /* DECISION DU CONSEIL */
         .decision-section {
             display: table; width: 100%;
             border: 1px solid #000; border-top: 0;
-            font-size: 7pt;
+            font-size: 6pt;
         }
         .decision-left {
-            display: table-cell; width: 55%; padding: 3px 5px;
+            display: table-cell; width: 55%; padding: 1px 2px;
             vertical-align: top; border-right: 1px solid #000;
         }
         .decision-right {
-            display: table-cell; width: 45%; padding: 3px 5px;
+            display: table-cell; width: 45%; padding: 1px 2px;
             text-align: center; vertical-align: top;
         }
         .decision-title {
-            font-weight: bold; text-align: center; margin-bottom: 3px;
-            font-size: 8pt;
+            font-weight: bold; text-align: center; margin-bottom: 1px;
+            font-size: 6.5pt;
         }
-        .decision-row { margin: 3px 0; line-height: 1.3; }
+        .decision-row { margin: 1px 0; line-height: 1.0; }
 
         /* FOOTER */
         .footer-notes {
-            margin-top: 2px; padding: 2px 4px;
-            border: 1px solid #000; font-size: 6.5pt;
-            display: table; width: 100%; line-height: 1.1;
+            margin-top: 0px; padding: 0px 2px;
+            border: 1px solid #000; font-size: 5.5pt;
+            display: table; width: 100%; line-height: 0.85;
         }
         .notes-left { display: table-cell; width: 65%; vertical-align: top; }
         .note-row { margin-bottom: 1px; padding: 0px; }
@@ -233,7 +233,7 @@
                     <div>YASSA</div>
                 </div>
                 <div class="school-center">
-                    <img src="{{logo_base64}}" alt="Logo" style="width: 65px; height: 65px; display: block; margin: 0 auto;">
+                    <img src="{{logo_base64}}" alt="Logo" style="width: 45px; height: 45px; display: block; margin: 0 auto;">
                 </div>
                 <div class="school-right">
                     <div><strong>REPUBLIC OF CAMEROON</strong></div>
@@ -365,8 +365,8 @@
                 <div class="decision-row">Exclusion d&eacute;finitive pour : ________________________________</div>
             </div>
             <div class="decision-right">
-                <div style="margin-bottom: 10px;">Fait &agrave; Douala, le ____/____/{{current_year}}</div>
-                <div style="margin-top: 20px; font-weight: bold;">Le Principal</div>
+                <div style="margin-bottom: 3px;">Fait &agrave; Douala, le ____/____/{{current_year}}</div>
+                <div style="margin-top: 5px; font-weight: bold;">Le Principal</div>
             </div>
         </div>
 

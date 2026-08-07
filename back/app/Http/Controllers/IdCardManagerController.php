@@ -23,7 +23,7 @@ class IdCardManagerController extends Controller
         // Si l'utilisateur a une année de travail définie, l'utiliser
         if ($user && $user->working_school_year_id) {
             $workingYear = SchoolYear::find($user->working_school_year_id);
-            if ($workingYear && $workingYear->is_active) {
+            if ($workingYear) {
                 return $workingYear;
             }
         }

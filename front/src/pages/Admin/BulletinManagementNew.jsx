@@ -4,8 +4,10 @@ import { CardText, Download, Eye, Printer, ArrowClockwise, Clock, CheckCircle, E
 import { secureApi } from '../../utils/apiMigration';
 import { authService } from '../../services/authService';
 import { host } from '../../utils/fetch';
+import { useSchoolYear } from '../../contexts/SchoolYearContext';
 
 function BulletinManagementNew() {
+  const { workingYearId } = useSchoolYear();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -145,7 +147,8 @@ function BulletinManagementNew() {
   const fetchHierarchicalStructure = async () => {
     try {
       setLoadingHierarchy(true);
-      const response = await secureApi.get('/bulletins/hierarchical-structure');
+      const yearParam = workingYearId ? `?school_year_id=${workingYearId}` : '';
+      const response = await secureApi.get(`/bulletins/hierarchical-structure${yearParam}`);
 
       // secureApi returns parsed JSON directly, not wrapped in a data property
       let sectionsData = [];
@@ -167,7 +170,8 @@ function BulletinManagementNew() {
 
   const fetchAcademicTimeline = async () => {
     try {
-      const response = await secureApi.get('/bulletins/academic-timeline');
+      const yearParam = workingYearId ? `?school_year_id=${workingYearId}` : '';
+      const response = await secureApi.get(`/bulletins/academic-timeline${yearParam}`);
       // secureApi returns parsed JSON directly
       if (response && response.success && response.data) {
         setAcademicTimeline(response.data);

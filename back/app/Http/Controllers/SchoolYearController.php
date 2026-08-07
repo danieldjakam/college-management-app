@@ -36,13 +36,12 @@ class SchoolYearController extends Controller
     }
 
     /**
-     * Liste les années scolaires actives pour sélection
+     * Liste toutes les années scolaires pour sélection (incluant les archives)
      */
     public function getActiveYears()
     {
         try {
-            $schoolYears = SchoolYear::where('is_active', true)
-                ->orderBy('start_date', 'desc')
+            $schoolYears = SchoolYear::orderBy('start_date', 'desc')
                 ->get();
 
             return response()->json([
@@ -208,13 +207,6 @@ class SchoolYearController extends Controller
         try {
             $user = Auth::user();
             $schoolYear = SchoolYear::find($request->school_year_id);
-
-            if (!$schoolYear->is_active) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cette année scolaire n\'est pas active'
-                ], 422);
-            }
 
             // Mettre à jour l'année de travail de l'utilisateur
             $user->update(['working_school_year_id' => $request->school_year_id]);

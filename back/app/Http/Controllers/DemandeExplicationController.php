@@ -21,12 +21,12 @@ class DemandeExplicationController extends Controller
         
         if ($user && $user->working_school_year_id) {
             $workingYear = SchoolYear::find($user->working_school_year_id);
-            if ($workingYear && $workingYear->is_active) {
+            if ($workingYear) {
                 return $workingYear;
             }
         }
-        
-        return SchoolYear::where('is_current', true)->first() ?? 
+
+        return SchoolYear::where('is_current', true)->first() ??
                SchoolYear::where('is_active', true)->first();
     }
 

@@ -1941,6 +1941,42 @@ class BulletinService
     }
 
     /**
+     * Check if Anglophone student is in Form 4 or above (elective subjects - skip ungraded)
+     */
+    protected function isAnglophoneForm4Plus($student)
+    {
+        $sectionType = $this->determineSectionType($student);
+        if ($sectionType !== 'anglophone') {
+            return false;
+        }
+
+        $className = '';
+        if (isset($student->classSeries) && $student->classSeries) {
+            $className = strtoupper($student->classSeries->name);
+        } elseif (isset($student->schoolClass) && $student->schoolClass) {
+            $className = strtoupper($student->schoolClass->name);
+        }
+
+        $className = preg_replace('/\s+/', ' ', trim($className));
+
+        // Form 4 and above + Lower/Upper Sixth: elective subjects
+        $form4PlusPatterns = [
+            'FORM FOUR', 'FORM FIVE',
+            'FROM FOUR', 'FROM FIVE',
+            'FORM 4', 'FORM 5',
+            'LOWER SIXTH', 'UPPER SIXTH',
+        ];
+
+        foreach ($form4PlusPatterns as $pattern) {
+            if (stripos($className, $pattern) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Check if Anglophone class should use APC template
      * Classes: FROM ONE, FROM TWO, FROM THREE, FROM FOUR ARTS, FROM FOUR science, FROM FIVE (science), FROM FIVE (ARTS)
      */
@@ -2579,9 +2615,9 @@ class BulletinService
             }
         }
 
-        $html = '<div class="grades-section" style="margin-bottom: 20px;">';
-        $html .= '<div class="group-header" style="background: #f0f0f0; padding: 8px; font-weight: bold; text-align: center; border: 1px solid #000;">' . $translatedGroupName . '</div>';
-        $html .= '<table class="subjects-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000;">';
+        $html = '<div class="grades-section" style="margin-bottom: 0px;">';
+        $html .= '<div class="group-header" style="background: #f0f0f0; padding: 1px; font-weight: bold; text-align: center; border: 1px solid #000; font-size: 5.5pt;">' . $translatedGroupName . '</div>';
+        $html .= '<table class="subjects-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000; font-size: 5.5pt;">';
 
         // Header row avec largeurs fixes pour alignement
         $html .= '<tr style="background: #f8f8f8;">';
@@ -2592,54 +2628,54 @@ class BulletinService
                 if ($sectionType === 'anglophone') {
                     // English headers for Anglophone section
                     $ordinalEn = [1 => '1st', 2 => '2nd', 3 => '3rd', 4 => '4th', 5 => '5th', 6 => '6th'];
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 15%;">SUBJECT</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">' . ($ordinalEn[$seq1Num] ?? $seq1Num . 'th') . ' Sequence</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">' . ($ordinalEn[$seq2Num] ?? $seq2Num . 'th') . ' Sequence</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">' . ($ordinalEn[$trimNum] ?? $trimNum . 'th') . ' Term Exam</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Avg./20</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">COEF.</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">TOTAL</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">RANK</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPETENCY</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 13%;">TEACHER NAMES</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: left; width: 15%;">SUBJECT</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">' . ($ordinalEn[$seq1Num] ?? $seq1Num . 'th') . ' Sequence</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">' . ($ordinalEn[$seq2Num] ?? $seq2Num . 'th') . ' Sequence</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">' . ($ordinalEn[$trimNum] ?? $trimNum . 'th') . ' Term Exam</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">Avg./20</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 6%;">COEF.</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">(NXC)</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">TOTAL</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 6%;">RANK</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 12%;">COMPETENCY</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 13%;">TEACHER NAMES</th>';
                 } else {
                     // French headers for Francophone section
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 15%;">DISCIPLINE</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Sequence ' . $seq1Num . '</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Sequence ' . $seq2Num . '</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Compo' . $trimNum . '</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Moy./20</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">COEF.</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">TOTAL</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 6%;">RANG</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPÉTENCES</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: left; width: 15%;">DISCIPLINE</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">Sequence ' . $seq1Num . '</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">Sequence ' . $seq2Num . '</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">Compo' . $trimNum . '</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">Moy./20</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 6%;">COEF.</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">(NXC)</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">TOTAL</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 6%;">RANG</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 12%;">COMPÉTENCES</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%; font-size: 5.5pt;">NOMS DES<br>PROFESSEURS</th>';
                 }
             } else {
                 // 📚 PREMIER CYCLE: 9 colonnes avec DS1 (moyenne cachée)
                 if ($sectionType === 'anglophone') {
                     // English headers for Anglophone section
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 20%;">SUBJECT</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">CA' . $trimNum . '</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Exam' . $trimNum . '</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Avg</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">COEF.</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">RANK</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPETENCIES</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: left; width: 20%;">SUBJECT</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">CA' . $trimNum . '</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">Exam' . $trimNum . '</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">Avg</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">COEF.</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">(NXC)</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">RANK</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 12%;">COMPETENCIES</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%; font-size: 5.5pt;">TEACHER<br>NAMES</th>';
                 } else {
                     // French headers for Francophone section
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 20%;">DISCIPLINE</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">DS' . $trimNum . '</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Compo' . $trimNum . '</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">Moy</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">COEF.</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">(NXC)</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 8%;">RANG</th>';
-                    $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">COMPÉTENCES</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: left; width: 20%;">DISCIPLINE</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">DS' . $trimNum . '</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">Compo' . $trimNum . '</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">Moy</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">COEF.</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">(NXC)</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 8%;">RANG</th>';
+                    $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 12%;">COMPÉTENCES</th>';
                     $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%; font-size: 5.5pt;">NOMS DES<br>PROFESSEURS</th>';
                 }
             }
@@ -2647,21 +2683,21 @@ class BulletinService
             // Pour bulletin séquence : structure originale avec largeurs fixes
             if ($sectionType === 'anglophone') {
                 // English headers for Anglophone section
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 25%;">SUBJECT</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">MARKS /20</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">COEF.</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">(NXC)</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">RANK</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 13%;">COMPETENCIES</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: left; width: 25%;">SUBJECT</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 12%;">MARKS /20</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%;">COEF.</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%;">(NXC)</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%;">RANK</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 13%;">COMPETENCIES</th>';
                 $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%; font-size: 5.5pt;">TEACHER<br>NAMES</th>';
             } else {
                 // French headers for Francophone section
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: left; width: 25%;">DISCIPLINE</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 12%;">NOTES /20</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">COEF.</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">(NXC)</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 10%;">RANG</th>';
-                $html .= '<th style="border: 1px solid #000; padding: 5px; text-align: center; width: 13%;">COMPÉTENCES</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: left; width: 25%;">DISCIPLINE</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 12%;">NOTES /20</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%;">COEF.</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%;">(NXC)</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%;">RANG</th>';
+                $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 13%;">COMPÉTENCES</th>';
                 $html .= '<th style="border: 1px solid #000; padding: 1px; text-align: center; width: 10%; font-size: 5.5pt;">NOMS DES<br>PROFESSEURS</th>';
             }
         }
@@ -2712,21 +2748,21 @@ class BulletinService
                     $average = $subject['average'] ?? null;
                     $nxc = $subject['nxc'] ?? $weightedGrade;
 
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
                     // CORRECTION: Afficher "/" pour les absents (ABS) au lieu de "-", afficher la note même si c'est 0.00
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq1 === 'ABS' ? '/' : (is_numeric($seq1) ? number_format((float)$seq1, 2) : '-')) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($seq2 === 'ABS' ? '/' : (is_numeric($seq2) ? number_format((float)$seq2, 2) : '-')) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) ? number_format((float)$compo1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . ($seq1 === 'ABS' ? '/' : (is_numeric($seq1) ? number_format((float)$seq1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . ($seq2 === 'ABS' ? '/' : (is_numeric($seq2) ? number_format((float)$seq2, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) ? number_format((float)$compo1, 2) : '-')) . '</td>';
                     // Couleur conditionnelle pour Moy./20: vert si ≥10, rouge si <10
                     $moyClass = is_numeric($average) ? ((float)$average >= 10 ? 'moy-above-average' : 'moy-below-average') : '';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;"' . ($moyClass ? ' class="' . $moyClass . '"' : '') . '>' . (is_numeric($average) ? number_format((float)$average, 2) : '-') . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$coef, 2) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;"' . ($moyClass ? ' class="' . $moyClass . '"' : '') . '>' . (is_numeric($average) ? number_format((float)$average, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . number_format((float)$coef, 2) . '</td>';
                     // CORRECTION: Afficher "-" si NXC est null (élève absent)
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($nxc !== null ? number_format((float)$nxc, 2) : '-') . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($nxc !== null ? number_format((float)$nxc, 2) : '-') . '</td>'; // TOTAL = NXC
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;" class="' . $gradeClass . '">' . ($nxc !== null ? number_format((float)$nxc, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;" class="' . $gradeClass . '">' . ($nxc !== null ? number_format((float)$nxc, 2) : '-') . '</td>'; // TOTAL = NXC
                     // 🔧 FIX BUG #1: Si pas de rang, afficher dernier rang au lieu de 1er
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center; font-size: 10pt;">' . $competence . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center; font-size: 10pt;">' . $competence . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center; font-size: 5.5pt; line-height: 0.9;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
                 } else {
                     // 📚 PREMIER CYCLE: 9 colonnes avec DS1 (moyenne cachée)
@@ -2734,32 +2770,32 @@ class BulletinService
                     $compo1 = $subject['composition'] ?? null;
                     $average = $subject['average'] ?? null;
 
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
                     // CORRECTION: Afficher "/" pour les absents (ABS) au lieu de "-", afficher la note même si c'est 0.00
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($ds1 === 'ABS' ? '/' : (is_numeric($ds1) ? number_format((float)$ds1, 2) : '-')) . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) ? number_format((float)$compo1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . ($ds1 === 'ABS' ? '/' : (is_numeric($ds1) ? number_format((float)$ds1, 2) : '-')) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . ($compo1 === 'ABS' ? '/' : (is_numeric($compo1) ? number_format((float)$compo1, 2) : '-')) . '</td>';
                     // Couleur conditionnelle pour Moy./20: vert si ≥10, rouge si <10
                     $moyClass = is_numeric($average) ? ((float)$average >= 10 ? 'moy-above-average' : 'moy-below-average') : '';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;"' . ($moyClass ? ' class="' . $moyClass . '"' : '') . '>' . (is_numeric($average) ? number_format((float)$average, 2) : '-') . '</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$coef, 2) . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;"' . ($moyClass ? ' class="' . $moyClass . '"' : '') . '>' . (is_numeric($average) ? number_format((float)$average, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . number_format((float)$coef, 2) . '</td>';
                     // CORRECTION: Afficher "-" si weightedGrade est null (élève absent)
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($weightedGrade !== null ? number_format((float)$weightedGrade, 2) : '-') . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;" class="' . $gradeClass . '">' . ($weightedGrade !== null ? number_format((float)$weightedGrade, 2) : '-') . '</td>';
                     // 🔧 FIX BUG #1: Si pas de rang, afficher dernier rang au lieu de 1er
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
-                    $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $competence . '</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
+                    $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . $competence . '</td>';
                     $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center; font-size: 5.5pt; line-height: 0.9;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
                 }
             } else {
                 // Pour bulletin séquence avec alignement
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: left;">' . strtoupper($subject['name']) . '</td>';
                 // CORRECTION: Afficher "/" pour absent (ABS), "-" si null, ou la note même si c'est 0.00
                 $displayGrade = ($grade === 'ABS') ? '/' : (is_numeric($grade) ? number_format((float)$grade, 2) : '-');
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $displayGrade . '</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$coef, 2) . '</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $gradeClass . '">' . ($weightedGrade !== null ? number_format((float)$weightedGrade, 2) : '-') . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . $displayGrade . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . number_format((float)$coef, 2) . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;" class="' . $gradeClass . '">' . ($weightedGrade !== null ? number_format((float)$weightedGrade, 2) : '-') . '</td>';
                 // 🔧 FIX BUG #1: Si pas de rang, afficher dernier rang au lieu de 1er
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . $competence . '</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . ($subject['rank'] ?? $classSize) . 'e</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . $competence . '</td>';
                 $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center; font-size: 5.5pt; line-height: 0.9;">' . strtoupper($subject['teacher'] ?? 'N/A') . '</td>';
             }
 
@@ -2777,38 +2813,38 @@ class BulletinService
         if ($bulletinType === 'trimester') {
             if ($cycleType === 'deuxieme') {
                 // 🎓 DEUXIÈME CYCLE: 11 colonnes - ligne de total
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Sequence 1
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Sequence 2
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Compo1
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: left;">TOTAL</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">-</td>'; // Sequence 1
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">-</td>'; // Sequence 2
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">-</td>'; // Compo1
                 // Couleur conditionnelle pour moyenne du groupe: vert si ≥10, rouge si <10
                 $groupMoyClass = ($groupAverage >= 10) ? 'moy-above-average' : 'moy-below-average';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $groupMoyClass . '">' . number_format((float)$groupAverage, 2) . '</td>'; // Moy./20
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalCoef, 2) . '</td>'; // COEF
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // (NXC)
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // TOTAL
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // RANG
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;" class="' . $groupMoyClass . '">' . number_format((float)$groupAverage, 2) . '</td>'; // Moy./20
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . number_format((float)$totalCoef, 2) . '</td>'; // COEF
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // (NXC)
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // TOTAL
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">-</td>'; // RANG
                 $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center; font-size: 6pt; font-weight: bold;">' . strtoupper(explode(' :', $groupName)[0]) . '</td>'; // COMPÉTENCES
                 $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center; font-size: 6pt; font-weight: bold;">Moy Gpe: ' . number_format((float)$groupAverage, 2) . '</td>'; // PROFESSEURS
             } else {
                 // 📚 PREMIER CYCLE: 9 colonnes - ligne de total
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // DS1
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // Compo1
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: left;">TOTAL</td>';
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">-</td>'; // DS1
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">-</td>'; // Compo1
                 // Couleur conditionnelle pour moyenne du groupe: vert si ≥10, rouge si <10
                 $groupMoyClass = ($groupAverage >= 10) ? 'moy-above-average' : 'moy-below-average';
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;" class="' . $groupMoyClass . '">' . number_format((float)$groupAverage, 2) . '</td>'; // Moy
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalCoef, 2) . '</td>'; // COEF
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // (NXC)
-                $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">-</td>'; // RANG
-                $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy gpe: ' . number_format((float)$groupAverage, 2) . ' ' . strtoupper(explode(' :', $groupName)[0]) . '</td>'; // COMPÉTENCES + PROFESSEURS
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;" class="' . $groupMoyClass . '">' . number_format((float)$groupAverage, 2) . '</td>'; // Moy
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . number_format((float)$totalCoef, 2) . '</td>'; // COEF
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>'; // (NXC)
+                $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">-</td>'; // RANG
+                $html .= '<td colspan="2" style="border: 1px solid #000; padding: 1px; text-align: center;">Moy gpe: ' . number_format((float)$groupAverage, 2) . ' ' . strtoupper(explode(' :', $groupName)[0]) . '</td>'; // COMPÉTENCES + PROFESSEURS
             }
         } else {
-            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: left;">TOTAL</td>';
-            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>';
-            $html .= '<td style="border: 1px solid #000; padding: 5px; text-align: center;">' . number_format((float)$totalCoef, 2) . '</td>';
-            $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy gpe: ' . number_format((float)$groupAverage, 2) . '</td>';
-            $html .= '<td colspan="2" style="border: 1px solid #000; padding: 5px; text-align: center;">Moy Gen Gpe: ' . number_format((float)$groupAverage, 2) . '</td>';
+            $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: left;">TOTAL</td>';
+            $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . number_format((float)$totalPoints, 2) . '</td>';
+            $html .= '<td style="border: 1px solid #000; padding: 1px; text-align: center;">' . number_format((float)$totalCoef, 2) . '</td>';
+            $html .= '<td colspan="2" style="border: 1px solid #000; padding: 1px; text-align: center;">Moy gpe: ' . number_format((float)$groupAverage, 2) . '</td>';
+            $html .= '<td colspan="2" style="border: 1px solid #000; padding: 1px; text-align: center;">Moy Gen Gpe: ' . number_format((float)$groupAverage, 2) . '</td>';
         }
 
         $html .= '</tr>';

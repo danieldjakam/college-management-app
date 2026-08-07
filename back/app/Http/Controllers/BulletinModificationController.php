@@ -260,14 +260,82 @@ class BulletinModificationController extends Controller
 
             gc_collect_cycles();
 
+            // Si c'est un trimestre ou une séquence, régénérer aussi le bulletin annuel s'il existe
+            $annualRegenerated = false;
+            if (in_array($request->type, ['trimester', 'sequence'])) {
+                $annualRegenerated = $this->regenerateAnnualBulletin($request->student_id);
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'Bulletin regenere avec les modifications',
+                'message' => 'Bulletin regenere avec les modifications' . ($annualRegenerated ? ' (bulletin annuel aussi mis a jour)' : ''),
                 'has_modifications' => $modification !== null,
+                'annual_regenerated' => $annualRegenerated,
             ]);
         } catch (\Exception $e) {
             Log::error('Erreur regeneration avec modifications: ' . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Regenerate annual bulletin for a student (called after trimester/sequence modification)
+     */
+    private function regenerateAnnualBulletin(int $studentId): bool
+    {
+        try {
+            // Vérifier si un bulletin annuel existe déjà
+            $existingAnnual = \App\Models\BulletinGeneration::where('student_id', $studentId)
+                ->where('period_type', 'annual')
+                ->where('period_identifier', 'annual')
+                ->first();
+
+            if (!$existingAnnual) {
+                return false; // Pas de bulletin annuel existant, rien à régénérer
+            }
+
+            // Générer les données du bulletin annuel (avec propagation des modifications)
+            $annualData = $this->generateBulletinData('annual', 'annual', $studentId);
+            if (!$annualData) {
+                Log::warning("Impossible de régénérer le bulletin annuel pour l'élève {$studentId}");
+                return false;
+            }
+
+            // Appliquer les modifications annuelles directes si elles existent
+            $annualMod = BulletinModification::where('student_id', $studentId)
+                ->where('period_type', 'annual')
+                ->where('period_identifier', 'annual')
+                ->first();
+
+            if ($annualMod) {
+                $annualData = $this->applyModifications($annualData, $annualMod->modifications, 'annual');
+            }
+
+            // Render HTML (PDF version)
+            $htmlContent = $this->bulletinService->renderBulletinTemplate('annual', $annualData, true);
+
+            // Generate PDF
+            $filename = "bulletin_annuel_{$studentId}_" . now()->format('Y-m-d') . ".pdf";
+            $filePath = $this->bulletinService->generatePDF($htmlContent, $filename);
+
+            // Supprimer l'ancien fichier
+            if ($existingAnnual->file_path && file_exists(storage_path('app/' . $existingAnnual->file_path))) {
+                unlink(storage_path('app/' . $existingAnnual->file_path));
+            }
+
+            // Mettre à jour l'enregistrement
+            $existingAnnual->update([
+                'file_path' => $filePath,
+                'generated_at' => now(),
+                'is_complete' => true,
+                'completion_percentage' => 100.0,
+            ]);
+
+            Log::info("Bulletin annuel régénéré pour l'élève {$studentId} suite à modification trimestre/séquence");
+            return true;
+        } catch (\Exception $e) {
+            Log::error("Erreur régénération bulletin annuel pour élève {$studentId}: " . $e->getMessage());
+            return false;
         }
     }
 
@@ -289,11 +357,175 @@ class BulletinModificationController extends Controller
         } elseif ($type === 'annual') {
             $student = Student::findOrFail($studentId);
             if ($this->bulletinService->isApcClass($student)) {
-                return $this->bulletinService->generateAnnualBulletinData($studentId);
+                $data = $this->bulletinService->generateAnnualBulletinData($studentId);
+            } else {
+                $data = $this->bulletinService->generateAnnualBulletinDataNonApc($studentId);
             }
-            return $this->bulletinService->generateAnnualBulletinDataNonApc($studentId);
+            // Propager les modifications trimestrielles au bulletin annuel
+            if ($data) {
+                $data = $this->applyTrimesterModificationsToAnnual($data, $studentId);
+            }
+            return $data;
         }
         return null;
+    }
+
+    /**
+     * Apply trimester modifications to annual data
+     * When trimesters have been modified, propagate those changes to annual calculations
+     */
+    private function applyTrimesterModificationsToAnnual(array $data, int $studentId): array
+    {
+        // Get trimester modifications for all 3 trimesters
+        $trimMods = [];
+        for ($t = 1; $t <= 3; $t++) {
+            $mod = BulletinModification::where('student_id', $studentId)
+                ->where('period_type', 'trimester')
+                ->where('period_identifier', 'trim' . $t)
+                ->first();
+            if ($mod) {
+                $trimMods[$t] = $mod;
+            }
+        }
+
+        if (empty($trimMods)) {
+            return $data; // No trimester modifications to apply
+        }
+
+        // Build lookup: subject_id => modified score for each trimester
+        $trimScores = [1 => [], 2 => [], 3 => []];
+        foreach ($trimMods as $t => $mod) {
+            if (!empty($mod->modifications['subjects'])) {
+                foreach ($mod->modifications['subjects'] as $s) {
+                    $subjectId = $s['subject_id'] ?? null;
+                    if (!$subjectId) continue;
+                    // Use 'score' (the final trimester average for this subject)
+                    if (isset($s['score']) && $s['score'] !== null) {
+                        $trimScores[$t][$subjectId] = (float) $s['score'];
+                    }
+                }
+            }
+        }
+
+        $hasChanges = false;
+        foreach ($trimScores as $scores) {
+            if (!empty($scores)) { $hasChanges = true; break; }
+        }
+        if (!$hasChanges) return $data;
+
+        // Apply to subject_groups
+        foreach ($data['subject_groups'] as $groupName => &$groupSubjects) {
+            foreach ($groupSubjects as &$subject) {
+                $subjectId = $subject['subject_id'] ?? null;
+                if (!$subjectId) continue;
+
+                $changed = false;
+                $isNonApc = isset($subject['ev1']);
+
+                if ($isNonApc) {
+                    // NonAPC annual: recalculate from trimester modifications
+                    // We need to recalculate trimester averages from sequence modifications
+                    // For each trimester with modifications, override the trimester result
+                    // Trim1 comes from (ev1+ev2)/2 then (ds1+comp1)/2 → stored in subject fields
+                    // If trimester was modified, we override the computed trimester average
+
+                    // Get current trimester values
+                    $parseVal = function ($v) {
+                        if ($v === '-' || $v === 'ABS' || $v === null) return null;
+                        return (float) $v;
+                    };
+
+                    // Compute original trimester averages from ev/comp
+                    $t1Orig = $this->calcTrimesterFromComponents(
+                        $parseVal($subject['ev1'] ?? null),
+                        $parseVal($subject['ev2'] ?? null),
+                        $parseVal($subject['comp1'] ?? null)
+                    );
+                    $t2Orig = $this->calcTrimesterFromComponents(
+                        $parseVal($subject['ev3'] ?? null),
+                        $parseVal($subject['ev4'] ?? null),
+                        $parseVal($subject['comp2'] ?? null)
+                    );
+                    $t3Orig = $parseVal($subject['comp3'] ?? null);
+
+                    // Override with trimester modifications if present
+                    $t1 = isset($trimScores[1][$subjectId]) ? $trimScores[1][$subjectId] : $t1Orig;
+                    $t2 = isset($trimScores[2][$subjectId]) ? $trimScores[2][$subjectId] : $t2Orig;
+                    $t3 = isset($trimScores[3][$subjectId]) ? $trimScores[3][$subjectId] : $t3Orig;
+
+                    if (isset($trimScores[1][$subjectId]) || isset($trimScores[2][$subjectId]) || isset($trimScores[3][$subjectId])) {
+                        $changed = true;
+                        $trimValues = array_filter([$t1, $t2, $t3], fn($v) => $v !== null);
+                        if (count($trimValues) > 0) {
+                            $annualAvg = (($t1 ?? 0) + ($t2 ?? 0) + ($t3 ?? 0)) / 3;
+                            $subject['annual_average'] = round($annualAvg, 2);
+                            $subject['score'] = round($annualAvg, 2);
+                            $subject['average'] = round($annualAvg, 2);
+                            $coef = $subject['coefficient'] ?? 1;
+                            $subject['total'] = round($annualAvg * $coef, 2);
+                        }
+                    }
+                } else {
+                    // APC annual: trim1, trim2, trim3 fields
+                    $t1 = isset($trimScores[1][$subjectId]) ? $trimScores[1][$subjectId] : ($subject['trim1'] ?? $subject['trimester1_average'] ?? null);
+                    $t2 = isset($trimScores[2][$subjectId]) ? $trimScores[2][$subjectId] : ($subject['trim2'] ?? $subject['trimester2_average'] ?? null);
+                    $t3 = isset($trimScores[3][$subjectId]) ? $trimScores[3][$subjectId] : ($subject['trim3'] ?? $subject['trimester3_average'] ?? null);
+
+                    if (isset($trimScores[1][$subjectId]) || isset($trimScores[2][$subjectId]) || isset($trimScores[3][$subjectId])) {
+                        $changed = true;
+                        $subject['trim1'] = $t1;
+                        $subject['trimester1_average'] = $t1;
+                        $subject['trim2'] = $t2;
+                        $subject['trimester2_average'] = $t2;
+                        $subject['trim3'] = $t3;
+                        $subject['trimester3_average'] = $t3;
+
+                        $annualAvg = (($t1 ?? 0) + ($t2 ?? 0) + ($t3 ?? 0)) / 3;
+                        $subject['score'] = round($annualAvg, 2);
+                        $subject['annual_average'] = round($annualAvg, 2);
+                        $subject['average'] = round($annualAvg, 2);
+                        $coef = $subject['coefficient'] ?? 1;
+                        $subject['total'] = round($annualAvg * $coef, 2);
+                    }
+                }
+
+                // Recalculate competence if changed
+                if ($changed) {
+                    $sectionType = $data['section_type'] ?? 'francophone';
+                    $cycleType = $subject['cycle_type'] ?? 'premier';
+                    $newScore = $subject['score'] ?? null;
+                    if ($newScore !== null && is_numeric($newScore)) {
+                        $subject['competence'] = $this->calculateCompetence((float) $newScore, $cycleType, $sectionType);
+                        $subject['grade'] = $subject['competence'];
+                    }
+                }
+            }
+        }
+        unset($groupSubjects, $subject);
+
+        // Sync to flat subjects array
+        if (isset($data['subjects'])) {
+            $modsBySubjectId = [];
+            foreach ($data['subject_groups'] as $groupSubjects) {
+                foreach ($groupSubjects as $s) {
+                    if (isset($s['subject_id'])) {
+                        $modsBySubjectId[$s['subject_id']] = $s;
+                    }
+                }
+            }
+            foreach ($data['subjects'] as &$flatSubject) {
+                $sid = $flatSubject['subject_id'] ?? null;
+                if ($sid && isset($modsBySubjectId[$sid])) {
+                    $flatSubject = array_merge($flatSubject, $modsBySubjectId[$sid]);
+                }
+            }
+            unset($flatSubject);
+        }
+
+        // Recalculate general average
+        $this->recalculateGeneralAverage($data);
+
+        return $data;
     }
 
     /**

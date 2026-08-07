@@ -17,7 +17,7 @@ class StudentRameController extends Controller
         $user = Auth::user();
         if ($user && $user->working_school_year_id) {
             $workingYear = SchoolYear::find($user->working_school_year_id);
-            if ($workingYear && $workingYear->is_active) {
+            if ($workingYear) {
                 return $workingYear;
             }
         }

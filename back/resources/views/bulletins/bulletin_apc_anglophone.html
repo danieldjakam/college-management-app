@@ -4,17 +4,22 @@
     <meta charset="UTF-8">
     <title>APC Report Card - 1st Cycle</title>
     <style>
+        @page {
+            margin: 2mm 2mm 2mm 2mm;
+            size: A4 portrait;
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: 'Times New Roman', serif;
-            font-size: 8pt;
+            font-size: 6.5pt;
             color: #000;
         }
 
         .page {
             width: 210mm;
-            padding: 8mm 8mm 8mm 8mm;
+            padding: 3mm 3mm 3mm 3mm;
             position: relative;
         }
 
@@ -39,13 +44,13 @@
         table { border-collapse: collapse; width: 100%; }
 
         /* CPBD Header */
-        .header-table { margin-bottom: 6px; }
+        .header-table { margin-bottom: 2px; }
         .header-table td {
             background: #EFE9F3;
-            padding: 3px 4px;
-            font-size: 8pt;
+            padding: 1px 2px;
+            font-size: 6.5pt;
             vertical-align: middle;
-            line-height: 1.2;
+            line-height: 1.0;
         }
 
         .header-left { text-align: left; width: 37%; }
@@ -77,40 +82,40 @@
 
         .title {
             text-align: center;
-            font-size: 14pt;
+            font-size: 9pt;
             font-weight: bold;
             background: #EFE9F3;
-            padding: 5px;
-            margin: 5px 0;
+            padding: 2px;
+            margin: 2px 0;
         }
 
-        .year { text-align: center; font-size: 8pt; margin-bottom: 6px; }
+        .year { text-align: center; font-size: 6.5pt; margin-bottom: 2px; }
 
         /* Student info table */
-        .student-table { margin-bottom: 6px; }
+        .student-table { margin-bottom: 2px; }
         .student-table td {
             border: 1px solid #000;
-            padding: 3px 4px;
-            font-size: 8pt;
+            padding: 1px 2px;
+            font-size: 6.5pt;
             vertical-align: middle;
-            line-height: 1.3;
+            line-height: 1.1;
         }
 
         .photo-cell {
-            width: 75px;
+            width: 55px;
             text-align: center;
             background: #f5f5f5;
         }
 
         .photo-box {
-            width: 70px;
-            height: 80px;
+            width: 50px;
+            height: 60px;
             border: 1px dashed #999;
             margin: 2px auto;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 8pt;
+            font-size: 6pt;
             color: #666;
         }
 
@@ -121,91 +126,91 @@
         }
 
         /* Grades table */
-        .grades-table { margin-bottom: 6px; }
+        .grades-table { margin-bottom: 2px; }
         .grades-table th, .grades-table td {
             border: 1px solid #000;
-            padding: 2px;
-            font-size: 8pt;
+            padding: 1px;
+            font-size: 6pt;
             text-align: center;
             vertical-align: middle;
-            line-height: 1.2;
+            line-height: 0.9;
         }
 
-        .grades-table th { background: #EFE9F3; font-weight: bold; font-size: 8pt; }
+        .grades-table th { background: #EFE9F3; font-weight: bold; font-size: 6pt; }
 
-        .subject-col { text-align: left; width: 12%; font-size: 8pt; }
-        .competence-col { text-align: left; width: 20%; font-size: 7.5pt; line-height: 1.2; }
+        .subject-col { text-align: left; width: 12%; font-size: 6pt; }
+        .competence-col { text-align: left; width: 20%; font-size: 5.5pt; line-height: 0.9; }
         .note-col { width: 5%; }
         .avg-col { width: 5%; font-weight: bold; }
         .coef-col { width: 4%; }
         .total-col { width: 6%; }
         .cote-col { width: 5%; font-weight: bold; }
-        .minmax-col { width: 10%; font-size: 7.5pt; }
-        .app-col { width: 15%; font-size: 7.5pt; }
+        .minmax-col { width: 10%; font-size: 5.5pt; }
+        .app-col { width: 15%; font-size: 5.5pt; }
 
-        .teacher-name { font-size: 8pt; font-style: italic; color: #555; }
+        .teacher-name { font-size: 6pt; font-style: italic; color: #555; }
 
         .total-row td {
             font-weight: bold;
-            font-size: 8pt;
+            font-size: 6pt;
             background: #f9f9f9;
         }
 
         /* Discipline/Work/Profile table (9 columns) */
-        .bottom-table { margin-bottom: 6px; }
+        .bottom-table { margin-bottom: 2px; }
         .bottom-table td {
             border: 1px solid #000;
-            padding: 3px;
-            font-size: 8pt;
+            padding: 1px;
+            font-size: 6pt;
             vertical-align: middle;
             text-align: center;
-            line-height: 1.2;
+            line-height: 0.9;
         }
 
         .section-header {
             background: #EFE9F3;
             font-weight: bold;
             text-align: center;
-            font-size: 8pt;
+            font-size: 6pt;
         }
 
-        .disc-label { width: 8%; text-align: left; font-size: 8pt; }
+        .disc-label { width: 8%; text-align: left; font-size: 6pt; }
         .disc-data { width: 3%; }
-        .travail-label { width: 8%; text-align: left; font-size: 8pt; }
+        .travail-label { width: 8%; text-align: left; font-size: 6pt; }
         .travail-data { width: 4%; }
-        .app-col1 { width: 7%; font-size: 8pt; }
-        .app-col2 { width: 5%; font-size: 8pt; }
-        .profil-label { width: 8%; font-size: 8pt; }
+        .app-col1 { width: 7%; font-size: 6pt; }
+        .app-col2 { width: 5%; font-size: 6pt; }
+        .profil-label { width: 8%; font-size: 6pt; }
         .profil-data { width: 10%; }
 
         /* Detailed comments table */
-        .final-table { margin-bottom: 5px; }
+        .final-table { margin-bottom: 2px; }
         .final-table td {
             border: 1px solid #000;
-            padding: 4px 5px;
-            font-size: 8pt;
+            padding: 1px 2px;
+            font-size: 6pt;
             vertical-align: top;
-            line-height: 1.3;
+            line-height: 1.0;
         }
 
         .app-header {
             background: #EFE9F3;
             font-weight: bold;
             text-align: center;
-            font-size: 8pt;
+            font-size: 6pt;
         }
 
         .app-box {
-            min-height: 45px;
-            font-size: 8pt;
+            min-height: 25px;
+            font-size: 6pt;
         }
 
         .signature-cell {
             text-align: center;
-            height: 35px;
+            height: 20px;
             vertical-align: bottom;
             font-weight: bold;
-            font-size: 8pt;
+            font-size: 6pt;
         }
 
         /* Grade colors */
@@ -218,7 +223,7 @@
         .cote-d { color: #e74c3c; }
 
         @media print {
-            .page { margin: 0; padding: 5mm; }
+            .page { margin: 0; padding: 3mm; }
         }
     </style>
 </head>

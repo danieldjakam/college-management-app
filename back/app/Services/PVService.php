@@ -22,7 +22,7 @@ class PVService
     /**
      * Générer le PV pour une série de classe et une période d'évaluation (séquence + trimestre)
      */
-    public function generatePVByPeriod($classSeriesId, $sequenceId, $trimesterId)
+    public function generatePVByPeriod($classSeriesId, $sequenceId, $trimesterId, $schoolYearId = null)
     {
         try {
             Log::info("🎯 Génération PV pour class_series_id: {$classSeriesId}, sequence_id: {$sequenceId}, trimester_id: {$trimesterId}");
@@ -31,7 +31,9 @@ class PVService
             $classSeries = ClassSeries::with(['schoolClass.level'])->findOrFail($classSeriesId);
             $sequence = Sequence::findOrFail($sequenceId);
             $trimester = Trimester::findOrFail($trimesterId);
-            $schoolYear = SchoolYear::where('is_current', true)->firstOrFail();
+            $schoolYear = $schoolYearId
+                ? SchoolYear::findOrFail($schoolYearId)
+                : SchoolYear::where('is_current', true)->firstOrFail();
 
             // Créer un objet "evaluation" virtuel pour la compatibilité
             $evaluationData = (object) [
@@ -102,14 +104,16 @@ class PVService
     /**
      * Générer le HTML de prévisualisation pour une période
      */
-    public function generateHTMLByPeriod($classSeriesId, $sequenceId, $trimesterId)
+    public function generateHTMLByPeriod($classSeriesId, $sequenceId, $trimesterId, $schoolYearId = null)
     {
         try {
             // Récupérer les informations de base
             $classSeries = ClassSeries::with(['schoolClass.level'])->findOrFail($classSeriesId);
             $sequence = Sequence::findOrFail($sequenceId);
             $trimester = Trimester::findOrFail($trimesterId);
-            $schoolYear = SchoolYear::where('is_current', true)->firstOrFail();
+            $schoolYear = $schoolYearId
+                ? SchoolYear::findOrFail($schoolYearId)
+                : SchoolYear::where('is_current', true)->firstOrFail();
 
             // Créer un objet "evaluation" virtuel
             $evaluationData = (object) [
@@ -171,7 +175,7 @@ class PVService
     /**
      * Générer le PV de TRIMESTRE (avec moyennes DS + Composition)
      */
-    public function generateTrimesterPV($classSeriesId, $trimesterId)
+    public function generateTrimesterPV($classSeriesId, $trimesterId, $schoolYearId = null)
     {
         try {
             Log::info("🎯 Génération PV TRIMESTRE pour class_series_id: {$classSeriesId}, trimester_id: {$trimesterId}");
@@ -179,7 +183,9 @@ class PVService
             // Récupérer les informations de base
             $classSeries = ClassSeries::with(['schoolClass.level'])->findOrFail($classSeriesId);
             $trimester = Trimester::findOrFail($trimesterId);
-            $schoolYear = SchoolYear::where('is_current', true)->firstOrFail();
+            $schoolYear = $schoolYearId
+                ? SchoolYear::findOrFail($schoolYearId)
+                : SchoolYear::where('is_current', true)->firstOrFail();
 
             // Déterminer le cycle (premier/deuxieme)
             $cycleType = $this->determineCycleType($classSeries);
@@ -263,13 +269,15 @@ class PVService
     /**
      * Générer le HTML de prévisualisation pour un TRIMESTRE
      */
-    public function generateTrimesterHTML($classSeriesId, $trimesterId)
+    public function generateTrimesterHTML($classSeriesId, $trimesterId, $schoolYearId = null)
     {
         try {
             // Récupérer les informations de base
             $classSeries = ClassSeries::with(['schoolClass.level'])->findOrFail($classSeriesId);
             $trimester = Trimester::findOrFail($trimesterId);
-            $schoolYear = SchoolYear::where('is_current', true)->firstOrFail();
+            $schoolYear = $schoolYearId
+                ? SchoolYear::findOrFail($schoolYearId)
+                : SchoolYear::where('is_current', true)->firstOrFail();
 
             // Déterminer le cycle
             $cycleType = $this->determineCycleType($classSeries);
@@ -410,12 +418,12 @@ class PVService
     /**
      * Générer le PV ANNUEL (moyenne des 3 trimestres par matière)
      */
-    public function generateAnnualPV($classSeriesId)
+    public function generateAnnualPV($classSeriesId, $schoolYearId = null)
     {
         try {
             Log::info("🎯 Génération PV ANNUEL pour class_series_id: {$classSeriesId}");
 
-            $pdf = PDF::loadHTML($this->generateAnnualHTML($classSeriesId));
+            $pdf = PDF::loadHTML($this->generateAnnualHTML($classSeriesId, $schoolYearId));
             $pdf->setPaper('A4', 'landscape');
 
             Log::info("✅ PV ANNUEL généré avec succès");
@@ -431,11 +439,13 @@ class PVService
     /**
      * Générer le HTML de prévisualisation du PV ANNUEL
      */
-    public function generateAnnualHTML($classSeriesId)
+    public function generateAnnualHTML($classSeriesId, $schoolYearId = null)
     {
         try {
             $classSeries = ClassSeries::with(['schoolClass.level'])->findOrFail($classSeriesId);
-            $schoolYear = SchoolYear::where('is_current', true)->firstOrFail();
+            $schoolYear = $schoolYearId
+                ? SchoolYear::findOrFail($schoolYearId)
+                : SchoolYear::where('is_current', true)->firstOrFail();
             $cycleType = $this->determineCycleType($classSeries);
 
             // Récupérer les 3 trimestres de l'année courante

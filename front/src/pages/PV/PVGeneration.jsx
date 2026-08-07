@@ -3,9 +3,11 @@ import { Card, Form, Button, Table, Badge, Alert, Row, Col, Spinner } from 'reac
 import { FileEarmarkPdf, Eye, Download, CalendarCheck } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 import { host } from '../../utils/fetch';
+import { useSchoolYear } from '../../contexts/SchoolYearContext';
 import Swal from 'sweetalert2';
 
 const PVGeneration = () => {
+    const { workingYearId } = useSchoolYear();
     const [loading, setLoading] = useState(false);
     const [classSeries, setClassSeries] = useState([]);
     const [selectedSeries, setSelectedSeries] = useState('');
@@ -19,7 +21,7 @@ const PVGeneration = () => {
 
     useEffect(() => {
         loadClassSeries();
-    }, []);
+    }, [workingYearId]);
 
     useEffect(() => {
         if (selectedSeries) {
@@ -41,7 +43,8 @@ const PVGeneration = () => {
         try {
             setLoading(true);
             const token = localStorage.getItem('token');
-            const response = await fetch(`${host}/api/pv/class-series`, {
+            const yearParam = workingYearId ? `?school_year_id=${workingYearId}` : '';
+            const response = await fetch(`${host}/api/pv/class-series${yearParam}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -67,7 +70,8 @@ const PVGeneration = () => {
         try {
             setLoading(true);
             const token = localStorage.getItem('token');
-            const response = await fetch(`${host}/api/pv/evaluations/${seriesId}`, {
+            const yearParam = workingYearId ? `?school_year_id=${workingYearId}` : '';
+            const response = await fetch(`${host}/api/pv/evaluations/${seriesId}${yearParam}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -94,7 +98,8 @@ const PVGeneration = () => {
         try {
             setLoading(true);
             const token = localStorage.getItem('token');
-            const response = await fetch(`${host}/api/pv/trimesters/${seriesId}`, {
+            const yearParam = workingYearId ? `?school_year_id=${workingYearId}` : '';
+            const response = await fetch(`${host}/api/pv/trimesters/${seriesId}${yearParam}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -137,13 +142,14 @@ const PVGeneration = () => {
             const token = localStorage.getItem('token');
 
             // Construire l'URL selon le type de PV
+            const yearParam = workingYearId ? `?school_year_id=${workingYearId}` : '';
             let apiUrl;
             if (pvType === 'period') {
-                apiUrl = `${host}/api/pv/generate/${selectedSeries}/${selectedEvaluation}`;
+                apiUrl = `${host}/api/pv/generate/${selectedSeries}/${selectedEvaluation}${yearParam}`;
             } else if (pvType === 'trimester') {
-                apiUrl = `${host}/api/pv/trimester/generate/${selectedSeries}/${selectedTrimester}`;
+                apiUrl = `${host}/api/pv/trimester/generate/${selectedSeries}/${selectedTrimester}${yearParam}`;
             } else {
-                apiUrl = `${host}/api/pv/annual/generate/${selectedSeries}`;
+                apiUrl = `${host}/api/pv/annual/generate/${selectedSeries}${yearParam}`;
             }
 
             // Télécharger directement le PDF
@@ -200,6 +206,7 @@ const PVGeneration = () => {
             const token = localStorage.getItem('token');
 
             // Construire l'URL selon le type de PV
+            const yearParam = workingYearId ? `&school_year_id=${workingYearId}` : '';
             let url;
             if (pvType === 'period') {
                 url = `${host}/api/pv/preview/${selectedSeries}/${selectedEvaluation}`;
@@ -210,7 +217,7 @@ const PVGeneration = () => {
             }
 
             // Ouvrir dans un nouvel onglet
-            window.open(url + `?token=${token}`, '_blank');
+            window.open(url + `?token=${token}${yearParam}`, '_blank');
         } catch (error) {
             console.error('Erreur:', error);
             Swal.fire('Erreur', 'Impossible d\'ouvrir la prévisualisation', 'error');

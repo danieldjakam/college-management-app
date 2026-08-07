@@ -17,6 +17,7 @@ use App\Models\MergedBulletinPDF;
 use App\Models\ClassSeries;
 use App\Models\BulletinModification;
 use App\Http\Controllers\BulletinModificationController;
+use App\Traits\ResolvesSchoolYear;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Cache;
@@ -24,6 +25,7 @@ use Illuminate\Support\Facades\Storage;
 
 class BulletinController extends Controller
 {
+    use ResolvesSchoolYear;
     protected $bulletinService;
     protected $cacheService;
 
@@ -230,15 +232,81 @@ class BulletinController extends Controller
             // Libérer la mémoire après génération
             gc_collect_cycles();
 
+            // Si c'est un trimestre ou séquence, régénérer le bulletin annuel s'il existe
+            $annualRegenerated = false;
+            if (in_array($request->bulletin_type, ['trimester', 'sequence'])) {
+                $annualRegenerated = $this->regenerateAnnualIfExists($request->student_id);
+            }
+
             return response()->json([
-                'message' => 'Bulletin generated successfully',
+                'message' => 'Bulletin generated successfully' . ($annualRegenerated ? ' (annual bulletin also updated)' : ''),
                 'bulletin' => $bulletinGeneration,
-                'download_url' => route('bulletins.download', $bulletinGeneration->id)
+                'download_url' => route('bulletins.download', $bulletinGeneration->id),
+                'annual_regenerated' => $annualRegenerated,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Error generating bulletin: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Régénérer le bulletin annuel s'il existe déjà (après modification d'un trimestre)
+     */
+    private function regenerateAnnualIfExists(int $studentId): bool
+    {
+        try {
+            $existingAnnual = BulletinGeneration::where('student_id', $studentId)
+                ->where('period_type', 'annual')
+                ->where('period_identifier', 'annual')
+                ->first();
+
+            if (!$existingAnnual) {
+                return false;
+            }
+
+            $student = Student::findOrFail($studentId);
+
+            if ($this->bulletinService->isApcClass($student)) {
+                $annualData = $this->bulletinService->generateAnnualBulletinData($studentId);
+            } else {
+                $annualData = $this->bulletinService->generateAnnualBulletinDataNonApc($studentId);
+            }
+
+            if (!$annualData) return false;
+
+            // Appliquer les modifications si elles existent
+            $modification = \App\Models\BulletinModification::where('student_id', $studentId)
+                ->where('period_type', 'annual')
+                ->where('period_identifier', 'annual')
+                ->first();
+
+            if ($modification) {
+                $modController = new BulletinModificationController($this->bulletinService);
+                $annualData = $modController->applyModifications($annualData, $modification->modifications, 'annual');
+            }
+
+            $htmlContent = $this->bulletinService->renderBulletinTemplate('annual', $annualData, true);
+            $filename = "bulletin_annuel_{$studentId}_" . now()->format('Y-m-d') . ".pdf";
+            $filePath = $this->bulletinService->generatePDF($htmlContent, $filename);
+
+            if ($existingAnnual->file_path && file_exists(storage_path('app/' . $existingAnnual->file_path))) {
+                unlink(storage_path('app/' . $existingAnnual->file_path));
+            }
+
+            $existingAnnual->update([
+                'file_path' => $filePath,
+                'generated_at' => now(),
+                'is_complete' => true,
+                'completion_percentage' => 100.0,
+            ]);
+
+            \Log::info("Bulletin annuel régénéré automatiquement pour l'élève {$studentId}");
+            return true;
+        } catch (\Exception $e) {
+            \Log::error("Erreur régénération auto bulletin annuel: " . $e->getMessage());
+            return false;
         }
     }
 
@@ -510,11 +578,18 @@ class BulletinController extends Controller
     /**
      * Get hierarchical structure for bulletin management
      */
-    public function getHierarchicalStructure()
+    public function getHierarchicalStructure(Request $request)
     {
+        $schoolYear = $this->resolveSchoolYear($request->input('school_year_id'));
+
         $sections = \App\Models\Section::with([
-            'levels.schoolClasses.series' => function ($query) {
-                $query->whereHas('students');
+            'levels.schoolClasses.series' => function ($query) use ($schoolYear) {
+                if ($schoolYear) {
+                    $query->where(function ($q) use ($schoolYear) {
+                        $q->where('school_year_id', $schoolYear->id)
+                          ->orWhereNull('school_year_id');
+                    });
+                }
             }
         ])->get();
 
@@ -912,10 +987,20 @@ class BulletinController extends Controller
     /**
      * Get current academic timeline
      */
-    public function getAcademicTimeline()
+    public function getAcademicTimeline(Request $request)
     {
-        $sequences = \App\Models\Sequence::orderBy('number')->get();
-        $trimesters = \App\Models\Trimester::orderBy('number')->get();
+        $schoolYear = $this->resolveSchoolYear($request->input('school_year_id'));
+
+        $sequencesQuery = \App\Models\Sequence::orderBy('number');
+        $trimestersQuery = \App\Models\Trimester::orderBy('number');
+
+        if ($schoolYear) {
+            $sequencesQuery->where('school_year_id', $schoolYear->id);
+            $trimestersQuery->where('school_year_id', $schoolYear->id);
+        }
+
+        $sequences = $sequencesQuery->get();
+        $trimesters = $trimestersQuery->get();
 
         // Déterminer la période actuelle basée sur les séquences actives
         $currentSequence = $sequences->where('is_active', true)->first();
@@ -932,7 +1017,7 @@ class BulletinController extends Controller
                 'trimesters' => $trimesters,
                 'current_sequence' => $currentSequence,
                 'current_trimester' => $currentTrimester,
-                'school_year' => \App\Models\SchoolYear::where('is_active', true)->value('name') ?? (date('Y') . '/' . (date('Y') + 1))
+                'school_year' => $schoolYear?->name ?? (date('Y') . '/' . (date('Y') + 1))
             ]
         ]);
     }
