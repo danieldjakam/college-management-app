@@ -604,7 +604,7 @@ const AppContent = () => {
               <Route
                 path="/admin/student-discipline"
                 element={
-                  <ProtectedRoute requiredRoles={['admin', 'secretaire', 'surveillant_general', 'surveillant_secteur']}>
+                  <ProtectedRoute requiredRoles={['admin', 'principal', 'secretaire', 'surveillant_general', 'surveillant_secteur']}>
                     <StudentDiscipline />
                   </ProtectedRoute>
                 }

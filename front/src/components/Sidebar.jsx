@@ -489,24 +489,23 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
         {
           title: "Tableau de Bord",
           items: [
+            { name: "Dashboard Admin", href: "/admin/dashboard", icon: <BarChartFill /> },
             { name: "Tableau de Bord", href: "/principal/dashboard", icon: <HouseHeartFill /> },
           ],
         },
         {
-          title: "Gestion Administrative",
+          title: "Gestion Académique",
           items: [
-            { name: "Gestion des Utilisateurs", href: "/user-management", icon: <PeopleFill /> },
-            { name: "Rapport Personnel", href: "/reports/staff-attendance-report", icon: <BarChartFill /> },
-            { name: "Paramètres École", href: "/settings", icon: <GearFill /> },
-          ],
-        },
-        {
-          title: "Enseignement",
-          items: [
-            { name: "Enseignants", href: "/teachers", icon: <PeopleFill /> },
-            { name: "Affectations", href: "/teacher-assignments", icon: <Award /> },
+            { name: "Années Scolaires", href: "/school-years", icon: <Calendar /> },
+            { name: "Sections", href: "/sections", icon: <HospitalFill /> },
+            { name: "Niveaux", href: "/levels", icon: <BookFill /> },
             { name: "Classes", href: "/school-classes", icon: <HouseHeartFill /> },
+            { name: "Matières", href: "/subjects", icon: <JournalBookmarkFill /> },
             { name: "Groupes de Matières", href: "/admin/subject-groups", icon: <LayersFill /> },
+            { name: "Configuration Série-Matières", href: "/series-subject-configuration", icon: <JournalBookmarkFill /> },
+            { name: "Enseignants", href: "/teachers", icon: <PeopleFill /> },
+            { name: "Départements", href: "/departments", icon: <HospitalFill /> },
+            { name: "Affectations & Prof. Principaux", href: "/teacher-assignments", icon: <PeopleFill /> },
           ],
         },
         {
@@ -524,24 +523,60 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           ],
         },
         {
+          title: "Outils",
+          items: [
+            { name: "Etat Inscriptions", href: "/enrollment-stats", icon: <PeopleFill /> },
+            { name: "Inventaire", href: "/inventory", icon: <Archive /> },
+            { name: "Documents", href: "/documents", icon: <FolderFill /> },
+            { name: "Rechercher", href: "/search", icon: <Search /> },
+            { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
+          ],
+        },
+        {
+          title: "Transport Scolaire",
+          items: [
+            { name: "Configuration Bus", href: "/bus/settings", icon: <GearFill /> },
+            { name: "Vendre Abonnements", href: "/bus/subscriptions", icon: <BusFront /> },
+            { name: "Liste des Abonnés", href: "/bus/subscribers", icon: <People /> },
+            { name: "Générer Tickets Journaliers", href: "/bus/ticket-generation", icon: <Ticket /> },
+            { name: "Point de Vente Tickets", href: "/bus/ticket-sales", icon: <Cart3 /> },
+            { name: "Rapport Quotidien Bus", href: "/bus/daily-report", icon: <BarChartFill /> },
+          ],
+        },
+        {
+          title: "Rapports",
+          items: [
+            { name: "Certificats de Scolarité", href: "/reports/school-certificates", icon: <Award /> },
+            { name: "Fiche de Scolarité par Classe", href: "/reports/class-fees-sheet", icon: <FileTextFill /> },
+            { name: "Arriérés (Insolvables)", href: "/arrears-management", icon: <ExclamationTriangle /> },
+            { name: "Rapport Personnel", href: "/reports/staff-attendance-report", icon: <BarChartFill /> },
+          ],
+        },
+        {
           title: "Communication",
           items: [
+            { name: "Communication Parents", href: "/admin/parent-notifications", icon: <ChatDots /> },
+            { name: "SMS Parents", href: "/admin/sms", icon: <Phone /> },
             { name: "Demandes d'Explication", href: "/mes-demandes-explication", icon: <ExclamationTriangle /> },
             { name: "Gestion des Besoins", href: "/needs-management", icon: <ClipboardCheckFill /> },
           ],
         },
         {
-          title: "Documents & Rapports",
+          title: "Discipline",
           items: [
-            { name: "Documents", href: "/documents", icon: <FolderFill /> },
-            { name: "Rapports", href: "/reports", icon: <FileTextFill /> },
+            { name: "Gestion de la Discipline", href: "/admin/student-discipline", icon: <ExclamationTriangle /> },
           ],
         },
         {
-          title: "Profil",
+          title: "Administration",
           items: [
-            { name: "Mon Profil", href: "/profile", icon: <PersonCircle /> },
+            { name: "Utilisateurs", href: "/user-management", icon: <People /> },
+            { name: "Surveillants Généraux", href: "/supervisor-assignments", icon: <PersonCircle /> },
+            { name: "Générateur de Cartes", href: "/card-generator", icon: <QrCode /> },
+            { name: "Badges Personnel PDF", href: "/bulk-staff-cards", icon: <CreditCard /> },
+            { name: "Profil", href: "/profile", icon: <PersonCircle /> },
             { name: "Mes Besoins", href: "/my-needs", icon: <Clipboard2PlusFill /> },
+            { name: "Paramètres", href: "/settings", icon: <GearFill /> },
           ],
         },
       ];
