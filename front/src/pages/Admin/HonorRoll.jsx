@@ -4,6 +4,8 @@ import { Search, Download, Award, TrophyFill, StarFill, FileEarmarkPdfFill, Prin
 import secureApi from '../../utils/api';
 import { host } from '../../utils/fetch';
 import { useSchoolYear } from '../../contexts/SchoolYearContext';
+import { secureApi as secureApiMigration } from '../../utils/apiMigration';
+import { authService } from '../../services/authService';
 
 const MENTION_CONFIG = {
   'Excellent': {
@@ -172,11 +174,25 @@ const HonorRoll = () => {
       });
 
       if (response.download_url) {
-        // Étape 2: Télécharger le PDF via une fenêtre directe (évite les problèmes CORS/token)
-        const token = localStorage.getItem('auth_token');
-        const fullUrl = `${host}${response.download_url}?token=${token}`;
-        window.open(fullUrl, '_blank');
-        setSuccess(`Certificat généré avec succès`);
+        // Télécharger le PDF via fetch avec le bon token
+        const token = authService.getToken();
+        const downloadResponse = await fetch(`${secureApiMigration.baseURL}${response.download_url}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (downloadResponse.ok) {
+          const blob = await downloadResponse.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = response.download_url.split('/').pop();
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          setSuccess(`Certificat généré avec succès`);
+        } else {
+          setError('Erreur lors du téléchargement du certificat');
+        }
       }
     } catch (err) {
       setError(err.message || 'Erreur lors de la génération du certificat');
@@ -222,8 +238,8 @@ const HonorRoll = () => {
       });
       const downloadUrl = response.download_url || response.direct_download_url;
       if (downloadUrl) {
-        const token = localStorage.getItem('auth_token');
-        const downloadResponse = await fetch(`${host}${downloadUrl}`, {
+        const token = authService.getToken();
+        const downloadResponse = await fetch(`${secureApiMigration.baseURL}${downloadUrl}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (downloadResponse.ok) {
