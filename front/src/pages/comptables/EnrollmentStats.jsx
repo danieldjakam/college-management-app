@@ -19,11 +19,10 @@ function EnrollmentStats() {
     setError('');
     try {
       const response = await secureApiEndpoints.students.enrollmentStats();
-      const result = response.data || response;
-      if (result.success) {
-        setData(result.data);
+      if (response.success) {
+        setData(response.data);
       } else {
-        setError(result.message || 'Erreur lors du chargement');
+        setError(response.message || 'Erreur lors du chargement');
       }
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Erreur de connexion');
