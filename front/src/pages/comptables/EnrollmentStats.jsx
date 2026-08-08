@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Container, Row, Col, Card, Table, Spinner, Alert, Badge, ProgressBar
 } from 'react-bootstrap';
-import { PeopleFill, PersonPlusFill, PersonCheckFill } from 'react-bootstrap-icons';
+import { PeopleFill, PersonPlusFill, PersonCheckFill, PrinterFill } from 'react-bootstrap-icons';
+import { Button } from 'react-bootstrap';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 
 function EnrollmentStats() {
@@ -54,15 +55,142 @@ function EnrollmentStats() {
   const pctNouveaux = global.total > 0 ? ((global.nouveaux / global.total) * 100).toFixed(1) : 0;
   const pctAnciens = global.total > 0 ? ((global.anciens / global.total) * 100).toFixed(1) : 0;
 
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    const today = new Date().toLocaleDateString('fr-FR');
+    const rows = by_class.map(row => {
+      const pA = row.total > 0 ? ((row.anciens / row.total) * 100).toFixed(1) : 0;
+      const pN = row.total > 0 ? ((row.nouveaux / row.total) * 100).toFixed(1) : 0;
+      return `<tr>
+        <td style="font-weight:bold;">${row.class_name} <span style="color:#666;">${row.series_name}</span></td>
+        <td style="text-align:center;">${row.anciens}</td>
+        <td style="text-align:center;">${row.nouveaux}</td>
+        <td style="text-align:center;font-weight:bold;">${row.total}</td>
+        <td style="text-align:center;">${pA}%</td>
+        <td style="text-align:center;">${pN}%</td>
+      </tr>`;
+    }).join('');
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Etat des Inscriptions - ${school_year}</title>
+  <style>
+    @page { margin: 10mm 15mm; size: A4 portrait; }
+    body { font-family: Arial, sans-serif; font-size: 11pt; color: #333; margin: 0; padding: 0; }
+    .header { text-align: center; margin-bottom: 5mm; }
+    .header h2 { margin: 0; font-size: 14pt; color: #009B3A; }
+    .header h3 { margin: 2mm 0; font-size: 12pt; }
+    .header p { margin: 1mm 0; font-size: 9pt; color: #666; }
+    .separator { height: 2px; background: linear-gradient(to right, #009B3A 33%, #CE1126 33%, #CE1126 66%, #FCD116 66%); margin: 4mm 30mm; }
+    .summary { display: flex; justify-content: space-around; margin: 6mm 0; }
+    .summary-box { text-align: center; padding: 3mm 8mm; border: 1px solid #ddd; border-radius: 3mm; min-width: 60mm; }
+    .summary-box .label { font-size: 9pt; color: #666; }
+    .summary-box .value { font-size: 20pt; font-weight: bold; }
+    .summary-box .pct { font-size: 9pt; }
+    .total .value { color: #0d6efd; }
+    .anciens .value { color: #198754; }
+    .anciens .pct { color: #198754; }
+    .nouveaux .value { color: #fd7e14; }
+    .nouveaux .pct { color: #fd7e14; }
+    table { width: 100%; border-collapse: collapse; margin-top: 5mm; }
+    th { background-color: #2c3e50; color: white; padding: 2.5mm 3mm; font-size: 9pt; text-align: center; }
+    th:first-child { text-align: left; }
+    td { padding: 2mm 3mm; border-bottom: 0.5px solid #ddd; font-size: 9.5pt; }
+    tr:nth-child(even) { background-color: #f8f9fa; }
+    .table-title { font-size: 11pt; font-weight: bold; margin-top: 6mm; margin-bottom: 2mm; }
+    .footer { text-align: center; margin-top: 8mm; font-size: 8pt; color: #999; border-top: 1px solid #ddd; padding-top: 2mm; }
+    .bar-container { display: flex; height: 5mm; border-radius: 2mm; overflow: hidden; background: #eee; }
+    .bar-green { background-color: #198754; }
+    .bar-orange { background-color: #fd7e14; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>COLLEGE POLYVALENT BILINGUE DE DOUALA</h2>
+    <div class="separator"></div>
+    <h3>ETAT DES INSCRIPTIONS</h3>
+    <p>Annee scolaire : ${school_year}</p>
+  </div>
+
+  <div class="summary">
+    <div class="summary-box total">
+      <div class="label">Total Eleves</div>
+      <div class="value">${global.total}</div>
+    </div>
+    <div class="summary-box anciens">
+      <div class="label">Anciens Eleves</div>
+      <div class="value">${global.anciens}</div>
+      <div class="pct">${pctAnciens}%</div>
+    </div>
+    <div class="summary-box nouveaux">
+      <div class="label">Nouveaux Eleves</div>
+      <div class="value">${global.nouveaux}</div>
+      <div class="pct">${pctNouveaux}%</div>
+    </div>
+  </div>
+
+  <div class="bar-container" style="margin: 0 20mm;">
+    <div class="bar-green" style="width: ${pctAnciens}%;"></div>
+    <div class="bar-orange" style="width: ${pctNouveaux}%;"></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;margin:1mm 20mm 0;font-size:8pt;color:#666;">
+    <span>Anciens: ${pctAnciens}%</span>
+    <span>Nouveaux: ${pctNouveaux}%</span>
+  </div>
+
+  <div class="table-title">Repartition par classe</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Classe</th>
+        <th>Anciens</th>
+        <th>Nouveaux</th>
+        <th>Total</th>
+        <th>% Anciens</th>
+        <th>% Nouveaux</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+      <tr style="font-weight:bold;background-color:#e9ecef;border-top:2px solid #333;">
+        <td>TOTAL</td>
+        <td style="text-align:center;">${global.anciens}</td>
+        <td style="text-align:center;">${global.nouveaux}</td>
+        <td style="text-align:center;">${global.total}</td>
+        <td style="text-align:center;">${pctAnciens}%</td>
+        <td style="text-align:center;">${pctNouveaux}%</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    Imprime le ${today} - College Polyvalent Bilingue de Douala
+  </div>
+</body>
+</html>`);
+    printWindow.document.close();
+    setTimeout(() => printWindow.print(), 500);
+  };
+
   return (
     <Container fluid className="py-4">
-      <h4 className="mb-1">
-        <PeopleFill className="me-2" />
-        Statistiques des inscriptions
-      </h4>
-      <p className="text-muted mb-4">
-        Repartition des eleves anciens et nouveaux - Annee scolaire <strong>{school_year}</strong>
-      </p>
+      <div className="d-flex justify-content-between align-items-start mb-1">
+        <div>
+          <h4 className="mb-1">
+            <PeopleFill className="me-2" />
+            Statistiques des inscriptions
+          </h4>
+          <p className="text-muted mb-4">
+            Repartition des eleves anciens et nouveaux - Annee scolaire <strong>{school_year}</strong>
+          </p>
+        </div>
+        <Button variant="outline-primary" onClick={handlePrint}>
+          <PrinterFill className="me-2" />
+          Imprimer PDF
+        </Button>
+      </div>
 
       {/* Global Stats Cards */}
       <Row className="mb-4 g-3">
