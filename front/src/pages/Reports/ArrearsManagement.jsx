@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Table, Form, Alert, Spinner, Badge, Modal } from 'react-bootstrap';
-import { CashCoin, Search, CheckCircle, XCircle, Download } from 'react-bootstrap-icons';
+import { CashCoin, Search, CheckCircle, XCircle, Download, PrinterFill } from 'react-bootstrap-icons';
 import { secureApiEndpoints } from '../../utils/apiMigration';
 
 const ArrearsManagement = () => {
@@ -144,6 +144,133 @@ const ArrearsManagement = () => {
         return name.includes(term) || cls.includes(term);
     });
 
+    const handlePrintPdf = () => {
+        const printWindow = window.open('', '_blank');
+        const today = new Date().toLocaleDateString('fr-FR');
+        const yearName = schoolYears.find(y => String(y.id) === String(selectedYearId))?.name || '';
+        const statusLabel = selectedStatus ? { pending: 'Impayes', partially_paid: 'Partiels', paid: 'Soldes', waived: 'Annules' }[selectedStatus] || 'Tous' : 'Tous';
+
+        const totalDebt = filteredArrears.reduce((s, a) => s + (a.arrear_amount || 0), 0);
+        const totalPaid = filteredArrears.reduce((s, a) => s + (a.amount_paid_on_arrear || 0), 0);
+        const totalRemaining = filteredArrears.reduce((s, a) => s + Math.max(0, (a.arrear_amount || 0) - (a.amount_paid_on_arrear || 0)), 0);
+
+        const rows = filteredArrears.map((a, idx) => {
+            const remaining = Math.max(0, a.arrear_amount - a.amount_paid_on_arrear);
+            const statusMap = { pending: 'Impaye', partially_paid: 'Partiel', paid: 'Solde', waived: 'Annule' };
+            return `<tr>
+                <td style="text-align:center;">${idx + 1}</td>
+                <td style="font-weight:bold;">${getStudentName(a)}</td>
+                <td>${getStudentClass(a)}</td>
+                <td>${getSourceYear(a)}</td>
+                <td style="text-align:right;color:#dc3545;">${formatAmount(a.arrear_amount)}</td>
+                <td style="text-align:right;color:#198754;">${formatAmount(a.amount_paid_on_arrear)}</td>
+                <td style="text-align:right;font-weight:bold;">${formatAmount(remaining)}</td>
+                <td style="text-align:center;">${statusMap[a.status] || a.status}</td>
+            </tr>`;
+        }).join('');
+
+        printWindow.document.write(`<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Arrieres Insolvables - ${yearName}</title>
+  <style>
+    @page { margin: 8mm 10mm; size: A4 landscape; }
+    body { font-family: Arial, sans-serif; font-size: 9pt; color: #333; margin: 0; padding: 0; }
+    .header { text-align: center; margin-bottom: 4mm; }
+    .header h2 { margin: 0; font-size: 13pt; color: #009B3A; }
+    .header h3 { margin: 2mm 0; font-size: 11pt; }
+    .header p { margin: 1mm 0; font-size: 8pt; color: #666; }
+    .separator { height: 2px; background: linear-gradient(to right, #009B3A 33%, #CE1126 33%, #CE1126 66%, #FCD116 66%); margin: 3mm 60mm; }
+    .summary { display: flex; justify-content: space-around; margin: 4mm 0; }
+    .summary-box { text-align: center; padding: 2mm 6mm; border: 1px solid #ddd; border-radius: 2mm; }
+    .summary-box .label { font-size: 7pt; color: #666; }
+    .summary-box .value { font-size: 14pt; font-weight: bold; }
+    .total-count .value { color: #dc3545; }
+    .total-debt .value { color: #dc3545; }
+    .recovered .value { color: #198754; }
+    .remaining .value { color: #0dcaf0; }
+    .status-bar { display: flex; gap: 3mm; justify-content: center; margin: 3mm 0; font-size: 8pt; }
+    .status-bar span { padding: 1mm 4mm; border-radius: 2mm; color: white; }
+    table { width: 100%; border-collapse: collapse; margin-top: 3mm; }
+    th { background-color: #2c3e50; color: white; padding: 2mm 2mm; font-size: 8pt; text-align: center; }
+    th:nth-child(2), th:nth-child(3), th:nth-child(4) { text-align: left; }
+    td { padding: 1.5mm 2mm; border-bottom: 0.5px solid #ddd; font-size: 8.5pt; }
+    tr:nth-child(even) { background-color: #f8f9fa; }
+    tfoot td { background-color: #2c3e50; color: white; font-weight: bold; padding: 2mm; font-size: 9pt; }
+    .footer { text-align: center; margin-top: 5mm; font-size: 7pt; color: #999; border-top: 1px solid #ddd; padding-top: 2mm; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>COLLEGE POLYVALENT BILINGUE DE DOUALA</h2>
+    <div class="separator"></div>
+    <h3>ETAT DES ARRIERES INSOLVABLES</h3>
+    <p>Annee cible : ${yearName} | Statut : ${statusLabel} | ${filteredArrears.length} eleve(s)</p>
+  </div>
+
+  <div class="summary">
+    <div class="summary-box total-count">
+      <div class="label">Total Insolvables</div>
+      <div class="value">${summary.total_count || filteredArrears.length}</div>
+    </div>
+    <div class="summary-box total-debt">
+      <div class="label">Dette Totale</div>
+      <div class="value">${formatAmount(summary.total_debt || totalDebt)}</div>
+    </div>
+    <div class="summary-box recovered">
+      <div class="label">Recouvre</div>
+      <div class="value">${formatAmount(summary.total_recovered || totalPaid)}</div>
+    </div>
+    <div class="summary-box remaining">
+      <div class="label">Reste a Recouvrer</div>
+      <div class="value">${formatAmount(summary.total_remaining || totalRemaining)}</div>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <span style="background:#dc3545;">Impayes: ${summary.pending_count || 0}</span>
+    <span style="background:#ffc107;color:#333;">Partiels: ${summary.partially_paid_count || 0}</span>
+    <span style="background:#198754;">Soldes: ${summary.paid_count || 0}</span>
+    <span style="background:#6c757d;">Annules: ${summary.waived_count || 0}</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Eleve</th>
+        <th>Classe (annee source)</th>
+        <th>Annee source</th>
+        <th>Dette</th>
+        <th>Paye sur dette</th>
+        <th>Reste</th>
+        <th>Statut</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4" style="text-align:right;">TOTAUX (${filteredArrears.length} eleves)</td>
+        <td style="text-align:right;">${formatAmount(totalDebt)}</td>
+        <td style="text-align:right;">${formatAmount(totalPaid)}</td>
+        <td style="text-align:right;">${formatAmount(totalRemaining)}</td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="footer">
+    Imprime le ${today} - College Polyvalent Bilingue de Douala
+  </div>
+</body>
+</html>`);
+        printWindow.document.close();
+        setTimeout(() => printWindow.print(), 500);
+    };
+
     const exportCsv = () => {
         const headers = ['Nom', 'Classe (annee source)', 'Annee source', 'Requis', 'Paye total', 'Dette', 'Paye sur dette', 'Reste', 'Statut'];
         const rows = filteredArrears.map(a => [
@@ -174,9 +301,14 @@ const ArrearsManagement = () => {
                     <div className="d-flex justify-content-between align-items-center">
                         <h2><CashCoin className="me-2" />Gestion des Arrieres</h2>
                         {filteredArrears.length > 0 && (
-                            <Button variant="outline-success" size="sm" onClick={exportCsv}>
-                                <Download className="me-1" /> Exporter CSV
-                            </Button>
+                            <div className="d-flex gap-2">
+                                <Button variant="outline-primary" size="sm" onClick={handlePrintPdf}>
+                                    <PrinterFill className="me-1" /> Imprimer PDF
+                                </Button>
+                                <Button variant="outline-success" size="sm" onClick={exportCsv}>
+                                    <Download className="me-1" /> Exporter CSV
+                                </Button>
+                            </div>
                         )}
                     </div>
                 </Col>
