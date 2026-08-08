@@ -163,6 +163,7 @@ const HonorRoll = () => {
     setError('');
 
     try {
+      // Étape 1: Générer le certificat
       const response = await secureApi.post('/honor-rolls/generate-certificate', {
         student_id: studentId,
         period_type: selectedPeriodType,
@@ -171,24 +172,11 @@ const HonorRoll = () => {
       });
 
       if (response.download_url) {
+        // Étape 2: Télécharger le PDF via une fenêtre directe (évite les problèmes CORS/token)
         const token = localStorage.getItem('auth_token');
-        const downloadResponse = await fetch(`${host}${response.download_url}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (downloadResponse.ok) {
-          const blob = await downloadResponse.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = response.download_url.split('/').pop();
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-          setSuccess(`Certificat généré avec succès`);
-        } else {
-          setError('Erreur lors du téléchargement du certificat');
-        }
+        const fullUrl = `${host}${response.download_url}?token=${token}`;
+        window.open(fullUrl, '_blank');
+        setSuccess(`Certificat généré avec succès`);
       }
     } catch (err) {
       setError(err.message || 'Erreur lors de la génération du certificat');

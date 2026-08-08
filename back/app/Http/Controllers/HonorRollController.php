@@ -667,9 +667,19 @@ class HonorRollController extends Controller
     /**
      * Télécharger un certificat
      */
-    public function downloadCertificate($filename)
+    public function downloadCertificate(Request $request, $filename)
     {
-        $filePath = storage_path('app/public/honor_rolls/' . $filename);
+        // Supporter le token en query string pour les téléchargements via window.open
+        if ($request->has('token') && !$request->bearerToken()) {
+            $request->headers->set('Authorization', 'Bearer ' . $request->query('token'));
+            try {
+                auth('api')->authenticate();
+            } catch (\Exception $e) {
+                return response()->json(['success' => false, 'message' => 'Token invalide'], 401);
+            }
+        }
+
+        $filePath = storage_path('app/public/honor_rolls/' . basename($filename));
 
         if (!file_exists($filePath)) {
             return response()->json([
