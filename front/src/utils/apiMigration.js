@@ -585,7 +585,8 @@ export const secureApiEndpoints = {
         sortAlphabetically: (seriesId, data) => secureApi.post(`/students/class-series/${seriesId}/sort-alphabetically`, data),
         bulkUploadPhotos: (formData) => secureApi.post('/students/bulk-upload-photos', formData),
         searchPreviousYear: (query) => secureApi.get(`/students/search-previous-year?q=${encodeURIComponent(query)}`),
-        reenroll: (data) => secureApi.post('/students/reenroll', data)
+        reenroll: (data) => secureApi.post('/students/reenroll', data),
+        enrollmentStats: () => secureApi.get('/students/enrollment-stats')
     },
 
     // === CLASSES ===

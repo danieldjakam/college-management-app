@@ -2602,6 +2602,64 @@ class StudentController extends Controller
     }
 
     /**
+     * Statistiques des statuts (ancien/nouveau) par classe et global
+     */
+    public function enrollmentStats(Request $request)
+    {
+        try {
+            $workingYear = $this->getUserWorkingYear();
+            if (!$workingYear) {
+                return response()->json(['success' => false, 'message' => 'Aucune année scolaire définie'], 400);
+            }
+
+            // Stats par série (classe)
+            $byClass = DB::table('students')
+                ->join('class_series', 'students.class_series_id', '=', 'class_series.id')
+                ->join('school_classes', 'class_series.class_id', '=', 'school_classes.id')
+                ->where('students.is_active', true)
+                ->where('students.school_year_id', $workingYear->id)
+                ->select(
+                    'class_series.id as series_id',
+                    'school_classes.name as class_name',
+                    'class_series.name as series_name',
+                    DB::raw("SUM(CASE WHEN students.is_new = 1 OR students.student_status = 'new' THEN 1 ELSE 0 END) as nouveaux"),
+                    DB::raw("SUM(CASE WHEN students.is_new = 0 OR students.student_status = 'old' THEN 1 ELSE 0 END) as anciens"),
+                    DB::raw("COUNT(*) as total")
+                )
+                ->groupBy('class_series.id', 'school_classes.name', 'class_series.name')
+                ->orderBy('school_classes.name')
+                ->orderBy('class_series.name')
+                ->get();
+
+            // Stats globales
+            $global = DB::table('students')
+                ->where('is_active', true)
+                ->where('school_year_id', $workingYear->id)
+                ->select(
+                    DB::raw("SUM(CASE WHEN is_new = 1 OR student_status = 'new' THEN 1 ELSE 0 END) as nouveaux"),
+                    DB::raw("SUM(CASE WHEN is_new = 0 OR student_status = 'old' THEN 1 ELSE 0 END) as anciens"),
+                    DB::raw("COUNT(*) as total")
+                )
+                ->first();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'by_class' => $byClass,
+                    'global' => [
+                        'nouveaux' => (int) ($global->nouveaux ?? 0),
+                        'anciens' => (int) ($global->anciens ?? 0),
+                        'total' => (int) ($global->total ?? 0),
+                    ],
+                    'school_year' => $workingYear->name,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Récupérer tous les étudiants (actifs et nouveaux)
      */
     public function getAll()

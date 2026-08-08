@@ -457,6 +457,7 @@ Route::middleware('auth:api')->group(function () {
     // Routes pour les élèves
     Route::prefix('students')->middleware(['role:admin,principal,secretaire,accountant,comptable_superieur,teacher'])->group(function () {
         Route::get('/getAll', [StudentController::class, 'getAll']);
+        Route::get('/enrollment-stats', [StudentController::class, 'enrollmentStats']);
         Route::get('/class-series/{seriesId}', [StudentController::class, 'getByClassSeries']);
 
         // Export routes - amélioration des routes existantes

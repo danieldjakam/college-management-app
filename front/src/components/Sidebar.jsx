@@ -134,6 +134,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           title: "Outils",
           items: [
             { name: "Réinscription Anciens", href: "/re-enrollment", icon: <PersonPlus /> },
+            { name: "Etat Inscriptions", href: "/enrollment-stats", icon: <PeopleFill /> },
             { name: "Inventaire", href: "/inventory", icon: <Archive /> },
             { name: "Documents", href: "/documents", icon: <FolderFill /> },
             { name: "Réductions", href: "/manual-discounts", icon: <CashCoin /> },
@@ -213,6 +214,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           title: "Outils",
           items: [
             { name: "Réinscription Anciens", href: "/re-enrollment", icon: <PersonPlus /> },
+            { name: "Etat Inscriptions", href: "/enrollment-stats", icon: <PeopleFill /> },
             { name: "Inventaire", href: "/inventory", icon: <Archive /> },
             { name: "Documents", href: "/documents", icon: <FolderFill /> },
           ],
@@ -288,6 +290,7 @@ function Sidebar({ isCollapsed, onToggle, isOpen, setIsOpen }) {
           items: [
             { name: "Classes", href: "/class-comp", icon: <HouseHeartFill /> },
             { name: "Réinscription Anciens", href: "/re-enrollment", icon: <PersonPlus /> },
+            { name: "Etat Inscriptions", href: "/enrollment-stats", icon: <PeopleFill /> },
             { name: "Statistiques", href: "/stats", icon: <BarChartFill /> },
             { name: "Rechercher", href: "/search", icon: <Search /> },
             { name: "Réductions", href: "/manual-discounts", icon: <CashCoin /> },

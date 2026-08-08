@@ -45,6 +45,7 @@ import StudentsByClass from "./pages/comptables/StudentsByClass";
 import StudentAttendanceTracking from "./pages/comptables/StudentAttendanceTracking";
 import StaffAttendanceReportCompt from "./pages/comptables/StaffAttendanceReport";
 import ReEnrollment from "./pages/comptables/ReEnrollment";
+import EnrollmentStats from "./pages/comptables/EnrollmentStats";
 
 // Payment Pages
 import StudentPayment from "./pages/Payments/StudentPayment";
@@ -904,6 +905,15 @@ const AppContent = () => {
                 element={
                   <AccountantRoute>
                     <ReEnrollment />
+                  </AccountantRoute>
+                }
+              />
+
+              <Route
+                path="/enrollment-stats"
+                element={
+                  <AccountantRoute>
+                    <EnrollmentStats />
                   </AccountantRoute>
                 }
               />
