@@ -319,14 +319,17 @@ class HonorRollController extends Controller
             $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
         }
 
-        // Récupérer l'année scolaire active
-        $currentSchoolYear = \App\Models\SchoolYear::where('is_active', true)->first();
+        // Récupérer l'année scolaire de travail (pas forcément l'active)
+        $user = auth()->user();
+        $workingYearId = $user->working_school_year_id ?? null;
+        $currentSchoolYear = $workingYearId
+            ? \App\Models\SchoolYear::find($workingYearId)
+            : \App\Models\SchoolYear::where('is_active', true)->first();
         if ($currentSchoolYear && $currentSchoolYear->start_date && $currentSchoolYear->end_date) {
             $startYear = \Carbon\Carbon::parse($currentSchoolYear->start_date)->year;
             $endYear = \Carbon\Carbon::parse($currentSchoolYear->end_date)->year;
             $academicYear = $startYear . '/' . $endYear;
         } else {
-            // Fallback: année courante
             $academicYear = date('Y') . '/' . (date('Y') + 1);
         }
 
@@ -364,7 +367,6 @@ class HonorRollController extends Controller
         $logoPath = $this->getLogoPath();
 
         if ($logoPath && file_exists($logoPath)) {
-            $pageCount = $canvas->get_page_count();
             $pageWidth = $canvas->get_width();
             $pageHeight = $canvas->get_height();
             $logoWidth = 400;
@@ -373,7 +375,7 @@ class HonorRollController extends Controller
             $y = ($pageHeight - $logoHeight) / 2;
 
             $canvas->page_script(function ($pageNumber) use ($canvas, $logoPath, $x, $y, $logoWidth, $logoHeight) {
-                $canvas->set_opacity(0.08); // Très léger pour ne pas gêner la lecture
+                $canvas->set_opacity(0.08);
                 $canvas->image($logoPath, $x, $y, $logoWidth, $logoHeight);
                 $canvas->set_opacity(1.0);
             });
@@ -463,13 +465,21 @@ class HonorRollController extends Controller
     /**
      * Récupérer les filtres disponibles (sections, niveaux, classes, séries)
      */
-    public function getFilters()
+    public function getFilters(Request $request)
     {
         $sections = Section::where('is_active', true)->get();
         $levels = Level::where('is_active', true)->with('section')->get();
         $classes = SchoolClass::where('is_active', true)->with('level.section')->get();
         $series = ClassSeries::where('is_active', true)->with('schoolClass.level.section')->get();
-        $trimesters = Trimester::orderBy('number')->get();
+
+        // Filtrer les trimestres par année scolaire
+        $schoolYearId = $request->input('school_year_id');
+        if (!$schoolYearId) {
+            $user = auth()->user();
+            $schoolYearId = $user->working_school_year_id ?? null;
+        }
+        $trimesters = Trimester::when($schoolYearId, fn($q) => $q->where('school_year_id', $schoolYearId))
+            ->orderBy('number')->get();
 
         return response()->json([
             'success' => true,
@@ -566,8 +576,12 @@ class HonorRollController extends Controller
                     $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
                 }
 
-                // Récupérer l'année scolaire active
-                $currentSchoolYear = \App\Models\SchoolYear::where('is_active', true)->first();
+                // Récupérer l'année scolaire de travail
+                $batchUser = auth()->user();
+                $batchWorkingYearId = $batchUser->working_school_year_id ?? null;
+                $currentSchoolYear = $batchWorkingYearId
+                    ? \App\Models\SchoolYear::find($batchWorkingYearId)
+                    : \App\Models\SchoolYear::where('is_active', true)->first();
                 if ($currentSchoolYear && $currentSchoolYear->start_date && $currentSchoolYear->end_date) {
                     $startYear = \Carbon\Carbon::parse($currentSchoolYear->start_date)->year;
                     $endYear = \Carbon\Carbon::parse($currentSchoolYear->end_date)->year;

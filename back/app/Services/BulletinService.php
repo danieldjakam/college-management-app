@@ -19,9 +19,41 @@ use Illuminate\Support\Collection;
 
 class BulletinService
 {
+    // Nombre minimum de matières avec notes pour être classé
+    const MIN_SUBJECTS_FOR_RANKING = 7;
+
     // 🚀 CACHE en mémoire pour éviter de recharger les séquences
     protected $sequencesCache = [];
     protected $compositionCache = [];
+
+    /**
+     * Vérifie si un élève est exempté de la règle du minimum de matières pour le classement.
+     * Les anglophones de Form 4+, Lower Sixth, Upper Sixth choisissent leurs matières.
+     */
+    protected function isExemptFromMinSubjectsRule($student)
+    {
+        if (!$student) return false;
+
+        $sectionType = $this->determineSectionType($student);
+        if ($sectionType !== 'anglophone') {
+            return false;
+        }
+
+        // Récupérer le nom de la classe
+        $className = '';
+        if (isset($student->classSeries) && $student->classSeries) {
+            $className = strtolower($student->classSeries->name);
+        } elseif (isset($student->schoolClass) && $student->schoolClass) {
+            $className = strtolower($student->schoolClass->name);
+        }
+
+        // Form Four, Lower Sixth, Upper Sixth sont exemptés (ils choisissent leurs matières)
+        return (
+            stripos($className, 'form four') !== false ||
+            stripos($className, 'lower sixth') !== false ||
+            stripos($className, 'upper sixth') !== false
+        );
+    }
     /**
      * Calculate DS (Devoir Surveill�) average for a student in a trimester
      * DS1 = (Sequence 1 + Sequence 2) / 2
@@ -1450,12 +1482,13 @@ class BulletinService
 
         // Calculate average for each student
         $averages = [];
+        $gradedSubjectsCount = []; // Nombre de matières avec notes par élève
 
         foreach ($students as $classmate) {
             $totalPoints = 0;
-            $totalCoef = 0; // OPTION B: Compter seulement les coefficients des matières avec notes
+            $totalCoef = 0;
+            $subjectsWithGrades = 0;
 
-            // Pour chaque matière, chercher la note
             foreach ($allSubjects as $subject) {
                 $grade = Grade::where('student_id', $classmate->id)
                     ->where('sequence_id', $sequenceId)
@@ -1466,17 +1499,23 @@ class BulletinService
 
                 if ($grade) {
                     $totalPoints += (float)$grade->score * (float)$subject->coefficient;
-                    $totalCoef += (float)$subject->coefficient; // OPTION B: Ajouter coefficient seulement si note présente
+                    $totalCoef += (float)$subject->coefficient;
+                    $subjectsWithGrades++;
                 }
             }
 
-            // OPTION B: Utiliser SEULEMENT les coefficients des matières composées
+            $gradedSubjectsCount[$classmate->id] = $subjectsWithGrades;
+
             if ($totalCoef > 0) {
-                $averages[$classmate->id] = $totalPoints / $totalCoef;
+                // Vérifier la règle du minimum de matières
+                $isExempt = $this->isExemptFromMinSubjectsRule($classmate);
+                if ($subjectsWithGrades >= self::MIN_SUBJECTS_FOR_RANKING || $isExempt) {
+                    $averages[$classmate->id] = $totalPoints / $totalCoef;
+                }
             }
         }
 
-        // Si l'élève n'a aucune note, ne pas le classer
+        // Si l'élève n'a aucune note ou n'a pas assez de matières, ne pas le classer
         if (empty($averages) || !isset($averages[$studentId])) {
             return null;
         }
@@ -1520,12 +1559,13 @@ class BulletinService
 
         // Calculate average for each student
         $averages = [];
+        // Get all subjects for this class (once, not per student)
+        $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();
+
         foreach ($students as $s) {
             $totalPoints = 0;
             $totalCoef = 0;
-
-            // Get all subjects for this class
-            $subjects = ClassSeriesSubject::where('class_series_id', $student->class_series_id)->get();
+            $subjectsWithGrades = 0;
 
             foreach ($subjects as $subject) {
                 $trimesterGrade = $this->calculateTrimesterGrade($trimesterNumber, $s->id, $subject->id, $cycleType, $sectionType);
@@ -1533,15 +1573,19 @@ class BulletinService
                 if ($trimesterGrade !== null && $trimesterGrade > 0) {
                     $totalPoints += (float)$trimesterGrade * (float)$subject->coefficient;
                     $totalCoef += (float)$subject->coefficient;
+                    $subjectsWithGrades++;
                 }
             }
 
             if ($totalCoef > 0) {
-                $averages[$s->id] = $totalPoints / $totalCoef;
+                $isExempt = $this->isExemptFromMinSubjectsRule($s);
+                if ($subjectsWithGrades >= self::MIN_SUBJECTS_FOR_RANKING || $isExempt) {
+                    $averages[$s->id] = $totalPoints / $totalCoef;
+                }
             }
         }
 
-        // Si l'élève n'a aucune note, ne pas le classer
+        // Si l'élève n'a aucune note ou pas assez de matières, ne pas le classer
         if (empty($averages) || !isset($averages[$studentId])) {
             return null;
         }
@@ -1558,7 +1602,7 @@ class BulletinService
             $rank++;
         }
 
-        return null; // Fallback si non trouvé
+        return null;
     }
 
     /**
@@ -1577,12 +1621,14 @@ class BulletinService
 
         // Calculate general average for each student using precalculated data
         $studentAverages = [];
+        $gradedSubjectsPerStudent = []; // Compteur de matières avec notes par élève
 
         // Group averages by student
         foreach ($classTrimesterGrades as $subjectId => $studentGrades) {
             foreach ($studentGrades as $sid => $avg) {
                 if (!isset($studentAverages[$sid])) {
                     $studentAverages[$sid] = ['totalPoints' => 0, 'totalCoef' => 0];
+                    $gradedSubjectsPerStudent[$sid] = 0;
                 }
 
                 // Find coefficient for this subject
@@ -1590,19 +1636,26 @@ class BulletinService
                 if ($subject) {
                     $studentAverages[$sid]['totalPoints'] += $avg * (float)$subject->coefficient;
                     $studentAverages[$sid]['totalCoef'] += (float)$subject->coefficient;
+                    $gradedSubjectsPerStudent[$sid]++;
                 }
             }
         }
 
-        // Calculate final averages
+        // Calculate final averages (avec vérification du minimum de matières)
         $averages = [];
         foreach ($studentAverages as $sid => $data) {
             if ($data['totalCoef'] > 0) {
-                $averages[$sid] = $data['totalPoints'] / $data['totalCoef'];
+                $subjectsCount = $gradedSubjectsPerStudent[$sid] ?? 0;
+                $studentObj = \App\Models\Student::find($sid);
+                $isExempt = $studentObj ? $this->isExemptFromMinSubjectsRule($studentObj) : false;
+
+                if ($subjectsCount >= self::MIN_SUBJECTS_FOR_RANKING || $isExempt) {
+                    $averages[$sid] = $data['totalPoints'] / $data['totalCoef'];
+                }
             }
         }
 
-        // Si l'élève n'a aucune note, ne pas le classer
+        // Si l'élève n'a aucune note ou pas assez de matières, ne pas le classer
         if (empty($averages) || !isset($averages[$studentId])) {
             return null;
         }
@@ -4045,7 +4098,18 @@ class BulletinService
             }
 
             if ($studentCoef > 0) {
-                $classAnnualAverages[$sid] = $studentTotal / $studentCoef;
+                // Compter le nombre de matières avec notes
+                $apcGradedSubjects = count($subjectAnnualAverages ? array_filter(
+                    array_keys($subjectAnnualAverages),
+                    fn($subId) => isset($subjectAnnualAverages[$subId][$sid])
+                ) : []);
+
+                $apcStudentObj = \App\Models\Student::find($sid);
+                $apcIsExempt = $apcStudentObj ? $this->isExemptFromMinSubjectsRule($apcStudentObj) : false;
+
+                if ($apcGradedSubjects >= self::MIN_SUBJECTS_FOR_RANKING || $apcIsExempt) {
+                    $classAnnualAverages[$sid] = $studentTotal / $studentCoef;
+                }
             }
         }
 
@@ -4399,7 +4463,32 @@ class BulletinService
             }
 
             if ($studentCoef > 0) {
-                $classAnnualAverages[$sid] = $studentTotal / $studentCoef;
+                // Compter le nombre de matières avec notes pour la règle du minimum
+                $annualGradedSubjects = 0;
+                foreach ($subjects as $ss) {
+                    $hasGrade = false;
+                    for ($tt = 1; $tt <= 2; $tt++) {
+                        $ssIds = $seqMap[$tt] ?? [];
+                        foreach ($ssIds as $ssId) {
+                            $gg = $getGradeFromIndex($sid, $ssId, $ss->id);
+                            if ($gg['score'] !== null) { $hasGrade = true; break 2; }
+                        }
+                    }
+                    if (!$hasGrade) {
+                        for ($tt = 1; $tt <= 3; $tt++) {
+                            $cgg = $getCompGrade($sid, $tt, $ss->id);
+                            if ($cgg !== null && $cgg !== 'ABS') { $hasGrade = true; break; }
+                        }
+                    }
+                    if ($hasGrade) $annualGradedSubjects++;
+                }
+
+                $annualStudentObj = \App\Models\Student::find($sid);
+                $annualIsExempt = $annualStudentObj ? $this->isExemptFromMinSubjectsRule($annualStudentObj) : false;
+
+                if ($annualGradedSubjects >= self::MIN_SUBJECTS_FOR_RANKING || $annualIsExempt) {
+                    $classAnnualAverages[$sid] = $studentTotal / $studentCoef;
+                }
             }
 
             // Store per-period averages

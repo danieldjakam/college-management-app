@@ -3,6 +3,7 @@ import { Container, Row, Col, Card, CardBody, Table, Button, Input, Label, FormG
 import { Search, Download, Award, TrophyFill, StarFill, FileEarmarkPdfFill, PrinterFill, ArrowRepeat, XCircle } from 'react-bootstrap-icons';
 import secureApi from '../../utils/api';
 import { host } from '../../utils/fetch';
+import { useSchoolYear } from '../../contexts/SchoolYearContext';
 
 const MENTION_CONFIG = {
   'Excellent': {
@@ -65,6 +66,7 @@ const StatCard = ({ value, label, gradient, icon }) => (
 );
 
 const HonorRoll = () => {
+  const { workingYearId } = useSchoolYear();
   const [sections, setSections] = useState([]);
   const [allLevels, setAllLevels] = useState([]);
   const [allClasses, setAllClasses] = useState([]);
@@ -88,14 +90,17 @@ const HonorRoll = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => { fetchFilters(); }, []);
+  useEffect(() => { fetchFilters(); }, [workingYearId]);
   useEffect(() => { if (selectedSection) { setSelectedLevel(''); setSelectedClass(''); setSelectedSeries(''); } }, [selectedSection]);
   useEffect(() => { if (selectedLevel) { setSelectedClass(''); setSelectedSeries(''); } }, [selectedLevel]);
   useEffect(() => { if (selectedClass) { setSelectedSeries(''); } }, [selectedClass]);
 
   const fetchFilters = async () => {
     try {
-      const data = await secureApi.get('/honor-rolls/filters');
+      const url = workingYearId
+        ? `/honor-rolls/filters?school_year_id=${workingYearId}`
+        : '/honor-rolls/filters';
+      const data = await secureApi.get(url);
       setSections(data.sections || []);
       setAllLevels(data.levels || []);
       setAllClasses(data.classes || []);
@@ -166,8 +171,8 @@ const HonorRoll = () => {
       });
 
       if (response.download_url) {
-        const token = localStorage.getItem('token');
-        const downloadResponse = await fetch(host + response.download_url, {
+        const token = localStorage.getItem('auth_token');
+        const downloadResponse = await fetch(`${host}${response.download_url}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (downloadResponse.ok) {
@@ -181,6 +186,8 @@ const HonorRoll = () => {
           window.URL.revokeObjectURL(url);
           document.body.removeChild(a);
           setSuccess(`Certificat généré avec succès`);
+        } else {
+          setError('Erreur lors du téléchargement du certificat');
         }
       }
     } catch (err) {
@@ -227,8 +234,8 @@ const HonorRoll = () => {
       });
       const downloadUrl = response.download_url || response.direct_download_url;
       if (downloadUrl) {
-        const token = localStorage.getItem('token');
-        const downloadResponse = await fetch(host + downloadUrl, {
+        const token = localStorage.getItem('auth_token');
+        const downloadResponse = await fetch(`${host}${downloadUrl}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (downloadResponse.ok) {
@@ -315,7 +322,7 @@ const HonorRoll = () => {
                   }}>
                   <option value="">Choisir...</option>
                   {trimesters.map(t => (
-                    <option key={t.id} value={t.id}>Trimestre {t.trimester_number}</option>
+                    <option key={t.id} value={t.id}>Trimestre {t.number}</option>
                   ))}
                   <option value="annual">Annuel</option>
                 </Input>
