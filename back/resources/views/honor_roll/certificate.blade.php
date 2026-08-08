@@ -6,7 +6,7 @@
     <style>
         @page {
             margin: 10mm;
-            size: A4 portrait;
+            size: A4 landscape;
         }
 
         body {
@@ -21,7 +21,7 @@
         .certificate-wrapper {
             border: 3px solid #009B3A;
             padding: 2mm;
-            height: 267mm;
+            height: 177mm;
             position: relative;
         }
 
@@ -100,11 +100,11 @@
         /* Main title */
         .title-section {
             text-align: center;
-            margin: 6mm 0 4mm 0;
+            margin: 3mm 0 2mm 0;
         }
 
         .title-section h1 {
-            font-size: 26pt;
+            font-size: 22pt;
             font-weight: bold;
             margin: 0;
             color: #009B3A;
@@ -256,7 +256,7 @@
         /* Signature */
         .signature-section {
             width: 100%;
-            margin-top: 10mm;
+            margin-top: 5mm;
         }
 
         .signature-section td {
