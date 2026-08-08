@@ -88,7 +88,6 @@ const HonorRoll = () => {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState({});
   const [batchGenerating, setBatchGenerating] = useState(false);
-  const [merging, setMerging] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -165,35 +164,36 @@ const HonorRoll = () => {
     setError('');
 
     try {
-      // Étape 1: Générer le certificat
-      const response = await secureApi.post('/honor-rolls/generate-certificate', {
-        student_id: studentId,
-        period_type: selectedPeriodType,
-        trimester_id: selectedPeriodType === 'trimester' ? selectedTrimester : null,
-        average, rank,
+      const token = authService.getToken();
+      const response = await fetch(`${secureApiMigration.baseURL}/honor-rolls/generate-certificate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          student_id: studentId,
+          period_type: selectedPeriodType,
+          trimester_id: selectedPeriodType === 'trimester' ? selectedTrimester : null,
+          average, rank,
+        }),
       });
 
-      if (response.download_url) {
-        // Télécharger le PDF via fetch avec le bon token
-        const token = authService.getToken();
-        const downloadResponse = await fetch(`${secureApiMigration.baseURL}${response.download_url}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (downloadResponse.ok) {
-          const blob = await downloadResponse.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = response.download_url.split('/').pop();
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-          setSuccess(`Certificat généré avec succès`);
-        } else {
-          setError('Erreur lors du téléchargement du certificat');
-        }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Erreur lors de la génération du certificat');
       }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `certificat_${studentId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      setSuccess('Certificat généré avec succès');
     } catch (err) {
       setError(err.message || 'Erreur lors de la génération du certificat');
     } finally {
@@ -201,66 +201,45 @@ const HonorRoll = () => {
     }
   };
 
-  const batchGenerateAllCertificates = async () => {
+  const generateAndPrintAll = async () => {
     if ((selectedPeriodType === 'trimester' && !selectedTrimester) || eligibleStudents.length === 0) return;
     setBatchGenerating(true);
     setError('');
     setSuccess('');
     try {
-      const studentsData = eligibleStudents.map(s => ({ id: s.id, average: s.average, rank: s.rank }));
-      const response = await secureApi.post('/honor-rolls/batch-generate', {
-        student_ids: eligibleStudents.map(s => s.id),
-        students_data: studentsData,
-        period_type: selectedPeriodType,
-        trimester_id: selectedPeriodType === 'trimester' ? selectedTrimester : null,
+      const token = authService.getToken();
+      const response = await fetch(`${secureApiMigration.baseURL}/honor-rolls/generate-and-merge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          students_data: eligibleStudents.map(s => ({ id: s.id, average: s.average, rank: s.rank })),
+          period_type: selectedPeriodType,
+          trimester_id: selectedPeriodType === 'trimester' ? selectedTrimester : null,
+        }),
       });
-      setSuccess(`${response.generated_count} certificats générés avec succès (${response.failed_count} échecs)`);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Erreur lors de la génération');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `certificats_honneur_${eligibleStudents.length}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      setSuccess(`${eligibleStudents.length} certificats générés et téléchargés !`);
     } catch (err) {
-      setError(err.message || 'Erreur lors de la génération en masse');
+      setError(err.message || 'Erreur lors de la génération des certificats');
     } finally {
       setBatchGenerating(false);
-    }
-  };
-
-  const mergeAndDownloadCertificates = async () => {
-    if (selectedPeriodType === 'trimester' && !selectedTrimester) return;
-    setMerging(true);
-    setError('');
-    setSuccess('');
-    try {
-      const response = await secureApi.post('/honor-rolls/merge', {
-        period_type: selectedPeriodType,
-        trimester_id: selectedPeriodType === 'trimester' ? selectedTrimester : null,
-        section_id: selectedSection || null,
-        level_id: selectedLevel || null,
-        class_id: selectedClass || null,
-        series_id: selectedSeries || null,
-      });
-      const downloadUrl = response.download_url || response.direct_download_url;
-      if (downloadUrl) {
-        const token = authService.getToken();
-        const downloadResponse = await fetch(`${secureApiMigration.baseURL}${downloadUrl}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (downloadResponse.ok) {
-          const blob = await downloadResponse.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = response.filename || 'honor_rolls_merged.pdf';
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-          setSuccess(`${response.certificate_count} certificats fusionnés et téléchargés !`);
-        }
-      } else {
-        setSuccess(response.message || 'Fusion terminée');
-      }
-    } catch (err) {
-      setError(err.message || 'Erreur lors de la fusion des certificats');
-    } finally {
-      setMerging(false);
     }
   };
 
@@ -465,24 +444,16 @@ const HonorRoll = () => {
           borderRadius: '14px',
           border: '1px solid #e5e7eb',
         }}>
-          <Button color="primary" onClick={batchGenerateAllCertificates} disabled={batchGenerating}
+          <Button color="success" onClick={generateAndPrintAll} disabled={batchGenerating}
             style={{ borderRadius: '10px', fontWeight: '600', padding: '10px 20px' }}>
             {batchGenerating
-              ? <><Spinner size="sm" className="me-2" />Génération...</>
-              : <><FileEarmarkPdfFill className="me-2" />Générer tous les certificats ({eligibleStudents.length})</>
-            }
-          </Button>
-
-          <Button color="success" onClick={mergeAndDownloadCertificates} disabled={merging}
-            style={{ borderRadius: '10px', fontWeight: '600', padding: '10px 20px' }}>
-            {merging
-              ? <><Spinner size="sm" className="me-2" />Fusion...</>
-              : <><PrinterFill className="me-2" />Fusionner et imprimer</>
+              ? <><Spinner size="sm" className="me-2" />Génération en cours...</>
+              : <><PrinterFill className="me-2" />Générer et imprimer tout ({eligibleStudents.length})</>
             }
           </Button>
 
           <span style={{ fontSize: '12px', color: '#9ca3af', marginLeft: 'auto' }}>
-            Générez d'abord, puis fusionnez en un seul PDF
+            Génère tous les certificats en un seul PDF
           </span>
         </div>
       )}

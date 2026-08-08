@@ -1776,6 +1776,10 @@ Route::prefix('honor-rolls')->middleware('auth:api')->group(function () {
     Route::post('/merge', [HonorRollController::class, 'mergeCertificates'])
         ->middleware(['role:admin,principal,directeur_etudes,secretaire']);
 
+    // Generate + merge all certificates in one step (optimized)
+    Route::post('/generate-and-merge', [HonorRollController::class, 'generateAndMerge'])
+        ->middleware(['role:admin,principal,directeur_etudes,secretaire']);
+
     // Get merge progress
     Route::get('/merge-progress/{jobId}', [HonorRollController::class, 'getMergeProgress'])
         ->middleware(['role:admin,principal,directeur_etudes,secretaire']);

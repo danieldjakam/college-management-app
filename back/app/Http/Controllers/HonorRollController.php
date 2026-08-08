@@ -656,11 +656,11 @@ class HonorRollController extends Controller
 
         file_put_contents($fullPath, $pdfContent);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Certificat généré avec succès',
-            'file_path' => $filePath,
-            'download_url' => '/api/honor-rolls/download/' . basename($filePath),
+        // Retourner le PDF directement comme téléchargement
+        return response($pdfContent, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Length' => strlen($pdfContent),
         ]);
     }
 
@@ -765,7 +765,7 @@ class HonorRollController extends Controller
      */
     public function batchGenerateCertificates(Request $request)
     {
-        set_time_limit(600); // 10 minutes
+        set_time_limit(600);
 
         $periodType = $request->input('period_type', 'trimester');
 
@@ -790,19 +790,62 @@ class HonorRollController extends Controller
             }
         }
 
+        // --- PRE-LOAD shared data ONCE (not per student) ---
+        $logoPath = $this->getLogoPath();
+        $logoBase64 = '';
+        if ($logoPath && file_exists($logoPath)) {
+            $imageData = file_get_contents($logoPath);
+            $mimeType = mime_content_type($logoPath);
+            $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
+        }
+
+        $user = auth()->user();
+        $workingYearId = $user->working_school_year_id ?? null;
+        $currentSchoolYear = $workingYearId
+            ? \App\Models\SchoolYear::find($workingYearId)
+            : \App\Models\SchoolYear::where('is_active', true)->first();
+        if ($currentSchoolYear && $currentSchoolYear->start_date && $currentSchoolYear->end_date) {
+            $startYear = \Carbon\Carbon::parse($currentSchoolYear->start_date)->year;
+            $endYear = \Carbon\Carbon::parse($currentSchoolYear->end_date)->year;
+            $academicYear = $startYear . '/' . $endYear;
+        } else {
+            $academicYear = date('Y') . '/' . (date('Y') + 1);
+        }
+
+        $periodLabel = $periodType === 'annual' ? 'Année Scolaire' : 'Trimestre ' . ($trimester ? $trimester->number : '');
+        $pSuffix = $periodType === 'annual' ? 'annuel' : 'trim' . ($trimester ? $trimester->number : '');
+        $generationDate = now()->format('d/m/Y');
+        $today = date('Y-m-d');
+
+        // Reusable DomPDF options
+        $dompdfOptions = new Options();
+        $dompdfOptions->set('isRemoteEnabled', true);
+        $dompdfOptions->set('isHtml5ParserEnabled', true);
+        $dompdfOptions->set('isFontSubsettingEnabled', true);
+
+        // Bulk load all students in one query
+        $students = Student::with(['classSeries.schoolClass.level.section'])
+            ->whereIn('id', $studentIds)
+            ->get()
+            ->keyBy('id');
+
+        // Ensure output directory exists
+        $directory = storage_path('app/public/honor_rolls');
+        if (!file_exists($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
         $generated = [];
         $failed = [];
 
         foreach ($studentIds as $studentId) {
             try {
-                $student = Student::with(['classSeries.schoolClass.level.section'])->find($studentId);
-
+                $student = $students->get($studentId);
                 if (!$student) {
                     $failed[] = ['id' => $studentId, 'reason' => 'Étudiant introuvable'];
                     continue;
                 }
 
-                // Use pre-calculated data if available
                 if (isset($studentsDataMap[$studentId])) {
                     $average = round((float) $studentsDataMap[$studentId]['average'], 2);
                     $rank = $studentsDataMap[$studentId]['rank'];
@@ -811,7 +854,6 @@ class HonorRollController extends Controller
                         continue;
                     }
                 } else {
-                    // Fallback: recalculate
                     if ($periodType === 'annual') {
                         $isApc = $this->bulletinService->isApcClass($student);
                         $bulletinData = $isApc
@@ -820,12 +862,10 @@ class HonorRollController extends Controller
                         $avg = $bulletinData['general_average'] ?? $bulletinData['average'] ?? null;
                     } else {
                         $bulletinData = $this->bulletinService->generateTrimesterBulletinData(
-                            $trimester->number,
-                            $student->id
+                            $trimester->number, $student->id
                         );
                         $avg = $bulletinData['average'] ?? null;
                     }
-
                     if (!$bulletinData || !$avg || $avg < 12.00) {
                         $failed[] = ['id' => $studentId, 'reason' => 'Non éligible (moyenne < 12/20)'];
                         continue;
@@ -834,71 +874,34 @@ class HonorRollController extends Controller
                     $rank = $bulletinData['rank'] ?? null;
                 }
 
-                $mention = $this->getMention($average);
-
-                // Préparer le logo en base64
-                $logoPath = $this->getLogoPath();
-                $logoBase64 = '';
-                if ($logoPath && file_exists($logoPath)) {
-                    $imageData = file_get_contents($logoPath);
-                    $mimeType = mime_content_type($logoPath);
-                    $logoBase64 = 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
-                }
-
-                // Récupérer l'année scolaire de travail
-                $batchUser = auth()->user();
-                $batchWorkingYearId = $batchUser->working_school_year_id ?? null;
-                $currentSchoolYear = $batchWorkingYearId
-                    ? \App\Models\SchoolYear::find($batchWorkingYearId)
-                    : \App\Models\SchoolYear::where('is_active', true)->first();
-                if ($currentSchoolYear && $currentSchoolYear->start_date && $currentSchoolYear->end_date) {
-                    $startYear = \Carbon\Carbon::parse($currentSchoolYear->start_date)->year;
-                    $endYear = \Carbon\Carbon::parse($currentSchoolYear->end_date)->year;
-                    $academicYear = $startYear . '/' . $endYear;
-                } else {
-                    // Fallback: année courante
-                    $academicYear = date('Y') . '/' . (date('Y') + 1);
-                }
-
-                // Préparer les données pour le template
-                $data = [
+                $html = view('honor_roll.certificate', [
                     'student' => $student,
                     'trimester' => $trimester,
                     'period_type' => $periodType,
-                    'period_label' => $periodType === 'annual' ? 'Année Scolaire' : 'Trimestre ' . ($trimester ? $trimester->number : ''),
+                    'period_label' => $periodLabel,
                     'average' => $average,
                     'rank' => $rank,
-                    'mention' => $mention,
+                    'mention' => $this->getMention($average),
                     'total_points' => 0,
                     'class_name' => $student->classSeries->name ?? 'N/A',
                     'academic_year' => $academicYear,
-                    'generation_date' => now()->format('d/m/Y'),
+                    'generation_date' => $generationDate,
                     'logo_base64' => $logoBase64,
-                ];
+                ])->render();
 
-                // Générer le PDF
-                $html = view('honor_roll.certificate', $data)->render();
-
-                $options = new Options();
-                $options->set('isRemoteEnabled', true);
-                $options->set('isHtml5ParserEnabled', true);
-                $options->set('isFontSubsettingEnabled', true);
-
-                $dompdf = new Dompdf($options);
+                $dompdf = new Dompdf($dompdfOptions);
                 $dompdf->loadHtml($html);
                 $dompdf->setPaper('A4', 'landscape');
                 $dompdf->render();
 
-                // Ajouter le watermark
-                $canvas = $dompdf->getCanvas();
                 if ($logoPath && file_exists($logoPath)) {
+                    $canvas = $dompdf->getCanvas();
                     $pageWidth = $canvas->get_width();
                     $pageHeight = $canvas->get_height();
                     $logoWidth = 400;
                     $logoHeight = 400;
                     $x = ($pageWidth - $logoWidth) / 2;
                     $y = ($pageHeight - $logoHeight) / 2;
-
                     $canvas->page_script(function ($pageNumber) use ($canvas, $logoPath, $x, $y, $logoWidth, $logoHeight) {
                         $canvas->set_opacity(0.08);
                         $canvas->image($logoPath, $x, $y, $logoWidth, $logoHeight);
@@ -906,24 +909,13 @@ class HonorRollController extends Controller
                     });
                 }
 
-                $pdfContent = $dompdf->output();
-
-                // Sauvegarder le PDF
-                $pSuffix = $periodType === 'annual' ? 'annuel' : 'trim' . ($trimester ? $trimester->number : '');
-                $filename = 'honor_roll_' . $student->id . '_' . $pSuffix . '_' . date('Y-m-d') . '.pdf';
-                $filePath = 'public/honor_rolls/' . $filename;
-                $fullPath = storage_path('app/' . $filePath);
-
-                $directory = dirname($fullPath);
-                if (!file_exists($directory)) {
-                    mkdir($directory, 0755, true);
-                }
-
-                file_put_contents($fullPath, $pdfContent);
+                $filename = 'honor_roll_' . $student->id . '_' . $pSuffix . '_' . $today . '.pdf';
+                $fullPath = $directory . '/' . $filename;
+                file_put_contents($fullPath, $dompdf->output());
 
                 $generated[] = [
                     'student_id' => $studentId,
-                    'file_path' => $filePath,
+                    'file_path' => 'public/honor_rolls/' . $filename,
                     'filename' => $filename,
                 ];
 
@@ -941,6 +933,137 @@ class HonorRollController extends Controller
             'total' => count($studentIds),
             'generated_count' => count($generated),
             'failed_count' => count($failed),
+        ]);
+    }
+
+    /**
+     * Générer et fusionner tous les certificats en un seul PDF (optimisé)
+     */
+    public function generateAndMerge(Request $request)
+    {
+        set_time_limit(600);
+        ini_set('memory_limit', '512M');
+
+        $periodType = $request->input('period_type', 'trimester');
+        $studentsData = $request->input('students_data', []);
+
+        if (empty($studentsData)) {
+            return response()->json(['success' => false, 'message' => 'Aucun étudiant fourni'], 400);
+        }
+
+        $trimesterId = $request->input('trimester_id');
+        $trimester = ($periodType !== 'annual' && $trimesterId) ? Trimester::find($trimesterId) : null;
+
+        // Pre-load shared data once
+        $logoPath = $this->getLogoPath();
+        $logoBase64 = '';
+        if ($logoPath && file_exists($logoPath)) {
+            $logoBase64 = 'data:' . mime_content_type($logoPath) . ';base64,' . base64_encode(file_get_contents($logoPath));
+        }
+
+        $user = auth()->user();
+        $workingYearId = $user->working_school_year_id ?? null;
+        $currentSchoolYear = $workingYearId
+            ? \App\Models\SchoolYear::find($workingYearId)
+            : \App\Models\SchoolYear::where('is_active', true)->first();
+        $academicYear = ($currentSchoolYear && $currentSchoolYear->start_date && $currentSchoolYear->end_date)
+            ? \Carbon\Carbon::parse($currentSchoolYear->start_date)->year . '/' . \Carbon\Carbon::parse($currentSchoolYear->end_date)->year
+            : date('Y') . '/' . (date('Y') + 1);
+
+        $periodLabel = $periodType === 'annual' ? 'Année Scolaire' : 'Trimestre ' . ($trimester ? $trimester->number : '');
+        $generationDate = now()->format('d/m/Y');
+
+        $dompdfOptions = new Options();
+        $dompdfOptions->set('isRemoteEnabled', true);
+        $dompdfOptions->set('isHtml5ParserEnabled', true);
+        $dompdfOptions->set('isFontSubsettingEnabled', true);
+
+        // Bulk load students
+        $studentIds = array_column($studentsData, 'id');
+        $students = Student::with(['classSeries.schoolClass.level.section'])
+            ->whereIn('id', $studentIds)
+            ->get()
+            ->keyBy('id');
+
+        // Build lookup
+        $dataMap = [];
+        foreach ($studentsData as $sd) {
+            $dataMap[$sd['id']] = $sd;
+        }
+
+        // Generate all certificate PDFs in memory, then merge with FPDI
+        $merger = new \setasign\Fpdi\Fpdi();
+        $processedCount = 0;
+
+        foreach ($studentIds as $studentId) {
+            try {
+                $student = $students->get($studentId);
+                if (!$student) continue;
+
+                $average = round((float) ($dataMap[$studentId]['average'] ?? 0), 2);
+                $rank = $dataMap[$studentId]['rank'] ?? null;
+                if ($average < 12.00) continue;
+
+                $html = view('honor_roll.certificate', [
+                    'student' => $student,
+                    'trimester' => $trimester,
+                    'period_type' => $periodType,
+                    'period_label' => $periodLabel,
+                    'average' => $average,
+                    'rank' => $rank,
+                    'mention' => $this->getMention($average),
+                    'total_points' => 0,
+                    'class_name' => $student->classSeries->name ?? 'N/A',
+                    'academic_year' => $academicYear,
+                    'generation_date' => $generationDate,
+                    'logo_base64' => $logoBase64,
+                ])->render();
+
+                $dompdf = new Dompdf($dompdfOptions);
+                $dompdf->loadHtml($html);
+                $dompdf->setPaper('A4', 'landscape');
+                $dompdf->render();
+
+                if ($logoPath && file_exists($logoPath)) {
+                    $canvas = $dompdf->getCanvas();
+                    $pw = $canvas->get_width(); $ph = $canvas->get_height();
+                    $lw = 400; $lh = 400;
+                    $lx = ($pw - $lw) / 2; $ly = ($ph - $lh) / 2;
+                    $canvas->page_script(function ($pn) use ($canvas, $logoPath, $lx, $ly, $lw, $lh) {
+                        $canvas->set_opacity(0.08);
+                        $canvas->image($logoPath, $lx, $ly, $lw, $lh);
+                        $canvas->set_opacity(1.0);
+                    });
+                }
+
+                // Write to temp file for FPDI import
+                $tempFile = tempnam(sys_get_temp_dir(), 'cert_');
+                file_put_contents($tempFile, $dompdf->output());
+
+                $pageCount = $merger->setSourceFile($tempFile);
+                for ($p = 1; $p <= $pageCount; $p++) {
+                    $tplId = $merger->importPage($p);
+                    $size = $merger->getTemplateSize($tplId);
+                    $merger->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                    $merger->useTemplate($tplId);
+                }
+                unlink($tempFile);
+                $processedCount++;
+
+            } catch (\Exception $e) {
+                \Log::warning("Erreur génération certificat #{$studentId}: " . $e->getMessage());
+            }
+        }
+
+        if ($processedCount === 0) {
+            return response()->json(['success' => false, 'message' => 'Aucun certificat généré'], 400);
+        }
+
+        $pdfContent = $merger->Output('S');
+        return response($pdfContent, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="certificats_honneur_' . $processedCount . '.pdf"',
+            'Content-Length' => strlen($pdfContent),
         ]);
     }
 
@@ -1085,15 +1208,12 @@ class HonorRollController extends Controller
                 $fileId = null;
             }
 
-            return response()->json([
-                'success' => true,
-                'message' => "{$processedCount} certificats fusionnés avec succès !",
-                'completed' => true,
-                'certificate_count' => $processedCount,
-                'file_id' => $fileId,
-                'filename' => $filename,
-                'download_url' => $fileId ? "/api/honor-rolls/merged/{$fileId}/download" : null,
-                'direct_download_url' => "/api/honor-rolls/download-merged-file/{$filename}",
+            // Retourner le PDF directement
+            $pdfContent = file_get_contents($fullPath);
+            return response($pdfContent, 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                'Content-Length' => strlen($pdfContent),
             ]);
 
         } catch (\Exception $e) {
