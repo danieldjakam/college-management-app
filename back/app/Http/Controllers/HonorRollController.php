@@ -32,168 +32,96 @@ class HonorRollController extends Controller
      */
     public function getEligibleStudents(Request $request)
     {
-        // Augmenter le temps d'exécution pour cette opération coûteuse
-        set_time_limit(300); // 5 minutes
-
         $trimesterId = $request->input('trimester_id');
-        $periodType = $request->input('period_type', 'trimester'); // 'trimester' ou 'annual'
+        $periodType = $request->input('period_type', 'trimester');
         $sectionId = $request->input('section_id');
         $levelId = $request->input('level_id');
         $classId = $request->input('class_id');
         $seriesId = $request->input('series_id');
 
-        \Log::info('Honor roll request received', [
-            'trimester_id' => $trimesterId,
-            'period_type' => $periodType,
-            'section_id' => $sectionId,
-            'level_id' => $levelId,
-            'class_id' => $classId,
-            'series_id' => $seriesId,
-        ]);
-
         if ($periodType !== 'annual' && !$trimesterId) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Le trimestre est requis'
-            ], 400);
+            return response()->json(['success' => false, 'message' => 'Le trimestre est requis'], 400);
         }
 
         $trimester = null;
         if ($periodType !== 'annual') {
             $trimester = Trimester::find($trimesterId);
             if (!$trimester) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Trimestre introuvable'
-                ], 404);
+                return response()->json(['success' => false, 'message' => 'Trimestre introuvable'], 404);
             }
         }
 
-        // Construire la requête des étudiants avec filtres
-        $query = Student::where('is_active', true);
-
-        // Important: Toujours avoir au moins un filtre pour éviter de traiter tous les élèves
         if (!$seriesId && !$classId && !$levelId && !$sectionId) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Veuillez sélectionner au moins un filtre (section, niveau, classe ou série)'
-            ], 400);
+            return response()->json(['success' => false, 'message' => 'Veuillez sélectionner au moins un filtre'], 400);
+        }
+
+        // Construire la requête des étudiants avec filtres
+        $query = Student::query();
+
+        // Filtrer par année scolaire si on travaille sur une année archivée
+        $user = auth()->user();
+        $workingYearId = $user->working_school_year_id ?? null;
+        if ($workingYearId) {
+            $query->where('school_year_id', $workingYearId);
+        } else {
+            $query->where('is_active', true);
         }
 
         if ($seriesId) {
+            $query->where('class_series_id', is_array($seriesId) ? $seriesId : [$seriesId]);
             if (is_array($seriesId)) {
                 $query->whereIn('class_series_id', $seriesId);
             } else {
                 $query->where('class_series_id', $seriesId);
             }
         } elseif ($classId) {
-            $query->whereHas('classSeries', function ($q) use ($classId) {
-                $q->where('class_id', $classId);
-            });
+            $query->whereHas('classSeries', fn($q) => $q->where('class_id', $classId));
         } elseif ($levelId) {
-            $query->whereHas('classSeries.schoolClass', function ($q) use ($levelId) {
-                $q->where('level_id', $levelId);
-            });
+            $query->whereHas('classSeries.schoolClass', fn($q) => $q->where('level_id', $levelId));
         } elseif ($sectionId) {
-            $query->whereHas('classSeries.schoolClass.level', function ($q) use ($sectionId) {
-                $q->where('section_id', $sectionId);
-            });
+            $query->whereHas('classSeries.schoolClass.level', fn($q) => $q->where('section_id', $sectionId));
         }
 
         $students = $query->with(['classSeries.schoolClass.level.section'])->get();
 
-        if ($students->count() > 500) {
+        if ($students->isEmpty()) {
             return response()->json([
-                'success' => false,
-                'message' => "Trop d'élèves à traiter ({$students->count()}). Veuillez affiner vos filtres (maximum 500 élèves)."
-            ], 400);
+                'success' => true,
+                'students' => [],
+                'grouped_by_mention' => ['Excellent' => [], 'Très bien' => [], 'Bien' => [], 'Assez bien' => []],
+                'statistics' => ['total' => 0, 'excellent' => 0, 'tres_bien' => 0, 'bien' => 0, 'assez_bien' => 0],
+            ]);
         }
 
-        \Log::info("Processing honor roll ({$periodType}) for " . $students->count() . ' students');
+        $studentIds = $students->pluck('id')->toArray();
 
-        $eligibleStudents = [];
-
-        foreach ($students as $student) {
-            try {
-                $average = null;
-                $rank = null;
-
-                if ($periodType === 'annual') {
-                    // Calcul annuel: utiliser generateAnnualBulletinData ou NonApc
-                    $isApc = $this->bulletinService->isApcClass($student);
-                    if ($isApc) {
-                        $bulletinData = $this->bulletinService->generateAnnualBulletinData($student->id);
-                    } else {
-                        $bulletinData = $this->bulletinService->generateAnnualBulletinDataNonApc($student->id);
-                    }
-
-                    if ($bulletinData) {
-                        $average = $bulletinData['general_average'] ?? $bulletinData['average'] ?? null;
-                        $rank = $bulletinData['rank'] ?? null;
-                    }
-                } else {
-                    $bulletinData = $this->bulletinService->generateTrimesterBulletinData(
-                        $trimester->number,
-                        $student->id
-                    );
-
-                    if ($bulletinData) {
-                        $average = $bulletinData['average'] ?? null;
-                        $rank = $bulletinData['rank'] ?? null;
-                    }
-                }
-
-                if ($average !== null && $average >= 12.00) {
-                    $mention = $this->getMention($average);
-
-                    $eligibleStudents[] = [
-                        'id' => $student->id,
-                        'first_name' => $student->first_name,
-                        'last_name' => $student->last_name,
-                        'full_name' => $student->first_name . ' ' . $student->last_name,
-                        'date_of_birth' => $student->date_of_birth,
-                        'class' => $student->classSeries->name ?? 'N/A',
-                        'class_series_id' => $student->class_series_id,
-                        'section' => $student->classSeries->schoolClass->level->section->name ?? 'N/A',
-                        'level' => $student->classSeries->schoolClass->level->name ?? 'N/A',
-                        'average' => round($average, 2),
-                        'rank' => $rank,
-                        'mention' => $mention,
-                    ];
-                }
-            } catch (\Exception $e) {
-                \Log::error("Error processing student {$student->id}: " . $e->getMessage());
-                continue;
-            }
+        if ($periodType === 'annual') {
+            $eligibleStudents = $this->calculateAnnualHonorRoll($students);
+        } else {
+            $eligibleStudents = $this->calculateTrimesterHonorRoll($students, $trimester);
         }
 
-        \Log::info("Found " . count($eligibleStudents) . " eligible students out of {$students->count()}");
+        // Trier par moyenne décroissante
+        usort($eligibleStudents, fn($a, $b) => $b['average'] <=> $a['average']);
 
-        usort($eligibleStudents, function ($a, $b) {
-            return $b['average'] <=> $a['average'];
-        });
+        // Calculer les rangs par classe
+        $byClass = [];
+        foreach ($eligibleStudents as &$s) {
+            $byClass[$s['class_series_id']][] = &$s;
+        }
+        unset($s);
+        // Les rangs sont déjà calculés dans les méthodes optimisées
 
-        $groupedByMention = [
-            'Excellent' => [],
-            'Très bien' => [],
-            'Bien' => [],
-            'Assez bien' => [],
-        ];
-
+        $groupedByMention = ['Excellent' => [], 'Très bien' => [], 'Bien' => [], 'Assez bien' => []];
         foreach ($eligibleStudents as $student) {
             $groupedByMention[$student['mention']][] = $student;
         }
 
-        $periodLabel = $periodType === 'annual'
-            ? 'Bilan Annuel'
-            : 'Trimestre ' . ($trimester ? $trimester->number : '');
+        $periodLabel = $periodType === 'annual' ? 'Bilan Annuel' : 'Trimestre ' . ($trimester ? $trimester->number : '');
 
         return response()->json([
             'success' => true,
-            'period' => [
-                'type' => $periodType,
-                'label' => $periodLabel,
-            ],
+            'period' => ['type' => $periodType, 'label' => $periodLabel],
             'trimester' => $trimester ? [
                 'id' => $trimester->id,
                 'name' => 'Trimestre ' . $trimester->number,
@@ -209,6 +137,337 @@ class HonorRollController extends Controller
                 'assez_bien' => count($groupedByMention['Assez bien']),
             ]
         ]);
+    }
+
+    /**
+     * 🚀 Calcul optimisé du tableau d'honneur pour un trimestre
+     * Utilise des requêtes SQL directes au lieu de générer un bulletin complet par élève
+     */
+    private function calculateTrimesterHonorRoll($students, $trimester)
+    {
+        $studentIds = $students->pluck('id')->toArray();
+        $trimesterId = $trimester->id;
+        $trimesterNumber = $trimester->number;
+
+        // 1. Récupérer les séquences de ce trimestre
+        $sequences = \App\Models\Sequence::where('trimester_id', $trimesterId)
+            ->where('is_composition', false)
+            ->orderBy('number')
+            ->get();
+
+        // 2. Récupérer la composition de ce trimestre
+        $composition = \App\Models\Sequence::where('trimester_id', $trimesterId)
+            ->where('is_composition', true)
+            ->first();
+
+        // 3. Récupérer TOUTES les notes en une seule requête
+        $allGrades = \App\Models\Grade::whereIn('student_id', $studentIds)
+            ->where('trimester_id', $trimesterId)
+            ->whereNotNull('score')
+            ->where('is_absent', false)
+            ->select('student_id', 'sequence_id', 'class_series_subject_id', 'score', 'max_score')
+            ->get();
+
+        // 4. Récupérer les coefficients des matières pour chaque série
+        $seriesIds = $students->pluck('class_series_id')->unique()->toArray();
+        $subjectCoefs = \App\Models\ClassSeriesSubject::whereIn('class_series_id', $seriesIds)
+            ->select('id', 'class_series_id', 'coefficient')
+            ->get()
+            ->keyBy('id');
+
+        // 5. Organiser les notes: [student_id][subject_id][sequence_id] = score/20
+        $gradeIndex = [];
+        foreach ($allGrades as $g) {
+            $scoreOn20 = ($g->max_score > 0) ? ($g->score / $g->max_score) * 20 : $g->score;
+            $gradeIndex[$g->student_id][$g->class_series_subject_id][$g->sequence_id] = $scoreOn20;
+        }
+
+        // 6. Calculer la moyenne trimestrielle pour chaque élève
+        // Formule Premier Cycle: M/20 = (DS + Compo) / 2, DS = (Seq1 + Seq2) / 2
+        // Trimestre 3: M/20 = Composition uniquement
+        $studentAverages = [];
+
+        foreach ($students as $student) {
+            $studentGrades = $gradeIndex[$student->id] ?? [];
+            if (empty($studentGrades)) continue;
+
+            $totalPoints = 0;
+            $totalCoef = 0;
+            $gradedSubjects = 0;
+
+            // Matières de la classe de l'élève
+            $classSubjects = $subjectCoefs->where('class_series_id', $student->class_series_id);
+
+            foreach ($classSubjects as $subject) {
+                $subGrades = $studentGrades[$subject->id] ?? [];
+                if (empty($subGrades)) continue;
+
+                $coef = (float)$subject->coefficient;
+
+                if ($trimesterNumber == 3) {
+                    // Trimestre 3: Composition seule
+                    if ($composition && isset($subGrades[$composition->id])) {
+                        $totalPoints += $subGrades[$composition->id] * $coef;
+                        $totalCoef += $coef;
+                        $gradedSubjects++;
+                    }
+                } else {
+                    // Trimestres 1 et 2: DS + Composition
+                    $seqGrades = [];
+                    foreach ($sequences as $seq) {
+                        if (isset($subGrades[$seq->id])) {
+                            $seqGrades[] = $subGrades[$seq->id];
+                        }
+                    }
+
+                    $compGrade = ($composition && isset($subGrades[$composition->id])) ? $subGrades[$composition->id] : null;
+
+                    // Si au moins une note existe pour cette matière
+                    if (!empty($seqGrades) || $compGrade !== null) {
+                        // DS = moyenne des séquences (séquences manquantes = 0)
+                        $ds = null;
+                        if (!empty($seqGrades)) {
+                            // Compléter avec 0 pour les séquences manquantes
+                            while (count($seqGrades) < $sequences->count()) {
+                                $seqGrades[] = 0.0;
+                            }
+                            $ds = array_sum($seqGrades) / count($seqGrades);
+                        }
+
+                        if ($ds !== null) {
+                            $finalComp = $compGrade ?? 0.0;
+                            $subjectAvg = ($ds + $finalComp) / 2;
+                        } else {
+                            $subjectAvg = $compGrade;
+                        }
+
+                        $totalPoints += $subjectAvg * $coef;
+                        $totalCoef += $coef;
+                        $gradedSubjects++;
+                    }
+                }
+            }
+
+            if ($totalCoef > 0) {
+                $average = $totalPoints / $totalCoef;
+                $studentAverages[$student->id] = [
+                    'average' => $average,
+                    'graded_subjects' => $gradedSubjects,
+                ];
+            }
+        }
+
+        // 7. Calculer les rangs par série (classe)
+        $ranksByClass = [];
+        foreach ($students as $student) {
+            if (isset($studentAverages[$student->id])) {
+                $ranksByClass[$student->class_series_id][$student->id] = $studentAverages[$student->id]['average'];
+            }
+        }
+        $classRanks = [];
+        foreach ($ranksByClass as $seriesId => $avgs) {
+            arsort($avgs);
+            $rank = 0;
+            $prevAvg = null;
+            $assignedRank = null;
+            foreach ($avgs as $sid => $avg) {
+                $rank++;
+                if ($avg !== $prevAvg) $assignedRank = $rank;
+                $classRanks[$sid] = $assignedRank;
+                $prevAvg = $avg;
+            }
+        }
+
+        // 8. Construire le résultat (seulement les élèves >= 12)
+        $eligibleStudents = [];
+        foreach ($students as $student) {
+            if (!isset($studentAverages[$student->id])) continue;
+            $avg = round($studentAverages[$student->id]['average'], 2);
+            if ($avg < 12.00) continue;
+
+            $mention = $this->getMention($avg);
+            $eligibleStudents[] = [
+                'id' => $student->id,
+                'first_name' => $student->first_name,
+                'last_name' => $student->last_name,
+                'full_name' => $student->first_name . ' ' . $student->last_name,
+                'date_of_birth' => $student->date_of_birth,
+                'class' => $student->classSeries->name ?? 'N/A',
+                'class_series_id' => $student->class_series_id,
+                'section' => $student->classSeries->schoolClass->level->section->name ?? 'N/A',
+                'level' => $student->classSeries->schoolClass->level->name ?? 'N/A',
+                'average' => $avg,
+                'rank' => $classRanks[$student->id] ?? null,
+                'mention' => $mention,
+            ];
+        }
+
+        return $eligibleStudents;
+    }
+
+    /**
+     * 🚀 Calcul optimisé du tableau d'honneur annuel
+     */
+    private function calculateAnnualHonorRoll($students)
+    {
+        $studentIds = $students->pluck('id')->toArray();
+
+        // Récupérer l'année scolaire de travail
+        $user = auth()->user();
+        $workingYearId = $user->working_school_year_id ?? null;
+        $schoolYear = $workingYearId
+            ? \App\Models\SchoolYear::find($workingYearId)
+            : \App\Models\SchoolYear::where('is_active', true)->first();
+
+        if (!$schoolYear) return [];
+
+        // Récupérer les 3 trimestres de cette année
+        $trimesters = Trimester::where('school_year_id', $schoolYear->id)->orderBy('number')->get();
+        if ($trimesters->isEmpty()) return [];
+
+        $trimesterIds = $trimesters->pluck('id')->toArray();
+
+        // Récupérer TOUTES les notes de l'année en une seule requête
+        $allGrades = \App\Models\Grade::whereIn('student_id', $studentIds)
+            ->whereIn('trimester_id', $trimesterIds)
+            ->whereNotNull('score')
+            ->where('is_absent', false)
+            ->select('student_id', 'sequence_id', 'trimester_id', 'class_series_subject_id', 'score', 'max_score')
+            ->get();
+
+        // Récupérer les séquences et compositions par trimestre
+        $seqsByTrim = [];
+        $compByTrim = [];
+        foreach ($trimesters as $trim) {
+            $seqsByTrim[$trim->id] = \App\Models\Sequence::where('trimester_id', $trim->id)
+                ->where('is_composition', false)->orderBy('number')->get();
+            $compByTrim[$trim->id] = \App\Models\Sequence::where('trimester_id', $trim->id)
+                ->where('is_composition', true)->first();
+        }
+
+        // Coefficients
+        $seriesIds = $students->pluck('class_series_id')->unique()->toArray();
+        $subjectCoefs = \App\Models\ClassSeriesSubject::whereIn('class_series_id', $seriesIds)
+            ->select('id', 'class_series_id', 'coefficient')
+            ->get()->keyBy('id');
+
+        // Organiser les notes
+        $gradeIndex = []; // [student][subject][trimester_id][sequence_id] = score/20
+        foreach ($allGrades as $g) {
+            $scoreOn20 = ($g->max_score > 0) ? ($g->score / $g->max_score) * 20 : $g->score;
+            $gradeIndex[$g->student_id][$g->class_series_subject_id][$g->trimester_id][$g->sequence_id] = $scoreOn20;
+        }
+
+        // Calculer la moyenne annuelle pour chaque élève
+        $studentAverages = [];
+
+        foreach ($students as $student) {
+            $studentGrades = $gradeIndex[$student->id] ?? [];
+            if (empty($studentGrades)) continue;
+
+            $totalPoints = 0;
+            $totalCoef = 0;
+            $classSubjects = $subjectCoefs->where('class_series_id', $student->class_series_id);
+
+            foreach ($classSubjects as $subject) {
+                $subGrades = $studentGrades[$subject->id] ?? [];
+                if (empty($subGrades)) continue;
+
+                $coef = (float)$subject->coefficient;
+                $trimAvgs = [];
+                $hasAnyGrade = false;
+
+                foreach ($trimesters as $trim) {
+                    $trimGrades = $subGrades[$trim->id] ?? [];
+                    $sequences = $seqsByTrim[$trim->id];
+                    $composition = $compByTrim[$trim->id];
+
+                    if ($trim->number == 3) {
+                        if ($composition && isset($trimGrades[$composition->id])) {
+                            $trimAvgs[$trim->number] = $trimGrades[$composition->id];
+                            $hasAnyGrade = true;
+                        }
+                    } else {
+                        $seqGrades = [];
+                        foreach ($sequences as $seq) {
+                            if (isset($trimGrades[$seq->id])) $seqGrades[] = $trimGrades[$seq->id];
+                        }
+                        $compGrade = ($composition && isset($trimGrades[$composition->id])) ? $trimGrades[$composition->id] : null;
+
+                        if (!empty($seqGrades) || $compGrade !== null) {
+                            $hasAnyGrade = true;
+                            $ds = null;
+                            if (!empty($seqGrades)) {
+                                while (count($seqGrades) < $sequences->count()) $seqGrades[] = 0.0;
+                                $ds = array_sum($seqGrades) / count($seqGrades);
+                            }
+                            if ($ds !== null) {
+                                $trimAvgs[$trim->number] = ($ds + ($compGrade ?? 0.0)) / 2;
+                            } else {
+                                $trimAvgs[$trim->number] = $compGrade;
+                            }
+                        }
+                    }
+                }
+
+                if ($hasAnyGrade) {
+                    $t1 = $trimAvgs[1] ?? 0;
+                    $t2 = $trimAvgs[2] ?? 0;
+                    $t3 = $trimAvgs[3] ?? 0;
+                    $annualAvg = ($t1 + $t2 + $t3) / 3;
+                    $totalPoints += $annualAvg * $coef;
+                    $totalCoef += $coef;
+                }
+            }
+
+            if ($totalCoef > 0) {
+                $studentAverages[$student->id] = $totalPoints / $totalCoef;
+            }
+        }
+
+        // Calculer les rangs par classe
+        $ranksByClass = [];
+        foreach ($students as $student) {
+            if (isset($studentAverages[$student->id])) {
+                $ranksByClass[$student->class_series_id][$student->id] = $studentAverages[$student->id];
+            }
+        }
+        $classRanks = [];
+        foreach ($ranksByClass as $seriesId => $avgs) {
+            arsort($avgs);
+            $rank = 0; $prevAvg = null; $assignedRank = null;
+            foreach ($avgs as $sid => $avg) {
+                $rank++;
+                if ($avg !== $prevAvg) $assignedRank = $rank;
+                $classRanks[$sid] = $assignedRank;
+                $prevAvg = $avg;
+            }
+        }
+
+        // Résultat
+        $eligibleStudents = [];
+        foreach ($students as $student) {
+            if (!isset($studentAverages[$student->id])) continue;
+            $avg = round($studentAverages[$student->id], 2);
+            if ($avg < 12.00) continue;
+
+            $eligibleStudents[] = [
+                'id' => $student->id,
+                'first_name' => $student->first_name,
+                'last_name' => $student->last_name,
+                'full_name' => $student->first_name . ' ' . $student->last_name,
+                'date_of_birth' => $student->date_of_birth,
+                'class' => $student->classSeries->name ?? 'N/A',
+                'class_series_id' => $student->class_series_id,
+                'section' => $student->classSeries->schoolClass->level->section->name ?? 'N/A',
+                'level' => $student->classSeries->schoolClass->level->name ?? 'N/A',
+                'average' => $avg,
+                'rank' => $classRanks[$student->id] ?? null,
+                'mention' => $this->getMention($avg),
+            ];
+        }
+
+        return $eligibleStudents;
     }
 
     /**
