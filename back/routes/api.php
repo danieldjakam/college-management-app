@@ -1428,6 +1428,15 @@ Route::middleware(['auth:api'])->prefix('bulletins')->group(function () {
     Route::post('/download-all', [BulletinController::class, 'downloadAllBulletins'])
         ->middleware(['role:admin,principal,teacher,accountant,comptable_superieur,secretaire']);
 
+    // ============================================
+    // Endpoints pour le service Next.js de génération PDF
+    // ============================================
+    Route::post('/class-data', [\App\Http\Controllers\BulletinDataController::class, 'classData'])
+        ->middleware(['role:admin,principal,teacher,secretaire']);
+
+    Route::post('/student-data', [\App\Http\Controllers\BulletinDataController::class, 'studentData'])
+        ->middleware(['role:admin,principal,teacher,secretaire']);
+
     // Gestion des templates (Admin uniquement)
     Route::prefix('templates')->middleware(['role:admin'])->group(function () {
         Route::get('/', [BulletinController::class, 'getTemplates']);

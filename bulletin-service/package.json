@@ -1,0 +1,27 @@
+{
+  "name": "bulletin-service",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3007",
+    "build": "next build",
+    "start": "next start -p 3007",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "axios": "^1.19.0",
+    "next": "16.3.0",
+    "pdf-merger-js": "^5.1.2",
+    "puppeteer": "^24.43.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.0",
+    "typescript": "^5"
+  }
+}
