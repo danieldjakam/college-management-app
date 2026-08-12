@@ -82,7 +82,7 @@ Route::middleware('auth:api')->prefix('auth')->group(function () {
 });
 
 // Dashboard Admin (accès complet sauf finances)
-Route::prefix('admin')->middleware(['auth:api', 'role:admin'])->group(function () {
+Route::prefix('admin')->middleware(['auth:api', 'role:admin,principal'])->group(function () {
     Route::get('/dashboard', [AdminDashboardController::class, 'index']);
     Route::get('/dashboard/stats-by-period', [AdminDashboardController::class, 'getStatsByPeriod']);
 });

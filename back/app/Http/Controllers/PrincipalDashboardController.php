@@ -52,22 +52,28 @@ class PrincipalDashboardController extends Controller
 
             // Statistiques étudiants par section et niveau
             $studentStats = [
-                'by_section' => Student::join('school_classes', 'students.class_series_id', '=', 'school_classes.id')
+                'by_section' => Student::join('class_series', 'students.class_series_id', '=', 'class_series.id')
+                    ->join('school_classes', 'class_series.class_id', '=', 'school_classes.id')
                     ->join('levels', 'school_classes.level_id', '=', 'levels.id')
                     ->join('sections', 'levels.section_id', '=', 'sections.id')
+                    ->where('students.is_active', true)
                     ->select('sections.name', DB::raw('count(*) as count'))
                     ->groupBy('sections.name')
                     ->pluck('count', 'name')
                     ->toArray(),
 
-                'by_level' => Student::join('school_classes', 'students.class_series_id', '=', 'school_classes.id')
+                'by_level' => Student::join('class_series', 'students.class_series_id', '=', 'class_series.id')
+                    ->join('school_classes', 'class_series.class_id', '=', 'school_classes.id')
                     ->join('levels', 'school_classes.level_id', '=', 'levels.id')
+                    ->where('students.is_active', true)
                     ->select('levels.name', DB::raw('count(*) as count'))
                     ->groupBy('levels.name')
                     ->pluck('count', 'name')
                     ->toArray(),
 
-                'by_class' => Student::join('school_classes', 'students.class_series_id', '=', 'school_classes.id')
+                'by_class' => Student::join('class_series', 'students.class_series_id', '=', 'class_series.id')
+                    ->join('school_classes', 'class_series.class_id', '=', 'school_classes.id')
+                    ->where('students.is_active', true)
                     ->select('school_classes.name', DB::raw('count(*) as count'))
                     ->groupBy('school_classes.name')
                     ->orderBy('count', 'desc')
@@ -76,8 +82,8 @@ class PrincipalDashboardController extends Controller
                     ->toArray(),
 
                 'by_gender' => [
-                    'male' => Student::where('gender', 'Masculin')->count(),
-                    'female' => Student::where('gender', 'Féminin')->count()
+                    'male' => Student::where('gender', 'Masculin')->where('is_active', true)->count(),
+                    'female' => Student::where('gender', 'Féminin')->where('is_active', true)->count()
                 ]
             ];
 
@@ -279,7 +285,7 @@ class PrincipalDashboardController extends Controller
             // Compter les notes >= 10 (réussite)
             $successfulGrades = Grade::whereHas('evaluation', function($q) use ($schoolYearId) {
                 $q->where('school_year_id', $schoolYearId);
-            })->where('grade', '>=', 10)->count();
+            })->whereRaw('(score / max_score) * 20 >= 10')->count();
 
             return round(($successfulGrades / $totalGrades) * 100, 1);
 
