@@ -273,8 +273,10 @@ class PaymentStatusService
         $remainingScholarshipToApply = $totalActualScholarship;
 
         // Si pas de bourse dans les paiements, utiliser la bourse configurée
+        $configuredScholarshipUsed = false;
         if ($remainingScholarshipToApply == 0 && $scholarship && $discountCalculator->isEligibleForScholarship(now())) {
             $remainingScholarshipToApply = $scholarship->amount;
+            $configuredScholarshipUsed = true;
         }
 
         $carryOverExcess = 0; // Excédent reporté depuis une tranche surpayée
@@ -328,7 +330,7 @@ class PaymentStatusService
             
             // Gérer les cas spéciaux seulement si pas de bourse réelle
             \Log::info("Tranche {$tranche->name}: totalActualScholarship={$totalActualScholarship}, hasGlobalReduction=" . ($hasGlobalReduction ? 'true' : 'false'));
-            if ($totalActualScholarship == 0 && !$hasScholarship) {
+            if ($totalActualScholarship == 0 && !$hasScholarship && !$configuredScholarshipUsed) {
                 // Fallback vers bourse configurée si pas de bourse réelle
                 if ($scholarship && $scholarship->payment_tranche_id == $tranche->id && $discountCalculator->isEligibleForScholarship(now())) {
                     // Cas avec bourse configurée (si pas de bourse réelle payée)
