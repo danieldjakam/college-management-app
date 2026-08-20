@@ -34,14 +34,16 @@ class ClassSchoolFeesSheetController extends Controller
             // Récupérer toutes les tranches de paiement
             $tranches = PaymentTranche::orderBy('order')->get();
 
-            // Calculer le montant total à payer pour cette classe (une seule fois)
-            $montantTotalClasse = DB::table('class_payment_amounts')
-                ->where('class_id', $classSeries->class_id)
-                ->sum('amount') ?? 0;
-
             // Récupérer l'année scolaire courante
             $schoolYear = \App\Models\SchoolYear::where('is_current', true)->first()
                 ?? \App\Models\SchoolYear::where('is_active', true)->first();
+
+            // Calculer le montant total à payer pour cette classe (une seule fois)
+            $schoolYearId = PaymentTranche::resolveSchoolYearId() ?? $schoolYear?->id;
+            $montantTotalClasse = DB::table('class_payment_amounts')
+                ->where('class_id', $classSeries->class_id)
+                ->where('school_year_id', $schoolYearId)
+                ->sum('amount') ?? 0;
 
             // Service pour les bourses de classe
             $discountCalculator = new \App\Services\DiscountCalculatorService();

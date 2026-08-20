@@ -574,8 +574,9 @@ class ReportsController extends Controller
                     $requiredAmount = DB::table('class_payment_amounts')
                         ->where('class_id', $student->classSeries->class_id)
                         ->where('payment_tranche_id', $tranche->id)
+                        ->where('school_year_id', $workingYear->id)
                         ->value('amount') ?? 0;
-                    
+
                     $studentTotalRequired += $requiredAmount;
                 }
 
@@ -635,6 +636,7 @@ class ReportsController extends Controller
                         $normalAmount = DB::table('class_payment_amounts')
                             ->where('class_id', $student->classSeries->class_id)
                             ->where('payment_tranche_id', $tranche->id)
+                            ->where('school_year_id', $workingYear->id)
                             ->value('amount') ?? 0;
 
                         // Montant payé pour cette tranche
@@ -835,6 +837,7 @@ class ReportsController extends Controller
                     $classPaymentAmount = DB::table('class_payment_amounts')
                         ->where('class_id', $student->classSeries->class_id)
                         ->where('payment_tranche_id', $tranche->id)
+                        ->where('school_year_id', $workingYear->id)
                         ->first();
 
                     if ($classPaymentAmount) {
@@ -1088,6 +1091,7 @@ class ReportsController extends Controller
                     $baseAmount = DB::table('class_payment_amounts')
                         ->where('class_id', $student->classSeries->class_id)
                         ->where('payment_tranche_id', $tranche->id)
+                        ->where('school_year_id', $workingYear->id)
                         ->value('amount') ?? 0;
 
                     // Calculer les bourses et réductions réelles pour cet étudiant
@@ -1231,6 +1235,7 @@ class ReportsController extends Controller
             $requiredAmount = DB::table('class_payment_amounts')
                 ->where('class_id', $student->classSeries->class_id)
                 ->where('payment_tranche_id', $tranche->id)
+                ->where('school_year_id', $workingYear->id)
                 ->value('amount') ?? 0;
 
             $totalRequired += $requiredAmount;
@@ -1792,6 +1797,7 @@ class ReportsController extends Controller
                     $baseAmount = DB::table('class_payment_amounts')
                         ->where('class_id', $classSeries->class_id)
                         ->where('payment_tranche_id', $tranche->id)
+                        ->where('school_year_id', $workingYear->id)
                         ->value('amount') ?? 0;
                     $tuitionAmount += $baseAmount;
                 }
