@@ -144,8 +144,7 @@ const ArrearsManagement = () => {
         return name.includes(term) || cls.includes(term);
     });
 
-    const handlePrintPdf = () => {
-        const printWindow = window.open('', '_blank');
+    const generatePdfHtml = () => {
         const today = new Date().toLocaleDateString('fr-FR');
         const yearName = schoolYears.find(y => String(y.id) === String(selectedYearId))?.name || '';
         const statusLabel = selectedStatus ? { pending: 'Impayes', partially_paid: 'Partiels', paid: 'Soldes', waived: 'Annules' }[selectedStatus] || 'Tous' : 'Tous';
@@ -169,7 +168,7 @@ const ArrearsManagement = () => {
             </tr>`;
         }).join('');
 
-        printWindow.document.write(`<!DOCTYPE html>
+        return `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
@@ -266,9 +265,41 @@ const ArrearsManagement = () => {
     Imprime le ${today} - College Polyvalent Bilingue de Douala
   </div>
 </body>
-</html>`);
+</html>`;
+    };
+
+    const handlePrintPdf = () => {
+        const html = generatePdfHtml();
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert('Veuillez autoriser les popups pour imprimer.');
+            return;
+        }
+        printWindow.document.write(html);
         printWindow.document.close();
         setTimeout(() => printWindow.print(), 500);
+    };
+
+    const handleDownloadPdf = () => {
+        const html = generatePdfHtml();
+        const yearName = schoolYears.find(y => String(y.id) === String(selectedYearId))?.name || '';
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+        iframe.contentWindow.document.open();
+        iframe.contentWindow.document.write(html);
+        iframe.contentWindow.document.close();
+        iframe.contentWindow.onafterprint = () => {
+            document.body.removeChild(iframe);
+        };
+        // Télécharger comme HTML que l'utilisateur peut ouvrir et imprimer en PDF
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Arrieres_${yearName.replace(/\//g, '-')}.html`;
+        link.click();
+        URL.revokeObjectURL(url);
     };
 
     const exportCsv = () => {
@@ -303,7 +334,10 @@ const ArrearsManagement = () => {
                         {filteredArrears.length > 0 && (
                             <div className="d-flex gap-2">
                                 <Button variant="outline-primary" size="sm" onClick={handlePrintPdf}>
-                                    <PrinterFill className="me-1" /> Imprimer PDF
+                                    <PrinterFill className="me-1" /> Imprimer
+                                </Button>
+                                <Button variant="outline-danger" size="sm" onClick={handleDownloadPdf}>
+                                    <Download className="me-1" /> Télécharger PDF
                                 </Button>
                                 <Button variant="outline-success" size="sm" onClick={exportCsv}>
                                     <Download className="me-1" /> Exporter CSV
