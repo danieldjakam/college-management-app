@@ -125,11 +125,16 @@ class PaymentStatusService
 
     private function getApplicableTranches(Student $student)
     {
+        $schoolYearId = PaymentTranche::resolveSchoolYearId();
+
         return PaymentTranche::active()
             ->ordered()
-            ->with(['classPaymentAmounts' => function ($query) use ($student) {
+            ->with(['classPaymentAmounts' => function ($query) use ($student, $schoolYearId) {
                 if ($student->classSeries && $student->classSeries->schoolClass) {
                     $query->where('class_id', $student->classSeries->schoolClass->id);
+                }
+                if ($schoolYearId) {
+                    $query->where('school_year_id', $schoolYearId);
                 }
             }])
             ->get();
@@ -266,7 +271,14 @@ class PaymentStatusService
 
         // CORRECTION: Appliquer la bourse séquentiellement sur les tranches non payées
         $remainingScholarshipToApply = $totalActualScholarship;
-        
+
+        // Si pas de bourse dans les paiements, utiliser la bourse configurée
+        if ($remainingScholarshipToApply == 0 && $scholarship && $discountCalculator->isEligibleForScholarship(now())) {
+            $remainingScholarshipToApply = $scholarship->amount;
+        }
+
+        $carryOverExcess = 0; // Excédent reporté depuis une tranche surpayée
+
         foreach ($paymentTranches as $tranche) {
             $requiredAmount = $tranche->getAmountForStudent($student, false, false, false); // Montants NORMAUX
             if ($requiredAmount <= 0) continue;
@@ -278,11 +290,17 @@ class PaymentStatusService
             $manualDiscountOnTranche = (float) ($manualDiscountMap[$tranche->id] ?? 0);
             \Log::info("Tranche {$tranche->name}: manualDiscountOnTranche = {$manualDiscountOnTranche}");
 
-            $paidAmount = $paidPerTranche[$tranche->id] ?? 0;
-            $trancheRemaining = max(0, $requiredAmount - $paidAmount);
-            
-            // Si la tranche est entièrement payée en cash, pas de reste
-            if ($paidAmount >= $requiredAmount) {
+            $actualPaid = $paidPerTranche[$tranche->id] ?? 0;
+            $effectivePaid = $actualPaid + $carryOverExcess;
+            $carryOverExcess = 0; // Reset après application
+            $trancheRemaining = max(0, $requiredAmount - $effectivePaid);
+
+            // Montant payé affiché = min(payé effectif, requis) pour ne pas gonfler
+            $paidAmount = min($effectivePaid, $requiredAmount);
+
+            // Si la tranche est entièrement payée, reporter l'excédent
+            if ($effectivePaid >= $requiredAmount) {
+                $carryOverExcess = $effectivePaid - $requiredAmount;
                 $remainingAmount = 0;
                 $isFullyPaid = true;
                 $scholarshipAmount = 0;
@@ -310,7 +328,7 @@ class PaymentStatusService
             
             // Gérer les cas spéciaux seulement si pas de bourse réelle
             \Log::info("Tranche {$tranche->name}: totalActualScholarship={$totalActualScholarship}, hasGlobalReduction=" . ($hasGlobalReduction ? 'true' : 'false'));
-            if ($totalActualScholarship == 0) {
+            if ($totalActualScholarship == 0 && !$hasScholarship) {
                 // Fallback vers bourse configurée si pas de bourse réelle
                 if ($scholarship && $scholarship->payment_tranche_id == $tranche->id && $discountCalculator->isEligibleForScholarship(now())) {
                     // Cas avec bourse configurée (si pas de bourse réelle payée)
@@ -321,7 +339,13 @@ class PaymentStatusService
                     $effectiveRequired = max(0, $requiredAmount - $scholarshipAmount);
                     $remainingAmount = max(0, $effectiveRequired - $paidAmount);
                     $isFullyPaid = ($paidAmount + $scholarshipAmount) >= $requiredAmount;
-                    \Log::info("Tranche {$tranche->name}: PATH = scholarship");
+
+                    // Reporter l'excédent de bourse vers les tranches suivantes
+                    $scholarshipExcess = max(0, $paidAmount + $scholarshipAmount - $requiredAmount);
+                    if ($scholarshipExcess > 0) {
+                        $remainingScholarshipToApply = $scholarshipExcess;
+                    }
+                    \Log::info("Tranche {$tranche->name}: PATH = scholarship, excess={$scholarshipExcess}");
                 } elseif ($hasGlobalReduction) {
                     // L'étudiant a fait un paiement intégral avec réduction globale
                     \Log::info("Tranche {$tranche->name}: PATH = hasGlobalReduction, setting remainingAmount=0");
