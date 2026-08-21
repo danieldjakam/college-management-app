@@ -477,6 +477,9 @@ class PaymentController extends Controller
 
             DB::commit();
 
+            // Recalculer les arriérés après création du paiement
+            $this->recalculateArrears($payment);
+
             $payment->load(['paymentDetails.paymentTranche', 'student', 'schoolYear']);
 
             // Envoyer la notification WhatsApp avec le reçu au parent
@@ -4050,6 +4053,9 @@ HTML;
 
             $payment->validate(Auth::id());
 
+            // Recalculer les arriérés après validation
+            $this->recalculateArrears($payment);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Paiement validé avec succès',
@@ -4139,6 +4145,59 @@ HTML;
 
     /**
      * Redistribuer les payment_details de tous les paiements restants d'un élève
+     * Recalculer les arriérés après validation/annulation d'un paiement.
+     * Si l'élève a soldé sa dette, supprimer ou mettre à jour l'arriéré.
+     */
+    private function recalculateArrears(Payment $payment)
+    {
+        try {
+            $student = $payment->student;
+            $schoolYearId = $payment->school_year_id;
+            $schoolYear = \App\Models\SchoolYear::find($schoolYearId);
+            if (!$student || !$schoolYear) return;
+
+            // Chercher un arriéré existant pour cet élève depuis cette année scolaire
+            $arrear = \App\Models\StudentArrear::where('student_id', $student->id)
+                ->where('source_school_year_id', $schoolYearId)
+                ->whereNotIn('status', ['paid', 'waived'])
+                ->first();
+
+            if (!$arrear) return;
+
+            // Recalculer le statut de paiement de l'élève
+            $user = Auth::user();
+            $originalWorkingYear = $user->working_school_year_id;
+            $user->working_school_year_id = $schoolYearId;
+            $user->save();
+
+            $student->load('classSeries.schoolClass');
+            $paymentService = new \App\Services\PaymentStatusService();
+            $status = $paymentService->getStatusForStudent($student, $schoolYear);
+
+            // Restaurer l'année de travail
+            $user->working_school_year_id = $originalWorkingYear;
+            $user->save();
+
+            $remaining = $status->total_remaining;
+
+            if ($remaining <= 0) {
+                // L'élève a tout soldé, supprimer l'arriéré
+                $arrear->delete();
+                Log::info("Arriéré supprimé pour élève {$student->id} (soldé après validation paiement {$payment->id})");
+            } else {
+                // Mettre à jour le montant de l'arriéré
+                $arrear->update([
+                    'total_paid' => $status->total_paid,
+                    'arrear_amount' => $remaining,
+                ]);
+                Log::info("Arriéré mis à jour pour élève {$student->id}: reste {$remaining} FCFA");
+            }
+        } catch (\Exception $e) {
+            Log::warning("Erreur recalcul arriérés pour paiement {$payment->id}: " . $e->getMessage());
+        }
+    }
+
+    /**
      * après suppression/annulation d'un paiement.
      * Recalcule la répartition dans l'ordre chronologique des paiements.
      */
