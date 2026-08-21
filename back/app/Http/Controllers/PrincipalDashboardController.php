@@ -100,9 +100,14 @@ class PrincipalDashboardController extends Controller
                     ->where('is_active', true)
                     ->count(),
                 'classes_without_main_teacher' => SchoolClass::where('is_active', true)
-                    ->whereNotIn('id', MainTeacher::where('school_year_id', $currentSchoolYear->id)
-                        ->where('is_active', true)
-                        ->pluck('school_class_id'))
+                    ->whereNotIn('id', function ($query) use ($currentSchoolYear) {
+                        $query->select('school_classes.id')
+                            ->from('main_teachers')
+                            ->join('class_series', 'main_teachers.class_series_id', '=', 'class_series.id')
+                            ->join('school_classes', 'class_series.class_id', '=', 'school_classes.id')
+                            ->where('main_teachers.school_year_id', $currentSchoolYear->id)
+                            ->where('main_teachers.is_active', true);
+                    })
                     ->count()
             ];
 
